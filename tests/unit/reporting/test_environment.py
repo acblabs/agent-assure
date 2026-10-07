@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 import agent_assure.artifact_io as artifact_io
 import agent_assure.reporting.environment as environment
@@ -15,7 +16,11 @@ from agent_assure.reporting.environment import (
     collect_environment,
     release_artifact,
     source_project_root,
+    write_dependency_inventory,
+    write_release_manifest,
 )
+from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
+from agent_assure.schema.validation import ArchivalOnlyArtifactError
 
 
 def test_artifact_project_root_returns_common_ancestor_for_external_out_dir(
@@ -99,6 +104,55 @@ def test_environment_dependency_inventory_path_can_use_artifact_root(
     assert environment.dependency_inventory_path == "outside/dependency-inventory.json"
 
 
+def test_dependency_inventory_writer_round_trips_valid_environment(tmp_path: Path) -> None:
+    environment_info = EnvironmentInfo(
+        platform="test-platform",
+        python_version="3.13.0",
+        installed_packages=(InstalledPackage(name="pydantic", version="2.11.0"),),
+    )
+    output = tmp_path / "output" / "dependency-inventory.json"
+
+    digest = write_dependency_inventory(environment_info, output)
+
+    assert digest == artifact_io.file_sha256(output)
+    assert '"name": "pydantic"' in output.read_text(encoding="utf-8")
+
+
+def test_dependency_inventory_writer_revalidates_unsafe_copy_before_output(
+    tmp_path: Path,
+) -> None:
+    environment_info = EnvironmentInfo(
+        platform="test-platform",
+        python_version="3.13.0",
+    )
+    forged = environment_info.model_copy(update={"artifact_kind": "forged-environment"})
+    output = tmp_path / "output" / "dependency-inventory.json"
+
+    with pytest.raises(ValueError, match="artifact_kind"):
+        write_dependency_inventory(forged, output)
+
+    assert not output.parent.exists()
+
+
+def test_dependency_inventory_writer_rejects_public_invalid_historical_root(
+    tmp_path: Path,
+) -> None:
+    environment_info = EnvironmentInfo(
+        platform="test-platform",
+        python_version="3.13.0",
+        installed_packages=(InstalledPackage(name="pydantic", version="2.11.0"),),
+    )
+    expanded_historical_payload = environment_info.model_dump(mode="json", warnings="error")
+    expanded_historical_payload["schema_version"] = "0.6.5"
+    expanded_historical = EnvironmentInfo.model_validate(expanded_historical_payload)
+    output = tmp_path / "output" / "dependency-inventory.json"
+
+    with pytest.raises(ValueError, match="environment-info artifact failed JSON Schema"):
+        write_dependency_inventory(expanded_historical, output)
+
+    assert not output.parent.exists()
+
+
 def test_release_artifact_rejects_paths_outside_project_root(tmp_path: Path) -> None:
     project_root = tmp_path / "project"
     outside_root = tmp_path / "outside"
@@ -167,6 +221,10 @@ def test_git_output_disables_repository_execution_hooks_and_unsafe_environment(
     command = captured["args"]
     assert isinstance(command, list)
     assert "core.fsmonitor=false" in command
+    if os.name == "nt":
+        assert "core.longpaths=true" in command
+    else:
+        assert "core.longpaths=true" not in command
     assert f"safe.directory={tmp_path.resolve()}" in command
     assert any(str(part).startswith("core.hooksPath=") for part in command)
     git_environment = captured["env"]
@@ -214,6 +272,57 @@ def test_release_manifest_rejects_duplicate_roles(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate release artifact role"):
         build_release_manifest(artifacts, environment=environment_info)
+
+
+def test_release_manifest_builder_rejects_unsafe_typed_children() -> None:
+    environment_info = EnvironmentInfo(platform="test", python_version="3.14")
+    forged_environment = environment_info.model_copy(update={"artifact_kind": "forged-environment"})
+    artifact = environment.ReleaseArtifact(
+        role="evidence-packet",
+        path="evidence-packet.json",
+        sha256="a" * 64,
+    )
+    forged_artifact = artifact.model_copy(update={"artifact_kind": "forged-artifact"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        build_release_manifest((), environment=forged_environment)
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        build_release_manifest((forged_artifact,), environment=environment_info)
+
+
+def test_release_manifest_writer_revalidates_unsafe_copy_before_output(tmp_path: Path) -> None:
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    first.write_text("{}\n", encoding="utf-8")
+    second.write_text("{}\n", encoding="utf-8")
+    environment_info = collect_environment(project_root=tmp_path)
+    artifacts = (
+        release_artifact("evidence-packet", first, project_root=tmp_path),
+        release_artifact("comparison-summary", second, project_root=tmp_path),
+    )
+    manifest = build_release_manifest(artifacts, environment=environment_info)
+    duplicate = artifacts[1].model_copy(update={"role": artifacts[0].role})
+    forged = manifest.model_copy(update={"artifacts": (artifacts[0], duplicate)})
+    output = tmp_path / "output" / "release-artifact-manifest.json"
+
+    with pytest.raises(ValueError, match="duplicate artifact role"):
+        write_release_manifest(forged, output)
+
+    assert not output.parent.exists()
+
+
+def test_release_manifest_writer_rejects_archival_root_before_output(tmp_path: Path) -> None:
+    manifest = build_release_manifest(
+        (),
+        environment=EnvironmentInfo(platform="test", python_version="3.14"),
+    )
+    archival = manifest.model_copy(update={"schema_version": "0.6.5"})
+    output = tmp_path / "output" / "release-artifact-manifest.json"
+
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        write_release_manifest(archival, output)
+
+    assert not output.parent.exists()
 
 
 def test_release_manifest_default_id_is_privacy_safe(

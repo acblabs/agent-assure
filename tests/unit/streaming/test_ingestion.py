@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html
@@ -15,6 +16,7 @@ from agent_assure.streaming.ingestion import (
     _payload_digest,
     incremental_usage_summaries,
     ingest_jsonl_events,
+    validate_stream_run_integrity,
 )
 from agent_assure.streaming.projection import stream_run_to_runset
 from agent_assure.streaming.telemetry import stream_run_to_span_plans
@@ -45,6 +47,29 @@ def test_stream_ingest_allows_global_event_without_timestamp(tmp_path: Path) -> 
     result = ingest_jsonl_events(_jsonl(tmp_path, [event]), sequence_scope="global")
 
     assert result.stream_run.events[0].timestamp is None
+
+
+def test_stream_ingest_does_not_turn_unicode_separator_into_second_record(
+    tmp_path: Path,
+) -> None:
+    event = _event(
+        "evt-1",
+        sequence_number=1,
+        event_type="run_started",
+        attrs={"note": "before\u2028after"},
+    )
+    path = tmp_path / "unicode-separator.jsonl"
+    path.write_text(
+        json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(ValueError, match="line 1: invalid stream event") as exc_info:
+        ingest_jsonl_events(path, sequence_scope="global")
+
+    assert "line 2" not in str(exc_info.value)
+    assert "privacy_filtered_attributes" in str(exc_info.value)
 
 
 def test_stream_ingest_rejects_mixed_naive_and_aware_global_timestamps(
@@ -386,7 +411,9 @@ def test_stream_ingest_missing_required_fields_fail_clearly(tmp_path: Path) -> N
         ingest_jsonl_events(path, sequence_scope="global")
 
 
-def test_stream_usage_aggregation_is_incremental(tmp_path: Path) -> None:
+def test_stream_usage_aggregation_suppresses_incomplete_incremental_metrics(
+    tmp_path: Path,
+) -> None:
     path = _jsonl(
         tmp_path,
         [
@@ -409,10 +436,15 @@ def test_stream_usage_aggregation_is_incremental(tmp_path: Path) -> None:
     summaries = incremental_usage_summaries(stream_run.events)
 
     assert summaries[0].total_tokens == 5
-    assert summaries[1].total_tokens == 5
-    assert summaries[1].total_tool_calls == 1
+    assert summaries[1].total_tokens is None
+    assert summaries[1].total_tool_calls is None
+    assert summaries[1].source_count == 2
+    assert summaries[1].coverage_counts is not None
+    assert summaries[1].coverage_counts.total_tokens == 1
+    assert summaries[1].coverage_counts.total_tool_calls == 1
     assert stream_run.usage_summary is not None
-    assert stream_run.usage_summary.total_tokens == 5
+    assert stream_run.usage_summary.total_tokens is None
+    assert stream_run.usage_summary.total_tool_calls is None
 
 
 def test_stream_projection_normalizes_timestamp_offsets_for_latency(tmp_path: Path) -> None:
@@ -739,6 +771,26 @@ def test_stream_projection_revalidates_persisted_stream_run_order(
         stream_run_to_runset(tampered, _suite())
 
 
+def test_stream_exports_reject_unsafe_typed_sources_before_projection(
+    tmp_path: Path,
+) -> None:
+    stream_run = ingest_jsonl_events(
+        _jsonl(tmp_path, _baseline_events()),
+        sequence_scope="global",
+    ).stream_run
+    forged_stream = stream_run.model_copy(update={"artifact_kind": "forged-stream-run"})
+    forged_suite = _suite().model_copy(update={"artifact_kind": "forged-suite"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        validate_stream_run_integrity(forged_stream)
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        stream_run_to_runset(forged_stream, _suite())
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        stream_run_to_runset(stream_run, forged_suite)
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        stream_run_to_span_plans(forged_stream)
+
+
 def test_stream_projection_revalidates_persisted_event_digest(
     tmp_path: Path,
 ) -> None:
@@ -866,8 +918,8 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
         candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=candidate.privacy_profile_id,
         privacy_profile_digest=candidate.privacy_profile_digest,
-        classification="new_failure",
-        fixture_equivalence_state="pass",
+        classification="invalid_comparison",
+        fixture_equivalence_state="fail",
         baseline_state="pass",
         candidate_state="fail",
     )

@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from agent_assure.schema.stream import StreamEventRecord, StreamRunRecord
 from agent_assure.schema.telemetry import MAX_OTEL_EVENTS, SpanAttribute, SpanEvent, SpanPlan
+from agent_assure.streaming.ingestion import validate_stream_run_integrity
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
 from agent_assure.telemetry.privacy_filter import (
     safe_attribute,
@@ -14,6 +15,7 @@ from agent_assure.telemetry.semconv_lock import SEMCONV_CHECKSUM, SEMCONV_COMMIT
 
 
 def stream_run_to_span_plans(stream_run: StreamRunRecord) -> tuple[SpanPlan, ...]:
+    stream_run = validate_stream_run_integrity(stream_run)
     grouped: dict[str, list[StreamEventRecord]] = defaultdict(list)
     for event in stream_run.events:
         grouped[event.run_id].append(event)

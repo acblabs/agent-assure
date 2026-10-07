@@ -38,3 +38,20 @@ def test_release_bundle_clean_source_check_fails_closed(
 
     monkeypatch.setattr(release_bundle, "git_output", lambda *_args, **_kwargs: "")
     assert release_bundle._require_clean_source("after test")
+
+
+def test_release_bundle_revalidates_persisted_sbom_local_evidence() -> None:
+    source = Path(release_bundle.__file__).read_text(encoding="utf-8")
+
+    write_index = source.index("    write_sbom(")
+    validate_index = source.index(
+        "    load_and_validate_sbom(\n"
+        "        sbom_path,\n"
+        "        artifact_root=ROOT,\n"
+        "        expected_environment=environment,\n"
+        "        expected_distribution_paths=distribution_paths,\n"
+        "    )",
+    )
+    manifest_index = source.index("    extra_artifacts = (")
+
+    assert write_index < validate_index < manifest_index

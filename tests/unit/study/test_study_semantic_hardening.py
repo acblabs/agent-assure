@@ -402,6 +402,9 @@ def test_fixed_frame_downscope_is_analyzable_but_never_classified() -> None:
 
     markdown = render_real_model_study_markdown(report)
     assert "Inferential statistics applicable: false" in markdown
+    assert (
+        "Classification witness: not measured because the inferential decision rule is inactive"
+    ) in markdown
     assert "Frame completeness satisfied: true" in markdown
     assert "Inferential decision rule: inactive" in markdown
     assert "Frame clusters (committed/complete)" in markdown
@@ -441,6 +444,58 @@ def test_directional_contract_names_the_combined_wrong_decision_guarantee() -> N
     )
     with pytest.raises(ValidationError, match="directional_error_control"):
         StudyHypothesisDecisionRule.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("responses", "classification", "witness"),
+    (
+        (
+            (False, False, False, False),
+            StudyHypothesisClassification.supported,
+            "Classification witness: supported_when=",
+        ),
+        (
+            (False, False, True, True),
+            StudyHypothesisClassification.inconclusive,
+            "Classification witness: inconclusive because neither supported_when=",
+        ),
+        (
+            (True, True, True, True),
+            StudyHypothesisClassification.contradicted,
+            "contradicted_when=",
+        ),
+    ),
+)
+def test_renderer_names_the_exact_directional_classification_witness(
+    responses: tuple[bool, bool, bool, bool],
+    classification: StudyHypothesisClassification,
+    witness: str,
+) -> None:
+    report = _analyze(_fixture(responses=responses))
+
+    assert report.hypothesis_classification is classification
+    rendered = render_real_model_study_markdown(report)
+    classification_line = next(
+        line for line in rendered.splitlines() if line.startswith("- Hypothesis classification:")
+    )
+    assert witness in classification_line
+    assert "inertia clusters, adjusted one-sided" in classification_line
+    assert "adjusted alpha" in classification_line
+    target_ids = tuple(
+        result.condition_id
+        for result in report.conditions
+        if result.analysis_role.value == "inertia_estimand"
+    )
+    assert any(f"`{condition_id}`" in classification_line for condition_id in target_ids)
+
+
+def test_real_model_study_renderer_revalidates_unsafe_model_copy() -> None:
+    report = _analyze(_fixture())
+    assert "# Real-model study report" in render_real_model_study_markdown(report)
+
+    forged = report.model_copy(update={"artifact_kind": "forged-artifact"})
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        render_real_model_study_markdown(forged)
 
 
 def test_confirmatory_scope_rejects_shared_template_grid_as_independence_basis() -> None:
@@ -649,6 +704,16 @@ def test_inertia_breakdown_is_descriptive_exact_and_published() -> None:
     assert "stochastic_report" not in payload
 
     markdown = render_real_model_study_markdown(report)
+    assert "Classification witness: supported_when=" in markdown
+    assert "4/4 inertia clusters" in markdown
+    assert "adjusted one-sided lower bound" in markdown
+    assert "Adjusted one-sided inertia lower bound:" in markdown
+    assert "Adjusted one-sided inertia upper bound:" in markdown
+    assert "Adjusted one-sided unexpected-change lower bound:" in markdown
+    assert "Adjusted one-sided unexpected-change upper bound:" in markdown
+    assert "Directional-bound adjusted alpha / familywise alpha" in markdown
+    assert "Adjusted one-sided inertia interval:" not in markdown
+    assert "Adjusted one-sided unexpected-change interval:" not in markdown
     assert "Descriptive same-decision inertia split" in markdown
     assert "2/2/0" in markdown
     assert "descriptive only, not external truth" in markdown

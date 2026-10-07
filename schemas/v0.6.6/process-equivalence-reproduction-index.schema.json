@@ -14,7 +14,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -115,7 +115,7 @@
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         }
@@ -131,7 +131,7 @@
       "additionalProperties": false,
       "properties": {
         "closure_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Closure Digest",
           "type": "string"
         },
@@ -235,7 +235,7 @@
       "type": "boolean"
     },
     "reproduction_index_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Reproduction Index Digest",
       "type": "string"
     },

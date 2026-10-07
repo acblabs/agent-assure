@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import cast
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.live.advanced import (
@@ -14,42 +16,66 @@ from agent_assure.live.primitives import (
     decimal_string,
     live_record_group_id,
     signed_unit_decimal_string,
+    signed_unit_lower_string,
+    signed_unit_upper_string,
+    with_live_decimal_context,
+)
+from agent_assure.live.statistics import (
+    _rate_analysis_method,
+    _rate_from_values,
+    _rate_requires_resampling,
+)
+from agent_assure.live.work_limits import (
+    LIVE_MAX_EXACT_PERMUTATION_CLUSTERS,
+    LIVE_MONTE_CARLO_ITERATIONS,
+    LIVE_RATE_BOOTSTRAP_ITERATIONS,
+    LiveAnalysisWorkPlan,
+    validate_live_analysis_work_plan,
 )
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
+    LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
     LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION,
+    EndpointPrerequisiteStatus,
     LiveComparisonReport,
     LiveEvaluationReport,
     LiveGroupSummary,
     LiveObservationResult,
     LiveProtocolRecord,
     LiveRate,
+    PairedClusterRate,
 )
 from agent_assure.schema.validation import (
-    load_validated_artifact_payload,
-    project_validated_artifact_payload,
+    load_validated_artifact_model,
+    validate_loaded_artifact_payload,
 )
 
 
 def load_live_evaluation_report(path: Path) -> LiveEvaluationReport:
-    payload = load_validated_artifact_payload(
+    return load_validated_artifact_model(
         path,
-        "live-evaluation-report",
-        label="live evaluation report JSON",
-    )
-    return project_validated_artifact_payload(
-        payload,
         LiveEvaluationReport,
         kind="live-evaluation-report",
+        label="live evaluation report JSON",
     )
 
 
+@with_live_decimal_context
 def compare_live_reports(
     baseline: LiveEvaluationReport,
     candidate: LiveEvaluationReport,
     *,
     protocol: LiveProtocolRecord,
 ) -> LiveComparisonReport:
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = LiveEvaluationReport.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "live-evaluation-report")
+    candidate_payload = candidate.model_dump(mode="json", warnings="error")
+    candidate = LiveEvaluationReport.model_validate(candidate_payload)
+    validate_loaded_artifact_payload(candidate_payload, "live-evaluation-report")
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = LiveProtocolRecord.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(protocol_payload, "live-protocol-record")
     _verify_report_binding(baseline, candidate, protocol)
     baseline_group = _group(baseline, protocol.baseline_group_id)
     candidate_group = _group(candidate, protocol.candidate_group_id)
@@ -64,38 +90,47 @@ def compare_live_reports(
             limitations=incomplete_limitations,
         )
     if protocol.baseline_mode == "fixed_reference":
-        difference, lower, upper, compared_clusters = _fixed_reference_difference(
+        paired_clusters = _fixed_reference_cluster_rates(
             candidate,
             protocol,
         )
-        baseline_rate = _fixed_reference_rate(protocol)
-        differences: tuple[Decimal, ...] = ()
     else:
-        differences = _paired_cluster_differences(
+        paired_clusters = _paired_cluster_rates(
             baseline,
             candidate,
             protocol,
         )
-        difference, lower, upper, compared_clusters = _paired_cluster_difference_from_values(
-            differences,
-            protocol,
-        )
-        baseline_rate = baseline_group.expectation_pass_rate
+    derived = _derive_paired_comparison_statistics(
+        paired_clusters,
+        protocol=protocol,
+    )
+    baseline_rate = derived.baseline_rate
+    candidate_rate = derived.candidate_rate
+    differences = derived.projection.differences
+    difference = derived.difference
+    lower = derived.lower
+    upper = derived.upper
+    compared_clusters = derived.compared_clusters
     margin = Decimal(protocol.non_inferiority_margin)
+    if lower == upper:
+        difference_ci_lower = difference_ci_upper = signed_unit_decimal_string(lower)
+    else:
+        difference_ci_lower = signed_unit_lower_string(lower)
+        difference_ci_upper = signed_unit_upper_string(upper)
+    persisted_lower = Decimal(difference_ci_lower)
     randomization_test = None
     if protocol.analysis_method in {
         "paired_cluster_permutation_exact",
         "paired_cluster_permutation_monte_carlo",
     }:
-        prerequisite_status, prerequisite_limitations = paired_randomization_prerequisites(
-            protocol=protocol,
-            compared_clusters=compared_clusters,
-        )
+        prerequisite_status = derived.randomization_prerequisite_status
+        if prerequisite_status is None:
+            raise ValueError("paired randomization derivation is missing prerequisite status")
         randomization_test = evaluate_paired_randomization_test(
             differences,
             protocol=protocol,
             prerequisite_status=prerequisite_status,
-            limitations=prerequisite_limitations,
+            limitations=derived.randomization_prerequisite_limitations,
         )
         exploratory = (
             randomization_test is None
@@ -114,7 +149,7 @@ def compare_live_reports(
     else:
         degenerate_interval = compared_clusters > 1 and lower == upper == difference
         exploratory = _comparison_exploratory(protocol, compared_clusters) or degenerate_interval
-        state = _comparison_state(lower, margin, compared_clusters, exploratory)
+        state = _comparison_state(persisted_lower, margin, compared_clusters, exploratory)
     limitations = list(
         _comparison_limitations(
             protocol,
@@ -123,6 +158,7 @@ def compare_live_reports(
             difference,
             lower,
             upper,
+            decision_lower=persisted_lower,
         )
     )
     if randomization_test is not None:
@@ -134,14 +170,22 @@ def compare_live_reports(
             )
     return LiveComparisonReport(
         artifact_kind="live-comparison-report",
+        derivation_contract="agent-assure/live-comparison/v1",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        baseline_evaluation_digest=sha256_hexdigest(baseline),
+        candidate_evaluation_digest=sha256_hexdigest(candidate),
+        baseline_completion_status=baseline.completion_status,
+        candidate_completion_status=candidate.completion_status,
+        baseline_stop_reasons=baseline.stop_reasons,
+        candidate_stop_reasons=candidate.stop_reasons,
         suite_id=baseline.suite_id,
         suite_version=baseline.suite_version,
         baseline_group_id=protocol.baseline_group_id,
         candidate_group_id=protocol.candidate_group_id,
         protocol_id=protocol.protocol_id,
         protocol_digest=sha256_hexdigest(protocol),
+        protocol=protocol,
         baseline_mode=protocol.baseline_mode,
         analysis_method=protocol.analysis_method,
         exploratory=exploratory,
@@ -149,13 +193,18 @@ def compare_live_reports(
         confidence_level=candidate.confidence_level,
         non_inferiority_margin=decimal_string(margin),
         baseline_pass_rate=baseline_rate,
-        candidate_pass_rate=candidate_group.expectation_pass_rate,
+        candidate_pass_rate=candidate_rate,
         pass_rate_difference=signed_unit_decimal_string(difference),
-        difference_ci_lower=signed_unit_decimal_string(lower),
-        difference_ci_upper=signed_unit_decimal_string(upper),
+        difference_ci_lower=difference_ci_lower,
+        difference_ci_upper=difference_ci_upper,
         compared_clusters=compared_clusters,
-        effective_n=_comparison_effective_n(baseline_group, candidate_group, protocol),
+        effective_n=_comparison_effective_n(baseline_rate, candidate_rate, protocol),
         fixed_reference_pass_rate=protocol.fixed_reference_pass_rate,
+        paired_clusters=paired_clusters,
+        baseline_latency_p50_ms=baseline_group.latency_ms.p50,
+        candidate_latency_p50_ms=candidate_group.latency_ms.p50,
+        baseline_cost_total_usd=baseline_group.estimated_cost_usd.total,
+        candidate_cost_total_usd=candidate_group.estimated_cost_usd.total,
         latency_p50_difference_ms=_difference(
             candidate_group.latency_ms.p50,
             baseline_group.latency_ms.p50,
@@ -227,20 +276,29 @@ def _incomplete_comparison_report(
     report_limitations = (
         "live comparison intervals are descriptive unless the protocol predeclares the "
         "comparison as confirmatory",
+        LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
         *limitations,
         "pass-rate difference is an observed incomplete-window delta, not an inferential "
         "comparison interval",
     )
     return LiveComparisonReport(
         artifact_kind="live-comparison-report",
+        derivation_contract="agent-assure/live-comparison/v1",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        baseline_evaluation_digest=sha256_hexdigest(baseline),
+        candidate_evaluation_digest=sha256_hexdigest(candidate),
+        baseline_completion_status=baseline.completion_status,
+        candidate_completion_status=candidate.completion_status,
+        baseline_stop_reasons=baseline.stop_reasons,
+        candidate_stop_reasons=candidate.stop_reasons,
         suite_id=baseline.suite_id,
         suite_version=baseline.suite_version,
         baseline_group_id=protocol.baseline_group_id,
         candidate_group_id=protocol.candidate_group_id,
         protocol_id=protocol.protocol_id,
         protocol_digest=sha256_hexdigest(protocol),
+        protocol=protocol,
         baseline_mode=protocol.baseline_mode,
         analysis_method=protocol.analysis_method,
         exploratory=True,
@@ -250,11 +308,16 @@ def _incomplete_comparison_report(
         baseline_pass_rate=baseline_rate,
         candidate_pass_rate=candidate_rate,
         pass_rate_difference=signed_unit_decimal_string(observed_difference),
-        difference_ci_lower=signed_unit_decimal_string(observed_difference),
-        difference_ci_upper=signed_unit_decimal_string(observed_difference),
+        difference_ci_lower=signed_unit_lower_string(observed_difference),
+        difference_ci_upper=signed_unit_upper_string(observed_difference),
         compared_clusters=0,
         effective_n="0.000000",
         fixed_reference_pass_rate=protocol.fixed_reference_pass_rate,
+        paired_clusters=(),
+        baseline_latency_p50_ms=baseline_group.latency_ms.p50,
+        candidate_latency_p50_ms=candidate_group.latency_ms.p50,
+        baseline_cost_total_usd=baseline_group.estimated_cost_usd.total,
+        candidate_cost_total_usd=candidate_group.estimated_cost_usd.total,
         latency_p50_difference_ms=_difference(
             candidate_group.latency_ms.p50,
             baseline_group.latency_ms.p50,
@@ -268,17 +331,33 @@ def _incomplete_comparison_report(
     )
 
 
-def _paired_cluster_differences(
+def _paired_cluster_rates(
     baseline: LiveEvaluationReport,
     candidate: LiveEvaluationReport,
     protocol: LiveProtocolRecord,
-) -> tuple[Decimal, ...]:
+) -> tuple[PairedClusterRate, ...]:
     _validate_paired_observation_sets(baseline, candidate, protocol)
-    baseline_rates = _cluster_pass_rates(baseline, protocol.baseline_group_id)
-    candidate_rates = _cluster_pass_rates(candidate, protocol.candidate_group_id)
-    _validate_paired_cluster_sets(baseline_rates, candidate_rates)
-    common_clusters = sorted(baseline_rates)
-    return tuple(candidate_rates[cluster] - baseline_rates[cluster] for cluster in common_clusters)
+    baseline_counts = _cluster_pass_counts(baseline, protocol.baseline_group_id)
+    candidate_counts = _cluster_pass_counts(candidate, protocol.candidate_group_id)
+    _validate_paired_cluster_sets(baseline_counts, candidate_counts)
+    common_clusters = sorted(baseline_counts)
+    return tuple(
+        PairedClusterRate(
+            artifact_kind="paired-cluster-rate",
+            cluster_id=cluster,
+            baseline_numerator=baseline_counts[cluster][0],
+            baseline_denominator=baseline_counts[cluster][1],
+            candidate_numerator=candidate_counts[cluster][0],
+            candidate_denominator=candidate_counts[cluster][1],
+            baseline_rate=_count_rate(*baseline_counts[cluster]),
+            candidate_rate=_count_rate(*candidate_counts[cluster]),
+            difference=signed_unit_decimal_string(
+                Decimal(candidate_counts[cluster][0]) / Decimal(candidate_counts[cluster][1])
+                - Decimal(baseline_counts[cluster][0]) / Decimal(baseline_counts[cluster][1])
+            ),
+        )
+        for cluster in common_clusters
+    )
 
 
 def _paired_cluster_difference_from_values(
@@ -290,16 +369,31 @@ def _paired_cluster_difference_from_values(
     return _difference_interval(differences, protocol.confidence_level)
 
 
-def _fixed_reference_difference(
+def _fixed_reference_cluster_rates(
     candidate: LiveEvaluationReport,
     protocol: LiveProtocolRecord,
-) -> tuple[Decimal, Decimal, Decimal, int]:
+) -> tuple[PairedClusterRate, ...]:
     if protocol.fixed_reference_pass_rate is None:
         raise ValueError("fixed_reference protocol requires fixed_reference_pass_rate")
     reference = Decimal(protocol.fixed_reference_pass_rate)
-    candidate_rates = _cluster_pass_rates(candidate, protocol.candidate_group_id)
-    differences = tuple(rate - reference for rate in candidate_rates.values())
-    return _difference_interval(differences, protocol.confidence_level)
+    candidate_counts = _cluster_pass_counts(candidate, protocol.candidate_group_id)
+    return tuple(
+        PairedClusterRate(
+            artifact_kind="paired-cluster-rate",
+            cluster_id=cluster_id,
+            baseline_numerator=0,
+            baseline_denominator=0,
+            candidate_numerator=candidate_counts[cluster_id][0],
+            candidate_denominator=candidate_counts[cluster_id][1],
+            baseline_rate=decimal_string(reference),
+            candidate_rate=_count_rate(*candidate_counts[cluster_id]),
+            difference=signed_unit_decimal_string(
+                Decimal(candidate_counts[cluster_id][0]) / Decimal(candidate_counts[cluster_id][1])
+                - reference
+            ),
+        )
+        for cluster_id in sorted(candidate_counts)
+    )
 
 
 def _difference_interval(
@@ -317,12 +411,13 @@ def _bootstrap_difference_interval(
         differences,
         confidence_level=protocol.confidence_level,
         seed=f"{protocol.protocol_id}:{protocol.analysis_digest}:paired_cluster_bootstrap",
+        iterations=LIVE_RATE_BOOTSTRAP_ITERATIONS,
     )
 
 
 def _validate_paired_cluster_sets(
-    baseline_rates: dict[str, Decimal],
-    candidate_rates: dict[str, Decimal],
+    baseline_rates: dict[str, tuple[int, int]],
+    candidate_rates: dict[str, tuple[int, int]],
 ) -> None:
     baseline_only = sorted(set(baseline_rates) - set(candidate_rates))
     candidate_only = sorted(set(candidate_rates) - set(baseline_rates))
@@ -416,7 +511,10 @@ def _observation_set_delta(
     return delta
 
 
-def _cluster_pass_rates(report: LiveEvaluationReport, group_id: str) -> dict[str, Decimal]:
+def _cluster_pass_counts(
+    report: LiveEvaluationReport,
+    group_id: str,
+) -> dict[str, tuple[int, int]]:
     group = _group(report, group_id)
     if group.group_id == "overall":
         group_observations = report.observations
@@ -433,10 +531,322 @@ def _cluster_pass_rates(report: LiveEvaluationReport, group_id: str) -> dict[str
         counts[observation.cluster_id][0] += int(observation.state is GateState.pass_)
         counts[observation.cluster_id][1] += 1
     return {
-        cluster_id: Decimal(values[0]) / Decimal(values[1])
-        for cluster_id, values in counts.items()
-        if values[1] > 0
+        cluster_id: (values[0], values[1]) for cluster_id, values in counts.items() if values[1] > 0
     }
+
+
+@with_live_decimal_context
+def _count_rate(numerator: int, denominator: int) -> str:
+    if denominator <= 0 or not 0 <= numerator <= denominator:
+        raise ValueError("paired cluster counts are outside the binomial domain")
+    return decimal_string(Decimal(numerator) / Decimal(denominator))
+
+
+def _required_paired_count(item: PairedClusterRate, field_name: str) -> int:
+    value = cast(int | None, getattr(item, field_name))
+    if value is None:
+        raise ValueError("current paired cluster evidence requires per-arm counts")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class _PairedEvidenceProjection:
+    """Kernel-free sufficient statistics for one current comparison."""
+
+    baseline_values: tuple[tuple[str, bool], ...] | None
+    candidate_values: tuple[tuple[str, bool], ...]
+    differences: tuple[Decimal, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PairedComparisonStatistics:
+    """Fully derived comparison statistics after aggregate work preflight."""
+
+    projection: _PairedEvidenceProjection
+    baseline_rate: LiveRate
+    candidate_rate: LiveRate
+    difference: Decimal
+    lower: Decimal
+    upper: Decimal
+    compared_clusters: int
+    randomization_prerequisite_status: EndpointPrerequisiteStatus | None
+    randomization_prerequisite_limitations: tuple[str, ...]
+
+
+@with_live_decimal_context
+def _project_paired_cluster_evidence(
+    paired_clusters: tuple[PairedClusterRate, ...],
+    *,
+    protocol: LiveProtocolRecord,
+) -> _PairedEvidenceProjection:
+    if not paired_clusters:
+        raise ValueError("complete live comparison requires paired cluster evidence")
+    if len(paired_clusters) > protocol.planned_clusters:
+        raise ValueError("paired cluster evidence exceeds protocol planned_clusters")
+    cluster_ids = [item.cluster_id for item in paired_clusters]
+    if cluster_ids != sorted(cluster_ids) or len(cluster_ids) != len(set(cluster_ids)):
+        raise ValueError("paired cluster evidence must have unique sorted cluster_id values")
+
+    fixed_reference = protocol.baseline_mode == "fixed_reference"
+    reference = protocol.fixed_reference_pass_rate
+    if fixed_reference and reference is None:
+        raise ValueError("fixed-reference comparison is missing its reference rate")
+    counts: list[tuple[str, int, int, int, int]] = []
+    differences: list[Decimal] = []
+    baseline_observations = 0
+    candidate_observations = 0
+    for item in paired_clusters:
+        baseline_numerator = _required_paired_count(item, "baseline_numerator")
+        baseline_denominator = _required_paired_count(item, "baseline_denominator")
+        candidate_numerator = _required_paired_count(item, "candidate_numerator")
+        candidate_denominator = _required_paired_count(item, "candidate_denominator")
+        if candidate_denominator <= 0:
+            raise ValueError("paired cluster candidate denominators must be positive")
+        if fixed_reference:
+            if (baseline_numerator, baseline_denominator) != (0, 0):
+                raise ValueError("fixed-reference paired cluster baseline counts must be 0/0")
+            if item.baseline_rate != reference:
+                raise ValueError("paired cluster baseline rates do not match fixed reference")
+        else:
+            if baseline_denominator <= 0:
+                raise ValueError("concurrent paired cluster arm denominators must be positive")
+            if baseline_denominator != candidate_denominator:
+                raise ValueError("concurrent paired cluster arm denominators must be equal")
+        if item.candidate_rate != _count_rate(candidate_numerator, candidate_denominator):
+            raise ValueError("paired cluster candidate rate does not match its count evidence")
+        if not fixed_reference and item.baseline_rate != _count_rate(
+            baseline_numerator,
+            baseline_denominator,
+        ):
+            raise ValueError("paired cluster baseline rate does not match its count evidence")
+        exact_candidate_rate = Decimal(candidate_numerator) / Decimal(candidate_denominator)
+        exact_baseline_rate = (
+            Decimal(reference)
+            if fixed_reference and reference is not None
+            else Decimal(baseline_numerator) / Decimal(baseline_denominator)
+        )
+        exact_difference = exact_candidate_rate - exact_baseline_rate
+        if item.difference != signed_unit_decimal_string(exact_difference):
+            raise ValueError(
+                "paired cluster difference does not match exact per-arm count evidence"
+            )
+        differences.append(exact_difference)
+        counts.append(
+            (
+                item.cluster_id,
+                baseline_numerator,
+                baseline_denominator,
+                candidate_numerator,
+                candidate_denominator,
+            )
+        )
+        baseline_observations += baseline_denominator
+        candidate_observations += candidate_denominator
+
+    if candidate_observations > protocol.planned_observations:
+        raise ValueError("paired candidate counts exceed protocol planned_observations")
+    if not fixed_reference and baseline_observations > protocol.planned_observations:
+        raise ValueError("paired baseline counts exceed protocol planned_observations")
+
+    candidate_values = tuple(
+        (cluster_id, observation_index < candidate_numerator)
+        for (
+            cluster_id,
+            _,
+            _,
+            candidate_numerator,
+            candidate_denominator,
+        ) in counts
+        for observation_index in range(candidate_denominator)
+    )
+    baseline_values = (
+        None
+        if fixed_reference
+        else tuple(
+            (cluster_id, observation_index < baseline_numerator)
+            for (
+                cluster_id,
+                baseline_numerator,
+                baseline_denominator,
+                _,
+                _,
+            ) in counts
+            for observation_index in range(baseline_denominator)
+        )
+    )
+    return _PairedEvidenceProjection(
+        baseline_values=baseline_values,
+        candidate_values=candidate_values,
+        differences=tuple(differences),
+    )
+
+
+def _comparison_randomization_prerequisites(
+    projection: _PairedEvidenceProjection,
+    *,
+    protocol: LiveProtocolRecord,
+) -> tuple[EndpointPrerequisiteStatus | None, tuple[str, ...]]:
+    if protocol.analysis_method not in {
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
+    }:
+        return None, ()
+    status, limitations = paired_randomization_prerequisites(
+        protocol=protocol,
+        compared_clusters=len(projection.differences),
+    )
+    return status, limitations
+
+
+def _comparison_work_plan(
+    projection: _PairedEvidenceProjection,
+    *,
+    protocol: LiveProtocolRecord,
+    randomization_prerequisite_status: EndpointPrerequisiteStatus | None,
+) -> LiveAnalysisWorkPlan:
+    """Plan every arm and comparison resampling kernel without executing one."""
+
+    rate_analysis_method = _rate_analysis_method(protocol)
+    work_items: list[tuple[str, int]] = []
+    if projection.baseline_values is not None:
+        baseline_clusters = (
+            _rate_requires_resampling(projection.baseline_values)
+            if rate_analysis_method == "descriptive_cluster_bootstrap_percentile"
+            else 0
+        )
+        work_items.append(
+            (
+                "live comparison baseline arm rate",
+                LIVE_RATE_BOOTSTRAP_ITERATIONS * baseline_clusters,
+            )
+        )
+    candidate_clusters = (
+        _rate_requires_resampling(projection.candidate_values)
+        if rate_analysis_method == "descriptive_cluster_bootstrap_percentile"
+        else 0
+    )
+    work_items.append(
+        (
+            "live comparison candidate arm rate",
+            LIVE_RATE_BOOTSTRAP_ITERATIONS * candidate_clusters,
+        )
+    )
+
+    sample_size = len(projection.differences)
+    comparison_work = 0
+    if protocol.analysis_method == "paired_cluster_bootstrap_percentile":
+        if sample_size > 1 and not all(
+            value == projection.differences[0] for value in projection.differences[1:]
+        ):
+            comparison_work = LIVE_RATE_BOOTSTRAP_ITERATIONS * sample_size
+    elif (
+        protocol.analysis_method == "paired_cluster_permutation_exact"
+        and randomization_prerequisite_status == "met"
+    ):
+        if 0 < sample_size <= LIVE_MAX_EXACT_PERMUTATION_CLUSTERS:
+            comparison_work = (1 << sample_size) * sample_size
+    elif (
+        protocol.analysis_method == "paired_cluster_permutation_monte_carlo"
+        and randomization_prerequisite_status == "met"
+    ):
+        comparison_work = LIVE_MONTE_CARLO_ITERATIONS * sample_size
+    work_items.append(("live comparison difference or randomization", comparison_work))
+    return LiveAnalysisWorkPlan(resampling_items=tuple(work_items))
+
+
+def _validate_comparison_work_budget(
+    projection: _PairedEvidenceProjection,
+    *,
+    protocol: LiveProtocolRecord,
+    randomization_prerequisite_status: EndpointPrerequisiteStatus | None,
+) -> int:
+    plan = _comparison_work_plan(
+        projection,
+        protocol=protocol,
+        randomization_prerequisite_status=randomization_prerequisite_status,
+    )
+    resampling_work, _ = validate_live_analysis_work_plan(plan)
+    return resampling_work
+
+
+def _pass_rates_from_paired_evidence_projection(
+    projection: _PairedEvidenceProjection,
+    *,
+    protocol: LiveProtocolRecord,
+) -> tuple[LiveRate, LiveRate]:
+    rate_analysis_method = _rate_analysis_method(protocol)
+    candidate_rate = _rate_from_values(
+        "expectation_pass",
+        projection.candidate_values,
+        protocol=protocol,
+        analysis_method=rate_analysis_method,
+    )
+    if projection.baseline_values is None:
+        baseline_rate = _fixed_reference_rate(protocol)
+    else:
+        baseline_rate = _rate_from_values(
+            "expectation_pass",
+            projection.baseline_values,
+            protocol=protocol,
+            analysis_method=rate_analysis_method,
+        )
+    return baseline_rate, candidate_rate
+
+
+def _derive_paired_comparison_statistics_from_projection(
+    projection: _PairedEvidenceProjection,
+    *,
+    protocol: LiveProtocolRecord,
+    randomization_prerequisite_status: EndpointPrerequisiteStatus | None,
+    randomization_prerequisite_limitations: tuple[str, ...],
+) -> _PairedComparisonStatistics:
+    """Preflight aggregate work, then execute every selected statistical kernel."""
+
+    _validate_comparison_work_budget(
+        projection,
+        protocol=protocol,
+        randomization_prerequisite_status=randomization_prerequisite_status,
+    )
+    baseline_rate, candidate_rate = _pass_rates_from_paired_evidence_projection(
+        projection,
+        protocol=protocol,
+    )
+    difference, lower, upper, compared_clusters = _paired_cluster_difference_from_values(
+        projection.differences,
+        protocol,
+    )
+    return _PairedComparisonStatistics(
+        projection=projection,
+        baseline_rate=baseline_rate,
+        candidate_rate=candidate_rate,
+        difference=difference,
+        lower=lower,
+        upper=upper,
+        compared_clusters=compared_clusters,
+        randomization_prerequisite_status=randomization_prerequisite_status,
+        randomization_prerequisite_limitations=randomization_prerequisite_limitations,
+    )
+
+
+def _derive_paired_comparison_statistics(
+    paired_clusters: tuple[PairedClusterRate, ...],
+    *,
+    protocol: LiveProtocolRecord,
+) -> _PairedComparisonStatistics:
+    projection = _project_paired_cluster_evidence(
+        paired_clusters,
+        protocol=protocol,
+    )
+    prerequisite_status, prerequisite_limitations = _comparison_randomization_prerequisites(
+        projection,
+        protocol=protocol,
+    )
+    return _derive_paired_comparison_statistics_from_projection(
+        projection,
+        protocol=protocol,
+        randomization_prerequisite_status=prerequisite_status,
+        randomization_prerequisite_limitations=prerequisite_limitations,
+    )
 
 
 def _fixed_reference_rate(protocol: LiveProtocolRecord) -> LiveRate:
@@ -537,18 +947,262 @@ def _comparison_exploratory(protocol: LiveProtocolRecord, compared_clusters: int
 
 
 def _comparison_effective_n(
-    baseline_group: LiveGroupSummary,
-    candidate_group: LiveGroupSummary,
+    baseline_rate: LiveRate,
+    candidate_rate: LiveRate,
     protocol: LiveProtocolRecord,
 ) -> str:
     if protocol.baseline_mode == "fixed_reference":
-        return candidate_group.effective_n
+        return candidate_rate.effective_n
     return decimal_string(
         min(
-            Decimal(baseline_group.effective_n),
-            Decimal(candidate_group.effective_n),
+            Decimal(baseline_rate.effective_n),
+            Decimal(candidate_rate.effective_n),
         )
     )
+
+
+def _require_comparison_projection(*, owner: str, actual: object, expected: object) -> None:
+    if actual != expected:
+        raise ValueError(f"{owner} does not match source-derived comparison evidence")
+
+
+def _source_difference(candidate: str | None, baseline: str | None) -> str | None:
+    return _difference(candidate, baseline)
+
+
+@with_live_decimal_context
+def verify_live_comparison_report_derivation(report: LiveComparisonReport) -> None:
+    """Recompute comparison inference from bound protocol and paired statistics."""
+
+    protocol = report.protocol
+    if protocol is None:
+        raise ValueError("current live comparison is missing its bound protocol")
+    bindings = {
+        "protocol_id": (report.protocol_id, protocol.protocol_id),
+        "protocol_digest": (report.protocol_digest, sha256_hexdigest(protocol)),
+        "suite_id": (report.suite_id, protocol.suite_id),
+        "suite_version": (report.suite_version, protocol.suite_version),
+        "baseline_group_id": (report.baseline_group_id, protocol.baseline_group_id),
+        "candidate_group_id": (report.candidate_group_id, protocol.candidate_group_id),
+        "baseline_mode": (report.baseline_mode, protocol.baseline_mode),
+        "analysis_method": (report.analysis_method, protocol.analysis_method),
+        "confidence_level": (report.confidence_level, protocol.confidence_level),
+        "non_inferiority_margin": (
+            report.non_inferiority_margin,
+            protocol.non_inferiority_margin,
+        ),
+        "fixed_reference_pass_rate": (
+            report.fixed_reference_pass_rate,
+            protocol.fixed_reference_pass_rate,
+        ),
+    }
+    for field_name, (actual, expected) in bindings.items():
+        if actual != expected:
+            raise ValueError(f"live comparison {field_name} does not match bound protocol")
+
+    for owner, reasons in (
+        ("baseline", report.baseline_stop_reasons),
+        ("candidate", report.candidate_stop_reasons),
+    ):
+        if reasons != tuple(sorted(set(reasons))):
+            raise ValueError(f"{owner} comparison stop reasons must be unique and sorted")
+    _require_comparison_projection(
+        owner="latency p50 difference",
+        actual=report.latency_p50_difference_ms,
+        expected=_source_difference(
+            report.candidate_latency_p50_ms,
+            report.baseline_latency_p50_ms,
+        ),
+    )
+    _require_comparison_projection(
+        owner="cost total difference",
+        actual=report.cost_total_difference_usd,
+        expected=_source_difference(
+            report.candidate_cost_total_usd,
+            report.baseline_cost_total_usd,
+        ),
+    )
+
+    incomplete_limitations: list[str] = []
+    for owner, status, reasons in (
+        ("baseline", report.baseline_completion_status, report.baseline_stop_reasons),
+        ("candidate", report.candidate_completion_status, report.candidate_stop_reasons),
+    ):
+        if status == "incomplete":
+            rendered_reasons = ", ".join(reasons) or "unknown"
+            incomplete_limitations.append(
+                f"{owner} live report is incomplete with stop reasons: "
+                f"{rendered_reasons}; live comparison is not evaluated"
+            )
+    if incomplete_limitations:
+        if report.paired_clusters:
+            raise ValueError("incomplete live comparison cannot carry paired cluster evidence")
+        baseline_rate = report.baseline_pass_rate
+        candidate_rate = report.candidate_pass_rate
+        observed_difference = Decimal(candidate_rate.rate) - Decimal(baseline_rate.rate)
+        expected_limitations = tuple(
+            dict.fromkeys(
+                (
+                    "live comparison intervals are descriptive unless the protocol predeclares "
+                    "the comparison as confirmatory",
+                    LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
+                    *incomplete_limitations,
+                    "pass-rate difference is an observed incomplete-window delta, not an "
+                    "inferential comparison interval",
+                )
+            )
+        )
+        expected_difference = signed_unit_decimal_string(observed_difference)
+        incomplete_expectations: dict[str, tuple[object, object]] = {
+            "state": (report.state, GateState.not_evaluated),
+            "exploratory": (report.exploratory, True),
+            "compared_clusters": (report.compared_clusters, 0),
+            "effective_n": (report.effective_n, "0.000000"),
+            "pass_rate_difference": (report.pass_rate_difference, expected_difference),
+            "difference_ci_lower": (
+                report.difference_ci_lower,
+                signed_unit_lower_string(observed_difference),
+            ),
+            "difference_ci_upper": (
+                report.difference_ci_upper,
+                signed_unit_upper_string(observed_difference),
+            ),
+            "randomization_tests": (report.randomization_tests, ()),
+            "limitations": (report.limitations, expected_limitations),
+        }
+        for field_name, (observed_value, expected_value) in incomplete_expectations.items():
+            _require_comparison_projection(
+                owner=f"incomplete comparison {field_name}",
+                actual=observed_value,
+                expected=expected_value,
+            )
+        return
+
+    if report.baseline_stop_reasons or report.candidate_stop_reasons:
+        raise ValueError("complete live comparison sources cannot carry stop reasons")
+    if not report.paired_clusters:
+        raise ValueError("complete live comparison requires paired cluster evidence")
+    cluster_ids = [item.cluster_id for item in report.paired_clusters]
+    if cluster_ids != sorted(cluster_ids) or len(cluster_ids) != len(set(cluster_ids)):
+        raise ValueError("paired cluster evidence must have unique sorted cluster_id values")
+
+    fixed_reference = protocol.baseline_mode == "fixed_reference"
+    derived = _derive_paired_comparison_statistics(
+        report.paired_clusters,
+        protocol=protocol,
+    )
+    expected_baseline_rate = derived.baseline_rate
+    expected_candidate_rate = derived.candidate_rate
+    differences = derived.projection.differences
+    _require_comparison_projection(
+        owner="baseline_pass_rate",
+        actual=report.baseline_pass_rate,
+        expected=expected_baseline_rate,
+    )
+    _require_comparison_projection(
+        owner="candidate_pass_rate",
+        actual=report.candidate_pass_rate,
+        expected=expected_candidate_rate,
+    )
+
+    difference = derived.difference
+    lower = derived.lower
+    upper = derived.upper
+    compared_clusters = derived.compared_clusters
+    if lower == upper:
+        expected_lower = expected_upper = signed_unit_decimal_string(lower)
+    else:
+        expected_lower = signed_unit_lower_string(lower)
+        expected_upper = signed_unit_upper_string(upper)
+
+    margin = Decimal(protocol.non_inferiority_margin)
+    randomization_test = None
+    if protocol.analysis_method in {
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
+    }:
+        prerequisite_status = derived.randomization_prerequisite_status
+        if prerequisite_status is None:
+            raise ValueError("paired randomization derivation is missing prerequisite status")
+        randomization_test = evaluate_paired_randomization_test(
+            differences,
+            protocol=protocol,
+            prerequisite_status=prerequisite_status,
+            limitations=derived.randomization_prerequisite_limitations,
+        )
+        exploratory = (
+            randomization_test is None
+            or randomization_test.prerequisite_status != "met"
+            or randomization_test.interpretation == "exploratory"
+            or not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION
+        )
+        expected_state = _randomization_comparison_state(
+            difference,
+            margin,
+            randomization_test,
+            protocol,
+        )
+        if exploratory and expected_state is GateState.pass_:
+            expected_state = GateState.not_evaluated
+    else:
+        degenerate_interval = compared_clusters > 1 and lower == upper == difference
+        exploratory = _comparison_exploratory(protocol, compared_clusters) or degenerate_interval
+        expected_state = _comparison_state(
+            Decimal(expected_lower),
+            margin,
+            compared_clusters,
+            exploratory,
+        )
+
+    expected_tests = () if randomization_test is None else (randomization_test,)
+    limitations = list(
+        _comparison_limitations(
+            protocol,
+            compared_clusters,
+            exploratory,
+            difference,
+            lower,
+            upper,
+            decision_lower=Decimal(expected_lower),
+        )
+    )
+    if randomization_test is not None:
+        limitations.extend(randomization_test.limitations)
+        if randomization_test.prerequisite_status == "met":
+            limitations.append(
+                "paired randomization p-value is one-sided for the predeclared "
+                "zero-margin candidate-improvement null"
+            )
+    expected_effective_n = (
+        expected_candidate_rate.effective_n
+        if fixed_reference
+        else decimal_string(
+            min(
+                Decimal(expected_baseline_rate.effective_n),
+                Decimal(expected_candidate_rate.effective_n),
+            )
+        )
+    )
+    complete_expectations: dict[str, tuple[object, object]] = {
+        "pass_rate_difference": (
+            report.pass_rate_difference,
+            signed_unit_decimal_string(difference),
+        ),
+        "difference_ci_lower": (report.difference_ci_lower, expected_lower),
+        "difference_ci_upper": (report.difference_ci_upper, expected_upper),
+        "compared_clusters": (report.compared_clusters, compared_clusters),
+        "effective_n": (report.effective_n, expected_effective_n),
+        "exploratory": (report.exploratory, exploratory),
+        "state": (report.state, expected_state),
+        "randomization_tests": (report.randomization_tests, expected_tests),
+        "limitations": (report.limitations, tuple(dict.fromkeys(limitations))),
+    }
+    for field_name, (observed_value, expected_value) in complete_expectations.items():
+        _require_comparison_projection(
+            owner=f"live comparison {field_name}",
+            actual=observed_value,
+            expected=expected_value,
+        )
 
 
 def _comparison_limitations(
@@ -558,10 +1212,13 @@ def _comparison_limitations(
     difference: Decimal,
     lower: Decimal,
     upper: Decimal,
+    *,
+    decision_lower: Decimal | None = None,
 ) -> tuple[str, ...]:
     limitations = [
         "live comparison intervals are descriptive unless the protocol predeclares the "
         "comparison as confirmatory",
+        LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
     ]
     if not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
         limitations.append(
@@ -582,6 +1239,8 @@ def _comparison_limitations(
             "paired_cluster_permutation_exact",
             "paired_cluster_permutation_monte_carlo",
         }
+        else decision_lower
+        if decision_lower is not None
         else lower
     )
     if compared_clusters > 0 and _non_inferiority_boundary_breached(

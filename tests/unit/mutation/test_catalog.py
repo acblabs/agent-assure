@@ -175,6 +175,7 @@ def test_catalog_frozen_runset_schema_paths_match_validator_versions() -> None:
     assert "schemas/v0.6.3/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
     assert "schemas/v0.6.4/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
     assert "schemas/v0.6.5/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.6/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
 
 
 def test_core_operators_declare_current_and_frozen_v06_compatibility() -> None:

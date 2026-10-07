@@ -8,13 +8,113 @@ unavailable, contact the repository owner listed in `.github/CODEOWNERS`
 through an established private channel. If no private channel is available,
 request one without including exploit details in a public channel.
 
-Maintainers should acknowledge a private report within three business days,
-provide an initial severity and remediation assessment within seven business
-days, and coordinate disclosure after a fix is available. These are response
-targets rather than a guarantee.
+The reporter-facing fallback above is not the operational escalation fallback.
+The operational owner must route the private reporting inbox to a continuously
+covered, 24/7 primary security on-call role and to an independent fallback
+on-call role. The people on duty and their private destinations are maintained
+in the access-controlled incident-response system, not in this repository.
+
+## Vulnerability Intake and Response Objectives
+
+The normative intake policy is
+`agent-assure/security-vulnerability-intake/v1`. Its clock starts at the earlier
+of `report_received_at_utc` and `internally_detected_at_utc`. It is continuous:
+forwarding a report, confirming its validity, opening a different record, or
+changing severity must not reset the clock. When a report credibly alleges a
+Critical trigger but severity remains uncertain, apply the Critical objectives
+until a named incident owner records evidence for a lower severity.
+
+| Severity at receipt or detection | Primary page | Human acknowledgement | Initial severity and exposure assessment | Affected supported deployment response |
+| --- | --- | --- | --- | --- |
+| Critical | Immediate; confirm delivery within 5 elapsed minutes | Within 1 elapsed hour | Within 4 elapsed hours | Verified containment, verified no supported exposure, or safe-state entry within 4 elapsed hours |
+| High | Immediate | Within 4 elapsed hours | Within 24 elapsed hours | Verified containment, verified no supported exposure, or safe-state entry within 24 elapsed hours |
+| Medium or Low | Normal private intake | Within 3 business days | Within 7 business days | Track remediation and any required containment through normal governance |
+
+Critical and High objectives use elapsed UTC time and do not pause overnight,
+on weekends, or on holidays. The severity-specific objectives take precedence
+over the general three- and seven-business-day targets. These are operational
+response objectives, not promises that a correction will be published within
+the same period.
+
+For a Critical signal, the primary route must page immediately. Failure to
+confirm delivery within 5 elapsed minutes, an unavailable Private Vulnerability
+Reporting service, or any other primary-route outage activates the independent
+fallback immediately. If no human acknowledges the primary page within 15
+elapsed minutes, page the fallback even when delivery was confirmed. The
+fallback must use a distinct person and durable route and must not depend solely
+on the same GitHub account, identity provider, or notification path as the
+primary. Missing coverage, missed deadlines, or failed escalation are incident
+control failures: escalate them, preserve their UTC timestamps, and place any
+potentially affected supported deployment in its documented safe state no later
+than the applicable containment-or-safe-state objective if exposure cannot be
+bounded and effectively contained.
+
+The [security correction containment and risk-acceptance
+process](docs/security_release_containment.md) defines the evidence, approval,
+and safe-failure requirements. A referenced organizational incident-response
+policy may impose stricter objectives. It may replace these objectives only if
+the public policy identifies its immutable policy ID and revision, scope, owner,
+and explicit precedence; an unreferenced private process cannot silently weaken
+this contract.
 
 Do not place production secrets, raw prompts, raw model outputs, tool arguments,
 or sensitive identifiers in fixtures or persisted artifacts.
+
+## Supported Versions
+
+Only the latest published stable patch on the current minor release line is in
+active maintenance scope. Active maintenance means that private reports are
+triaged and mitigations or corrections are coordinated; it does not promise an
+immediate patch publication. A correction may wait for the next standard release.
+Older patch and minor lines are outside that scope unless a security advisory
+explicitly says otherwise. Unreleased candidates are not supported releases and
+must not be represented as such.
+
+| Version | Security-maintenance status |
+| --- | --- |
+| 0.7.0 | Supported upon publication; unsupported before publication |
+| 0.6.5 | Supported only until 0.7.0 is published; unsupported thereafter |
+| 0.6.4 and earlier | Unsupported |
+
+These publication-conditional rows are intentionally true both before and
+after publication; they do not claim that v0.7.0 is already published. The
+final prepublication release commit must update the target and immediately
+preceding rows to this conditional form. The production
+`check_version_matches_tag.py --require-stable` check rejects a missing, stale,
+duplicated, or non-conditional transition before a tag can be created.
+
+Every published release, including a security-only patch, uses the single
+standard fail-closed path and must pass control-efficacy, empirical-readiness,
+engineering, build, provenance, signing, and trusted-publishing gates.
+There is no maintenance publication bypass. If those gates are not satisfied,
+coordinate mitigations and disclosure privately while the correction remains
+unpublished. Until an emergency path is rooted outside the release candidate's
+control, operators must assume that a security fix can remain unpublished until
+the next standard release satisfies every gate.
+
+When that delay leaves a supported deployment exposed, activate the
+[security correction containment and risk-acceptance
+process](docs/security_release_containment.md). The process requires verified
+compensating controls, tested monitoring, a named accountable owner, a distinct
+authorized security approver, customer and advisory coordination, an explicit
+UTC expiry, and an auditable private record. It may authorize only temporary
+operation of the precisely scoped deployment. It cannot authorize a merge,
+tag, signature, GitHub Release, TestPyPI or PyPI publication, or any release-gate
+exception. An expired, incomplete, or unapproved record authorizes nothing.
+
+`CODEOWNERS` routes changes across the complete package, test, workflow, script,
+schema, and documentation surfaces to `@acblabs`. It is an ownership and routing
+inventory, not proof that review occurred. The default branch may remain
+unprotected. Before a release-sensitive update reaches it, an authorized human
+maintainer must explicitly approve the candidate's full 40-hex commit SHA after
+required CI passes and retain that SHA-bound authorization plus the check-run
+URLs or IDs in an auditable repository or change-management record. For
+agent-authored work, the human owner may provide that authorization through the
+same `@acblabs` identity; describe it as human owner authorization, not
+independent review or an enforced branch control. Privileged release
+environments remain protected with required reviewers. Default-branch
+authorization does not waive a publication gate or an independent
+evidence-review requirement.
 
 ## Supported Surfaces
 
@@ -44,11 +144,18 @@ controls.
   boundary. Demo subprocess environments are minimized, but hostile code can
   bypass Python-level monkeypatches.
 - HTTPS, endpoint allowlisting, and DNS safety screening reduce SSRF risk. The
-  OpenAI-compatible adapter repeats screening per request and pins the socket to
-  a screened address while preserving hostname verification; this is address
+  OpenAI-compatible adapter caches one screened authority only until the
+  resolving request's fixed monotonic deadline; every request pins its socket
+  to one of those screened numeric addresses while preserving hostname
+  verification, and a request after expiry must screen again. This is address
   pinning, not certificate/SPKI pinning or protection from a resolver already
-  compromised at screening time. The upstream OTLP exporter re-resolves at
-  connect time and therefore retains a documented DNS TOCTOU window.
+  compromised at screening time. OTLP HTTP export likewise binds its private
+  HTTPS connection pool to the exact screened address set while retaining the
+  configured hostname for SNI and certificate verification; redirects,
+  proxies, ambient credentials, and connections outside that authority fail
+  closed. Each OTLP HTTP request also has a monotonic socket watchdog and a
+  65,536-byte decoded response ceiling; a separate process deadline is still
+  required to bound a complete multi-request export command.
 
 ## Operator Guidance
 
@@ -56,6 +163,17 @@ controls.
 - Do not enable `external-script`, `allow_network`, or `script_env_allowlist`
   for forked or otherwise untrusted CI jobs.
 - In non-interactive live CI, require `--trust-config` plus the matching
-  risk-specific flags and keep endpoint DNS screening strict.
-- Treat `requirements*.lock`, release manifests, and generated evidence packets
-  as part of the reviewed release material.
+  risk-specific flags. For OpenAI-compatible egress, independently supply the
+  exact `--authorized-endpoint-host` and `--authorized-api-key-env`; never derive
+  those flags from the live config under review. Keep endpoint DNS screening
+  strict. First-party RunSets and their evaluation summaries record only that
+  authorized host and environment-variable name, never the credential value.
+- Treat `requirements*.lock`, `requirements-min.constraints.txt`,
+  `.gitleaksignore`, release manifests, and generated evidence packets as part
+  of the reviewed release and security material. Keep Gitleaks suppressions
+  scoped to exact reviewed historical fingerprints. Do not remove the history
+  scan's merge-result-only canary detection, independent non-empty revision
+  check, or exact scanner/independently-enumerated patch-unit assertion: exit
+  status alone is not accepted as proof that Git history was scanned
+  completely, including merge resolutions. Keep its `main` push trigger
+  free of path exclusions so participant-input-only commits cannot bypass it.

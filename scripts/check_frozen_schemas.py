@@ -6,9 +6,13 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent_assure.onboarding.diagnostics import bounded_text  # noqa: E402
 from agent_assure.schema.export import export_json_schemas  # noqa: E402
 from scripts.schema_versions import (  # noqa: E402
     active_schema_dir,
@@ -26,7 +30,7 @@ def main(argv: list[str] | None = None) -> int:
     ]
     if failures:
         for failure in failures:
-            print(f"frozen-schemas: {failure}", file=sys.stderr)
+            print(f"frozen-schemas: {bounded_text(failure)}", file=sys.stderr)
         print("frozen-schemas: run `make schemas` to refresh the release snapshot", file=sys.stderr)
         return 1
     print(f"frozen-schemas: ok ({_display_path(_resolve_path(args.schema_dir))})")
@@ -86,9 +90,10 @@ def _resolve_path(path: Path) -> Path:
 
 def _display_path(path: Path) -> str:
     try:
-        return str(path.relative_to(ROOT))
+        candidate = path.relative_to(ROOT)
     except ValueError:
-        return str(path)
+        candidate = path
+    return bounded_text(candidate, fallback="<schema-path>")
 
 
 if __name__ == "__main__":

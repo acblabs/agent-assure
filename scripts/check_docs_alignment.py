@@ -5,9 +5,63 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, get_args
 from urllib.parse import unquote, urlsplit
 
+import yaml
+
+
+class _UniqueKeySafeLoader(yaml.SafeLoader):  # type: ignore[misc]
+    """Safe YAML loader that rejects duplicate keys at every mapping depth."""
+
+
+def _construct_unique_mapping(
+    loader: _UniqueKeySafeLoader,
+    node: yaml.nodes.MappingNode,
+    deep: bool = False,
+) -> dict[Any, Any]:
+    loader.flatten_mapping(node)
+    mapping: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        try:
+            duplicate = key in mapping
+        except TypeError as exc:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                "found an unhashable mapping key",
+                key_node.start_mark,
+            ) from exc
+        if duplicate:
+            raise yaml.constructor.ConstructorError(
+                "while constructing a mapping",
+                node.start_mark,
+                f"found duplicate key {key!r}",
+                key_node.start_mark,
+            )
+        mapping[key] = loader.construct_object(value_node, deep=deep)
+    return mapping
+
+
+_UniqueKeySafeLoader.add_constructor(
+    yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+    _construct_unique_mapping,
+)
+
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.release_metadata import (  # noqa: E402
+    ChangelogRelease,
+    check_citation_release,
+    check_readme_action_source,
+    check_readme_release,
+    parse_changelog,
+    readme_release_action_pin,
+)
+
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -15,6 +69,7 @@ if str(SRC) not in sys.path:
 from agent_assure.authoring.compiler import compile_suite  # noqa: E402
 from agent_assure.compare.runsets import compare_runsets  # noqa: E402
 from agent_assure.evaluation.evaluator import evaluate_runset  # noqa: E402
+from agent_assure.onboarding.diagnostics import bounded_text  # noqa: E402
 from agent_assure.policies.evidence import claim_finding_target  # noqa: E402
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite  # noqa: E402
 from agent_assure.schema.common import (  # noqa: E402
@@ -24,6 +79,7 @@ from agent_assure.schema.common import (  # noqa: E402
 )
 from agent_assure.schema.efficacy import ControlEfficacyGateReason  # noqa: E402
 from agent_assure.schema.export import SCHEMA_MODELS  # noqa: E402
+from agent_assure.schema.live import ClaimEvidenceStatus  # noqa: E402
 from agent_assure.schema.run import AgentRunRecord  # noqa: E402
 from agent_assure.schema.sensitivity import EvidenceSensitivityReasonCode  # noqa: E402
 
@@ -31,9 +87,11 @@ PUBLIC_DOCS = [
     ROOT / "README.md",
     ROOT / "FEATURES.md",
     ROOT / "CHANGELOG.md",
+    ROOT / "SECURITY.md",
     ROOT / "docs" / "showcase.md",
     ROOT / "docs" / "limitations.md",
     ROOT / "docs" / "live_mode_roadmap.md",
+    ROOT / "docs" / "security_release_containment.md",
     ROOT / "docs" / "measurement" / "executive_one_pager.md",
     ROOT / "docs" / "measurement" / "experiment_protocol.md",
     ROOT / "docs" / "measurement" / "measurement_brief_abstract.md",
@@ -101,6 +159,64 @@ REQUIRED_LIVE_PROTOCOL_SECTIONS = (
     "## Machine-Readable Protocol Record",
     "## Required Artifacts Before Execution",
     "## Interpretation Boundary",
+)
+
+CLAIM_EVIDENCE_STATUS_DOCS = (
+    Path("docs/schema_reference.md"),
+    Path("docs/cli_contract.md"),
+    Path("docs/live_calibration.md"),
+    Path("CHANGELOG.md"),
+    Path("docs/release_notes/v0.7.0.md"),
+)
+EXPECTED_CLAIM_EVIDENCE_STATUSES = (
+    "not_evaluated",
+    "not_applicable",
+    "complete",
+    "incomplete",
+    "unobservable",
+)
+
+REQUIRED_SECURITY_CONTAINMENT_SECTIONS = (
+    "## Authority Boundary",
+    "## Intake Clock and Response Objectives",
+    "## Activation and Severity",
+    "## Roles and Independence",
+    "## Containment Before Acceptance",
+    "## Approval and Expiry",
+    "## Monitoring and Reevaluation",
+    "## Customer and Advisory Coordination",
+    "## Escalation and Safe Failure",
+    "## Evidence and Audit Record",
+    "## Closure",
+    "## Operator Checklist",
+)
+
+SECURITY_RISK_RECORD_SCHEMA = "agent-assure/security-correction-risk-acceptance/v1"
+SECURITY_INTAKE_POLICY_ID = "agent-assure/security-vulnerability-intake/v1"
+SECURITY_INTAKE_POLICY_REVISION = "v1"
+SECURITY_INTAKE_CLOCK_BASIS = "earliest_report_receipt_or_internal_detection"
+SECURITY_INTAKE_OBJECTIVES = {
+    "critical": {
+        "primary_page_delivery_minutes": 5,
+        "fallback_page_after_no_ack_minutes": 15,
+        "acknowledgement_minutes": 60,
+        "initial_assessment_minutes": 240,
+        "containment_or_safe_state_minutes": 240,
+    },
+    "high": {
+        "acknowledgement_minutes": 240,
+        "initial_assessment_minutes": 1440,
+        "containment_or_safe_state_minutes": 1440,
+    },
+}
+NON_AUTHORIZING_ACTIONS = (
+    "merge",
+    "tag_creation",
+    "signing",
+    "github_release",
+    "testpypi_publication",
+    "pypi_publication",
+    "release_gate_exception",
 )
 
 REQUIRED_CLAIM_IDS = {
@@ -177,15 +293,17 @@ def main() -> int:
     failures.extend(_check_readme_release_pins())
     failures.extend(_check_claim_traceability())
     failures.extend(_check_schema_reference())
+    failures.extend(_check_claim_evidence_status_docs())
     failures.extend(_check_reason_codes())
     failures.extend(_check_flagship_readme_diagram())
     failures.extend(_check_counterfactual_rag_boundary())
     failures.extend(_check_otel_mapping())
     failures.extend(_check_live_protocol())
+    failures.extend(_check_security_release_containment())
     failures.extend(_check_standards_freshness())
     if failures:
         for failure in failures:
-            print(f"docs-alignment: {failure}", file=sys.stderr)
+            print(f"docs-alignment: {bounded_text(failure)}", file=sys.stderr)
         return 1
     print("docs-alignment: ok")
     return 0
@@ -338,39 +456,43 @@ def _check_deprecated_report_terminology() -> list[str]:
 def _check_changelog() -> list[str]:
     changelog = ROOT / "CHANGELOG.md"
     text = changelog.read_text(encoding="utf-8")
-    failures: list[str] = []
-    if "## Unreleased" not in text:
-        failures.append("CHANGELOG.md must contain an Unreleased section")
-    if _latest_changelog_release(text) is None:
-        failures.append("CHANGELOG.md must contain at least one dated release heading")
-    return failures
+    try:
+        parse_changelog(text, source="CHANGELOG.md")
+    except ValueError as exc:
+        return [str(exc)]
+    return []
 
 
 def _check_citation_version() -> list[str]:
     citation = ROOT / "CITATION.cff"
     text = citation.read_text(encoding="utf-8")
-    version_match = re.search(r"^version:\s*([^\s#]+)", text, re.MULTILINE)
-    date_match = re.search(r"^date-released:\s*([^\s#]+)", text, re.MULTILINE)
-    failures: list[str] = []
-    if version_match is None:
-        failures.append("CITATION.cff must declare version")
-    if date_match is None:
-        failures.append("CITATION.cff must declare date-released")
     latest = _latest_changelog_release((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     if latest is None:
+        return []
+    failures = check_citation_release(text, expected=latest)
+    if failures:
         return failures
-    expected_version, expected_date = latest
-    if version_match is not None and version_match.group(1) != expected_version:
-        failures.append(
-            f"CITATION.cff version {version_match.group(1)!r} does not match latest "
-            f"released version {expected_version!r}"
+    try:
+        parsed = yaml.load(text, Loader=_UniqueKeySafeLoader)
+    except yaml.YAMLError as exc:
+        return [f"CITATION.cff semantic YAML validation failed: {bounded_text(exc)}"]
+    if not isinstance(parsed, dict):
+        return ["CITATION.cff semantic YAML root must be a mapping"]
+
+    semantic_version = parsed.get("version")
+    semantic_date = parsed.get("date-released")
+    semantic_failures: list[str] = []
+    if not isinstance(semantic_version, str) or semantic_version != latest.version:
+        semantic_failures.append(
+            "CITATION.cff semantic version does not match latest released version "
+            f"{latest.version!r}"
         )
-    if date_match is not None and date_match.group(1) != expected_date:
-        failures.append(
-            f"CITATION.cff date-released {date_match.group(1)!r} does not match latest "
-            f"release date {expected_date!r}"
+    if str(semantic_date) != latest.date_text:
+        semantic_failures.append(
+            "CITATION.cff semantic date-released does not match latest release date "
+            f"{latest.date_text!r}"
         )
-    return failures
+    return semantic_failures
 
 
 def _check_readme_release_pins() -> list[str]:
@@ -378,40 +500,25 @@ def _check_readme_release_pins() -> list[str]:
     latest = _latest_changelog_release((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     if latest is None:
         return []
-    expected_version, _ = latest
-    failures: list[str] = []
-    package_match = re.search(r"agent-assure==([0-9]+\.[0-9]+\.[0-9]+)", readme)
-    action_match = re.search(
-        r"acblabs/agent-assure/\.github/actions/agent-assure@v"
-        r"([0-9]+\.[0-9]+\.[0-9]+)",
-        readme,
-    )
-    if package_match is None:
-        failures.append("README.md must pin the published agent-assure package version")
-    elif package_match.group(1) != expected_version:
-        failures.append(
-            f"README.md package pin {package_match.group(1)!r} does not match latest "
-            f"released version {expected_version!r}"
-        )
-    if action_match is None:
-        failures.append("README.md must pin the published composite-action tag")
-    elif action_match.group(1) != expected_version:
-        failures.append(
-            f"README.md action pin {action_match.group(1)!r} does not match latest "
-            f"released version {expected_version!r}"
+    failures = check_readme_release(readme, expected=latest)
+    if not failures:
+        action_pin = readme_release_action_pin(readme)
+        failures.extend(
+            check_readme_action_source(
+                ROOT,
+                release_version=latest.version,
+                pinned_commit=action_pin.commit_sha,
+            )
         )
     return failures
 
 
-def _latest_changelog_release(text: str) -> tuple[str, str] | None:
-    match = re.search(
-        r"^## ([0-9]+\.[0-9]+\.[0-9]+) - ([0-9]{4}-[0-9]{2}-[0-9]{2})$",
-        text,
-        re.MULTILINE,
-    )
-    if match is None:
+def _latest_changelog_release(text: str) -> ChangelogRelease | None:
+    try:
+        changelog = parse_changelog(text, source="CHANGELOG.md")
+    except ValueError:
         return None
-    return match.group(1), match.group(2)
+    return changelog.latest_release
 
 
 def _check_claim_traceability() -> list[str]:
@@ -488,6 +595,66 @@ def _check_flagship_readme_diagram() -> list[str]:
         failures.append(
             "README.md flagship diagram must show fixture equivalence gating "
             "comparison, not comparison producing fixture equivalence"
+        )
+    return failures
+
+
+def _check_claim_evidence_status_docs() -> list[str]:
+    schema_statuses = tuple(get_args(ClaimEvidenceStatus))
+    failures: list[str] = []
+    if schema_statuses != EXPECTED_CLAIM_EVIDENCE_STATUSES:
+        failures.append(
+            "ClaimEvidenceStatus schema domain drifted from the five-state public contract: "
+            f"{schema_statuses!r}"
+        )
+    for relative_path in CLAIM_EVIDENCE_STATUS_DOCS:
+        path = ROOT / relative_path
+        try:
+            text = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            failures.append(f"could not read {relative_path.as_posix()}: {bounded_text(exc)}")
+            continue
+        failures.extend(
+            _check_claim_evidence_status_doc_text(
+                text,
+                document_name=relative_path.as_posix(),
+            )
+        )
+    return failures
+
+
+def _check_claim_evidence_status_doc_text(
+    text: str,
+    *,
+    document_name: str,
+) -> list[str]:
+    normalized = " ".join(text.split()).casefold()
+    required_semantics = (
+        (
+            "excluded paths are `not_evaluated`",
+            ("excluded paths are `not_evaluated`",),
+        ),
+        (
+            "included non-approval paths are `not_applicable`",
+            (
+                "included non-approval paths are `not_applicable`",
+                "included non-approvals are `not_applicable`",
+            ),
+        ),
+    )
+    failures = [
+        f"{document_name} must state claim-evidence applicability: {description}"
+        for description, alternatives in required_semantics
+        if not any(alternative in normalized for alternative in alternatives)
+    ]
+    included_approval_contracts = (
+        "only included approval paths may be `complete`, `incomplete`, or `unobservable`",
+        "only included approvals may be `complete`, `incomplete`, or `unobservable`",
+    )
+    if not any(contract in normalized for contract in included_approval_contracts):
+        failures.append(
+            f"{document_name} must state claim-evidence applicability: only included "
+            "approvals may be `complete`, `incomplete`, or `unobservable`"
         )
     return failures
 
@@ -675,6 +842,439 @@ def _check_live_protocol() -> list[str]:
         roadmap_text = roadmap.read_text(encoding="utf-8")
         if "docs/measurement/experiment_protocol.md" not in roadmap_text:
             failures.append("live roadmap missing protocol document link")
+    return failures
+
+
+def _check_security_release_containment() -> list[str]:
+    security_policy = ROOT / "SECURITY.md"
+    document = ROOT / "docs" / "security_release_containment.md"
+    template = ROOT / "docs" / "templates" / "security_release_risk_acceptance.yaml"
+    integrations = {
+        ROOT / "SECURITY.md": "docs/security_release_containment.md",
+        ROOT / "docs" / "release_pypi.md": "security_release_containment.md",
+        ROOT / "docs" / "release_notes" / "v0.7.0.md": "../security_release_containment.md",
+        ROOT / "docs" / "index.md": "security_release_containment.md",
+        ROOT / "README.md": "docs/security_release_containment.md",
+        ROOT / "mkdocs.yml": "security_release_containment.md",
+    }
+    failures: list[str] = []
+
+    for path in (document, template, *integrations):
+        if not path.is_file():
+            failures.append(
+                f"security containment governance missing file: {path.relative_to(ROOT).as_posix()}"
+            )
+
+    if security_policy.is_file():
+        failures.extend(
+            _check_security_intake_policy_text(
+                security_policy.read_text(encoding="utf-8"),
+                document_name="public security policy",
+            )
+        )
+
+    if document.is_file():
+        document_text = document.read_text(encoding="utf-8")
+        failures.extend(
+            _check_required_markdown_sections(
+                document_text,
+                REQUIRED_SECURITY_CONTAINMENT_SECTIONS,
+                document_name="security correction containment policy",
+                min_content_chars=120,
+            )
+        )
+        normalized_document = " ".join(document_text.split())
+        for required_text in (
+            "It does not authorize a merge, tag, signature, package upload, "
+            "GitHub Release, TestPyPI publication, PyPI publication, or an exception "
+            "to any release gate.",
+            "The accountable owner and independent approver must use distinct human identities",
+            "expires automatically at the recorded UTC timestamp",
+            "Loss of observability is a control failure",
+            "A decision not to notify is itself a named, approved, time-stamped decision",
+            "fail closed: treat the acceptance as inactive",
+            "Do not commit vulnerability details, customer exposure, exploit material, "
+            "personal data, credentials, or a completed acceptance record",
+            "Store the digest only in a separate append-only audit event",
+            "neither its own digest nor an identifier for the later audit event",
+            "the record never points forward to that event",
+            "it must not parse, normalize, or reserialize them",
+        ):
+            if required_text not in normalized_document:
+                failures.append(
+                    "security correction containment policy missing required boundary: "
+                    f"{required_text}"
+                )
+        for duration in ("24 hours", "72 hours", "7 calendar days"):
+            if duration not in document_text:
+                failures.append(
+                    f"security correction containment policy missing maximum window: {duration}"
+                )
+        failures.extend(
+            _check_security_intake_policy_text(
+                document_text,
+                document_name="security correction containment policy",
+            )
+        )
+
+    for path, required_link in integrations.items():
+        if path.is_file() and required_link not in path.read_text(encoding="utf-8"):
+            failures.append(
+                "security containment governance is not linked from "
+                f"{path.relative_to(ROOT).as_posix()}"
+            )
+
+    if template.is_file():
+        try:
+            payload = yaml.safe_load(template.read_text(encoding="utf-8"))
+        except (UnicodeError, yaml.YAMLError) as exc:
+            failures.append(f"security risk-acceptance template is invalid YAML: {exc}")
+        else:
+            failures.extend(_check_security_risk_acceptance_template(payload))
+
+    return failures
+
+
+def _check_security_intake_policy_text(text: str, *, document_name: str) -> list[str]:
+    failures: list[str] = []
+    normalized = " ".join(text.split())
+    critical_row = (
+        "| Critical | Immediate; confirm delivery within 5 elapsed minutes | "
+        "Within 1 elapsed hour | Within 4 elapsed hours | Verified containment, "
+        "verified no supported exposure, or safe-state entry within 4 elapsed hours |"
+    )
+    high_row = (
+        "| High | Immediate | Within 4 elapsed hours | Within 24 elapsed hours | "
+        "Verified containment, verified no supported exposure, or safe-state entry "
+        "within 24 elapsed hours |"
+    )
+    for required_text in (
+        SECURITY_INTAKE_POLICY_ID,
+        "report_received_at_utc",
+        "internally_detected_at_utc",
+        "elapsed UTC time",
+        "must not reset",
+        "weekends",
+        "holidays",
+        critical_row,
+        high_row,
+        "severity-specific objectives take precedence over the general "
+        "three- and seven-business-day targets",
+        "24/7 primary security on-call",
+        "independent fallback",
+        "within 15 elapsed minutes",
+        "same GitHub account, identity provider, or notification path",
+        "unreferenced private process",
+    ):
+        if required_text not in normalized:
+            failures.append(f"{document_name} missing intake control: {required_text}")
+    return failures
+
+
+def _check_security_risk_acceptance_template(payload: object) -> list[str]:
+    failures: list[str] = []
+    if not isinstance(payload, dict):
+        return ["security risk-acceptance template must be a mapping"]
+
+    if payload.get("record_schema") != SECURITY_RISK_RECORD_SCHEMA:
+        failures.append("security risk-acceptance template has an unexpected record_schema")
+    if payload.get("status") != "draft":
+        failures.append("security risk-acceptance template must default to draft")
+
+    intake_policy = payload.get("intake_policy")
+    if not isinstance(intake_policy, dict):
+        failures.append("security risk-acceptance template missing intake_policy")
+    else:
+        expected_policy_fields = {
+            "policy_id": SECURITY_INTAKE_POLICY_ID,
+            "policy_revision": SECURITY_INTAKE_POLICY_REVISION,
+            "clock_basis": SECURITY_INTAKE_CLOCK_BASIS,
+            "severity_specific_objectives_override_general_targets": True,
+        }
+        for key, expected in expected_policy_fields.items():
+            if intake_policy.get(key) != expected:
+                failures.append(
+                    f"security risk-acceptance template has unexpected intake policy field: {key}"
+                )
+        for severity, expected_objectives in SECURITY_INTAKE_OBJECTIVES.items():
+            actual_objectives = intake_policy.get(severity)
+            if not isinstance(actual_objectives, dict):
+                failures.append(
+                    "security risk-acceptance template missing intake objective mapping: "
+                    f"{severity}"
+                )
+                continue
+            for objective, expected_value in expected_objectives.items():
+                if actual_objectives.get(objective) != expected_value:
+                    failures.append(
+                        "security risk-acceptance template has unexpected intake objective: "
+                        f"{severity}.{objective}"
+                    )
+
+    boundary = payload.get("authority_boundary")
+    if not isinstance(boundary, dict):
+        failures.append("security risk-acceptance template missing authority_boundary")
+    else:
+        if boundary.get("operational_risk_acceptance_only") is not True:
+            failures.append("security risk-acceptance template must be operational-risk-only")
+        for action in NON_AUTHORIZING_ACTIONS:
+            if boundary.get(action) is not False:
+                failures.append(
+                    f"security risk-acceptance template must deny publication authority: {action}"
+                )
+        acknowledgement = boundary.get("acknowledgement")
+        if (
+            not isinstance(acknowledgement, str)
+            or "no publication authority" not in acknowledgement
+        ):
+            failures.append(
+                "security risk-acceptance template must acknowledge no publication authority"
+            )
+
+    required_mappings = {
+        "incident_intake": (
+            "source_channel",
+            "report_received_at_utc",
+            "internally_detected_at_utc",
+            "clock_started_at_utc",
+            "clock_start_basis",
+            "critical_signal_detected_at_utc",
+            "primary_page_sent_at_utc",
+            "primary_page_delivery_confirmed_at_utc",
+            "fallback_page_due_at_utc",
+            "fallback_page_sent_at_utc",
+            "human_acknowledgement_due_at_utc",
+            "human_acknowledged_at_utc",
+            "initial_assessment_due_at_utc",
+            "initial_assessment_completed_at_utc",
+            "containment_or_safe_state_due_at_utc",
+            "containment_started_at_utc",
+            "containment_verified_at_utc",
+            "no_supported_deployment_affected_determined_at_utc",
+            "safe_state_entered_at_utc",
+            "objective_breach_detected_at_utc",
+            "objective_breach_reason",
+        ),
+        "incident": (
+            "incident_id",
+            "severity",
+            "severity_rationale",
+            "exploitation_status",
+        ),
+        "release_context": (
+            "supported_release",
+            "affected_artifacts",
+            "repository_commit",
+            "unpublished_correction_identifier",
+            "blocking_gates",
+        ),
+        "affected_scope": (
+            "systems",
+            "customer_or_tenant_cohorts",
+            "assumptions",
+            "unknowns",
+        ),
+        "risk_decision": (
+            "decision",
+            "residual_risk_statement",
+            "safe_state_if_inactive",
+            "risk_owner_attestation",
+        ),
+        "timing": (
+            "approved_at_utc",
+            "effective_at_utc",
+            "expires_at_utc",
+            "maximum_window_hours",
+            "reevaluation_cadence_hours",
+            "next_reevaluation_at_utc",
+            "renewal_count",
+        ),
+        "coordination": (
+            "affected_audiences",
+            "cve_or_cna_plan",
+            "customer_guidance_reference",
+            "legal_review_reference",
+            "privacy_review_reference",
+            "regulatory_review_reference",
+            "decisions",
+        ),
+        "approval": (
+            "supporting_evidence_snapshot_reference",
+            "supporting_evidence_snapshot_sha256",
+            "accountable_owner_decision",
+            "accountable_owner_signed_at_utc",
+            "independent_approver_decision",
+            "independent_approver_signed_at_utc",
+        ),
+        "audit": (
+            "system_of_record_uri",
+            "immutable_audit_log_reference",
+            "record_snapshot_export_reference",
+            "record_snapshot_media_type",
+            "record_snapshot_byte_length",
+            "record_snapshot_digest_algorithm",
+            "record_snapshot_digest_stored_outside_record",
+            "access_control_policy_reference",
+            "retention_policy_reference",
+        ),
+        "escalation": (
+            "contacts",
+            "pvr_outage_detected_at_utc",
+            "primary_delivery_failure_detected_at_utc",
+            "primary_no_ack_detected_at_utc",
+            "fallback_activated_at_utc",
+            "fallback_acknowledged_at_utc",
+            "executive_escalated_at_utc",
+            "safe_state_ordered_at_utc",
+            "revocation_triggers",
+            "last_escalated_at_utc",
+            "escalation_evidence_reference",
+            "escalation_evidence_sha256",
+        ),
+        "closure": (
+            "closed_at_utc",
+            "outcome",
+            "release_evidence_reference",
+            "deployment_verification_reference",
+            "lessons_learned_reference",
+            "follow_up_actions",
+        ),
+    }
+    for mapping_name, required_keys in required_mappings.items():
+        value = payload.get(mapping_name)
+        if not isinstance(value, dict):
+            failures.append(f"security risk-acceptance template missing mapping: {mapping_name}")
+            continue
+        for key in required_keys:
+            if key not in value:
+                failures.append(
+                    f"security risk-acceptance template missing field: {mapping_name}.{key}"
+                )
+
+    audit = payload.get("audit")
+    if isinstance(audit, dict):
+        if "record_snapshot_sha256" in audit:
+            failures.append(
+                "security risk-acceptance template must not contain a recursive "
+                "record snapshot digest"
+            )
+        if "record_snapshot_external_digest_event_reference" in audit:
+            failures.append(
+                "security risk-acceptance template must not contain a forward "
+                "record snapshot digest-event reference"
+            )
+        if audit.get("record_snapshot_digest_algorithm") != "sha256":
+            failures.append(
+                "security risk-acceptance template must pin the external record "
+                "snapshot digest to sha256"
+            )
+        if audit.get("record_snapshot_digest_stored_outside_record") is not True:
+            failures.append(
+                "security risk-acceptance template must store the record snapshot "
+                "digest outside the record"
+            )
+
+    roles = payload.get("roles")
+    if not isinstance(roles, dict):
+        failures.append("security risk-acceptance template missing roles")
+    else:
+        primary_on_call = roles.get("critical_intake_primary_on_call")
+        fallback_on_call = roles.get("critical_intake_independent_fallback_on_call")
+        owner = roles.get("accountable_incident_owner")
+        approver = roles.get("independent_security_risk_approver")
+        if not isinstance(primary_on_call, dict):
+            failures.append("security risk-acceptance template missing primary intake on-call")
+        else:
+            for key in ("durable_role_reference", "private_routing_reference"):
+                if key not in primary_on_call:
+                    failures.append(
+                        f"security risk-acceptance template missing primary on-call field: {key}"
+                    )
+            if primary_on_call.get("continuous_coverage_required") is not True:
+                failures.append(
+                    "security risk-acceptance template must require continuous primary coverage"
+                )
+        if not isinstance(fallback_on_call, dict):
+            failures.append("security risk-acceptance template missing fallback intake on-call")
+        else:
+            for key in (
+                "durable_role_reference",
+                "private_routing_reference",
+                "independent_route_attestation",
+            ):
+                if key not in fallback_on_call:
+                    failures.append(
+                        f"security risk-acceptance template missing fallback on-call field: {key}"
+                    )
+            if fallback_on_call.get("continuous_coverage_required") is not True:
+                failures.append(
+                    "security risk-acceptance template must require continuous fallback coverage"
+                )
+            if fallback_on_call.get("distinct_person_from_primary_required") is not True:
+                failures.append(
+                    "security risk-acceptance template must require a distinct fallback person"
+                )
+        if not isinstance(owner, dict) or "durable_identity" not in owner:
+            failures.append("security risk-acceptance template missing accountable owner identity")
+        if not isinstance(approver, dict):
+            failures.append(
+                "security risk-acceptance template missing independent security approver"
+            )
+        else:
+            for key in (
+                "durable_identity",
+                "delegated_authority_reference",
+                "independence_attestation",
+            ):
+                if key not in approver:
+                    failures.append(
+                        f"security risk-acceptance template missing approver field: {key}"
+                    )
+            if approver.get("distinct_person_required") is not True:
+                failures.append(
+                    "security risk-acceptance template must require a distinct approver"
+                )
+
+    repeated_entries = {
+        "containment_controls": (
+            "control_id",
+            "covered_scope",
+            "owner_identity",
+            "status",
+            "verification_method",
+            "verifier_identity",
+            "verifier_is_distinct_from_implementer",
+            "verified_at_utc",
+            "evidence_sha256",
+            "failure_signal",
+            "safe_state_action",
+        ),
+        "monitoring": (
+            "monitor_id",
+            "signal_source",
+            "query_or_detector_revision",
+            "alert_threshold",
+            "owner_identity",
+            "on_call_destination",
+            "response_objective_minutes",
+            "tested_at_utc",
+            "test_evidence_sha256",
+        ),
+    }
+    for list_name, required_keys in repeated_entries.items():
+        entries = payload.get(list_name)
+        if not isinstance(entries, list) or not entries or not isinstance(entries[0], dict):
+            failures.append(f"security risk-acceptance template missing example entry: {list_name}")
+            continue
+        for key in required_keys:
+            if key not in entries[0]:
+                failures.append(
+                    f"security risk-acceptance template missing repeated field: {list_name}.{key}"
+                )
+
+    if not isinstance(payload.get("reevaluations"), list):
+        failures.append("security risk-acceptance template missing reevaluations list")
+
     return failures
 
 

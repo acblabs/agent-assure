@@ -59,9 +59,9 @@ The development package additionally exposes non-stable surfaces:
   `agent-assure release pilot review` authoring commands and
   factory-only validated review-input/bundle wrappers.
 
-The current development writer emits `schema_version: 0.6.6`, but no v0.6.6
-release exists. The repository contains no real-provider study result and no
-qualifying external CI pilot record.
+The unreleased v0.7.0 package writer emits `schema_version: 0.6.6`, but no
+v0.7.0 release exists. The repository contains no real-provider study result
+and no qualifying external CI pilot record.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
 not make an RFC surface a stable compatibility commitment. Promotion requires
@@ -90,7 +90,25 @@ absence opt-out is
 packets already carrying efficacy, verifier-policy gates, and release-profile
 use. Its passing decision is explicitly non-assurance migration output.
 `GateDecision` always records `efficacy_evidence`,
-`efficacy_verification`, and `efficacy_required`.
+`efficacy_verification`, `efficacy_required`, `waiver_authorization`, and the
+`component_decisions` sequence used by packet aggregation.
+`waiver_authorization` is `authorized_exact` only when every warning has an active waiver
+bound to the authenticated RunSet digest, exact finding ID, and reason code;
+the outcome remains `review` so the raw warning is not rewritten as a pass.
+Authorization is checked against a non-overridable live gate date, conservatively
+using the later of the current local and UTC dates. Current waiver-bearing
+summaries must also carry canonical, unique finding IDs. Waivers apply only to
+actual failures; `not_evaluated` and already-advisory findings remain
+unchanged and produce an unmatched disposition. Evaluation reports retain a
+disposition for every supplied waiver, while authenticated replay context
+contains only scoring-effective matched or artifact-bound expired waivers.
+Packet components are ordered by evaluated role: evaluation, comparison,
+deterministic sensitivity, stochastic sensitivity, then efficacy. Packet-wide
+exact authorization requires every non-pass component to be an exactly
+authorized review. When a required-efficacy failure would otherwise mask packet
+results, the compatibility fields `control_decision` and `efficacy_decision`
+remain present and `component_decisions` retains every evaluated component plus
+the synthetic missing-efficacy result; consumers need not parse human messages.
 
 `gate_artifact` and `gate_evidence_packet` also accept verifier-owned
 `require_evidence_sensitivity`. Use it whenever report presence is part of the

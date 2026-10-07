@@ -12,10 +12,12 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from threading import Lock
 from typing import Literal
+from urllib.parse import urlsplit
 from uuid import uuid5
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.fixed_point import MICRODOLLARS_PER_DOLLAR, PICODOLLARS_PER_DOLLAR
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_PROMPT_BYTES,
@@ -64,6 +66,8 @@ from agent_assure.live.output_contract import (
     parse_live_structured_content,
 )
 from agent_assure.live.paths import resolve_live_config_path
+from agent_assure.live.primitives import with_live_decimal_context
+from agent_assure.network_authority import normalize_endpoint_host
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.privacy.safe_errors import safe_error
@@ -81,6 +85,7 @@ from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import (
     AgentRunRecord,
+    LiveNetworkAuthorityReceipt,
     PolicyResult,
     RunSet,
     StructuredFieldOrigin,
@@ -97,6 +102,7 @@ from agent_assure.schema.sensitivity import (
     knowledge_contract_case_authority_bindings,
 )
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.study_dispatch import (
     ValidatedStudyDispatchPreflight,
     require_validated_study_dispatch_authorization,
@@ -567,6 +573,75 @@ class LiveExecutionSnapshot:
 
     def prompt_digest_by_case(self) -> dict[str, str]:
         return dict(self.prompt_digests)
+
+
+def _live_provider_request(
+    config: LiveRunConfig,
+    snapshot: LiveExecutionSnapshot,
+    prompt_case: LivePromptCase,
+    *,
+    prompt: str,
+    run_id: str,
+    observation_id: str,
+    repetition_index: int,
+    traceparent: str | None = None,
+    tracestate: str | None = None,
+) -> LiveProviderRequest:
+    return LiveProviderRequest(
+        run_id=run_id,
+        observation_id=observation_id,
+        case_id=prompt_case.case_id,
+        repetition_index=repetition_index,
+        prompt=prompt,
+        provider=config.adapter.provider,
+        model=config.adapter.model,
+        governing_evidence=snapshot.governing_evidence,
+        governing_evidence_digest=snapshot.governing_evidence_digest,
+        rendered_governing_evidence_message=snapshot.rendered_governing_evidence_message,
+        governing_evidence_renderer_id=(
+            GOVERNING_EVIDENCE_RENDERER_ID
+            if snapshot.rendered_governing_evidence_message is not None
+            else None
+        ),
+        knowledge_contract_digest=(
+            snapshot.knowledge_contract.knowledge_contract_digest
+            if snapshot.knowledge_contract is not None
+            else config.knowledge_contract_digest
+        ),
+        structured_output_contract_id=snapshot.structured_output_contract_id,
+        structured_output_contract_digest=snapshot.structured_output_contract_digest,
+        provider_response_format_json=snapshot.provider_response_format_json,
+        allow_case_only_static_response=config.repetitions == 1,
+        traceparent=traceparent,
+        tracestate=tracestate,
+    )
+
+
+def _validate_network_cost_ceiling(
+    config: LiveRunConfig,
+    snapshot: LiveExecutionSnapshot,
+    prompts: Mapping[str, str],
+) -> None:
+    if not config.adapter.allow_network or config.adapter.adapter_id != "openai-chat-completions":
+        return
+    ceiling = Decimal(config.max_cost_per_observation_usd)
+    for prompt_case in config.cases:
+        request = _live_provider_request(
+            config,
+            snapshot,
+            prompt_case,
+            prompt=prompts[prompt_case.case_id],
+            run_id="preflight",
+            observation_id="preflight",
+            repetition_index=0,
+        )
+        provider_input = live_provider_input_text(request)
+        upper_bound = _declared_network_attempt_cost_upper_bound(provider_input, config)
+        if upper_bound > ceiling:
+            raise ValueError(
+                "network live execution declared worst-case cost for case "
+                f"{prompt_case.case_id!r} exceeds max_cost_per_observation_usd"
+            )
 
 
 def _structured_output_contract(
@@ -1088,6 +1163,7 @@ def validate_live_execution_snapshot(
     return _validate_live_execution_snapshot(compiled, config, snapshot)
 
 
+@with_live_decimal_context
 def run_live_suite(
     compiled: CompiledSuite,
     config: LiveRunConfig,
@@ -1103,9 +1179,13 @@ def run_live_suite(
     # Pydantic's model_copy(update=...) intentionally skips validation. Treat
     # this library API as the final execution boundary and reconstruct every
     # caller-provided contract before using suite, budget, or adapter fields.
-    compiled = CompiledSuite.model_validate(compiled.model_dump(mode="json"))
-    config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
-    protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json"))
+    compiled_payload = compiled.model_dump(mode="json", warnings="error")
+    compiled = CompiledSuite.model_validate(compiled_payload)
+    validate_loaded_artifact_payload(compiled_payload, "compiled-suite")
+    config = LiveRunConfig.model_validate(config.model_dump(mode="json", warnings="error"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = LiveProtocolRecord.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(protocol_payload, "live-protocol-record")
     _validate_study_bound_live_execution_authorization(
         config,
         _study_dispatch_authorization,
@@ -1145,6 +1225,7 @@ def run_live_suite(
     )
     prompts = snapshot.prompt_by_case()
     prompt_digests = snapshot.prompt_digest_by_case()
+    _validate_network_cost_ceiling(config, snapshot, prompts)
     schedule = _schedule(config)
     request_budget = _LiveRequestBudget(config.max_requests)
     rate_limit_budget = _LiveRateLimitBudget(config.max_rate_limit_events)
@@ -1329,31 +1410,14 @@ def run_live_suite(
                 )
             )
             continue
-        request = LiveProviderRequest(
+        request = _live_provider_request(
+            config,
+            snapshot,
+            prompt_case,
+            prompt=prompt,
             run_id=run_id,
             observation_id=observation_id,
-            case_id=prompt_case.case_id,
             repetition_index=repetition_index,
-            prompt=prompt,
-            provider=config.adapter.provider,
-            model=config.adapter.model,
-            governing_evidence=snapshot.governing_evidence,
-            governing_evidence_digest=snapshot.governing_evidence_digest,
-            rendered_governing_evidence_message=(snapshot.rendered_governing_evidence_message),
-            governing_evidence_renderer_id=(
-                GOVERNING_EVIDENCE_RENDERER_ID
-                if snapshot.rendered_governing_evidence_message is not None
-                else None
-            ),
-            knowledge_contract_digest=(
-                snapshot.knowledge_contract.knowledge_contract_digest
-                if snapshot.knowledge_contract is not None
-                else config.knowledge_contract_digest
-            ),
-            structured_output_contract_id=snapshot.structured_output_contract_id,
-            structured_output_contract_digest=snapshot.structured_output_contract_digest,
-            provider_response_format_json=snapshot.provider_response_format_json,
-            allow_case_only_static_response=config.repetitions == 1,
             traceparent=trace_context.traceparent,
             tracestate=trace_context.tracestate,
         )
@@ -1442,24 +1506,29 @@ def run_live_suite(
             latency_ms = monotonic_ms(start)
             completed = completed or _completion_utc(started)
             response_total_tokens = _response_total_tokens(response)
-            response_cost = Decimal(response.estimated_cost_usd)
+            response_cost = _response_cost_decimal(response)
             if not (
                 config.adapter.allow_network and response.estimated_cost_source == "not_reported"
             ):
-                committed_cost += response_cost - attempt_cost_reservation
-                observation_committed_cost += response_cost - attempt_cost_reservation
+                # Provider usage is evidence, not budget authority. A zero or
+                # understated response must not release the conservative
+                # pre-dispatch reservation and permit additional billable work.
+                charged_cost = max(response_cost, attempt_cost_reservation)
+                committed_cost += charged_cost - attempt_cost_reservation
+                observation_committed_cost += charged_cost - attempt_cost_reservation
             if response.completion_tokens is not None:
-                committed_generated_tokens += (
-                    response.completion_tokens - generated_token_reservation
+                charged_generated_tokens = max(
+                    response.completion_tokens,
+                    generated_token_reservation,
                 )
+                committed_generated_tokens += charged_generated_tokens - generated_token_reservation
                 observation_committed_generated_tokens += (
-                    response.completion_tokens - generated_token_reservation
+                    charged_generated_tokens - generated_token_reservation
                 )
             if response_total_tokens is not None:
-                committed_total_tokens += response_total_tokens - total_token_reservation
-                observation_committed_total_tokens += (
-                    response_total_tokens - total_token_reservation
-                )
+                charged_total_tokens = max(response_total_tokens, total_token_reservation)
+                committed_total_tokens += charged_total_tokens - total_token_reservation
+                observation_committed_total_tokens += charged_total_tokens - total_token_reservation
             if observation_committed_total_tokens < observation_committed_generated_tokens:
                 commitment_gap = (
                     observation_committed_generated_tokens - observation_committed_total_tokens
@@ -1610,7 +1679,27 @@ def run_live_suite(
         completion_status="incomplete" if stop_reasons else "complete",
         stop_reasons=tuple(sorted(stop_reasons)),
         emergency_records=tuple(emergency_records),
+        network_authority_receipt=_network_authority_receipt(config),
         runs=tuple(runs),
+    )
+
+
+def _network_authority_receipt(
+    config: LiveRunConfig,
+) -> LiveNetworkAuthorityReceipt | None:
+    if (
+        not config.adapter.allow_network
+        or config.adapter.adapter_id != "openai-chat-completions"
+        or config.adapter.endpoint_url is None
+        or config.adapter.api_key_env is None
+    ):
+        return None
+    endpoint_host = urlsplit(config.adapter.endpoint_url).hostname
+    if endpoint_host is None:
+        raise ValueError("authorized network endpoint has no hostname")
+    return LiveNetworkAuthorityReceipt(
+        endpoint_host=normalize_endpoint_host(endpoint_host),
+        api_key_env=config.adapter.api_key_env,
     )
 
 
@@ -1748,6 +1837,7 @@ def _record_from_response(
             "completion_tokens": response.completion_tokens,
             "total_tokens": total_tokens,
             "estimated_cost_usd": response.estimated_cost_usd,
+            "estimated_cost_picousd": response.estimated_cost_picousd,
             "estimated_cost_source": response.estimated_cost_source,
             "cost_budget_committed_usd": _cost_string(cost_budget_committed_usd),
             "generated_token_budget_committed": generated_token_budget_committed,
@@ -1876,6 +1966,7 @@ def _error_record(
         completion_tokens=response.completion_tokens if response else None,
         total_tokens=_response_total_tokens(response) if response else None,
         estimated_cost_usd=response.estimated_cost_usd if response else "0.000000",
+        estimated_cost_picousd=response.estimated_cost_picousd if response else None,
         estimated_cost_source=response.estimated_cost_source if response else "not_reported",
         cost_budget_committed_usd=_cost_string(cost_budget_committed_usd),
         generated_token_budget_committed=generated_token_budget_committed,
@@ -1916,7 +2007,11 @@ def _response_total_tokens(response: LiveProviderResponse) -> int | None:
 
 
 def _cost_string(value: Decimal) -> str:
-    return f"{value:.6f}"
+    if not value.is_finite() or value < 0:
+        raise ValueError("cost commitment must be a finite non-negative decimal")
+    numerator, denominator = value.as_integer_ratio()
+    microusd = (numerator * MICRODOLLARS_PER_DOLLAR + denominator - 1) // denominator
+    return f"{microusd // MICRODOLLARS_PER_DOLLAR}.{microusd % MICRODOLLARS_PER_DOLLAR:06d}"
 
 
 def _validate_cases(compiled: CompiledSuite, config: LiveRunConfig) -> None:
@@ -1996,8 +2091,8 @@ def _validate_protocol_config(
     if protocol.max_generated_tokens is not None and config.adapter.max_output_tokens is None:
         raise ValueError("max_generated_tokens requires adapter max_output_tokens")
     if config.adapter.adapter_id == "openai-chat-completions" and (
-        config.adapter.cost_per_1k_prompt_tokens_usd is None
-        or config.adapter.cost_per_1k_completion_tokens_usd is None
+        config.adapter.cost_per_million_prompt_tokens_usd is None
+        or config.adapter.cost_per_million_completion_tokens_usd is None
     ):
         raise ValueError(
             "openai-chat-completions requires prompt and completion pricing rates "
@@ -2024,12 +2119,14 @@ def _planned_observation_count(config: LiveRunConfig) -> int:
     return len(config.cases) * config.repetitions
 
 
+@with_live_decimal_context
 def maximum_provider_attempt_chain_seconds(config: LiveRunConfig) -> Decimal:
     """Bound one observation's full timeout-and-retry chain conservatively."""
 
     return _remaining_provider_attempt_chain_seconds(config, 1)
 
 
+@with_live_decimal_context
 def _remaining_provider_attempt_chain_seconds(
     config: LiveRunConfig,
     attempt_index: int,
@@ -2237,6 +2334,7 @@ def _retry_after_seconds(
     return _retry_after_http_date_delay(text, now_utc=now_utc)
 
 
+@with_live_decimal_context
 def _retry_after_http_date_delay(
     value: str,
     *,
@@ -2304,6 +2402,32 @@ def _prompt_token_upper_bound(prompt: str) -> int:
     return len(prompt.encode("utf-8"))
 
 
+@with_live_decimal_context
+def _declared_network_attempt_cost_upper_bound(
+    provider_input: str,
+    config: LiveRunConfig,
+) -> Decimal:
+    prompt_rate = config.adapter.cost_per_million_prompt_tokens_usd
+    completion_rate = config.adapter.cost_per_million_completion_tokens_usd
+    output_tokens = config.adapter.max_output_tokens
+    if prompt_rate is None or completion_rate is None or output_tokens is None:
+        raise ValueError(
+            "network cost preflight requires prompt/completion rates and max_output_tokens"
+        )
+    return (
+        Decimal(_prompt_token_upper_bound(provider_input)) * Decimal(prompt_rate)
+        + Decimal(output_tokens) * Decimal(completion_rate)
+    ) / Decimal("1000000")
+
+
+@with_live_decimal_context
+def _response_cost_decimal(response: LiveProviderResponse) -> Decimal:
+    if response.estimated_cost_picousd is not None:
+        return Decimal(response.estimated_cost_picousd) / Decimal(PICODOLLARS_PER_DOLLAR)
+    return Decimal(response.estimated_cost_usd)
+
+
+@with_live_decimal_context
 def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConfig) -> None:
     if config.adapter.allow_network and response.estimated_cost_source == "not_reported":
         raise LiveBudgetExceededError(
@@ -2321,7 +2445,7 @@ def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConf
             "token_accounting_unavailable",
             "provider response omitted usage required to enforce max_generated_tokens",
         )
-    if Decimal(response.estimated_cost_usd) > Decimal(config.max_cost_per_observation_usd):
+    if _response_cost_decimal(response) > Decimal(config.max_cost_per_observation_usd):
         raise LiveBudgetExceededError(
             "cost_budget_exceeded_after_response",
             "provider response exceeded max_cost_per_observation_usd",

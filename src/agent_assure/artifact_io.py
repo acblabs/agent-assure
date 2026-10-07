@@ -6,6 +6,8 @@ import re
 import secrets
 import stat
 import subprocess
+import threading
+import time
 from pathlib import Path
 
 _ALLOWED_GIT_COMMANDS = frozenset(
@@ -35,9 +37,21 @@ _UNTRUSTED_GIT_ENVIRONMENT = frozenset(
     }
 )
 _FULL_GIT_COMMIT = re.compile(r"^[a-f0-9]{40}$")
+_GIT_COMMIT_TREE_HEADER = re.compile(rb"tree ([a-f0-9]{40})")
+_GIT_OBJECT_SIZE_OUTPUT = re.compile(rb"(0|[1-9][0-9]*)\r?\n")
 _GIT_REPOSITORY_PATH = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
+_GIT_TREE_MODES = frozenset({b"40000", b"100644", b"100755", b"120000", b"160000"})
 _IS_WINDOWS = os.name == "nt"
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+_GIT_METADATA_OUTPUT_BYTES = 128
+_GIT_READ_CHUNK_BYTES = 64 * 1024
+_GIT_TIMEOUT_SECONDS = 5.0
+_MAX_GIT_COMMIT_BYTES = 1 * 1024 * 1024
+_MAX_GIT_PATH_BYTES = 4 * 1024
+_MAX_GIT_PATH_COMPONENTS = 64
+_MAX_GIT_TREE_BYTES = 16 * 1024 * 1024
+_MAX_GIT_TREE_TRAVERSAL_BYTES = 64 * 1024 * 1024
+MAX_GIT_BLOB_BYTES = 128 * 1024 * 1024
 
 
 def file_sha256(path: Path) -> str:
@@ -243,17 +257,7 @@ def git_output(
         return None
     try:
         result = subprocess.run(
-            [
-                git_executable,
-                "--no-optional-locks",
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                f"core.hooksPath={os.devnull}",
-                "-c",
-                f"safe.directory={project_root.resolve()}",
-                *args,
-            ],
+            _hardened_git_command(git_executable, project_root, *args),
             cwd=project_root,
             env=_git_environment(),
             check=False,
@@ -269,8 +273,14 @@ def git_output(
     return output if output or allow_empty else None
 
 
-def git_file_bytes(project_root: Path, revision: str, repository_path: str) -> bytes:
-    """Read one immutable Git blob with repository hooks and unsafe env disabled."""
+def git_file_bytes(
+    project_root: Path,
+    revision: str,
+    repository_path: str,
+    *,
+    max_bytes: int = MAX_GIT_BLOB_BYTES,
+) -> bytes:
+    """Read one size-bounded immutable Git blob with unsafe Git inputs disabled."""
     if _FULL_GIT_COMMIT.fullmatch(revision) is None:
         raise ValueError(f"invalid immutable Git revision: {revision!r}")
     path_parts = repository_path.split("/")
@@ -280,34 +290,292 @@ def git_file_bytes(project_root: Path, revision: str, repository_path: str) -> b
         or any(part in {"", ".", ".."} for part in path_parts)
     ):
         raise ValueError(f"unsafe Git repository path: {repository_path!r}")
+    if len(repository_path.encode("ascii")) > _MAX_GIT_PATH_BYTES:
+        raise ValueError("Git repository path exceeds the bounded traversal limit")
+    if len(path_parts) > _MAX_GIT_PATH_COMPONENTS:
+        raise ValueError("Git repository path has too many components")
+    if isinstance(max_bytes, bool) or not isinstance(max_bytes, int) or max_bytes < 0:
+        raise ValueError("maximum Git blob size must be a non-negative integer")
+    if max_bytes > MAX_GIT_BLOB_BYTES:
+        raise ValueError(
+            f"maximum Git blob size cannot exceed the {MAX_GIT_BLOB_BYTES}-byte hard limit"
+        )
     git_executable = _resolve_git_executable()
     if git_executable is None:
         raise FileNotFoundError("git executable is unavailable")
+
+    commit = _read_and_verify_git_object(
+        git_executable,
+        project_root,
+        revision,
+        expected_type="commit",
+        max_bytes=_MAX_GIT_COMMIT_BYTES,
+        label="Git commit",
+    )
+    tree_id = _commit_tree_id(commit)
+    traversed_tree_bytes = 0
+    blob_id: str | None = None
+    for index, component in enumerate(path_parts):
+        remaining_tree_bytes = _MAX_GIT_TREE_TRAVERSAL_BYTES - traversed_tree_bytes
+        if remaining_tree_bytes <= 0:
+            raise ValueError("Git tree traversal exceeds its cumulative byte limit")
+        tree = _read_and_verify_git_object(
+            git_executable,
+            project_root,
+            tree_id,
+            expected_type="tree",
+            max_bytes=min(_MAX_GIT_TREE_BYTES, remaining_tree_bytes),
+            label="Git tree",
+        )
+        traversed_tree_bytes += len(tree)
+        mode, entry_id = _git_tree_entry(tree, component.encode("ascii"))
+        is_final = index == len(path_parts) - 1
+        if not is_final:
+            if mode != b"40000":
+                raise OSError("Git repository path traverses a non-tree object")
+            tree_id = entry_id
+            continue
+        if mode not in {b"100644", b"100755", b"120000"}:
+            raise OSError("Git repository path does not resolve to a blob")
+        blob_id = entry_id
+
+    if blob_id is None:  # pragma: no cover - path validation guarantees at least one component
+        raise OSError("Git repository path did not resolve to an object")
+    return _read_and_verify_git_object(
+        git_executable,
+        project_root,
+        blob_id,
+        expected_type="blob",
+        max_bytes=max_bytes,
+        label="Git blob",
+    )
+
+
+def _read_and_verify_git_object(
+    git_executable: str,
+    project_root: Path,
+    object_id: str,
+    *,
+    expected_type: str,
+    max_bytes: int,
+    label: str,
+) -> bytes:
+    """Read and rehash one exact Git object under a caller-supplied byte ceiling."""
+    if _FULL_GIT_COMMIT.fullmatch(object_id) is None:
+        raise OSError(f"{label} identity is not one canonical full object ID")
+
+    object_type = _git_stdout_bounded(
+        git_executable,
+        project_root,
+        "cat-file",
+        "-t",
+        object_id,
+        max_bytes=_GIT_METADATA_OUTPUT_BYTES,
+        label="Git object type",
+    )
+    if object_type not in {
+        f"{expected_type}\n".encode("ascii"),
+        f"{expected_type}\r\n".encode("ascii"),
+    }:
+        raise OSError(f"{label} has an unexpected object type")
+
+    size_output = _git_stdout_bounded(
+        git_executable,
+        project_root,
+        "cat-file",
+        "-s",
+        object_id,
+        max_bytes=_GIT_METADATA_OUTPUT_BYTES,
+        label=f"{label} size",
+    )
+    size_match = _GIT_OBJECT_SIZE_OUTPUT.fullmatch(size_output)
+    if size_match is None:
+        raise OSError(f"{label} size is not one canonical non-negative integer")
+    object_size = int(size_match.group(1))
+    if object_size > max_bytes:
+        raise ValueError(f"{label} exceeds maximum supported size of {max_bytes} bytes")
+
+    payload = _git_stdout_bounded(
+        git_executable,
+        project_root,
+        "cat-file",
+        expected_type,
+        object_id,
+        max_bytes=object_size,
+        label=f"{label} content",
+    )
+    if len(payload) != object_size:
+        raise OSError(f"{label} content length does not match its immutable object size")
+    actual_id = _canonical_git_object_id(expected_type, payload)
+    if not secrets.compare_digest(actual_id, object_id):
+        raise OSError(f"{label} content does not match its immutable object ID")
+    return payload
+
+
+def _canonical_git_object_id(object_type: str, payload: bytes) -> str:
+    # The accepted revision grammar is Git's 40-hex SHA-1 object format. This
+    # digest is an identity-format operation, not a new cryptographic choice.
+    digest = hashlib.sha1(usedforsecurity=False)
+    digest.update(f"{object_type} {len(payload)}\0".encode("ascii"))
+    digest.update(payload)
+    return digest.hexdigest()
+
+
+def _commit_tree_id(commit: bytes) -> str:
+    header_block, separator, _message = commit.partition(b"\n\n")
+    header_lines = header_block.split(b"\n")
+    match = _GIT_COMMIT_TREE_HEADER.fullmatch(header_lines[0]) if header_lines else None
+    if not separator or match is None:
+        raise OSError("Git commit does not contain one canonical root-tree header")
+    if any(line.startswith(b"tree ") for line in header_lines[1:]):
+        raise OSError("Git commit contains duplicate root-tree headers")
+    return match.group(1).decode("ascii")
+
+
+def _git_tree_entry(tree: bytes, expected_name: bytes) -> tuple[bytes, str]:
+    position = 0
+    match: tuple[bytes, str] | None = None
+    while position < len(tree):
+        mode_end = tree.find(b" ", position)
+        if mode_end <= position:
+            raise OSError("Git tree contains a malformed entry mode")
+        name_end = tree.find(b"\0", mode_end + 1)
+        if name_end <= mode_end + 1:
+            raise OSError("Git tree contains a malformed entry name")
+        object_end = name_end + 21
+        if object_end > len(tree):
+            raise OSError("Git tree contains a truncated entry object ID")
+        mode = tree[position:mode_end]
+        name = tree[mode_end + 1 : name_end]
+        if mode not in _GIT_TREE_MODES or b"/" in name:
+            raise OSError("Git tree contains a noncanonical entry")
+        if name == expected_name:
+            if match is not None:
+                raise OSError("Git tree contains duplicate path entries")
+            match = (mode, tree[name_end + 1 : object_end].hex())
+        position = object_end
+    if match is None:
+        raise OSError("Git repository path is absent from the immutable commit")
+    return match
+
+
+def _git_stdout_bounded(
+    git_executable: str,
+    project_root: Path,
+    *args: str,
+    max_bytes: int,
+    label: str,
+) -> bytes:
+    """Run one hardened Git read without permitting unbounded pipe capture."""
     try:
-        result = subprocess.run(
-            [
-                git_executable,
-                "--no-optional-locks",
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                f"core.hooksPath={os.devnull}",
-                "-c",
-                f"safe.directory={project_root.resolve()}",
-                "show",
-                f"{revision}:{repository_path}",
-            ],
+        process = subprocess.Popen(
+            _hardened_git_command(git_executable, project_root, *args),
             cwd=project_root,
             env=_git_environment(),
-            check=False,
-            capture_output=True,
-            timeout=5,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
         )
-    except (OSError, subprocess.SubprocessError) as exc:
-        raise OSError("Git blob could not be read") from exc
-    if result.returncode != 0:
-        raise OSError("Git blob could not be read")
-    return result.stdout
+    except OSError as exc:
+        raise OSError(f"{label} could not be read") from exc
+    stdout = process.stdout
+    if stdout is None:  # pragma: no cover - PIPE guarantees this branch is unreachable
+        _terminate_git_process(process)
+        raise OSError(f"{label} pipe is unavailable")
+
+    output: list[bytes] = []
+    read_errors: list[Exception] = []
+
+    def read_stdout() -> None:
+        payload = bytearray()
+        try:
+            while len(payload) <= max_bytes:
+                remaining = max_bytes + 1 - len(payload)
+                chunk = stdout.read(min(_GIT_READ_CHUNK_BYTES, remaining))
+                if not chunk:
+                    break
+                payload.extend(chunk)
+            output.append(bytes(payload))
+        except Exception as exc:  # pragma: no cover - platform pipe failures are nondeterministic
+            read_errors.append(exc)
+
+    deadline = time.monotonic() + _GIT_TIMEOUT_SECONDS
+    reader = threading.Thread(target=read_stdout, name="agent-assure-git-reader", daemon=True)
+    reader.start()
+    reader.join(timeout=_GIT_TIMEOUT_SECONDS)
+    if reader.is_alive():
+        _terminate_git_process(process)
+        reader.join(timeout=1.0)
+        # Closing a buffered pipe while another thread owns its read lock can
+        # itself block indefinitely. A killed Git process normally closes the
+        # writer and releases the reader; if an unexpected descendant retained
+        # the handle, leave the daemon reader isolated instead of defeating the
+        # caller's deadline while trying to close it synchronously.
+        if not reader.is_alive():
+            stdout.close()
+        raise OSError(f"{label} timed out")
+    if read_errors:
+        _terminate_git_process(process)
+        stdout.close()
+        raise OSError(f"{label} could not be read") from read_errors[0]
+    if not output:
+        _terminate_git_process(process)
+        stdout.close()
+        raise OSError(f"{label} produced no readable pipe result")
+    payload = output[0]
+    if len(payload) > max_bytes:
+        _terminate_git_process(process)
+        stdout.close()
+        raise OSError(f"{label} exceeded its bounded output size")
+    try:
+        remaining_seconds = max(0.001, deadline - time.monotonic())
+        returncode = process.wait(timeout=remaining_seconds)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_git_process(process)
+        raise OSError(f"{label} timed out") from exc
+    finally:
+        stdout.close()
+    if returncode != 0:
+        raise OSError(f"{label} could not be read")
+    return payload
+
+
+def _terminate_git_process(process: subprocess.Popen[bytes]) -> None:
+    if process.poll() is None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=1.0)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _hardened_git_command(
+    git_executable: str,
+    project_root: Path,
+    *args: str,
+) -> list[str]:
+    command = [git_executable, "--no-optional-locks"]
+    if _IS_WINDOWS:
+        # Keep long-path support process-local. Persisting it in repository or
+        # user configuration would mutate caller state and widen this helper's
+        # authority beyond its read-only provenance query.
+        command.extend(("-c", "core.longpaths=true"))
+    command.extend(
+        (
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            f"core.hooksPath={os.devnull}",
+            "-c",
+            f"safe.directory={project_root.resolve()}",
+            *args,
+        )
+    )
+    return command
 
 
 def _is_allowed_ancestry_query(args: tuple[str, ...]) -> bool:

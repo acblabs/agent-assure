@@ -16,7 +16,12 @@ from agent_assure.privacy.credential_uri import (
     contains_persisted_credential,
     matches_credential_name,
 )
+from agent_assure.privacy.digest_fields import is_digest_field_name, is_sha256_hex_digest
 from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.privacy.structural_fields import (
+    git_revision_privacy_probe,
+    sha256_digest_privacy_probe,
+)
 from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.base import FrozenStrictModel
 from agent_assure.schema.common import (
@@ -46,7 +51,9 @@ WorkflowInputValue = Annotated[
     Field(min_length=1, max_length=2_048, pattern=r"^[^\x00\r\n]+$"),
 ]
 _GITHUB_ACTIONS_RUN_URL = re.compile(
-    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/actions/runs/"
+    r"^https://github\.com/"
+    r"((?![A-Za-z0-9-]*--)[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/"
+    r"([A-Za-z0-9_.-]{1,100})/actions/runs/"
     r"([1-9][0-9]*)/attempts/([1-9][0-9]*)$"
 )
 _PILOT_WORKFLOW_PATHS = {
@@ -217,23 +224,114 @@ def _argv_contains_credential_material(argv: tuple[str, ...]) -> bool:
 
 
 def _durable_value_contains_credential_material(value: object) -> bool:
-    """Scan every persisted scalar without pairing safe metadata keys and values."""
+    """Scan persisted scalars while honoring canonical structural digests.
 
-    pending = [value]
+    Mapping keys are still scanned independently, so a safe-looking value cannot
+    hide a credential-bearing field name. Exact lowercase SHA-256 values are
+    exempt only when their immediate field uses the shared digest vocabulary;
+    this matches the durable redaction boundary and avoids treating a random
+    digit run inside a cryptographic digest as payment-card material.
+    """
+
+    pending: list[tuple[object, str | None]] = [(value, None)]
     while pending:
-        candidate = pending.pop()
+        candidate, field_name = pending.pop()
         if isinstance(candidate, str):
+            if (
+                field_name is not None
+                and is_digest_field_name(field_name)
+                and is_sha256_hex_digest(candidate)
+            ):
+                continue
             if _contains_persisted_credential(candidate):
                 return True
         elif isinstance(candidate, Mapping):
-            pending.extend(candidate.keys())
-            pending.extend(candidate.values())
+            for key, item in candidate.items():
+                pending.append((key, None))
+                pending.append((item, key if isinstance(key, str) else None))
         elif isinstance(candidate, Sequence) and not isinstance(
             candidate,
             bytes | bytearray,
         ):
-            pending.extend(candidate)
+            pending.extend((item, field_name) for item in candidate)
     return False
+
+
+def _external_pilot_evidence_privacy_probe(
+    evidence: ExternalPilotEvidence,
+) -> dict[str, object]:
+    """Project only cross-field-validated Git paths for privacy scanning."""
+
+    payload = evidence.model_dump(mode="json", warnings="error")
+    subject_payload = payload["subject"]
+    command_payloads = payload["commands"]
+    if not isinstance(subject_payload, dict) or not isinstance(command_payloads, list):
+        raise TypeError("pilot evidence serialization shape is unavailable")
+    subject_payload["source_revision"] = git_revision_privacy_probe(
+        evidence.subject.source_revision
+    )
+    for command_payload, command in zip(command_payloads, evidence.commands, strict=True):
+        if not isinstance(command_payload, dict):
+            raise TypeError("pilot command serialization shape is unavailable")
+        command_payload["implementation_source_revision"] = git_revision_privacy_probe(
+            command.implementation_source_revision
+        )
+    return payload
+
+
+def _external_pilot_review_privacy_probe(
+    receipt: ExternalPilotIndependenceReviewReceipt,
+) -> dict[str, object]:
+    """Project exact, mutually bound review-receipt Git paths for privacy scanning."""
+
+    payload = receipt.model_dump(mode="json", warnings="error")
+    payload["pilot_execution_source_revision"] = git_revision_privacy_probe(
+        receipt.pilot_execution_source_revision
+    )
+    if receipt.pilot_remediation_source_revision is not None:
+        payload["pilot_remediation_source_revision"] = git_revision_privacy_probe(
+            receipt.pilot_remediation_source_revision
+        )
+    for field_name, workflow_run in (
+        ("capture_workflow_run", receipt.capture_workflow_run),
+        ("finalize_workflow_run", receipt.finalize_workflow_run),
+    ):
+        run_payload = payload[field_name]
+        if not isinstance(run_payload, dict):
+            raise TypeError("pilot workflow-run serialization shape is unavailable")
+        run_url_match = _GITHUB_ACTIONS_RUN_URL.fullmatch(workflow_run.run_url)
+        if run_url_match is None:  # pragma: no cover - run model validates this first
+            raise TypeError("pilot workflow-run URL shape is unavailable")
+        run_payload["run_url"] = (
+            f"https://github.com/{run_url_match.group(1)}/{run_url_match.group(2)}"
+            "/actions/runs/1/attempts/1"
+        )
+        for revision_field in (
+            "run_head_sha",
+            "trusted_workflow_revision",
+            "execution_source_revision",
+        ):
+            run_payload[revision_field] = git_revision_privacy_probe(
+                getattr(workflow_run, revision_field)
+            )
+        public_input_payloads = run_payload["public_inputs"]
+        if not isinstance(public_input_payloads, list):
+            raise TypeError("pilot workflow-input serialization shape is unavailable")
+        for input_payload, workflow_input in zip(
+            public_input_payloads,
+            workflow_run.public_inputs,
+            strict=True,
+        ):
+            if not isinstance(input_payload, dict):
+                raise TypeError("pilot workflow-input serialization shape is unavailable")
+            if workflow_input.name == "remediation_source_revision":
+                input_payload["value"] = git_revision_privacy_probe(workflow_input.value)
+            elif workflow_input.name == "prior_candidate_evidence_digest":
+                if workflow_input.value == receipt.prior_planned_candidate_evidence_digest:
+                    input_payload["value"] = sha256_digest_privacy_probe(workflow_input.value)
+            elif workflow_input.name in {"capture_run_id", "capture_run_attempt"}:
+                input_payload["value"] = "1"
+    return payload
 
 
 def _parse_long_options(
@@ -601,6 +699,8 @@ class PilotWorkflowRunReview(FrozenStrictModel):
             raise ValueError(
                 "pilot workflow run URL must name one attempt-specific public GitHub Actions run"
             )
+        if match.group(1) in {".", ".."} or match.group(2) in {".", ".."}:
+            raise ValueError("pilot workflow run URL cannot contain dot path segments")
         if int(match.group(4)) != self.run_attempt:
             raise ValueError("pilot workflow run attempt must match its attempt-specific URL")
         if self.workflow_path != _PILOT_WORKFLOW_PATHS[self.stage]:
@@ -1203,11 +1303,6 @@ class ExternalPilotEvidence(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_evidence_contract(self) -> Self:
-        payload = self.model_dump(mode="json", warnings="error")
-        if redact_packet_payload(payload) != payload or _durable_value_contains_credential_material(
-            payload
-        ):
-            raise ValueError("pilot evidence must already contain only privacy-filtered metadata")
         artifacts = self._validate_canonical_artifacts()
         self._validate_primary_artifact_anchors(artifacts)
         self._validate_commands(artifacts)
@@ -1233,6 +1328,11 @@ class ExternalPilotEvidence(SelfDigestedArtifact):
             field_name="pilot recorded_at",
         ):
             raise ValueError("pilot recorded_at cannot precede command completion")
+        privacy_probe = _external_pilot_evidence_privacy_probe(self)
+        if redact_packet_payload(
+            privacy_probe
+        ) != privacy_probe or _durable_value_contains_credential_material(privacy_probe):
+            raise ValueError("pilot evidence must already contain only privacy-filtered metadata")
         return self
 
     def _validate_canonical_artifacts(self) -> dict[str, PilotArtifactDigest]:
@@ -1619,13 +1719,6 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_review_receipt(self) -> Self:
-        payload = self.model_dump(mode="json", warnings="error")
-        if redact_packet_payload(payload) != payload or _durable_value_contains_credential_material(
-            payload
-        ):
-            raise ValueError(
-                "pilot independence review must contain only privacy-filtered metadata"
-            )
         if self.reviewer_pseudonym.casefold() == self.pilot_participant_pseudonym.casefold():
             raise ValueError("pilot reviewer must be distinct from the pilot participant")
         capture = self.capture_workflow_run
@@ -1634,8 +1727,24 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
             raise ValueError("pilot review receipt requires capture and finalize run bindings")
         if capture.repository.casefold() != finalize.repository.casefold():
             raise ValueError("pilot capture and finalization must come from the same fork")
+        if capture.run_id == finalize.run_id:
+            raise ValueError("pilot capture and finalization must use distinct workflow runs")
         if capture.trusted_workflow_revision != finalize.trusted_workflow_revision:
             raise ValueError("pilot workflows must use one trusted upstream workflow revision")
+        if capture.trusted_workflow_revision == self.pilot_execution_source_revision:
+            raise ValueError(
+                "pilot trusted workflow revision must be distinct from the execution source"
+            )
+        if capture.run_head_sha == capture.trusted_workflow_revision:
+            raise ValueError(
+                "pilot capture run head must include the participant commit beyond the "
+                "trusted workflow"
+            )
+        if (
+            capture.run_head_sha == self.pilot_execution_source_revision
+            or finalize.run_head_sha == self.pilot_execution_source_revision
+        ):
+            raise ValueError("pilot workflow run heads must be distinct from the execution source")
         if (
             capture.execution_source_revision != self.pilot_execution_source_revision
             or finalize.execution_source_revision != self.pilot_execution_source_revision
@@ -1681,6 +1790,8 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
                 raise ValueError(
                     "applied pilot remediation requires source and prior-candidate bindings"
                 )
+            if self.pilot_remediation_source_revision == self.pilot_execution_source_revision:
+                raise ValueError("applied pilot remediation must postdate the tested source")
             if (
                 finalize.input_values["remediation_source_revision"]
                 != self.pilot_remediation_source_revision
@@ -1710,6 +1821,13 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
         elif self.pilot_friction_categories or self.pilot_remediation_dispositions:
             raise ValueError(
                 "no-friction pilot review cannot claim friction categories or remediations"
+            )
+        privacy_probe = _external_pilot_review_privacy_probe(self)
+        if redact_packet_payload(
+            privacy_probe
+        ) != privacy_probe or _durable_value_contains_credential_material(privacy_probe):
+            raise ValueError(
+                "pilot independence review must contain only privacy-filtered metadata"
             )
         return self
 

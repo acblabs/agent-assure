@@ -1,5 +1,5 @@
 {
-  "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. JSON Schema validates shape and non-negative counts.",
+  "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. A current parent ledger also revalidates provider and model identifiers on every nested segment, including legacy-version segments. JSON Schema mirrors that parent-owned identifier boundary while validating shape and non-negative counts.",
   "$defs": {
     "UsageSegment": {
       "additionalProperties": false,
@@ -30,6 +30,32 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -49,6 +75,35 @@
             },
             "required": [
               "limitations"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "model": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+              },
+              "provider": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
             ]
           }
         }
@@ -112,7 +167,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -128,6 +183,19 @@
           ],
           "default": null,
           "title": "Estimated Cost Microusd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "event_range_end": {
           "anyOf": [
@@ -215,7 +283,7 @@
         "pricing_snapshot_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -301,8 +369,8 @@
           "title": "Run Id"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -362,10 +430,119 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/usage-ledger.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "aggregation_method": {
+            "const": "sum_complete_fields_v2"
+          }
+        },
+        "required": [
+          "aggregation_method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "aggregation_method": {
+            "const": "sum_complete_fields_v2"
+          }
+        },
+        "required": [
+          "aggregation_method"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "aggregation_method": {
+            "const": "sum_known_fields_v1"
+          }
+        },
+        "required": [
+          "aggregation_method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "schema_version": {
+            "enum": [
+              "0.3.1",
+              "0.4.3"
+            ]
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "segments": {
+            "items": {
+              "properties": {
+                "model": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                },
+                "provider": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                }
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "schema_version": {
+            "enum": [
+              "0.3.1",
+              "0.4.3"
+            ]
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      }
+    }
+  ],
   "properties": {
     "aggregation_method": {
-      "const": "sum_known_fields_v1",
-      "default": "sum_known_fields_v1",
+      "default": "sum_complete_fields_v2",
+      "enum": [
+        "sum_known_fields_v1",
+        "sum_complete_fields_v2"
+      ],
       "title": "Aggregation Method",
       "type": "string"
     },
@@ -385,8 +562,8 @@
       "type": "object"
     },
     "schema_version": {
-      "const": "0.4.3",
-      "default": "0.4.3",
+      "const": "0.6.6",
+      "default": "0.6.6",
       "title": "Schema Version",
       "type": "string"
     },

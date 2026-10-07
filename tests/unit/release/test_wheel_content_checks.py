@@ -49,8 +49,10 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
 
     assert "agent_assure/schema_resources/v0.3.0/agent-run-record.schema.json" in required
     assert "agent_assure/schema_resources/v0.3.0/evidence-packet.schema.json" in required
+    assert "agent_assure/py.typed" in required
     assert "agent_assure/mutation/introduction_snapshots.json" in required
     assert "agent_assure/mutation/campaign.py" in required
+    assert "agent_assure/live/_dns_worker.py" in required
     assert "agent_assure/reporting/campaign.py" in required
     assert "agent_assure/schema/campaign.py" in required
     assert (
@@ -58,6 +60,9 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
     ) in required
     assert "agent_assure/mappings/nist_ai_rmf.yaml" in required
     assert "agent_assure/mappings/mitre_atlas_2026_06.yaml" in required
+    assert "agent_assure/mappings/mitre_atlas_2026_06_catalog.yaml" in required
+    assert "agent_assure/THIRD_PARTY_NOTICES.md" in required
+    assert "agent_assure/third_party/mitre-atlas-atlas-data/LICENSE" in required
     assert "agent_assure/examples/langgraph_expense_assurance/runner.py" in required
     assert "agent_assure/examples/langgraph_expense_assurance/suite.yaml" in required
     assert "agent_assure/examples/adk_process_assurance/runner.py" in required
@@ -143,11 +148,11 @@ def test_release_trust_assets_become_required_in_both_distributions_when_frozen(
 
     unfrozen_wheel = required_archive_paths(release_trust_source_root=trust_source)
     unfrozen_sdist = required_sdist_paths(release_trust_source_root=trust_source)
-    assert not any("release_trust/v0_6_6" in path for path in unfrozen_wheel)
+    assert not any("release_trust/v0_7_0" in path for path in unfrozen_wheel)
     assert not any(path.startswith("study/registration/") for path in unfrozen_sdist)
 
     (trust_source / benchmark_name).write_text("{}\n", encoding="utf-8")
-    benchmark_wheel_path = f"agent_assure/release_trust/v0_6_6/{benchmark_name}"
+    benchmark_wheel_path = f"agent_assure/release_trust/v0_7_0/{benchmark_name}"
     benchmark_sdist_mirror = f"src/{benchmark_wheel_path}"
     benchmark_sdist_source = f"study/registration/{benchmark_name}"
     assert benchmark_wheel_path in required_archive_paths(release_trust_source_root=trust_source)
@@ -158,9 +163,9 @@ def test_release_trust_assets_become_required_in_both_distributions_when_frozen(
     (trust_source / review_name).write_text("{}\n", encoding="utf-8")
     frozen_wheel = required_archive_paths(release_trust_source_root=trust_source)
     frozen_sdist = required_sdist_paths(release_trust_source_root=trust_source)
-    assert f"agent_assure/release_trust/v0_6_6/{review_name}" in frozen_wheel
+    assert f"agent_assure/release_trust/v0_7_0/{review_name}" in frozen_wheel
     assert f"study/registration/{review_name}" in frozen_sdist
-    assert f"src/agent_assure/release_trust/v0_6_6/{review_name}" in frozen_sdist
+    assert f"src/agent_assure/release_trust/v0_7_0/{review_name}" in frozen_sdist
 
 
 def test_release_trust_source_asset_must_be_a_regular_file(tmp_path: Path) -> None:
@@ -492,7 +497,48 @@ def test_required_sdist_paths_cover_installed_sources_and_resources() -> None:
     assert "schemas/__init__.py" not in required
     assert "schemas/v0.6.4/evidence-sensitivity-report.schema.json" in required
     assert "mappings/nist_ai_rmf.yaml" in required
+    assert "mappings/mitre_atlas_2026_06_catalog.yaml" in required
+    assert "THIRD_PARTY_NOTICES.md" in required
+    assert "third_party/mitre-atlas-atlas-data/LICENSE" in required
     assert "pyproject.toml" in required
+    for governance_path in (
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "FEATURES.md",
+        "SECURITY.md",
+    ):
+        assert governance_path in required
+
+
+def test_mitre_atlas_catalog_has_packaged_attribution_and_upstream_license() -> None:
+    notice = (ROOT / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    normalized_notice = " ".join(notice.split())
+    license_text = (ROOT / "third_party" / "mitre-atlas-atlas-data" / "LICENSE").read_text(
+        encoding="utf-8"
+    )
+
+    assert "mappings/mitre_atlas_2026_06_catalog.yaml" in notice
+    assert "mitre-atlas/atlas-data" in notice
+    assert "Copyright 2021-2026 MITRE" in notice
+    assert "Apache License, Version 2.0" in notice
+    assert "selects and reformats" in notice
+    assert "v2026.06" in notice
+    assert "651dad90d3c007e797c89356fa1f4d8732f90c8d" in notice
+    assert "b771de8b1489564b2838a709c7429849a9575dbd94073928817fe1a21661e70a" in notice
+    assert "103 base techniques" in normalized_notice
+    assert "70 sub-techniques" in normalized_notice
+    assert "Public Release Case Numbers 21-2363, 26-1162" in notice.replace("\n> ", " ")
+    assert "\u00c2" not in notice
+    assert "\u0160" not in notice
+    assert "Copyright 2021-2026 MITRE" in license_text
+    assert "Apache License, Version 2.0" in license_text
+    assert "http://www.apache.org/licenses/LICENSE-2.0" in license_text
+    assert 'distributed under the License is distributed on an "AS IS" BASIS' in license_text
+    assert "TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION" in license_text
+    assert "(a) You must give any other recipients" in license_text
+    assert "END OF TERMS AND CONDITIONS" in license_text
 
 
 def test_distribution_identity_rejects_mismatched_wheel_and_sdist_versions(
@@ -720,13 +766,42 @@ def test_distribution_payload_equivalence_maps_every_installable_source_byte(
     }
 
 
+def test_distribution_payload_equivalence_maps_packaged_third_party_notices(
+    tmp_path: Path,
+) -> None:
+    notice = b"Third-party notice\n"
+    license_text = b"Apache License 2.0\n"
+    license_source = "third_party/mitre-atlas-atlas-data/LICENSE"
+    license_wheel = "agent_assure/third_party/mitre-atlas-atlas-data/LICENSE"
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            "THIRD_PARTY_NOTICES.md": notice,
+            license_source: license_text,
+        },
+        extra_wheel={
+            "agent_assure/THIRD_PARTY_NOTICES.md": notice,
+            license_wheel: license_text,
+        },
+    )
+
+    manifest = validate_distribution_payload_equivalence(
+        wheel,
+        sdist,
+        schema_versions=("v0.6.4",),
+    )
+
+    assert manifest["agent_assure/THIRD_PARTY_NOTICES.md"] == hashlib.sha256(notice).hexdigest()
+    assert manifest[license_wheel] == hashlib.sha256(license_text).hexdigest()
+
+
 def test_distribution_payload_equivalence_binds_release_trust_mirror_bytes(
     tmp_path: Path,
 ) -> None:
     filename = "frozen-non-grid-benchmark.json"
     canonical_name = f"study/registration/{filename}"
-    packaged_source_name = f"src/agent_assure/release_trust/v0_6_6/{filename}"
-    wheel_name = f"agent_assure/release_trust/v0_6_6/{filename}"
+    packaged_source_name = f"src/agent_assure/release_trust/v0_7_0/{filename}"
+    wheel_name = f"agent_assure/release_trust/v0_7_0/{filename}"
     trust_bytes = b'{"synthetic":"trust-anchor"}\n'
     wheel, sdist = _write_payload_pair(
         tmp_path,
@@ -753,8 +828,8 @@ def test_distribution_payload_equivalence_rejects_invalid_release_trust_pair(
 ) -> None:
     filename = "frozen-non-grid-benchmark.json"
     canonical_name = f"study/registration/{filename}"
-    packaged_source_name = f"src/agent_assure/release_trust/v0_6_6/{filename}"
-    wheel_name = f"agent_assure/release_trust/v0_6_6/{filename}"
+    packaged_source_name = f"src/agent_assure/release_trust/v0_7_0/{filename}"
+    wheel_name = f"agent_assure/release_trust/v0_7_0/{filename}"
     canonical_bytes = b'{"synthetic":"canonical"}\n'
     packaged_bytes = b'{"synthetic":"packaged"}\n'
     extra_sdist = {canonical_name: canonical_bytes}
@@ -837,6 +912,29 @@ def test_release_scanner_allows_credential_handling_source_without_a_value(
 
     inspect_wheel(wheel)
     inspect_sdist(sdist)
+
+
+def test_sdist_privacy_scan_accepts_citation_cff_as_structured_utf8(tmp_path: Path) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            "CITATION.cff": b"cff-version: 1.2.0\ntitle: Agent Assure\n",
+        },
+    )
+
+    inspect_sdist(sdist)
+
+
+def test_sdist_privacy_scan_applies_structural_checks_to_citation_cff(tmp_path: Path) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            "CITATION.cff": b"cff-version: 1.2.0\napi_key: placeholder-reference\n",
+        },
+    )
+
+    with pytest.raises(ValueError, match="structural privacy review"):
+        inspect_sdist(sdist)
 
 
 def _synthetic_sensitive_python_literal(*, body: str = "abcdefghijklmnopqrstuvwxyz") -> str:

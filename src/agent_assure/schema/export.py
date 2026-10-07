@@ -15,6 +15,7 @@ from agent_assure.schema.campaign import (
     AssuranceMutationCampaign,
     AssuranceMutationCatalog,
 )
+from agent_assure.schema.common import harden_json_schema_pattern_ends
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.controls import ControlCoverageReport
 from agent_assure.schema.efficacy import (
@@ -218,6 +219,7 @@ def writer_json_schema(model: SchemaModel) -> dict[str, object]:
     """Return the current writer schema without narrowing compatibility models."""
     schema = model.model_json_schema(mode="validation")
     _pin_persisted_schema_versions_to_defaults(schema)
+    harden_json_schema_pattern_ends(schema)
     return schema
 
 

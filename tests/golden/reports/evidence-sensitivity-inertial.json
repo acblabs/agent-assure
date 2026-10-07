@@ -60,7 +60,7 @@
     "corpus_snapshot_digest": "fd9d082654d02eedc7e0eb1bd04162012430405db567fe1655e9dfb3d58bf124",
     "decision": "approve",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "74becdd36a44e9f2ed482ad53ea86ab02d13be715ebb5b72e564b24052a56e51",
+    "evaluation_summary_digest": "4752f6b2f73159454ca7d711d0b14b74b84c7a3dd43ae44dd6599a18038834c8",
     "evidence_link_present": true,
     "evidence_set_digest": "5e029cb06c362ab94f1d8d89e57037aa827fc2dfe4df1c94d6e7b5e4751774e6",
     "expected_decision": "approve",
@@ -92,8 +92,8 @@
     ],
     "retrieved_evidence_digest": "0a4a0d857f018386405242bab1f863a373c1dee9aa7b0db48343edfad9a498c5",
     "role": "baseline",
-    "runset_digest": "ac257f941b03a1759f2005a2e95976efe476556b857770e7bb876095ba17f262",
-    "runset_id": "sensitivity-runset-baseline-d8223032c1489bbdf095e3b4"
+    "runset_digest": "3d4056fd8dab16421069b6b9f9fd47f1166b200c89f248c3665356580dc5a1bd",
+    "runset_id": "sensitivity-runset-baseline-70cf2b38cefa002df3c051bf"
   },
   "baseline_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -154,8 +154,8 @@
     "artifact_kind": "evaluation-summary",
     "environment": null,
     "findings": [],
-    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
+    "privacy_profile_digest": "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v9",
     "replay_context": {
       "evaluation_date": "2026-01-01",
       "gate_profile": {
@@ -174,8 +174,8 @@
       "suite_digest": "2ed2260777fc8d5a09764cd2907ef2deaa97668c1e8fcc77d10151679009f173",
       "waivers": []
     },
-    "runset_digest": "ac257f941b03a1759f2005a2e95976efe476556b857770e7bb876095ba17f262",
-    "runset_id": "sensitivity-runset-baseline-d8223032c1489bbdf095e3b4",
+    "runset_digest": "3d4056fd8dab16421069b6b9f9fd47f1166b200c89f248c3665356580dc5a1bd",
+    "runset_id": "sensitivity-runset-baseline-70cf2b38cefa002df3c051bf",
     "schema_version": "0.6.6",
     "state": "pass"
   },
@@ -184,9 +184,9 @@
     "completion_status": "complete",
     "execution_mode": "fixture",
     "fixture_manifest_digest": "0977d4d5ebcf57cee26e7ad63924f6b488bd74c7e54d306f1e97dbe4c48485a1",
-    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
-    "protocol_digest": "489d33ddd0d27c23fef1194400396cdf82c5fe84778423096da000d0ae457dce",
+    "privacy_profile_digest": "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v9",
+    "protocol_digest": "c5a61751384a8f95942f37788b543dae4e538a448a52f6ca6dc0e6fdf3934e05",
     "protocol_id": "rag-sensitivity-7ac9c48102bd5650cdc5adb8",
     "runs": [
       {
@@ -271,7 +271,7 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-baseline-d8223032c1489bbdf095e3b4",
+        "run_id": "sensitivity-run-baseline-70cf2b38cefa002df3c051bf",
         "schedule_index": null,
         "schema_version": "0.6.6",
         "source_group_id": null,
@@ -284,7 +284,7 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-baseline-d8223032c1489bbdf095e3b4",
+    "runset_id": "sensitivity-runset-baseline-70cf2b38cefa002df3c051bf",
     "schema_version": "0.6.6",
     "stop_reasons": [],
     "suite_digest": "2ed2260777fc8d5a09764cd2907ef2deaa97668c1e8fcc77d10151679009f173",
@@ -372,7 +372,7 @@
     "corpus_snapshot_digest": "0b6a2ed94bd99ff670666087bc8f24f31c06a1f96c5d31884947be9051727186",
     "decision": "approve",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "84d9ca52fe48ae63450385610288668135c750ed4b822336572893c1adeb71fa",
+    "evaluation_summary_digest": "6fc6334324f8cf012a3b507a81ddddd1716944f66931db30f008fe65a896223d",
     "evidence_link_present": true,
     "evidence_set_digest": "da73ac2f21ea72c33e81971bc0541d3a15abc3ed11b715d05c085c22daeda0fc",
     "expected_decision": "deny",
@@ -404,8 +404,8 @@
     ],
     "retrieved_evidence_digest": "d82df4e654a5ecb3a05faf0ea0d7cb45a6b7bf473cd7d8a3c0327ca6ff2cb9a6",
     "role": "counterfactual",
-    "runset_digest": "8d1519b66eff99bfc1e716cc210ad6291993c8f352768125e72c8b5499258571",
-    "runset_id": "sensitivity-runset-counterfactual-50d8e34c972c1796679a2006"
+    "runset_digest": "2d86cd60aa3c9ca008ae6c4ab129110f9203396e7d5f35c535b75a0a3277d5e4",
+    "runset_id": "sensitivity-runset-counterfactual-68282a93f66542762ed31ca6"
   },
   "counterfactual_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -466,8 +466,8 @@
     "artifact_kind": "evaluation-summary",
     "environment": null,
     "findings": [],
-    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
+    "privacy_profile_digest": "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v9",
     "replay_context": {
       "evaluation_date": "2026-01-01",
       "gate_profile": {
@@ -486,8 +486,8 @@
       "suite_digest": "2ed2260777fc8d5a09764cd2907ef2deaa97668c1e8fcc77d10151679009f173",
       "waivers": []
     },
-    "runset_digest": "8d1519b66eff99bfc1e716cc210ad6291993c8f352768125e72c8b5499258571",
-    "runset_id": "sensitivity-runset-counterfactual-50d8e34c972c1796679a2006",
+    "runset_digest": "2d86cd60aa3c9ca008ae6c4ab129110f9203396e7d5f35c535b75a0a3277d5e4",
+    "runset_id": "sensitivity-runset-counterfactual-68282a93f66542762ed31ca6",
     "schema_version": "0.6.6",
     "state": "pass"
   },
@@ -496,9 +496,9 @@
     "completion_status": "complete",
     "execution_mode": "fixture",
     "fixture_manifest_digest": "0977d4d5ebcf57cee26e7ad63924f6b488bd74c7e54d306f1e97dbe4c48485a1",
-    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
-    "protocol_digest": "489d33ddd0d27c23fef1194400396cdf82c5fe84778423096da000d0ae457dce",
+    "privacy_profile_digest": "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v9",
+    "protocol_digest": "c5a61751384a8f95942f37788b543dae4e538a448a52f6ca6dc0e6fdf3934e05",
     "protocol_id": "rag-sensitivity-7ac9c48102bd5650cdc5adb8",
     "runs": [
       {
@@ -583,7 +583,7 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-counterfactual-50d8e34c972c1796679a2006",
+        "run_id": "sensitivity-run-counterfactual-68282a93f66542762ed31ca6",
         "schedule_index": null,
         "schema_version": "0.6.6",
         "source_group_id": null,
@@ -596,7 +596,7 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-counterfactual-50d8e34c972c1796679a2006",
+    "runset_id": "sensitivity-runset-counterfactual-68282a93f66542762ed31ca6",
     "schema_version": "0.6.6",
     "stop_reasons": [],
     "suite_digest": "2ed2260777fc8d5a09764cd2907ef2deaa97668c1e8fcc77d10151679009f173",
@@ -790,9 +790,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "0.6.6",
+          "baseline_value": "0.7.0",
           "basis": "protocol_fixed",
-          "counterfactual_value": "0.6.6",
+          "counterfactual_value": "0.7.0",
           "dimension": "producer_version",
           "expected_equal": true,
           "state": "controlled"
@@ -957,9 +957,9 @@
     ],
     "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
     "model_id": "deterministic-fixture-model-v1",
-    "producer_version": "0.6.6",
+    "producer_version": "0.7.0",
     "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
-    "protocol_digest": "489d33ddd0d27c23fef1194400396cdf82c5fe84778423096da000d0ae457dce",
+    "protocol_digest": "c5a61751384a8f95942f37788b543dae4e538a448a52f6ca6dc0e6fdf3934e05",
     "protocol_id": "rag-sensitivity-7ac9c48102bd5650cdc5adb8",
     "provenance_binding": "fixture_declared_unverified_digests",
     "provider": "synthetic-fixture",
@@ -1015,8 +1015,8 @@
   "reason_codes": [
     "EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING"
   ],
-  "report_digest": "50d9ced6c6e55033e920a6588e9346cb3b1c90361ac87bb226fe7875e7f823f0",
-  "report_id": "evidence-sensitivity-489d33ddd0d27c23fef11944",
+  "report_digest": "b7ae455a629c670cd0a48b21c8992bb71a2b158148600f72cd0153435f6c30a6",
+  "report_id": "evidence-sensitivity-c5a61751384a8f95942f3778",
   "schema_name": "evidence-sensitivity-report",
   "schema_version": "0.6.6",
   "state": "evidence_insensitive",

@@ -12,7 +12,7 @@ STUDY_BUNDLE_FILES_PER_EXECUTED_CONDITION = 5
 MAX_STUDY_BUNDLE_FILES = (
     STUDY_BUNDLE_BASE_FILE_COUNT + STUDY_BUNDLE_FILES_PER_EXECUTED_CONDITION * MAX_STUDY_CONDITIONS
 )
-# The v0.6.6 empirical checkpoint has 168 paired cases. This cap leaves room
+# The v0.7.0 empirical checkpoint has 168 paired cases. This cap leaves room
 # for bounded repetitions while preventing a release check from retaining the
 # theoretical multi-gigabyte product of every per-file maximum.
 MAX_STUDY_BUNDLE_TOTAL_BYTES = 256 * 1024 * 1024

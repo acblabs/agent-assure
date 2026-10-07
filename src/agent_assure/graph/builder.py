@@ -64,6 +64,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     StochasticSensitivityState,
     SufficiencyState,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.sensitivity_comparison import sensitivity_comparison_binding_error
 
 EvaluationInput: TypeAlias = EvaluationSummary
@@ -113,30 +114,35 @@ def build_evidence_graph(
             evaluation,
             EvaluationSummary,
             label="evaluation",
+            artifact_kind="evaluation-summary",
         )
     if comparison is not None:
         comparison = _revalidate_graph_source(
             comparison,
             ComparisonSummary,
             label="comparison",
+            artifact_kind="comparison-summary",
         )
     if evidence_sensitivity is not None:
         evidence_sensitivity = _revalidate_graph_source(
             evidence_sensitivity,
             RAGSensitivityReport,
             label="evidence-sensitivity",
+            artifact_kind="evidence-sensitivity-report",
         )
     if statistical_sufficiency is not None:
         statistical_sufficiency = _revalidate_graph_source(
             statistical_sufficiency,
             StatisticalSufficiencyReport,
             label="statistical-sufficiency",
+            artifact_kind="statistical-sufficiency-report",
         )
     if stochastic_evidence_sensitivity is not None:
         stochastic_evidence_sensitivity = _revalidate_graph_source(
             stochastic_evidence_sensitivity,
             StochasticEvidenceSensitivityReport,
             label="stochastic-evidence-sensitivity",
+            artifact_kind="stochastic-evidence-sensitivity-report",
         )
         embedded_sufficiency = stochastic_evidence_sensitivity.sufficiency_report
         if statistical_sufficiency is not None and statistical_sufficiency != embedded_sufficiency:
@@ -150,6 +156,7 @@ def build_evidence_graph(
             result,
             AssuranceMutationResult,
             label=f"mutation result {index}",
+            artifact_kind="assurance-mutation-result",
         )
         for index, result in enumerate(mutation_results)
     )
@@ -158,6 +165,7 @@ def build_evidence_graph(
             control_efficacy,
             ControlEfficacyReport,
             label="control-efficacy",
+            artifact_kind="control-efficacy-report",
         )
     if gate_profile is not None:
         gate_profile = _revalidate_graph_source(
@@ -365,10 +373,15 @@ def _revalidate_graph_source(
     model: type[GraphSourceT],
     *,
     label: str,
+    artifact_kind: str | None = None,
 ) -> GraphSourceT:
     if not isinstance(value, model):
         raise TypeError(f"graph {label} input must be a {model.__name__}")
-    return model.model_validate(value.model_dump(mode="json", warnings="error"))
+    payload = value.model_dump(mode="json", warnings="error")
+    validated = model.model_validate(payload)
+    if artifact_kind is not None:
+        validate_loaded_artifact_payload(payload, artifact_kind)
+    return validated
 
 
 @dataclass

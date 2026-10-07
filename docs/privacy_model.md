@@ -28,12 +28,14 @@ encoding before rendering parsed report fields in terminals, logs, or review UIs
 
 The detector semantics have an explicit compatibility identity. Current
 `RunSet`, `EvaluationSummary`, and `ComparisonSummary` artifacts require
-`privacy_profile_id: agent-assure/privacy-detectors/v3` and a
-`privacy_profile_digest`. The digest is SHA-256 over an RFC 8785 canonical
+`privacy_profile_id: agent-assure/privacy-detectors/v9` and a
+`privacy_profile_digest`. The current manifest digest is
+`c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d`.
+The digest is SHA-256 over an RFC 8785 canonical
 manifest containing the ordered detector IDs, regular expressions and flags,
 their mandatory literal guards, Unicode scan-view normalization, the search and
 substitution algorithms, structured mapping policy, and the redaction
-replacement text. The v3 scanner
+replacement text. The v9 scanner
 checks both the exact scalar and an NFKC compatibility view that converts
 tab/line-break controls to spaces and removes other Unicode category-C code
 points. It also maps Unicode dash punctuation and U+2212 MINUS SIGN to the ASCII
@@ -41,6 +43,24 @@ hyphen so SSN- and card-like values cannot evade detection with visual dash
 substitutions. If that view reconstructs a sensitive-looking value, the exact
 original scalar is redacted in full; accepted values are never silently
 normalized before persistence.
+The v9 redaction algorithm also rechecks its size bound after every
+substitution. If an initially bounded scalar expands beyond 16,384 characters,
+the entire scalar is redacted before payment-card or URL-secret scanning can be
+skipped. URL-secret scanning uses preflights for a query delimiter, an HTTP(S)
+scheme, and either a configured secret marker or a percent escape before
+invoking the bounded forward scanner. It scans at most two fixed-depth views,
+decodes valid UTF-8 percent triplets only when they normalize to credential-name
+or assignment syntax, maps findings back to exact original spans, and retains
+malformed escapes literally. Its case fold includes Python `re.IGNORECASE`'s
+dotted/dotless-I, long-s, and Kelvin equivalents. Every sensitive query
+component in one URL is redacted, including later components after a first
+match. Payment-card candidates cover the PCI PAN range of 13 through 19 digits,
+use ASCII-digit rather than Unicode-word boundaries, and must pass Luhn; email
+syntax is explicitly bounded to RFC-compatible local, domain-prefix, and
+top-level-domain maxima so every supported match fits inside the durable
+scanner's overlapping windows. These bounds, transformations, preflights,
+candidate-selection rules, and the transformed-over-limit action are part of
+the profile manifest.
 Changing any manifest entry changes the digest; changing detector behavior
 also requires an intentional profile-ID version decision. The digest is a
 reproducibility and compatibility anchor, not a signature or attestation.
@@ -49,8 +69,9 @@ Each scalar privacy scan is capped at 16,384 characters. A longer scalar is
 treated as sensitive and redacted in full instead of being evaluated by the
 backtracking regular-expression engine. Semantics-preserving literal guards
 skip detectors whose mandatory marker is absent for ASCII scalars. Non-ASCII
-scalars conservatively run every detector, avoiding mismatches between Unicode
-case-insensitive regex semantics and ASCII marker lookup. Mapping keys are
+scalars conservatively run every Python-regex detector, while the custom URL
+scanner applies the exact additional ASCII case equivalents recognized by
+Python's case-insensitive expressions. Mapping keys are
 scanned as well as values. Every non-empty scalar under a recognized ASCII
 sensitive label is sensitive regardless of its length; labels accept repeated
 space, period, underscore, and hyphen separators. Non-ASCII mapping keys with
@@ -59,6 +80,25 @@ would create bypasses. Only the empty string and the exact canonical
 `[REDACTED]` sentinel are exempt. These structured-key semantics, including the
 exact label expression, flags, non-ASCII policy, and exemptions, are bound into
 the privacy-profile digest.
+
+Canonical Git object IDs are not globally exempt by field name. A random
+40-hex revision can contain a 13--19 digit Luhn-valid substring, while a legacy
+credential can itself look like 40 hex characters; treating every
+`source_revision` value as safe would therefore create a redaction bypass. The
+external-pilot models instead build a non-serialized privacy probe after their
+typed and cross-field invariants pass, replacing only the exact revision paths
+with a known-safe placeholder for that scan. Pilot metadata files use the same
+projection only after a complete extra-forbidding role-specific contract is
+validated. Environment, control, execution, friction, remediation, and consent
+records are then bound to their exact authoritative evidence paths and common
+opaque identity. Environment, control, and execution metadata must bind the
+revision exactly to the evidence or capture subject; remediation provenance is
+subsequently bound to the review receipt. The same post-validation rule covers
+exact capture CI-identity digests and receipt-owned SHA-256 and workflow-run
+paths that can collide with the card detector. The original identifiers remain
+in the persisted, digested artifact. Identical bytes in any arbitrary field,
+pseudonym, rationale, limitation, command argument, or mismatched artifact are
+still scanned and fail closed when sensitive-looking.
 
 Evidence-sensitivity has one bounded exception for exact JSON source mirrors
 that may legitimately cross the scalar cap. A mirror is preserved only when
@@ -77,6 +117,14 @@ requires both RunSets to declare the identical runtime-implemented profile;
 unbound legacy RunSets remain replayable but are not comparison-compatible.
 Evidence packets and evidence-diff rendering also require
 their evaluation, comparison, and RunSet inputs to agree on the profile.
+Artifacts produced by v0.6.5 are bound to privacy profile v3 and remain
+structurally valid under the frozen v0.6.5 schema, but the v0.7.0 runtime,
+which emits schema version 0.6.6, does not claim v3 and v9 detector equivalence.
+Do not edit the stored profile fields
+to migrate them. Regenerate a RunSet from its original suite, fixtures, and
+source inputs with the current writer before using it in a current assurance
+decision, or use the pinned v0.6.5 package for historical replay and keep that
+result outside a v9 comparison.
 Accepted legacy artifacts remain readable without these fields, and their
 runtime-only compatibility values are omitted when serialized so frozen
 legacy artifacts and digests do not change.
@@ -105,8 +153,9 @@ content from surviving solely because a field is structurally preserved.
 Run `started_at_utc` and `completed_at_utc` values are also bounded,
 calendar-valid RFC 3339 strings and remain subject to fail-closed sensitive
 content scanning even though clean timestamp structure is preserved.
-The v0.6.6 development writer applies the structural credential/URI detector
-to every non-exempt RunSet string, including `stop_reasons`; inputs accepted by
+The v0.7.0 development package's schema 0.6.6 writer applies the structural
+credential/URI detector to every non-exempt RunSet string, including
+`stop_reasons`; inputs accepted by
 older writers can therefore be rejected when they contain credential-shaped
 assignments, headers, or URI components. Compact suffix matching is limited to
 identifier-like names, so ordinary prose such as `Digital signature: valid`
@@ -136,18 +185,20 @@ These controls are pattern-based guardrails, not production-grade PHI
 de-identification or comprehensive DLP. Raw prompts and raw provider responses
 are not persisted in RunSet artifacts, but live adapters and external scripts
 process the prompt they are invoked with.
-The payment-card-like detector is deliberately conservative: it matches
-13-to-16-digit sequences with optional spaces or hyphens and does not perform a
-Luhn check. This can flag non-card identifiers. Treat detector findings as a
-fail-closed review boundary, not as proof that a value is actually sensitive or
-that an unflagged value is safe.
+The payment-card-like detector matches 13-to-16-digit sequences with optional
+spaces or hyphens and requires a valid Luhn checksum. That check reduces common
+numeric-identifier false positives but is not proof that a matching value is a
+payment card or that an unflagged value is safe. Treat detector findings as a
+fail-closed review boundary rather than comprehensive DLP.
 
 Usage evidence, when present, is a separate observable category. It may include
 provider/model labels, operation labels, pricing snapshot IDs and digests,
-cost-basis text, token counts, retry counts, latency, and declared estimated
-cost in integer micro-USD. These fields are review metadata rather than raw
-prompt or tool argument content, but producers should keep labels free of
-sensitive identifiers.
+cost-basis text, token counts, retry counts, latency, declared price strings in
+dollars per million tokens, and derived exact integer pico-USD cost. Current
+artifacts also carry the rounded integer micro-USD projection required for
+backward-compatible display and replay. These fields are review metadata rather
+than raw prompt or tool argument content, but producers should keep labels free
+of sensitive identifiers.
 Current reports surface usage summaries and limitations; any future renderer
 that displays segment labels directly should pass them through the standard
 redaction path.

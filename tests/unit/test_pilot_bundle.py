@@ -50,7 +50,7 @@ from tests.unit.schema.test_pilot_evidence import (
 
 EVIDENCE_NAME = "external-pilot-evidence.json"
 RECEIPT_NAME = "external-pilot-independence-review.json"
-WHEEL_NAME = "agent_assure-0.6.6-py3-none-any.whl"
+WHEEL_NAME = "agent_assure-0.7.0-py3-none-any.whl"
 
 
 def _json_bytes(value: object) -> bytes:
@@ -68,7 +68,7 @@ def _record_hash(data: bytes) -> str:
 def _wheel_bytes(
     *,
     project_name: str = "agent-assure",
-    version: str = "0.6.6",
+    version: str = "0.7.0",
     compression: int = zipfile.ZIP_DEFLATED,
     wheel_tag: str = "py3-none-any",
     extra_members: dict[str, bytes] | None = None,
@@ -77,7 +77,7 @@ def _wheel_bytes(
     dist_info_name = project_name.replace("-", "_")
     dist_info = f"{dist_info_name}-{version}.dist-info"
     members = {
-        "agent_assure/__init__.py": b'__version__ = "0.6.6"\n',
+        "agent_assure/__init__.py": b'__version__ = "0.7.0"\n',
         f"{dist_info}/METADATA": (
             f"Metadata-Version: 2.4\nName: {project_name}\nVersion: {version}\n\n"
         ).encode(),
@@ -120,9 +120,38 @@ def _write_bundle(
     artifact_contract_overrides: dict[str, str] | None = None,
     receipt_overrides: dict[str, object] | None = None,
     input_manifest_override: PilotInputManifest | None = None,
+    include_participant_waiver: bool = True,
 ) -> tuple[ExternalPilotEvidence, ExternalPilotIndependenceReviewReceipt]:
     root.mkdir()
     values = _values()
+    pilot_source_revision = "9" * 40
+    opaque_pilot_binding = "e" * 64
+    values["pilot_id"] = f"external-controls-{opaque_pilot_binding[:24]}"
+    base_environment = values["environment"]
+    assert isinstance(base_environment, PilotEnvironment)
+    values["environment"] = PilotEnvironment.model_validate(
+        {
+            **base_environment.model_dump(mode="json"),
+            "environment_id": f"github-actions-{opaque_pilot_binding[:20]}",
+            "platform": "github-hosted-actions-linux-x64",
+            "components": (
+                {"component_id": "agent-assure", "version": "0.7.0"},
+                {"component_id": "github-actions", "version": "github-hosted"},
+                {"component_id": "python", "version": "3.11.9"},
+            ),
+        }
+    )
+    base_remediations = values["remediations"]
+    assert isinstance(base_remediations, tuple)
+    values["remediations"] = tuple(
+        PilotRemediationReference.model_validate(
+            {
+                **remediation.model_dump(mode="json"),
+                "areas": ("onboarding",),
+            }
+        )
+        for remediation in base_remediations
+    )
     input_manifest = input_manifest_override or PilotInputManifest.build(
         workflow_id="controls-mutate",
         entries=(
@@ -132,9 +161,29 @@ def _write_bundle(
                 origin=PilotInputOrigin.non_bundled,
                 option_name="suite",
                 option_value="pilot-suite.yaml",
+                # The derived configuration digest for this input contains a
+                # Luhn-valid 13-digit run. It is deliberately retained as a
+                # regression case: canonical digest fields are structural
+                # metadata, not card-number evidence.
                 content_sha256="c" * 64,
                 semantic_identity_kind=PilotInputIdentityKind.compiled_suite,
                 semantic_identity_digest="c" * 64,
+            ),
+            *(
+                (
+                    PilotInputManifestEntry(
+                        entry_id="input-waiver",
+                        input_kind=PilotInputKind.configuration,
+                        origin=PilotInputOrigin.non_bundled,
+                        option_name="waiver",
+                        option_value="participant-waiver.yaml",
+                        content_sha256="a" * 64,
+                        semantic_identity_kind=PilotInputIdentityKind.waiver_set,
+                        semantic_identity_digest="a" * 64,
+                    ),
+                )
+                if include_participant_waiver
+                else ()
             ),
             PilotInputManifestEntry(
                 entry_id="input-runset",
@@ -151,6 +200,22 @@ def _write_bundle(
     input_manifest_bytes = _json_bytes(input_manifest.model_dump(mode="json"))
     source_artifacts = values["artifacts"]
     assert isinstance(source_artifacts, tuple)
+    default_distribution_bytes = (
+        distribution_bytes if distribution_bytes is not None else _wheel_bytes()
+    )
+    planned_artifacts = tuple(
+        {
+            "artifact_id": source.artifact_id,
+            "path": (
+                WHEEL_NAME
+                if source.role is PilotArtifactRole.tested_distribution
+                else f"{source.artifact_id}.json"
+            ),
+            "role": source.role.value,
+        }
+        for source in source_artifacts
+    )
+    planned_artifact_paths = tuple(sorted(item["path"] for item in planned_artifacts))
     content_overrides = artifact_content_overrides or {}
     contract_overrides = artifact_contract_overrides or {}
     artifacts: list[PilotArtifactDigest] = []
@@ -159,24 +224,139 @@ def _write_bundle(
         assert isinstance(source, PilotArtifactDigest)
         if source.role is PilotArtifactRole.tested_distribution:
             path = WHEEL_NAME
-            data = distribution_bytes if distribution_bytes is not None else _wheel_bytes()
+            data = default_distribution_bytes
         else:
             path = f"{source.artifact_id}.json"
-            default_data = (
-                _json_bytes(
+            if source.role is PilotArtifactRole.environment_manifest:
+                default_data = _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-environment-manifest",
+                        "contract_id": "ExternalPilotEnvironmentManifest/v1",
+                        "execution_context": "continuous_integration",
+                        "ci_provider": "github-actions",
+                        "runner_environment": "github-hosted",
+                        "runner_os": "linux",
+                        "runner_arch": "x64",
+                        "python_implementation": "cpython",
+                        "python_version": "3.11.9",
+                        "agent_assure_version": "0.7.0",
+                        "implementation_source_revision": pilot_source_revision,
+                        "credential_values_persisted": False,
+                    }
+                )
+            elif source.role is PilotArtifactRole.environment_control_evidence:
+                default_data = _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-environment-control-evidence",
+                        "contract_id": "ExternalPilotEnvironmentControlEvidence/v1",
+                        "classification": "independently_controlled_non_maintainer",
+                        "repository_is_direct_upstream_fork": True,
+                        "upstream_maintainer_operated_run": False,
+                        "participant_control_attested": True,
+                        "opaque_pilot_binding": opaque_pilot_binding,
+                        "participant_input_repository_path": (
+                            "agent-assure-pilot/participant-waiver.yaml"
+                        ),
+                        "implementation_source_revision": pilot_source_revision,
+                        "identity_authentication": "out_of_band_not_machine_verified",
+                        "manual_review_required": True,
+                    }
+                )
+            elif source.role is PilotArtifactRole.execution_evidence:
+                default_data = _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-command-execution-evidence",
+                        "contract_id": "ExternalPilotCommandExecutionEvidence/v1",
+                        "command_id": "mutate",
+                        "opaque_pilot_binding": opaque_pilot_binding,
+                        "implementation_source_revision": pilot_source_revision,
+                        "tested_distribution_sha256": hashlib.sha256(
+                            default_distribution_bytes
+                        ).hexdigest(),
+                        "input_manifest_sha256": hashlib.sha256(input_manifest_bytes).hexdigest(),
+                        "started_at": "2026-09-01T14:00:00Z",
+                        "finished_at": "2026-09-01T14:02:00Z",
+                        "exit_code": 1,
+                        "stdout": "discarded_at_capture_boundary",
+                        "stderr": "discarded_at_capture_boundary",
+                        "raw_output_persisted": False,
+                    }
+                )
+            elif source.role is PilotArtifactRole.friction_assessment:
+                default_data = _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-friction-assessment",
+                        "contract_id": "ExternalPilotFrictionAssessment/v1",
+                        "pilot_id": values["pilot_id"],
+                        "participant_pseudonym": values["participant_pseudonym"],
+                        "opaque_pilot_binding": opaque_pilot_binding,
+                        "assessment": "friction_observed",
+                        "category": "diagnostics",
+                        "command_exit_code": 1,
+                        "assessment_method": "post_attempt_participant_workflow_dispatch",
+                        "assessed_at": "2026-09-01T14:05:00Z",
+                    }
+                )
+            elif source.role is PilotArtifactRole.remediation_record:
+                default_data = _json_bytes(
                     {
                         "artifact_kind": "external-pilot-remediation-record",
                         "contract_id": "ExternalPilotRemediationRecord/v1",
                         "pilot_id": values["pilot_id"],
+                        "opaque_pilot_binding": opaque_pilot_binding,
                         "friction_category": "diagnostics",
+                        "area": "onboarding",
                         "disposition": "applied",
                         "remediation_source_revision": "d" * 40,
                         "prior_planned_candidate_evidence_digest": "f" * 64,
+                        "statement": (
+                            "A later upstream remediation and the prior immutable planned "
+                            "candidate are bound here for independent review."
+                        ),
+                        "recorded_at": "2026-09-01T14:05:00Z",
                     }
                 )
-                if source.role is PilotArtifactRole.remediation_record
-                else _json_bytes({"artifact_id": source.artifact_id, "state": "recorded"})
-            )
+            elif source.role is PilotArtifactRole.consent_record:
+                default_data = _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-publication-consent",
+                        "contract_id": "ExternalPilotPublicationConsent/v1",
+                        "participant_pseudonym": values["participant_pseudonym"],
+                        "opaque_pilot_binding": opaque_pilot_binding,
+                        "decision": "granted",
+                        "publication_scope": "privacy_filtered_record",
+                        "temporary_actions_storage_days": 14,
+                        "temporary_actions_storage_access": (
+                            "participant_fork_repository_read_access"
+                        ),
+                        "cross_stage_correlation": "shared_opaque_pilot_binding",
+                        "public_fork_correlation": (
+                            "committed_input_digests_can_match_public_bytes"
+                        ),
+                        "covered_bundle_files": [
+                            EVIDENCE_NAME,
+                            RECEIPT_NAME,
+                            *planned_artifact_paths,
+                        ],
+                        "covered_artifacts": planned_artifacts,
+                        "statement": (
+                            "The participant prospectively authorizes publication of the "
+                            "complete privacy-filtered inventory listed here, its future "
+                            "evidence descriptor, and its future byte-bound human review "
+                            "receipt. This names the publication scope before those final "
+                            "bytes exist and does not claim the participant reviewed them. "
+                            "It also covers up to 14 days of candidate storage in the "
+                            "participant fork under GitHub repository read-access rules and "
+                            "the shared opaque binding that can correlate the two stages. The "
+                            "committed-input content and semantic digests can also be matched "
+                            "to bytes in the participant's public fork. This is learning "
+                            "evidence, not an endorsement or validation claim."
+                        ),
+                        "granted_at": "2026-09-01T14:05:00Z",
+                    }
+                )
+            else:
+                default_data = _json_bytes({"artifact_id": source.artifact_id, "state": "recorded"})
             data = content_overrides.get(
                 source.artifact_id,
                 input_manifest_bytes
@@ -219,7 +399,7 @@ def _write_bundle(
     values["subject"] = PilotSubject.model_validate(
         {
             **subject.model_dump(mode="json"),
-            "source_revision": "9" * 40,
+            "source_revision": pilot_source_revision,
             "distribution_digest": artifact_by_id[subject.distribution_artifact_id].sha256,
         }
     )
@@ -243,7 +423,17 @@ def _write_bundle(
         PilotCommandExecution.model_validate(
             {
                 **commands[0].model_dump(mode="json"),
-                "implementation_source_revision": "9" * 40,
+                "argv": (
+                    (*commands[0].argv, "--waiver", "participant-waiver.yaml")
+                    if include_participant_waiver
+                    else commands[0].argv
+                ),
+                "consumed_input_entry_ids": (
+                    ("input-runset", "input-suite", "input-waiver")
+                    if include_participant_waiver
+                    else ("input-runset", "input-suite")
+                ),
+                "implementation_source_revision": pilot_source_revision,
                 "tested_distribution_digest": artifact_by_id[
                     commands[0].tested_distribution_artifact_id
                 ].sha256,
@@ -298,7 +488,7 @@ def _write_bundle(
         "prior_planned_candidate_evidence_digest": "f" * 64,
         "capture_workflow_run": _workflow_run("capture"),
         "finalize_workflow_run": _workflow_run("finalize"),
-        "expected_release_line": "0.6.6",
+        "expected_release_line": "0.7.0",
         "reviewer_pseudonym": "release-reviewer-001",
         "manual_approval_is_trust_root": True,
         "reviewer_independent_of_pilot_execution": True,
@@ -330,7 +520,7 @@ def _write_bundle(
     return evidence, receipt
 
 
-def _load(root: Path, *, expected_release: str = "0.6.6rc1") -> object:
+def _load(root: Path, *, expected_release: str = "0.7.0rc1") -> object:
     return load_verified_external_pilot_bundle(
         root,
         evidence_path=EVIDENCE_NAME,
@@ -505,7 +695,7 @@ def test_bundle_paths_are_root_confined(tmp_path: Path) -> None:
                 root,
                 evidence_path=path,
                 review_receipt_path=RECEIPT_NAME,
-                expected_release="0.6.6",
+                expected_release="0.7.0",
             )
 
 
@@ -570,7 +760,7 @@ def test_unknown_schema_contract_and_sensitive_text_fail_closed(tmp_path: Path) 
         privacy_root,
         artifact_content_overrides={"artifact-control": b"https://example.invalid/control?sig=x\n"},
     )
-    with pytest.raises(ValueError, match="privacy review"):
+    with pytest.raises(ValueError, match="privacy review|valid JSON"):
         _load(privacy_root)
 
     key_privacy_root = tmp_path / "key-privacy"
@@ -586,7 +776,7 @@ def test_unknown_schema_contract_and_sensitive_text_fail_closed(tmp_path: Path) 
             )
         },
     )
-    with pytest.raises(ValueError, match="privacy review"):
+    with pytest.raises(ValueError, match="privacy review|contract identity"):
         _load(key_privacy_root)
 
     multiline_privacy_root = tmp_path / "multiline-privacy"
@@ -594,7 +784,7 @@ def test_unknown_schema_contract_and_sensitive_text_fail_closed(tmp_path: Path) 
         multiline_privacy_root,
         artifact_content_overrides={"artifact-control": b"api_key\n=\nhunter2\n"},
     )
-    with pytest.raises(ValueError, match="privacy review"):
+    with pytest.raises(ValueError, match="privacy review|valid JSON"):
         _load(multiline_privacy_root)
 
 
@@ -630,12 +820,12 @@ def test_shared_artifact_validator_applies_strong_wheel_privacy_rules() -> None:
         producing_command_id=None,
     )
 
-    with pytest.raises(ValueError, match="privacy review"):
+    with pytest.raises(ValueError, match="privacy review|valid JSON"):
         validate_external_pilot_artifact_bytes(
             artifact,
             wheel,
             implementation_id="agent-assure",
-            implementation_version="0.6.6",
+            implementation_version="0.7.0",
         )
 
 
@@ -652,13 +842,376 @@ def test_shared_artifact_validator_applies_metadata_privacy_rules() -> None:
         producing_command_id=None,
     )
 
-    with pytest.raises(ValueError, match="privacy review"):
+    with pytest.raises(ValueError, match="privacy review|valid JSON"):
         validate_external_pilot_artifact_bytes(
             artifact,
             metadata,
             implementation_id="agent-assure",
-            implementation_version="0.6.6",
+            implementation_version="0.7.0",
         )
+
+
+def _strict_metadata_payload(
+    role: PilotArtifactRole,
+    revision: str,
+) -> dict[str, object]:
+    if role is PilotArtifactRole.environment_manifest:
+        return {
+            "artifact_kind": "external-pilot-environment-manifest",
+            "contract_id": "ExternalPilotEnvironmentManifest/v1",
+            "execution_context": "continuous_integration",
+            "ci_provider": "github-actions",
+            "runner_environment": "github-hosted",
+            "runner_os": "linux",
+            "runner_arch": "x64",
+            "python_implementation": "cpython",
+            "python_version": "3.11.9",
+            "agent_assure_version": "0.7.0",
+            "implementation_source_revision": revision,
+            "credential_values_persisted": False,
+        }
+    if role is PilotArtifactRole.environment_control_evidence:
+        return {
+            "artifact_kind": "external-pilot-environment-control-evidence",
+            "contract_id": "ExternalPilotEnvironmentControlEvidence/v1",
+            "classification": "independently_controlled_non_maintainer",
+            "repository_is_direct_upstream_fork": True,
+            "upstream_maintainer_operated_run": False,
+            "participant_control_attested": True,
+            "opaque_pilot_binding": "e" * 64,
+            "participant_input_repository_path": "agent-assure-pilot/participant-waiver.yaml",
+            "implementation_source_revision": revision,
+            "identity_authentication": "out_of_band_not_machine_verified",
+            "manual_review_required": True,
+        }
+    if role is PilotArtifactRole.execution_evidence:
+        return {
+            "artifact_kind": "external-pilot-command-execution-evidence",
+            "contract_id": "ExternalPilotCommandExecutionEvidence/v1",
+            "command_id": "mutate",
+            "opaque_pilot_binding": "e" * 64,
+            "implementation_source_revision": revision,
+            "tested_distribution_sha256": "1" * 64,
+            "input_manifest_sha256": "5" * 64,
+            "started_at": "2026-09-01T14:00:00Z",
+            "finished_at": "2026-09-01T14:02:00Z",
+            "exit_code": 1,
+            "stdout": "discarded_at_capture_boundary",
+            "stderr": "discarded_at_capture_boundary",
+            "raw_output_persisted": False,
+        }
+    if role is PilotArtifactRole.friction_assessment:
+        return {
+            "artifact_kind": "external-pilot-friction-assessment",
+            "contract_id": "ExternalPilotFrictionAssessment/v1",
+            "pilot_id": f"external-controls-{'e' * 24}",
+            "participant_pseudonym": "participant-001",
+            "opaque_pilot_binding": "e" * 64,
+            "assessment": "friction_observed",
+            "category": "diagnostics",
+            "command_exit_code": 1,
+            "assessment_method": "post_attempt_participant_workflow_dispatch",
+            "assessed_at": "2026-09-01T14:05:00Z",
+        }
+    if role is PilotArtifactRole.remediation_record:
+        return {
+            "artifact_kind": "external-pilot-remediation-record",
+            "contract_id": "ExternalPilotRemediationRecord/v1",
+            "pilot_id": f"external-controls-{'e' * 24}",
+            "opaque_pilot_binding": "e" * 64,
+            "friction_category": "diagnostics",
+            "area": "onboarding",
+            "disposition": "applied",
+            "remediation_source_revision": revision,
+            "prior_planned_candidate_evidence_digest": "f" * 64,
+            "statement": (
+                "A later upstream remediation and the prior immutable planned candidate are "
+                "bound here for independent review."
+            ),
+            "recorded_at": "2026-09-01T14:05:00Z",
+        }
+    if role is PilotArtifactRole.consent_record:
+        source_artifacts = _values()["artifacts"]
+        assert isinstance(source_artifacts, tuple)
+        covered_artifacts = tuple(
+            {
+                "artifact_id": artifact.artifact_id,
+                "path": (
+                    WHEEL_NAME
+                    if artifact.role is PilotArtifactRole.tested_distribution
+                    else f"{artifact.artifact_id}.json"
+                ),
+                "role": artifact.role.value,
+            }
+            for artifact in source_artifacts
+        )
+        return {
+            "artifact_kind": "external-pilot-publication-consent",
+            "contract_id": "ExternalPilotPublicationConsent/v1",
+            "participant_pseudonym": "participant-001",
+            "opaque_pilot_binding": "e" * 64,
+            "decision": "granted",
+            "publication_scope": "privacy_filtered_record",
+            "temporary_actions_storage_days": 14,
+            "temporary_actions_storage_access": "participant_fork_repository_read_access",
+            "cross_stage_correlation": "shared_opaque_pilot_binding",
+            "public_fork_correlation": "committed_input_digests_can_match_public_bytes",
+            "covered_bundle_files": (
+                EVIDENCE_NAME,
+                RECEIPT_NAME,
+                *(sorted(item["path"] for item in covered_artifacts)),
+            ),
+            "covered_artifacts": covered_artifacts,
+            "statement": (
+                "The participant prospectively authorizes publication of the complete "
+                "privacy-filtered inventory listed here, its future evidence descriptor, and "
+                "its future byte-bound human review receipt. This names the publication scope "
+                "before those final bytes exist and does not claim the participant reviewed "
+                "them. It also covers up to 14 days of candidate storage in the participant "
+                "fork under GitHub repository read-access rules and the shared opaque binding "
+                "that can correlate the two stages. The committed-input content and semantic "
+                "digests can also be matched to bytes in the participant's public fork. This "
+                "is learning evidence, not an endorsement or validation claim."
+            ),
+            "granted_at": "2026-09-01T14:05:00Z",
+        }
+    raise AssertionError(f"unsupported test metadata role: {role}")
+
+
+@pytest.mark.parametrize(
+    "role",
+    (
+        PilotArtifactRole.environment_manifest,
+        PilotArtifactRole.environment_control_evidence,
+        PilotArtifactRole.execution_evidence,
+        PilotArtifactRole.remediation_record,
+    ),
+)
+def test_pilot_metadata_privacy_probe_accepts_only_contract_owned_git_path(
+    role: PilotArtifactRole,
+) -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    metadata = _json_bytes(_strict_metadata_payload(role, revision))
+    artifact = PilotArtifactDigest(
+        artifact_id="artifact-metadata",
+        path="metadata.json",
+        role=role,
+        sha256=hashlib.sha256(metadata).hexdigest(),
+        content_scope=PilotArtifactContentScope.metadata_only,
+        schema_validated=False,
+        schema_contract=None,
+        producing_command_id=None,
+    )
+
+    validate_external_pilot_artifact_bytes(
+        artifact,
+        metadata,
+        implementation_id="agent-assure",
+        implementation_version="0.7.0",
+        expected_source_revision=revision,
+    )
+
+
+def test_pilot_metadata_privacy_probe_does_not_exempt_unowned_path_or_role() -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    payload = _strict_metadata_payload(PilotArtifactRole.environment_manifest, revision)
+    payload["rationale"] = revision
+    metadata = _json_bytes(payload)
+    artifact = PilotArtifactDigest(
+        artifact_id="artifact-environment",
+        path="environment.json",
+        role=PilotArtifactRole.environment_manifest,
+        sha256=hashlib.sha256(metadata).hexdigest(),
+        content_scope=PilotArtifactContentScope.metadata_only,
+        schema_validated=False,
+        schema_contract=None,
+        producing_command_id=None,
+    )
+
+    with pytest.raises(ValueError):
+        validate_external_pilot_artifact_bytes(
+            artifact,
+            metadata,
+            implementation_id="agent-assure",
+            implementation_version="0.7.0",
+            expected_source_revision=revision,
+        )
+
+    without_rationale = _json_bytes(
+        {key: value for key, value in payload.items() if key != "rationale"}
+    )
+    wrong_role = PilotArtifactDigest.model_validate(
+        {
+            **artifact.model_dump(mode="json"),
+            "role": PilotArtifactRole.environment_control_evidence,
+            "sha256": hashlib.sha256(without_rationale).hexdigest(),
+        }
+    )
+    with pytest.raises(ValueError, match="incompatible|invalid contract identity"):
+        validate_external_pilot_artifact_bytes(
+            wrong_role,
+            without_rationale,
+            implementation_id="agent-assure",
+            implementation_version="0.7.0",
+            expected_source_revision=revision,
+        )
+
+
+def test_pilot_metadata_contract_requires_complete_shape_and_evidence_source_binding() -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    payload = _strict_metadata_payload(PilotArtifactRole.environment_manifest, revision)
+    metadata = _json_bytes(payload)
+    artifact = PilotArtifactDigest(
+        artifact_id="artifact-environment",
+        path="environment.json",
+        role=PilotArtifactRole.environment_manifest,
+        sha256=hashlib.sha256(metadata).hexdigest(),
+        content_scope=PilotArtifactContentScope.metadata_only,
+        schema_validated=False,
+        schema_contract=None,
+        producing_command_id=None,
+    )
+
+    with pytest.raises(ValueError, match="does not match its evidence subject"):
+        validate_external_pilot_artifact_bytes(
+            artifact,
+            metadata,
+            implementation_id="agent-assure",
+            implementation_version="0.7.0",
+            expected_source_revision="9" * 40,
+        )
+
+    minimal = _json_bytes(
+        {
+            "artifact_kind": payload["artifact_kind"],
+            "contract_id": payload["contract_id"],
+            "implementation_source_revision": revision,
+        }
+    )
+    minimal_artifact = PilotArtifactDigest.model_validate(
+        {
+            **artifact.model_dump(mode="json"),
+            "sha256": hashlib.sha256(minimal).hexdigest(),
+        }
+    )
+    with pytest.raises(ValueError):
+        validate_external_pilot_artifact_bytes(
+            minimal_artifact,
+            minimal,
+            implementation_id="agent-assure",
+            implementation_version="0.7.0",
+            expected_source_revision=revision,
+        )
+
+
+def test_closed_bundle_rejects_metadata_source_revision_mismatch(tmp_path: Path) -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    root = tmp_path / "bundle"
+    _write_bundle(
+        root,
+        artifact_content_overrides={
+            "artifact-environment": _json_bytes(
+                _strict_metadata_payload(PilotArtifactRole.environment_manifest, revision)
+            )
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not match its evidence subject"):
+        _load(root)
+
+
+@pytest.mark.parametrize(
+    ("artifact_id", "role", "overrides", "message"),
+    (
+        (
+            "artifact-environment",
+            PilotArtifactRole.environment_manifest,
+            {"agent_assure_version": "0.6.6"},
+            "does not bind the evidence environment",
+        ),
+        (
+            "artifact-control",
+            PilotArtifactRole.environment_control_evidence,
+            {"opaque_pilot_binding": "f" * 64},
+            "do not share one opaque pilot binding",
+        ),
+        (
+            "artifact-execution",
+            PilotArtifactRole.execution_evidence,
+            {"command_id": "other-command"},
+            "does not bind its command",
+        ),
+        (
+            "artifact-friction",
+            PilotArtifactRole.friction_assessment,
+            {"assessment": "no_friction_observed", "category": None},
+            "does not bind the evidence",
+        ),
+        (
+            "artifact-remediation",
+            PilotArtifactRole.remediation_record,
+            {"remediation_source_revision": "9" * 40},
+            "must postdate the tested source",
+        ),
+        (
+            "artifact-consent",
+            PilotArtifactRole.consent_record,
+            {"participant_pseudonym": "participant-002"},
+            "does not bind the exact bundle",
+        ),
+    ),
+)
+def test_closed_bundle_binds_every_typed_metadata_claim(
+    tmp_path: Path,
+    artifact_id: str,
+    role: PilotArtifactRole,
+    overrides: dict[str, object],
+    message: str,
+) -> None:
+    payload = _strict_metadata_payload(role, "9" * 40)
+    payload.update(overrides)
+    root = tmp_path / "bundle"
+    _write_bundle(
+        root,
+        artifact_content_overrides={artifact_id: _json_bytes(payload)},
+    )
+
+    with pytest.raises(ValueError, match=message):
+        _load(root)
+
+
+@pytest.mark.parametrize(
+    "artifact_id",
+    (
+        "artifact-environment",
+        "artifact-control",
+        "artifact-execution",
+        "artifact-friction",
+        "artifact-remediation",
+        "artifact-consent",
+    ),
+)
+@pytest.mark.parametrize(
+    "invalid_metadata",
+    (
+        b'{"state":"recorded"}\n',
+        b'"recorded"\n',
+        b'{"artifact_kind":\n',
+        b'{"artifact_kind":"first","artifact_kind":"second"}\n',
+        b"recorded\n",
+    ),
+    ids=("identityless-object", "json-scalar", "malformed-json", "duplicate-key", "plain-text"),
+)
+def test_closed_bundle_requires_exact_typed_contract_for_strict_metadata_roles(
+    tmp_path: Path,
+    artifact_id: str,
+    invalid_metadata: bytes,
+) -> None:
+    root = tmp_path / "bundle"
+    _write_bundle(root, artifact_content_overrides={artifact_id: invalid_metadata})
+
+    with pytest.raises(ValueError):
+        _load(root)
 
 
 def test_corrupt_wheel_member_fails_with_normalized_validation_error(
@@ -679,7 +1232,7 @@ def test_corrupt_deflate_stream_fails_with_normalized_validation_error(
 ) -> None:
     wheel = bytearray(_wheel_bytes(compression=zipfile.ZIP_DEFLATED))
     with zipfile.ZipFile(io.BytesIO(wheel)) as archive:
-        metadata = archive.getinfo("agent_assure-0.6.6.dist-info/METADATA")
+        metadata = archive.getinfo("agent_assure-0.7.0.dist-info/METADATA")
         name_length, extra_length = struct.unpack_from("<HH", wheel, metadata.header_offset + 26)
         compressed_offset = metadata.header_offset + 30 + name_length + extra_length
     wheel[compressed_offset] ^= 0xFF
@@ -796,6 +1349,14 @@ def test_wheel_structural_privacy_scan_has_an_aggregate_line_budget(
         _load(root)
 
 
+def test_wheel_structural_privacy_scan_budget_has_bounded_growth_headroom() -> None:
+    assert pilot_bundle.MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES == 550_000
+    assert pilot_bundle.MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES == 20_000
+    assert pilot_bundle.MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES - 500_000 >= (
+        2 * pilot_bundle.MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES
+    )
+
+
 def test_python_wheel_members_are_charged_to_the_aggregate_line_budget(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -858,6 +1419,16 @@ def test_workflow_argv_must_match_the_exact_typed_input_manifest(tmp_path: Path)
                 semantic_identity_digest="c" * 64,
             ),
             PilotInputManifestEntry(
+                entry_id="input-waiver",
+                input_kind=PilotInputKind.configuration,
+                origin=PilotInputOrigin.non_bundled,
+                option_name="waiver",
+                option_value="participant-waiver.yaml",
+                content_sha256="a" * 64,
+                semantic_identity_kind=PilotInputIdentityKind.waiver_set,
+                semantic_identity_digest="a" * 64,
+            ),
+            PilotInputManifestEntry(
                 entry_id="input-runset",
                 input_kind=PilotInputKind.data,
                 origin=PilotInputOrigin.non_bundled,
@@ -873,6 +1444,14 @@ def test_workflow_argv_must_match_the_exact_typed_input_manifest(tmp_path: Path)
     _write_bundle(root, input_manifest_override=manifest)
 
     with pytest.raises(ValueError, match="do not exactly match its argv inputs"):
+        _load(root)
+
+
+def test_controlled_external_pilot_requires_consumed_participant_waiver(tmp_path: Path) -> None:
+    root = tmp_path / "missing-waiver"
+    _write_bundle(root, include_participant_waiver=False)
+
+    with pytest.raises(ValueError, match="requires one consumed participant waiver"):
         _load(root)
 
 
@@ -1080,11 +1659,10 @@ def test_remediation_record_source_and_prior_digest_are_bound_to_the_receipt(
         artifact_content_overrides={
             "artifact-remediation": _json_bytes(
                 {
-                    "artifact_kind": "external-pilot-remediation-record",
-                    "contract_id": "ExternalPilotRemediationRecord/v1",
-                    "pilot_id": "external-controls-pilot-001",
-                    "friction_category": "diagnostics",
-                    "disposition": "applied",
+                    **_strict_metadata_payload(
+                        PilotArtifactRole.remediation_record,
+                        "d" * 40,
+                    ),
                     "remediation_source_revision": "e" * 40,
                     "prior_planned_candidate_evidence_digest": "a" * 64,
                 }
@@ -1105,13 +1683,11 @@ def test_remediation_record_category_is_bound_to_its_friction_finding(
         artifact_content_overrides={
             "artifact-remediation": _json_bytes(
                 {
-                    "artifact_kind": "external-pilot-remediation-record",
-                    "contract_id": "ExternalPilotRemediationRecord/v1",
-                    "pilot_id": "external-controls-pilot-001",
+                    **_strict_metadata_payload(
+                        PilotArtifactRole.remediation_record,
+                        "d" * 40,
+                    ),
                     "friction_category": "runtime",
-                    "disposition": "applied",
-                    "remediation_source_revision": "d" * 40,
-                    "prior_planned_candidate_evidence_digest": "f" * 64,
                 }
             )
         },

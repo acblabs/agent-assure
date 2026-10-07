@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from datetime import date
+import unicodedata
+from datetime import date, timedelta
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal, Protocol
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
+from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.schema.base import SCHEMA_VERSION, FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
@@ -28,6 +30,7 @@ from agent_assure.schema.privacy import (
     privacy_profile_json_schema_extra,
     validate_privacy_profile_binding,
 )
+from agent_assure.schema.run import LiveNetworkAuthorityReceipt
 from agent_assure.schema.usage import (
     UsageSummary,
     usage_container_json_schema_extra,
@@ -36,6 +39,28 @@ from agent_assure.schema.usage import (
 
 _EVALUATION_SUMMARY_USAGE_FIELD_PATHS = (("usage_summary",),)
 MAX_WAIVER_DISPOSITIONS = 4096
+MAX_WAIVER_VALIDITY_DAYS = 90
+WAIVER_GOVERNANCE_FIELDS = ("owner", "reviewer", "rationale")
+
+
+def current_waiver_governance_array_json_schema() -> dict[str, Any]:
+    """Return the parent-owned current waiver-governance array contract."""
+
+    return {
+        "type": "array",
+        "uniqueItems": True,
+        "items": {
+            "required": list(WAIVER_GOVERNANCE_FIELDS),
+            "$comment": (
+                "Current parent artifacts require bounded owner, reviewer, and rationale "
+                "fields. Unicode-normalized reviewer independence and sensitive-value "
+                "screening, unique waiver IDs, and replay/disposition coherence are runtime "
+                "model constraints; uniqueItems rejects only byte-equivalent JSON members."
+            ),
+        },
+    }
+
+
 _EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_SUMMARY_USAGE_FIELD_PATHS
 )
@@ -54,6 +79,33 @@ _EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
+_EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "properties": {"schema_version": {"const": SCHEMA_VERSION}},
+        },
+        "then": {
+            "$comment": (
+                "Current EvaluationSummary parents enforce at runtime that each waiver "
+                f"expires no more than {MAX_WAIVER_VALIDITY_DAYS} days after evaluation_date; "
+                "Draft 2020-12 cannot compare date-valued sibling fields."
+            ),
+            "properties": {
+                "replay_context": {
+                    "anyOf": [
+                        {"type": "null"},
+                        {
+                            "type": "object",
+                            "properties": {
+                                "waivers": current_waiver_governance_array_json_schema(),
+                            },
+                        },
+                    ],
+                },
+            },
+        },
+    }
+)
 
 
 class WaiverDispositionStatus(StrEnum):
@@ -64,14 +116,139 @@ class WaiverDispositionStatus(StrEnum):
     expired = "expired"
 
 
+_WAIVER_ID_PUNCTUATION = frozenset("-._:/")
+
+
+def validate_waiver_id(value: str) -> str:
+    """Require an unambiguous ASCII machine identifier for waiver authority."""
+
+    if not value or not value[0].isalnum() or not value.isascii():
+        raise ValueError("waiver_id must start with an ASCII letter or digit")
+    if any(
+        not character.isalnum() and character not in _WAIVER_ID_PUNCTUATION for character in value
+    ):
+        raise ValueError(
+            "waiver_id may contain only ASCII letters, digits, '-', '.', '_', ':', and '/'"
+        )
+    return value
+
+
+def validate_independent_waiver_approvers(owner: str, reviewer: str) -> None:
+    """Require distinct waiver approvers under stable Unicode identity comparison."""
+
+    normalized_owner = _normalized_waiver_identity(owner, field_name="owner")
+    normalized_reviewer = _normalized_waiver_identity(reviewer, field_name="reviewer")
+    if normalized_owner == normalized_reviewer:
+        raise ValueError("waiver owner and reviewer must be different identities")
+
+
+def _normalized_waiver_identity(value: str, *, field_name: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).casefold()
+    if any(unicodedata.category(character).startswith("C") for character in normalized):
+        raise ValueError(
+            f"waiver {field_name} must not contain control, formatting, "
+            "private-use, surrogate, or unassigned characters"
+        )
+    return normalized
+
+
+class WaiverBinding(Protocol):
+    """Structural fields used to detect ambiguous waiver authority."""
+
+    waiver_id: str
+    artifact_digest: str
+    finding_id: str
+    reason_code: ReasonCode
+
+
+def validate_unique_waiver_bindings(waivers: tuple[WaiverBinding, ...]) -> None:
+    """Reject ambiguous waiver identities and duplicate authority targets."""
+
+    seen_ids: set[str] = set()
+    seen_bindings: set[tuple[str, str, ReasonCode]] = set()
+    for waiver in waivers:
+        waiver_id = validate_waiver_id(waiver.waiver_id)
+        if waiver_id in seen_ids:
+            raise ValueError(f"duplicate waiver_id {waiver_id!r}")
+        seen_ids.add(waiver_id)
+        binding = (
+            waiver.artifact_digest,
+            waiver.finding_id,
+            waiver.reason_code,
+        )
+        if binding in seen_bindings:
+            raise ValueError(
+                "duplicate waiver authority binding for artifact_digest, "
+                "finding_id, and reason_code"
+            )
+        seen_bindings.add(binding)
+
+
+def validate_current_waiver_governance(
+    governance_owner: str,
+    reviewer: str,
+    rationale: str,
+    *,
+    context: str,
+) -> None:
+    """Validate governance fields required by a current versioned parent artifact."""
+
+    values = {
+        "owner": governance_owner,
+        "reviewer": reviewer,
+        "rationale": rationale,
+    }
+    missing = [field_name for field_name, value in values.items() if not value]
+    if missing:
+        raise ValueError(
+            f"current {context} requires waiver governance fields: " + ", ".join(missing)
+        )
+    for value in values.values():
+        if value != value.strip():
+            raise ValueError("waiver governance text must not have surrounding whitespace")
+        if contains_sensitive_value(value):
+            raise ValueError("waiver governance evidence contains sensitive-looking content")
+    validate_independent_waiver_approvers(governance_owner, reviewer)
+
+
+def waiver_expiry_horizon(evaluation_date: date) -> date:
+    """Return the overflow-safe maximum expiry for a waiver evaluation date."""
+
+    remaining_days = date.max.toordinal() - evaluation_date.toordinal()
+    return evaluation_date + timedelta(days=min(MAX_WAIVER_VALIDITY_DAYS, remaining_days))
+
+
 class WaiverDisposition(FrozenStrictModel):
-    """Privacy-minimized audit projection for one supplied waiver."""
+    """Bounded governance audit projection for one supplied waiver."""
 
     waiver_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    owner: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        exclude_if=lambda value: not value,
+    )
+    reviewer: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        exclude_if=lambda value: not value,
+    )
+    rationale: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_SUMMARY_CHARS,
+        exclude_if=lambda value: not value,
+    )
     status: WaiverDispositionStatus
     reason_code: ReasonCode
     finding_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     expires_on: date
+
+    @field_validator("waiver_id")
+    @classmethod
+    def _validate_waiver_id(cls, value: str) -> str:
+        return validate_waiver_id(value)
 
     @field_validator("status", mode="before")
     @classmethod
@@ -126,13 +303,36 @@ class EvaluationGateProfileContext(FrozenStrictModel):
 
 
 class EvaluationWaiverContext(FrozenStrictModel):
-    """Privacy-minimized waiver fields that can affect evaluation semantics."""
+    """Bounded waiver governance and scoring fields required for exact replay."""
 
     waiver_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    owner: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        exclude_if=lambda value: not value,
+    )
+    reviewer: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        exclude_if=lambda value: not value,
+    )
+    rationale: str = Field(
+        default_factory=str,
+        min_length=1,
+        max_length=MAX_SUMMARY_CHARS,
+        exclude_if=lambda value: not value,
+    )
     reason_code: ReasonCode
     finding_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     artifact_digest: DigestHex
     expires_on: date
+
+    @field_validator("waiver_id")
+    @classmethod
+    def _validate_waiver_id(cls, value: str) -> str:
+        return validate_waiver_id(value)
 
     @field_validator("reason_code", mode="before")
     @classmethod
@@ -174,6 +374,11 @@ class EvaluationReplayContext(FrozenStrictModel):
         if isinstance(value, str):
             return date.fromisoformat(value)
         raise ValueError("evaluation_date must be an ISO date")
+
+    @model_validator(mode="after")
+    def _require_unique_waivers(self) -> EvaluationReplayContext:
+        validate_unique_waiver_bindings(self.waivers)
+        return self
 
 
 class Finding(PersistedArtifact):
@@ -259,6 +464,14 @@ class EvaluationSummary(PersistedArtifact):
     state: GateState
     findings: tuple[Finding, ...] = ()
     environment: EnvironmentInfo | None = None
+    network_authority_receipt: LiveNetworkAuthorityReceipt | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Non-secret verified endpoint host and credential environment-variable name "
+            "copied from the digest-bound source RunSet."
+        ),
+    )
     usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
     replay_context: EvaluationReplayContext | None = Field(
         default=None,
@@ -290,6 +503,24 @@ class EvaluationSummary(PersistedArtifact):
             raise ValueError("current evaluation summaries require a non-empty runset_id")
         if self.schema_version == SCHEMA_VERSION and self.runset_digest is None:
             raise ValueError("current evaluation summaries require an authenticated runset_digest")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_current_waiver_contract(self) -> EvaluationSummary:
+        if self.schema_version == SCHEMA_VERSION and self.replay_context is not None:
+            for index, waiver in enumerate(self.replay_context.waivers):
+                validate_current_waiver_governance(
+                    waiver.owner,
+                    waiver.reviewer,
+                    waiver.rationale,
+                    context=f"evaluation replay waiver at index {index}",
+                )
+            horizon = waiver_expiry_horizon(self.replay_context.evaluation_date)
+            if any(waiver.expires_on > horizon for waiver in self.replay_context.waivers):
+                raise ValueError(
+                    f"waiver expires_on must be no more than {MAX_WAIVER_VALIDITY_DAYS} days "
+                    "after the evaluation date"
+                )
         return self
 
     @model_validator(mode="after")

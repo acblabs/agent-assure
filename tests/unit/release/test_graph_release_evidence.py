@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from copy import deepcopy
 from pathlib import Path
 from typing import cast
 
@@ -72,7 +71,7 @@ def test_graph_bound_release_replay_still_detects_semantic_graph_drift(
     assert {finding.role for finding in verification.findings} == set(_REPLAY_ROLES)
 
 
-def test_frozen_v063_graph_replay_enforces_self_digest_and_relations(
+def test_current_graph_replay_rejects_frozen_v063_child(
     tmp_path: Path,
 ) -> None:
     _write_graph_bound_bundle(tmp_path, platform="frozen-v063")
@@ -86,35 +85,7 @@ def test_frozen_v063_graph_replay_enforces_self_digest_and_relations(
     payload["graph_digest"] = calculate_evidence_graph_digest(projection)
     _write_json(graph_path, payload)
 
-    replay = build_digest_replay(
-        ((_GRAPH_ROLE, graph_path),),
-        project_root=tmp_path,
-    )
-    assert verify_digest_replay(
-        replay,
-        artifact_root=tmp_path,
-        required_roles=(_GRAPH_ROLE,),
-    ).ok
-
-    wrong_digest = deepcopy(payload)
-    wrong_digest["graph_digest"] = "0" * 64
-    _write_json(graph_path, wrong_digest)
-    with pytest.raises(ValueError, match="failed model validation"):
-        build_digest_replay(
-            ((_GRAPH_ROLE, graph_path),),
-            project_root=tmp_path,
-        )
-
-    broken_relation = deepcopy(payload)
-    edges = cast(list[dict[str, object]], broken_relation["edges"])
-    scoped_index = next(index for index, edge in enumerate(edges) if edge["kind"] == "scoped_to")
-    edges.pop(scoped_index)
-    broken_projection = {
-        key: value for key, value in broken_relation.items() if key != "graph_digest"
-    }
-    broken_relation["graph_digest"] = sha256_hexdigest(broken_projection)
-    _write_json(graph_path, broken_relation)
-    with pytest.raises(ValueError, match="failed model validation"):
+    with pytest.raises(ValueError, match="current release replay requires persisted JSON child"):
         build_digest_replay(
             ((_GRAPH_ROLE, graph_path),),
             project_root=tmp_path,

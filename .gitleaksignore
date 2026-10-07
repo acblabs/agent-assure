@@ -1,0 +1,19 @@
+# Exact historical fingerprints for intentionally synthetic credential-like
+# strings used to test redaction and schema defenses. Keep suppressions scoped
+# to the introducing commit, path, rule, and line so any new occurrence fails.
+316a254441518ff6c5b753ecf1ae1a8c3de62132:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:194
+32c3e30eae264d5d678b6d6fc2e3251156d6b47b:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:214
+32c3e30eae264d5d678b6d6fc2e3251156d6b47b:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:463
+4bc96adb1594f146fd0f455e786046ca59964a0e:tests/unit/policies/test_privacy.py:generic-api-key:11
+4bc96adb1594f146fd0f455e786046ca59964a0e:tests/unit/policies/test_privacy.py:generic-api-key:19
+76ea26ba60bc27c10dfaa7e2dd15d58c9e08fd73:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:172
+76ea26ba60bc27c10dfaa7e2dd15d58c9e08fd73:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:182
+76ea26ba60bc27c10dfaa7e2dd15d58c9e08fd73:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:189
+7a75d6d9736f2939ebe05d4143873b34bdacb66c:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:172
+7a75d6d9736f2939ebe05d4143873b34bdacb66c:tests/unit/privacy/test_hmac_and_redaction.py:jwt:68
+d194e88597cf719cf76a8179a5e73a35eea3272e:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:109
+d2def3fa55b0f76df6fdd0c7730c007af6927261:tests/unit/test_evidence_graph_packet_binding.py:generic-api-key:88
+d3c755e49cdecbd560c9d57dc481495b479fc8b1:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:83
+d3c755e49cdecbd560c9d57dc481495b479fc8b1:tests/unit/privacy/test_hmac_and_redaction.py:jwt:65
+f034d1fc6450fcac72a9045c2f4188f43c8cf695:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:672
+f034d1fc6450fcac72a9045c2f4188f43c8cf695:tests/unit/schema/test_pilot_evidence.py:jwt:928

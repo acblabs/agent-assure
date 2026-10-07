@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from pathlib import Path
 
 from agent_assure.artifact_io import write_text_atomic
@@ -14,40 +15,74 @@ from agent_assure.schema.controls import (
     ControlCoverageItem,
     ControlCoverageReport,
     ControlEvidenceRef,
+    _aggregate_condition_coverage_state,
+    _project_control_coverage_limitations,
+    _project_observed_evidence_refs,
+    _validate_control_coverage_item_collections,
+    _validate_control_coverage_review_contract,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 
 def write_control_coverage_report(
     report: ControlCoverageReport,
     out_dir: Path,
 ) -> tuple[Path, Path]:
+    report = _validated_control_coverage_report(report)
+    payload = redact_artifact_payload(
+        report.model_dump(mode="json", warnings="error"),
+        preserve_keys=PRESERVE_PACKET_KEYS,
+    )
+    validated = ControlCoverageReport.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "control-coverage-report")
+    safe_payload = validated.model_dump(mode="json", warnings="error")
+    if redact_artifact_payload(safe_payload, preserve_keys=PRESERVE_PACKET_KEYS) != safe_payload:
+        raise ValueError("control coverage report could not be made privacy-safe")
+    rendered = render_control_coverage_markdown(validated)
+    json_text = json.dumps(safe_payload, indent=2, sort_keys=True) + "\n"
     out_dir.mkdir(parents=True, exist_ok=True)
     json_path = out_dir / "control-coverage-report.json"
     markdown_path = out_dir / "control-coverage-report.md"
-    payload = redact_artifact_payload(
-        report.model_dump(mode="json"),
-        preserve_keys=PRESERVE_PACKET_KEYS,
-    )
-    ControlCoverageReport.model_validate(payload)
     write_text_atomic(
         json_path,
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        json_text,
     )
     write_text_atomic(
         markdown_path,
-        render_control_coverage_markdown(report),
+        rendered,
     )
     return json_path, markdown_path
 
 
 def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
+    report = _validated_control_coverage_report(report)
+    # Derive display-only totals from the typed source items. Normal construction
+    # validates the persisted counter, while this keeps rendering trustworthy if
+    # an internal caller bypasses validation with model_construct/model_copy.
+    item_states = tuple(
+        (
+            item.control_id,
+            _aggregate_condition_coverage_state(item.condition_evaluations),
+        )
+        for item in report.items
+    )
+    _validate_control_coverage_review_contract(
+        report,
+        item_states=item_states,
+        validate_persisted_limitations=False,
+    )
+    coverage_state_counts = Counter(state.value for _control_id, state in item_states)
+    limitations = _project_control_coverage_limitations(
+        report.framework,
+        report.limitations,
+    )
     lines = [
         "# Control Coverage Report",
         "",
         "## Claim Boundary",
         "",
     ]
-    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in limitations)
     lines.extend(
         [
             "",
@@ -64,10 +99,10 @@ def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
             "",
         ]
     )
-    if report.coverage_state_counts:
+    if coverage_state_counts:
         lines.extend(
             f"- {markdown_code_span(state)}: `{count}`"
-            for state, count in sorted(report.coverage_state_counts.items())
+            for state, count in sorted(coverage_state_counts.items())
         )
     else:
         lines.append("- No mapped items.")
@@ -77,11 +112,23 @@ def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _validated_control_coverage_report(
+    report: ControlCoverageReport,
+) -> ControlCoverageReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    validated = ControlCoverageReport.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "control-coverage-report")
+    return validated
+
+
 def _item_lines(item: ControlCoverageItem) -> list[str]:
+    _validate_control_coverage_item_collections(item)
+    coverage_state = _aggregate_condition_coverage_state(item.condition_evaluations)
+    evidence_refs = _project_observed_evidence_refs(item.condition_evaluations)
     lines = [
         f"### {markdown_code_span(item.control_id)} {markdown_text(item.title)}",
         "",
-        f"- State: {markdown_code_span(item.coverage_state.value)}",
+        f"- State: {markdown_code_span(coverage_state.value)}",
     ]
     if item.mapping_strength is not None:
         lines.append(f"- Mapping strength: {markdown_code_span(item.mapping_strength.value)}")
@@ -90,8 +137,8 @@ def _item_lines(item: ControlCoverageItem) -> list[str]:
     if item.atlas_technique_ids:
         lines.append("- ATLAS techniques: " + _code_list(item.atlas_technique_ids))
     lines.extend(["", "Evidence:"])
-    if item.evidence_refs:
-        lines.extend(f"- {_evidence_ref_line(ref)}" for ref in item.evidence_refs)
+    if evidence_refs:
+        lines.extend(f"- {_evidence_ref_line(ref)}" for ref in evidence_refs)
     else:
         lines.append("- `not_observed`")
     lines.extend(["", "Conditions:"])

@@ -18,12 +18,14 @@ if str(SRC) not in sys.path:
 
 from agent_assure.artifact_io import write_text_atomic  # noqa: E402
 from agent_assure.authoring.compiler import compile_suite  # noqa: E402
+from agent_assure.evaluation.evaluator import runset_digest  # noqa: E402
 from agent_assure.fixtures.manifest import build_fixture_manifest  # noqa: E402
 from agent_assure.io_limits import (  # noqa: E402
     load_json_bytes_bounded,
     read_file_bounded,
     read_text_bounded,
 )
+from agent_assure.onboarding.diagnostics import bounded_text  # noqa: E402
 from agent_assure.policies.evidence import claim_finding_target  # noqa: E402
 from agent_assure.privacy.detectors import (  # noqa: E402
     PRIVACY_PROFILE_DIGEST,
@@ -41,6 +43,7 @@ from agent_assure.schema.comparison import ComparisonSummary  # noqa: E402
 from agent_assure.schema.environment import EnvironmentInfo  # noqa: E402
 from agent_assure.schema.evaluation import EvaluationSummary, Finding  # noqa: E402
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest  # noqa: E402
+from agent_assure.schema.provenance import Provenance  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
 from agent_assure.schema.run import (  # noqa: E402
     AgentRunRecord,
@@ -63,6 +66,7 @@ REPORT_GOLDEN_ROOT = ROOT / "tests" / "golden" / "reports"
 SENSITIVITY_EXAMPLE_ROOT = ROOT / "examples" / "evidence_sensitivity"
 _DIGEST = "a" * 64
 MAX_GOLDEN_BYTES = 32 * 1024 * 1024
+LEGACY_REPLAY_VALIDATION_PATH = "frozen-jsonschema+semantic-replay"
 
 
 @cache
@@ -175,7 +179,7 @@ def main() -> int:
         )
     if failures:
         for failure in failures:
-            print(f"golden-check: {failure}", file=sys.stderr)
+            print(f"golden-check: {bounded_text(failure)}", file=sys.stderr)
         print(
             "golden-check: run scripts/update_golden.py --update-golden intentionally",
             file=sys.stderr,
@@ -237,7 +241,7 @@ def _check_legacy_replay_golden(
     expected_sha256: str,
     failures: list[str],
 ) -> None:
-    """Keep released replay evidence immutable and exercise its frozen schema."""
+    """Keep released replay evidence immutable and exercise schema plus semantic replay."""
     try:
         loaded = read_file_bounded(
             path,
@@ -261,7 +265,7 @@ def _check_legacy_replay_golden(
             label="legacy replay golden",
         )
         validation_path = validate_artifact_payload(payload, artifact_kind)
-        if validation_path != "frozen-jsonschema":
+        if validation_path != LEGACY_REPLAY_VALIDATION_PATH:
             raise ValueError(f"unexpected validation path: {validation_path}")
     except Exception as exc:
         failures.append(f"legacy replay golden is invalid: {path.relative_to(ROOT)} ({exc})")
@@ -298,6 +302,8 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
         ),
     )
     candidate = _runset("candidate", _run(case_id, evidence_refs=()))
+    baseline_digest = runset_digest(baseline)
+    candidate_digest = runset_digest(candidate)
     finding = Finding(
         finding_id="finding-duration",
         case_id=case_id,
@@ -312,7 +318,7 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
-        runset_digest="b" * 64,
+        runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -321,8 +327,8 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
-        baseline_runset_digest="a" * 64,
-        candidate_runset_digest="b" * 64,
+        baseline_runset_digest=baseline_digest,
+        candidate_runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
@@ -412,6 +418,7 @@ def _run(
         ),
         claim_evidence_links=claim_evidence_links,
         tools=("benefit-policy-lookup",),
+        provenance=Provenance(fixture_manifest_digest=_DIGEST),
     )
 
 

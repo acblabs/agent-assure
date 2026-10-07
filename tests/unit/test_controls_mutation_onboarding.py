@@ -40,7 +40,7 @@ from agent_assure.onboarding.controls_mutation import (
     require_confined_input_directory,
     scaffold_controls_mutation,
 )
-from agent_assure.onboarding.diagnostics import bounded_error, display_path
+from agent_assure.onboarding.diagnostics import bounded_error, bounded_text, display_path
 
 _RUNNER = CliRunner()
 
@@ -79,7 +79,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
     expected_hashes = {
         "controls-mutation.yaml": (
             747,
-            "c2b3ec3b95b56711c05591421acaa1a186859c31a15f45b6bfb700d49d1bb102",
+            "5b6128931bac524973c094dd2cddcaff40fe2c8fa836e46155fe5520e87611dc",
         ),
         "suite.yaml": (
             318,
@@ -87,7 +87,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
         ),
         "runset.json": (
             3610,
-            "7b18a72462b2ce8fba13bccc1b96a9b3a1b5eb41ebe94adb56e32aec0e93869e",
+            "8d308258f508ac3818f766560d42e5e1b2c67f76e2531fcf1577e0f6e6418a57",
         ),
         "threat-applicability.yaml": (
             685,
@@ -784,6 +784,7 @@ def test_diagnostic_sanitizer_is_shared_and_filters_terminal_controls() -> None:
     # the only privacy-detector pass.
     reconstructed_secret = "123-\u202e45-6789"
     assert bounded_error(ValueError(f"bad {reconstructed_secret}")) == "bad [REDACTED]"
+    assert bounded_text(f"bad {reconstructed_secret}") == "bad [REDACTED]"
     assert display_path(Path(reconstructed_secret)) == "[REDACTED]"
 
 

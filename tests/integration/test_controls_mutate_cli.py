@@ -6,9 +6,11 @@ import json
 import os
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import date, timedelta
 from functools import partial
 from pathlib import Path
 from typing import cast
@@ -60,7 +62,8 @@ from agent_assure.reporting.mutation import (
 )
 from agent_assure.runner.fixture_runner import write_runset
 from agent_assure.schema.campaign import CORE_MUTATION_CATALOG_ID
-from agent_assure.schema.common import ReasonCode
+from agent_assure.schema.common import GateState, ReasonCode
+from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.mutation import (
     RFC8785_SAFE_INTEGER_MAX,
     AssuranceEvidenceDescriptor,
@@ -736,6 +739,7 @@ def test_controls_mutate_cli_applies_and_binds_waiver_gate_configuration(
     assert baseline.exit_code == 0, baseline.output
     baseline_result = _read_object(baseline_out / MUTATION_RESULT_FILENAME)
     matched_ids = cast(list[str], baseline_result["matched_finding_ids"])
+    evaluation_today = date.today()
     waiver = tmp_path / "mutation-waiver.json"
     waiver.write_text(
         json.dumps(
@@ -746,7 +750,7 @@ def test_controls_mutate_cli_applies_and_binds_waiver_gate_configuration(
                 "reason_code": "MATERIAL_CLAIM_MISSING_EVIDENCE",
                 "finding_id": matched_ids[0],
                 "artifact_digest": baseline_result["mutated_digest"],
-                "expires_on": "2026-08-01",
+                "expires_on": (evaluation_today + timedelta(days=30)).isoformat(),
                 "reviewer": "test-reviewer",
             }
         ),
@@ -758,13 +762,13 @@ def test_controls_mutate_cli_applies_and_binds_waiver_gate_configuration(
         files.compiled_suite,
         files.runset,
         waived_out,
-        extra_args=("--waiver", str(waiver), "--today", "2026-07-20"),
+        extra_args=("--waiver", str(waiver), "--today", evaluation_today.isoformat()),
     )
     assert waived.exit_code == 1, waived.output
     waived_result = _read_object(waived_out / MUTATION_RESULT_FILENAME)
     assert waived_result["state"] == "survived"
     assert waived_result["gate_profile_id"] == "default"
-    assert waived_result["evaluation_date"] == "2026-07-20"
+    assert waived_result["evaluation_date"] == evaluation_today.isoformat()
     assert waived_result["waiver_set_digest"] != baseline_result["waiver_set_digest"]
 
     fail_on_warn_out = tmp_path / "gate-config-fail-on-warn"
@@ -776,14 +780,28 @@ def test_controls_mutate_cli_applies_and_binds_waiver_gate_configuration(
             "--waiver",
             str(waiver),
             "--today",
-            "2026-07-20",
+            evaluation_today.isoformat(),
             "--fail-on-warn",
         ),
     )
-    assert fail_on_warn.exit_code == 0, fail_on_warn.output
+    assert fail_on_warn.exit_code == 1, fail_on_warn.output
     fail_on_warn_result = _read_object(fail_on_warn_out / MUTATION_RESULT_FILENAME)
-    assert fail_on_warn_result["state"] == "caught"
+    assert fail_on_warn_result["state"] == "survived"
     assert fail_on_warn_result["gate_profile_digest"] != waived_result["gate_profile_digest"]
+
+    backdated = _invoke_mutate(
+        files.compiled_suite,
+        files.runset,
+        tmp_path / "gate-config-backdated",
+        extra_args=(
+            "--waiver",
+            str(waiver),
+            "--today",
+            (evaluation_today - timedelta(days=2)).isoformat(),
+        ),
+    )
+    assert backdated.exit_code == 2
+    assert "current local or UTC date" in backdated.output
 
 
 def test_controls_mutate_maps_both_invalid_states_to_exit_two(tmp_path: Path) -> None:
@@ -1634,21 +1652,88 @@ def _without_material_evidence_detector(
             and finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         )
     )
-    failed_controls = tuple(
-        finding
-        for finding in report.failed_controls
-        if not (
-            finding.control_id == "material_claims_have_evidence"
-            and finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
-        )
+    return _coherent_report_with_findings(report, findings)
+
+
+def _coherent_report_with_findings(
+    report: EvaluationReport,
+    findings: tuple[Finding, ...],
+) -> EvaluationReport:
+    summary = report.candidate_vs_expectations.model_copy(
+        update={"findings": findings, "state": _summary_state(findings)},
     )
-    summary = report.candidate_vs_expectations.model_copy(update={"findings": findings})
+    case_outcomes = tuple(
+        outcome.model_copy(
+            update={
+                "state": _case_outcome_state(
+                    tuple(finding for finding in findings if finding.case_id == outcome.case_id)
+                )
+            }
+        )
+        for outcome in report.case_outcomes
+    )
+    outcome_counts = Counter(outcome.state for outcome in case_outcomes)
+    outcome_case_ids = {outcome.case_id for outcome in case_outcomes}
+    metrics = report.metrics.model_copy(
+        update={
+            "total_cases": len(case_outcomes),
+            "evaluated_cases": len(case_outcomes) - outcome_counts[GateState.not_evaluated],
+            "unevaluated_cases": outcome_counts[GateState.not_evaluated],
+            "passed_cases": outcome_counts[GateState.pass_],
+            "warning_cases": outcome_counts[GateState.warn],
+            "failed_cases": outcome_counts[GateState.fail],
+            "warning_findings": sum(
+                finding.state in (GateState.warn, GateState.not_evaluated) for finding in findings
+            ),
+            "blocking_findings": sum(finding.state is GateState.fail for finding in findings),
+            "global_blocking_findings": sum(
+                finding.state is GateState.fail and finding.case_id not in outcome_case_ids
+                for finding in findings
+            ),
+            "findings_by_reason": dict(
+                sorted(Counter(finding.reason_code.value for finding in findings).items())
+            ),
+            "findings_by_control": dict(
+                sorted(Counter(finding.control_id for finding in findings).items())
+            ),
+        }
+    )
     return report.model_copy(
         update={
             "candidate_vs_expectations": summary,
-            "failed_controls": failed_controls,
+            "case_outcomes": case_outcomes,
+            "metrics": metrics,
+            "failed_controls": tuple(
+                finding for finding in findings if finding.state is GateState.fail
+            ),
+            "warning_controls": tuple(
+                finding for finding in findings if finding.state is GateState.warn
+            ),
         }
     )
+
+
+def _summary_state(findings: tuple[Finding, ...]) -> GateState:
+    states = {finding.state for finding in findings}
+    for state in (GateState.fail, GateState.warn, GateState.not_evaluated):
+        if state in states:
+            return state
+    return GateState.pass_
+
+
+def _case_outcome_state(findings: tuple[Finding, ...]) -> GateState:
+    if any(
+        finding.control_id == "valid_record_required"
+        and finding.reason_code is ReasonCode.VALID_RECORD_MISSING
+        and finding.target in {"missing", "duplicate-suite-case", "observation_status"}
+        for finding in findings
+    ):
+        return GateState.not_evaluated
+    if any(finding.state is GateState.fail for finding in findings):
+        return GateState.fail
+    if any(finding.state in (GateState.warn, GateState.not_evaluated) for finding in findings):
+        return GateState.warn
+    return GateState.pass_
 
 
 def _bound_evaluator(

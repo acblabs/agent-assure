@@ -21,6 +21,7 @@ from agent_assure.schema.suite import CompiledSuite, FixtureManifest, FixtureMan
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 
 REQUIRED_FIXTURE_SUBDIRS = ("requests", "model_outputs", "tool_outputs")
@@ -33,6 +34,9 @@ MAX_FIXTURE_MANIFEST_AGGREGATE_BYTES = 64 * 1024 * 1024
 
 
 def build_fixture_manifest(compiled: CompiledSuite, suite_root: Path) -> FixtureManifest:
+    payload = compiled.model_dump(mode="json", warnings="error")
+    compiled = CompiledSuite.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "compiled-suite")
     resolver = FixtureResolver(suite_root)
     validate_fixture_layout(compiled, resolver)
     entries: list[FixtureManifestEntry] = []
@@ -70,11 +74,19 @@ def load_fixture_manifest(path: Path) -> FixtureManifest:
 
 
 def write_fixture_manifest(manifest: FixtureManifest, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(
-        path,
-        json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+    payload = manifest.model_dump(mode="json", warnings="error")
+    manifest = FixtureManifest.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "fixture-manifest")
+    rendered = (
+        json.dumps(
+            manifest.model_dump(mode="json", warnings="error"),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, rendered)
 
 
 def fixture_manifest_digest(manifest: FixtureManifest) -> str:

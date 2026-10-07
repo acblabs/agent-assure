@@ -8,6 +8,7 @@ from rich.console import Console
 
 from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -19,7 +20,7 @@ from agent_assure.schema.validation import (
 )
 
 app = typer.Typer(help="Static evidence-diff rendering.")
-console = Console()
+console = Console(markup=False)
 
 
 @app.command("render")
@@ -129,8 +130,8 @@ def render(
             ),
         )
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    console.print(f"evidence diff: {out_path}")
+        raise typer.BadParameter(bounded_error(exc)) from exc
+    console.print(f"evidence diff: {display_path(out_path)}")
 
 
 def _required_path(path: Path | None, option_name: str) -> Path:

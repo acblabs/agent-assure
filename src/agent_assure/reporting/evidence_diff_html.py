@@ -23,6 +23,7 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.usage.aggregation import format_usage_delta
 
 THESIS_TITLE = "Output equivalence is not process equivalence"
@@ -77,20 +78,18 @@ def write_evidence_diff_html(
     title: str = THESIS_TITLE,
     artifact_paths: Mapping[str, PathValue] | None = None,
 ) -> Path:
-    out.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(
-        out,
-        render_evidence_diff_html(
-            baseline=baseline,
-            candidate=candidate,
-            comparison_summary=comparison_summary,
-            baseline_summary=baseline_summary,
-            candidate_summary=candidate_summary,
-            packet=packet,
-            title=title,
-            artifact_paths=artifact_paths,
-        ),
+    rendered = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison_summary,
+        baseline_summary=baseline_summary,
+        candidate_summary=candidate_summary,
+        packet=packet,
+        title=title,
+        artifact_paths=artifact_paths,
     )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(out, rendered)
     return out
 
 
@@ -105,6 +104,28 @@ def render_evidence_diff_html(
     title: str = THESIS_TITLE,
     artifact_paths: Mapping[str, PathValue] | None = None,
 ) -> str:
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    candidate_payload = candidate.model_dump(mode="json", warnings="error")
+    candidate = RunSet.model_validate(candidate_payload)
+    validate_loaded_artifact_payload(candidate_payload, "run-set")
+    comparison_payload = comparison_summary.model_dump(mode="json", warnings="error")
+    comparison_summary = ComparisonSummary.model_validate(comparison_payload)
+    validate_loaded_artifact_payload(comparison_payload, "comparison-summary")
+    if baseline_summary is not None:
+        baseline_summary_payload = baseline_summary.model_dump(mode="json", warnings="error")
+        baseline_summary = EvaluationSummary.model_validate(baseline_summary_payload)
+        validate_loaded_artifact_payload(baseline_summary_payload, "evaluation-summary")
+    if candidate_summary is not None:
+        candidate_summary_payload = candidate_summary.model_dump(mode="json", warnings="error")
+        candidate_summary = EvaluationSummary.model_validate(candidate_summary_payload)
+        validate_loaded_artifact_payload(candidate_summary_payload, "evaluation-summary")
+    if packet is not None:
+        packet_payload = packet.model_dump(mode="json", warnings="error")
+        packet = EvidencePacket.model_validate(packet_payload)
+        validate_loaded_artifact_payload(packet_payload, "evidence-packet")
+
     presentation = build_evidence_diff_presentation(
         baseline=baseline,
         candidate=candidate,
@@ -129,6 +150,10 @@ def render_evidence_diff_html(
             "<head>",
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            '<meta http-equiv="Content-Security-Policy" content="default-src '
+            "'none'; base-uri 'none'; form-action 'none'; object-src 'none'; "
+            "frame-src 'none'; img-src data:; style-src 'unsafe-inline'\">",
+            '<meta name="referrer" content="no-referrer">',
             f"<title>{_h(_document_title(verdict.headline, title))}</title>",
             "<style>",
             _css(),

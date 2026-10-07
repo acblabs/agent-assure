@@ -169,7 +169,7 @@ Each advanced endpoint must be interpreted under its declared prerequisites:
 
 | Method | Minimum design information | Confirmatory status |
 | --- | --- | --- |
-| `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for one-sided rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
+| `clopper_pearson_exact_one_sided` | one binary event indicator per independence cluster, `exposure_unit=independence_cluster`, and a predeclared event family | exact tail inversion through 1,000 clusters; above that, exact zero-event closed-form evaluation or a separately labeled conservative one-sided Bernoulli KL-Chernoff inversion for nonzero samples, with endpoint prerequisites still required |
 | `hierarchical_binomial_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
 | `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, zero non-inferiority margin, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed for the zero-margin candidate-improvement null when exact enumeration is feasible under the implementation cap and the endpoint threshold is met |
 | `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed for the zero-margin candidate-improvement null when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
@@ -183,11 +183,13 @@ Multiple confirmatory endpoints require a family-wise method such as
 Bonferroni. A protocol that expands endpoints
 without a declared multiplicity method can still report those endpoints as
 exploratory diagnostics, but it must not treat them as confirmatory evidence.
-For a confirmatory Poisson endpoint in a Bonferroni family, the one-sided upper
+For a confirmatory rare-event binomial endpoint in a Bonferroni family, the one-sided upper
 bound uses that endpoint's adjusted alpha. The bound persists the corresponding
 effective confidence level, `1 - adjusted_alpha`, rather than repeating the
 unadjusted protocol confidence level. A plan is rejected when its adjusted
-alpha would round to zero at the persisted six-decimal precision.
+alpha would floor to zero at the persisted six-decimal precision. Nonterminating
+Bonferroni quotients are projected downward with `ROUND_FLOOR`; for example,
+`0.050000 / 3` persists and is evaluated as `0.016666`.
 
 Reason-code families are predeclared endpoint inputs. Reports may still display
 observed reason-code rates for review, but confirmatory reason-code-family
@@ -215,8 +217,10 @@ The implementation treats drift monitoring as surveillance evidence. It checks
 window comparability before interpreting a series: suite identity, baseline
 mode, analysis method, protocol digest, tool-schema digest, and policy-bundle
 digest must match. When observation-window start timestamps are present, the
-ordered input must also be nondecreasing by those timestamps; protocols that
-declare `window_start_utc` ordering require timestamps for every window.
+ordered input must also be nondecreasing by those timestamps. Protocols that
+declare `window_start_utc` ordering require a timestamp for every window and
+require those timestamps to be strictly increasing; ties fail closed rather
+than inheriting caller order.
 Windows that do not pass these checks are invalid for cross-window drift
 inference, unless a reviewed monitoring plan explicitly allows a bounded
 exploratory sensitivity review over matching material fields.
@@ -233,6 +237,19 @@ six ordered windows. These state summaries are calculated from observable pass/f
 reason-code, exclusion, retry, rate-limit, latency, and cost records. They are
 not claims about model intent, reasoning, consciousness, or hidden mental
 state, and they are not gate inputs in the current implementation.
+
+Every declared window remains part of the metric sequence even when its value
+is unavailable. The implementation never compresses away a missing value and
+treats the windows on its two sides as adjacent. It suppresses adjacency,
+dependence, and EWMA calculations across the gap. A confirmatory metric with any
+missing declared window has invalid prerequisites and therefore cannot yield a
+valid monitoring status; exploratory output is explicitly limited instead.
+
+The AR(1) screen first computes the unconstrained coefficient. If its magnitude
+is at least one, the stationary AR(1) fit is inapplicable: the coefficient,
+intercept, and innovation variance are suppressed and the diagnostic emits an
+explicit review reason. That finite-window result does not by itself prove that
+the generating process is explosively non-stationary.
 
 A stationarity, dependence, or drift review signal means a declared operational
 metric changed enough, or exhibited enough serial dependence, to warrant
@@ -288,6 +305,16 @@ inconsistent retry/attempt counters. These outputs are reported separately
 from aggregate pass-rate statistics. The trajectory report itself uses
 `not_evaluated` gate state so the existing expectation, invariant, policy, and
 configured comparison gates remain the release-verdict mechanisms.
+
+Invariant exposure is conditional on the declared question. Forbidden-state
+checks evaluate every observed path; required-review checks evaluate only
+approval paths marked as requiring review; claim-evidence checks evaluate only
+approval paths; and retry/attempt consistency checks evaluate only paths with
+both counters. A confirmatory invariant with no applicable observations is
+invalid rather than vacuously satisfied. The current observable review-state
+contract is deliberately narrow: `required_review_for_approval` accepts only
+`required_state: human_review` until another state has an implemented and
+replayable applicability definition.
 
 Retry cascades, rate-limit storms, exclusions, malformed outputs, runtime
 failures, emergency process records, and budget stops can be summarized as
@@ -387,21 +414,34 @@ descriptive interval and do not permit it to produce a confirmatory interval
 pass. A Wilson-style correction is not applied because it is not defined for
 paired differences on `[-1, 1]`.
 
-If all per-arm cluster rates are identical, the reported per-arm boundary
-interval uses a conservative degenerate-boundary heuristic to avoid presenting a
-zero-width interval at rates near 0 or 1. This heuristic is labeled separately
-in report metadata and should not be read as an ordinary t interval over
-variable cluster means or as an observation-level Wilson interval.
+If all per-arm cluster rates are identical, the reported lower bound, center,
+and upper bound are the same observed cluster rate. Report metadata labels this
+as a degenerate empirical point mass. It is descriptive only: it makes no
+confidence-coverage claim and is neither an ordinary t interval over variable
+cluster means nor an observation-level Wilson interval. Every result with this
+label remains exploratory regardless of the observed cluster count.
 
 Bootstrap and Monte Carlo resampling use a deterministic integer seed derived
-from the first 128 bits of SHA-256 over the protocol-bound seed material. This
-keeps replayed statistical artifacts independent of Python string-seeding
-details while remaining reproducible for review.
+from the first 128 bits of SHA-256 over the protocol-bound seed material. Every
+bounded draw then uses the fixed
+`agent-assure/live-resampling/sha256-counter-rejection/v1` algorithm: SHA-256
+counter blocks and rejection sampling remove modulo bias. Fixed test vectors
+make replay independent of Python's `random.Random` implementation.
 
-Exact paired permutation enumerates sign assignments and is capped by the
-implementation before evaluation. Protocols that need larger paired designs
-should predeclare the Monte Carlo randomization method rather than relying on an
-exact test that is invalid above the cap.
+Live statistical arithmetic also runs inside a fully specified 34-digit,
+round-half-even decimal context. The implementation restores the caller context
+after each complete calculation, so ambient precision, rounding, flags, and
+traps cannot alter persisted live statistics.
+
+Exact paired permutation enumerates sign assignments and is capped at 17
+clusters. All live resampling shares a 4,096,000 primitive sample/sign-unit
+ceiling, equal to one 1,000-draw ICC bootstrap over 4,096 clusters. Protocol
+validation projects work from `planned_clusters` and rejects
+over-budget exact, percentile-bootstrap, or Monte Carlo methods before execution;
+the runtime also checks aggregate work across data-dependent kernels. Larger
+paired designs can use t-based or descriptive methods up to the persisted-data
+limit, or choose a resampling method only when its planned cluster count fits
+the budget.
 
 Sign-flip randomization is accepted only when the non-inferiority margin is
 zero. Adding a nonzero margin to each paired difference does not preserve the
@@ -417,11 +457,21 @@ tool/provider use, an observed count of zero must be reported with an upper
 one-sided confidence bound, not as proof of absence. Reports expose
 `interval_sidedness=one_sided_upper` on rare-event bound artifacts so this
 result is not confused with the two-sided rate intervals elsewhere in the live
-report.
+report. The exact Clopper--Pearson bound uses one binary endpoint per independence cluster:
+the event count is the number of clusters containing at least one event and
+the exposure is the number of distinct clusters. The enclosing endpoint
+retains the raw observation-level count, denominator, and rate separately.
 
-At 95 percent confidence, the common zero-event approximation is about
-`3 / exposure`; reports should still use the implemented Poisson bound artifact
-and should not describe zero observed events as a `0% failure rate`.
+Above 1,000 clusters, the zero-event closed-form and nonzero Bernoulli
+KL-Chernoff branches use rational logarithm enclosures and work bounded
+independently of the cluster count. The nonzero branch uses a fixed rational
+grid and is separately labeled
+`bernoulli_kl_chernoff_upper_bound_one_sided`; its outward-rounded result is a
+conservative inequality inversion, not an exact Clopper--Pearson/binomial-tail
+inversion.
+
+Reports use the implemented bounded binomial upper-bound artifact and must not
+describe zero observed events as a `0% failure rate`.
 
 Latency and cost summaries should use bootstrap intervals for medians and tail
 quantiles. Normal approximations are not acceptable for skewed operational

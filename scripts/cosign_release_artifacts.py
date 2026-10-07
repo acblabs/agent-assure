@@ -30,6 +30,7 @@ from agent_assure.io_limits import (  # noqa: E402
     read_file_bounded,
     read_file_bounded_at,
 )
+from agent_assure.onboarding.diagnostics import bounded_error, bounded_text  # noqa: E402
 from agent_assure.release_evidence import (  # noqa: E402
     core_release_roles_for_schema_version,
     load_digest_replay,
@@ -134,9 +135,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         else:
             raise ValueError(f"unknown command: {args.command}")
     except (OSError, RuntimeError, ValueError) as exc:
-        print(f"cosign-release-artifacts: {exc}", file=sys.stderr)
+        print(f"cosign-release-artifacts: {bounded_error(exc)}", file=sys.stderr)
         for note in getattr(exc, "__notes__", ()):
-            print(f"cosign-release-artifacts: note: {note}", file=sys.stderr)
+            print(
+                f"cosign-release-artifacts: note: {bounded_text(note)}",
+                file=sys.stderr,
+            )
         return 1
     return 0
 

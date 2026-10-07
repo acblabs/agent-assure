@@ -3,12 +3,16 @@ from __future__ import annotations
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import AgentRunRecord
 from agent_assure.schema.telemetry import MAX_OTEL_EVENTS, SpanAttribute, SpanEvent, SpanPlan
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
 from agent_assure.telemetry.privacy_filter import safe_attribute, safe_tracestate
 from agent_assure.telemetry.semconv_lock import SEMCONV_CHECKSUM, SEMCONV_COMMIT
 
 
 def run_record_to_span_plan(record: AgentRunRecord) -> SpanPlan:
+    payload = record.model_dump(mode="json", warnings="error")
+    record = AgentRunRecord.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "agent-run-record")
     if len(record.tools) > MAX_OTEL_EVENTS:
         raise ValueError(
             f"run record exceeds OpenTelemetry event limit of {MAX_OTEL_EVENTS} tool calls"

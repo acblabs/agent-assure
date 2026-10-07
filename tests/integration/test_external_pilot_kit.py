@@ -4,13 +4,15 @@ import json
 import os
 import subprocess
 import sys
-from datetime import date
+import zipfile
+from datetime import date, timedelta
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 import agent_assure.external_pilot_kit as pilot_kit
+import agent_assure.pilot_bundle as pilot_bundle
 from agent_assure.external_pilot_kit import (
     CAPTURE_FILENAME,
     CONSENT_RECORD_FILENAME,
@@ -30,6 +32,7 @@ from tests.unit.test_pilot_bundle import _wheel_bytes
 ROOT = Path(__file__).resolve().parents[2]
 PARTICIPANT_INPUT = "agent-assure-pilot/participant-waiver.yaml"
 PARTICIPANT_RATIONALE = "I am running this benign pilot to exercise the documented workflow."
+REVIEWER_PSEUDONYM = "reviewer-cedar-42"
 SOURCE_REVISION = "a" * 40
 
 
@@ -54,8 +57,24 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
     wheels = tuple(distribution_root.glob("agent_assure-*.whl"))
     assert len(wheels) == 1
-    assert wheels[0].name == "agent_assure-0.6.6-py3-none-any.whl"
+    assert wheels[0].name == "agent_assure-0.7.0-py3-none-any.whl"
     return wheels[0]
+
+
+def test_built_wheel_retains_bounded_structural_scan_headroom(built_wheel: Path) -> None:
+    scanned_lines = 0
+    with zipfile.ZipFile(built_wheel) as archive:
+        for info in archive.infolist():
+            if info.is_dir() or info.filename.endswith(".dist-info/RECORD"):
+                continue
+            data = archive.read(info)
+            if not data or info.filename.casefold().endswith(".png"):
+                continue
+            text = data.decode("utf-8")
+            scanned_lines += text.count("\n") + 1
+
+    remaining_lines = pilot_bundle.MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES - scanned_lines
+    assert remaining_lines >= pilot_bundle.MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES
 
 
 def _git(root: Path, *args: str) -> str:
@@ -74,7 +93,8 @@ def _participant_repository(
     *,
     pseudonym: str,
     rationale: str = PARTICIPANT_RATIONALE,
-    expires_on: str = "2099-12-31",
+    reviewer: str = REVIEWER_PSEUDONYM,
+    expires_on: str | None = None,
 ) -> Path:
     repository = tmp_path / "participant-repository"
     repository.mkdir()
@@ -87,8 +107,12 @@ def _participant_repository(
     )
     authored = (
         template.replace("replace-participant-pseudonym", pseudonym)
+        .replace("replace-negative-control-reviewer-label", reviewer)
         .replace("replace-with-a-short-benign-participant-rationale", rationale)
-        .replace("2099-12-31", expires_on)
+        .replace(
+            "replace-with-iso-expiry-within-90-days",
+            expires_on or (date.today() + timedelta(days=30)).isoformat(),
+        )
     )
     input_path = repository / PARTICIPANT_INPUT
     input_path.parent.mkdir()
@@ -136,14 +160,17 @@ def _capture(
     *,
     pseudonym: str = "participant-ember-17",
     rationale: str = PARTICIPANT_RATIONALE,
-    expires_on: str = "2099-12-31",
+    reviewer: str = REVIEWER_PSEUDONYM,
+    expires_on: str | None = None,
     temporary_storage_consent_granted: bool = True,
     environment: dict[str, str] | None = None,
+    source_revision: str = SOURCE_REVISION,
 ) -> tuple[Path, ExternalPilotCapture]:
     repository = _participant_repository(
         tmp_path,
         pseudonym=pseudonym,
         rationale=rationale,
+        reviewer=reviewer,
         expires_on=expires_on,
     )
     capture_root = tmp_path / "capture"
@@ -155,13 +182,172 @@ def _capture(
             ROOT / "docs" / "templates" / "external_pilot_participant_waiver.yaml"
         ),
         wheel_path=built_wheel,
-        source_revision=SOURCE_REVISION,
+        source_revision=source_revision,
         participant_pseudonym=pseudonym,
         temporary_storage_consent_granted=temporary_storage_consent_granted,
         non_maintainer_control_attested=True,
         environment=environment or _ci_environment(run_id="4004"),
     )
     return capture_root, capture
+
+
+def test_opaque_binding_rejection_samples_privacy_detector_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    collision_prefix = "59c40d6be5b9d7276348712992b9ed82"
+    collision_suffix = "fe3e77428aebadfa79a0d588793f9848"
+    card_colliding_token = collision_prefix + collision_suffix
+    safe_token = "a" * 64
+    candidates = iter((card_colliding_token, safe_token))
+    monkeypatch.setattr(pilot_kit.secrets, "token_hex", lambda _size: next(candidates))
+
+    assert pilot_kit._privacy_safe_opaque_pilot_binding() == safe_token
+
+
+def test_opaque_binding_rejection_samples_derived_identifier_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    derived_identifier_collision = (
+        "51e1424eeb514560081905811593feb19b6594c1e79146eae6fff3bed87a3e5a"
+    )
+    safe_token = "a" * 64
+    candidates = iter((derived_identifier_collision, safe_token))
+    monkeypatch.setattr(pilot_kit.secrets, "token_hex", lambda _size: next(candidates))
+
+    assert pilot_kit._privacy_safe_opaque_pilot_binding() == safe_token
+
+
+def test_opaque_binding_generation_exhaustion_precedes_capture_filesystem_side_effects(
+    tmp_path: Path,
+    built_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    derived_identifier_collision = (
+        "51e1424eeb514560081905811593feb19b6594c1e79146eae6fff3bed87a3e5a"
+    )
+    repository = _participant_repository(tmp_path, pseudonym="participant-ember-17")
+    capture_root = tmp_path / "capture"
+    monkeypatch.setattr(
+        pilot_kit.secrets,
+        "token_hex",
+        lambda _size: derived_identifier_collision,
+    )
+
+    with pytest.raises(ValueError, match="bounded attempt limit"):
+        capture_external_pilot(
+            capture_root=capture_root,
+            participant_repository_root=repository,
+            participant_input_repository_path=PARTICIPANT_INPUT,
+            participant_input_template=(
+                ROOT / "docs" / "templates" / "external_pilot_participant_waiver.yaml"
+            ),
+            wheel_path=built_wheel,
+            source_revision=SOURCE_REVISION,
+            participant_pseudonym="participant-ember-17",
+            temporary_storage_consent_granted=True,
+            non_maintainer_control_attested=True,
+            environment=_ci_environment(run_id="4004"),
+        )
+
+    assert not capture_root.exists()
+
+
+def test_late_participant_privacy_failure_leaves_no_capture_target(
+    tmp_path: Path,
+    built_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pseudonym = "4111111111111111"
+    repository = _participant_repository(tmp_path, pseudonym=pseudonym)
+    capture_root = tmp_path / "capture"
+    monkeypatch.setattr(pilot_kit.secrets, "token_hex", lambda _size: "a" * 64)
+
+    with pytest.raises(ValueError):
+        capture_external_pilot(
+            capture_root=capture_root,
+            participant_repository_root=repository,
+            participant_input_repository_path=PARTICIPANT_INPUT,
+            participant_input_template=(
+                ROOT / "docs" / "templates" / "external_pilot_participant_waiver.yaml"
+            ),
+            wheel_path=built_wheel,
+            source_revision=SOURCE_REVISION,
+            participant_pseudonym=pseudonym,
+            temporary_storage_consent_granted=True,
+            non_maintainer_control_attested=True,
+            environment=_ci_environment(run_id="4004"),
+        )
+
+    assert not capture_root.exists()
+
+
+def test_late_derived_platform_privacy_failure_leaves_no_capture_target(
+    tmp_path: Path,
+    built_wheel: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pseudonym = "participant-ember-17"
+    repository = _participant_repository(tmp_path, pseudonym=pseudonym)
+    capture_root = tmp_path / "capture"
+    environment = _ci_environment(run_id="4004")
+    environment.update(RUNNER_OS="41111111", RUNNER_ARCH="11111111")
+    monkeypatch.setattr(pilot_kit.secrets, "token_hex", lambda _size: "a" * 64)
+    monkeypatch.setattr(pilot_kit, "_run_signature_command", lambda *_args, **_kwargs: 2)
+
+    with pytest.raises(ValueError, match="privacy-filtered metadata|privacy review"):
+        capture_external_pilot(
+            capture_root=capture_root,
+            participant_repository_root=repository,
+            participant_input_repository_path=PARTICIPANT_INPUT,
+            participant_input_template=(
+                ROOT / "docs" / "templates" / "external_pilot_participant_waiver.yaml"
+            ),
+            wheel_path=built_wheel,
+            source_revision=SOURCE_REVISION,
+            participant_pseudonym=pseudonym,
+            temporary_storage_consent_granted=True,
+            non_maintainer_control_attested=True,
+            environment=environment,
+        )
+
+    assert not capture_root.exists()
+
+
+def test_private_capture_accepts_canonical_git_revisions_with_card_like_run(
+    tmp_path: Path,
+    built_wheel: Path,
+) -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    _capture_root, capture = _capture(tmp_path, built_wheel, source_revision=revision)
+    payload = capture.model_dump(mode="json")
+    payload["participant_repository_revision"] = revision
+
+    validated = ExternalPilotCapture.build(**payload)
+
+    assert validated.participant_repository_revision == revision
+    assert validated.subject.source_revision == revision
+    assert validated.command.implementation_source_revision == revision
+
+    payload["participant_pseudonym"] = revision
+    with pytest.raises(ValueError, match="privacy-filtered metadata"):
+        ExternalPilotCapture.build(**payload)
+
+
+def test_private_capture_accepts_exact_typed_ci_digest_with_card_like_run(
+    tmp_path: Path,
+    built_wheel: Path,
+) -> None:
+    digest = "c646deba739b87a9e0497482330808d2e500e84dfab7b893a75224e2bca4957a"
+    _capture_root, capture = _capture(tmp_path, built_wheel)
+    payload = capture.model_dump(mode="json")
+    payload["ci_identity_digests"]["repository"] = digest
+
+    validated = ExternalPilotCapture.build(**payload)
+
+    assert validated.ci_identity_digests.repository == digest
+    payload["participant_pseudonym"] = digest
+    with pytest.raises(ValueError, match="privacy-filtered metadata"):
+        ExternalPilotCapture.build(**payload)
 
 
 def test_two_stage_kit_builds_a_mechanically_verified_completed_candidate(
@@ -297,7 +483,7 @@ def test_applied_remediation_refinalizes_without_mutating_the_planned_candidate(
         friction_assessment="friction_observed",
         friction_category="documentation",
         remediation_disposition="applied",
-        remediation_source_revision="b" * 40,
+        remediation_source_revision="f8b553e1722d1f4789092253776fc22044e6fce7",
         prior_candidate_evidence_digest=planned.pilot_evidence_digest,
         publication_consent_granted=True,
         non_maintainer_control_attested=True,
@@ -306,7 +492,9 @@ def test_applied_remediation_refinalizes_without_mutating_the_planned_candidate(
 
     assert applied.remediations[0].disposition is PilotRemediationDisposition.applied
     remediation = json.loads((applied_root / "remediation-record.json").read_text("utf-8"))
-    assert remediation["remediation_source_revision"] == "b" * 40
+    assert remediation["remediation_source_revision"] == (
+        "f8b553e1722d1f4789092253776fc22044e6fce7"
+    )
     assert remediation["prior_planned_candidate_evidence_digest"] == (planned.pilot_evidence_digest)
     assert {path.name: path.read_bytes() for path in planned_root.iterdir()} == planned_bytes
 
@@ -446,7 +634,7 @@ def test_capture_fails_closed_without_temporary_storage_consent(
 def test_capture_rejects_a_valid_wheel_that_does_not_contain_the_running_code(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "agent_assure-0.6.6-py3-none-any.whl"
+    wheel = tmp_path / "agent_assure-0.7.0-py3-none-any.whl"
     wheel.write_bytes(_wheel_bytes())
 
     with pytest.raises(ValueError, match="code inventory does not match tested wheel"):
@@ -457,7 +645,7 @@ def test_capture_rejects_a_valid_wheel_that_does_not_contain_the_running_code(
 def test_capture_rejects_a_privacy_invalid_wheel_before_creating_a_handoff(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "agent_assure-0.6.6-py3-none-any.whl"
+    wheel = tmp_path / "agent_assure-0.7.0-py3-none-any.whl"
     wheel.write_bytes(
         _wheel_bytes(extra_members={"agent_assure/leaked.py": b'api_key = "hunter2-value"\n'})
     )
@@ -545,11 +733,11 @@ def test_benign_participant_waiver_validator_rejects_an_empty_rationale() -> Non
     waiver = SimpleNamespace(
         waiver_id="external-pilot-participant-001",
         owner="participant-001",
-        reviewer="participant-001",
+        reviewer="reviewer-001",
         reason_code=SimpleNamespace(value="FORBIDDEN_TOOL"),
         finding_id="pilot-nonmatching-finding",
         artifact_digest="0" * 64,
-        expires_on=date(2099, 12, 31),
+        expires_on=date.today() + timedelta(days=30),
         rationale="",
     )
 
@@ -560,9 +748,21 @@ def test_benign_participant_waiver_validator_rejects_an_empty_rationale() -> Non
         )
 
 
-def test_capture_requires_the_exact_fixed_benign_waiver_boundary(
+def test_capture_requires_a_current_bounded_waiver_expiry(
     tmp_path: Path,
     built_wheel: Path,
 ) -> None:
-    with pytest.raises(ValueError, match="documented benign non-matching boundary"):
-        _capture(tmp_path, built_wheel, expires_on="2099-12-30")
+    with pytest.raises(ValueError, match="no more than 90 days"):
+        _capture(
+            tmp_path,
+            built_wheel,
+            expires_on=(date.today() + timedelta(days=91)).isoformat(),
+        )
+
+
+def test_capture_requires_distinct_negative_control_reviewer_label(
+    tmp_path: Path,
+    built_wheel: Path,
+) -> None:
+    with pytest.raises(ValueError, match="owner and reviewer must be different"):
+        _capture(tmp_path, built_wheel, reviewer="participant-ember-17")

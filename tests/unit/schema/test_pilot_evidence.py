@@ -155,7 +155,7 @@ def _values(**overrides: object) -> dict[str, object]:
         "qualifies_as_external_attempt": True,
         "subject": PilotSubject(
             implementation_id="agent-assure",
-            implementation_version="0.6.6",
+            implementation_version="0.7.0",
             source_revision="0123456789abcdef",
             distribution_artifact_id="artifact-distribution",
             distribution_digest="1" * 64,
@@ -166,7 +166,7 @@ def _values(**overrides: object) -> dict[str, object]:
             control=PilotEnvironmentControl.independently_controlled_non_maintainer,
             platform="linux-x86_64",
             components=(
-                PilotEnvironmentComponent(component_id="agent-assure", version="0.6.6"),
+                PilotEnvironmentComponent(component_id="agent-assure", version="0.7.0"),
                 PilotEnvironmentComponent(component_id="python", version="3.11.9"),
             ),
             environment_manifest_artifact_id="artifact-environment",
@@ -272,6 +272,38 @@ def test_independent_non_bundled_ci_attempt_is_classified_as_external() -> None:
     assert evidence.clean_reproduction_gate_eligible is False
     assert evidence.exact_candidate_gate_eligible is False
     assert evidence.ci_integration_gate_eligible is False
+
+
+def test_external_evidence_accepts_canonical_git_revision_with_card_like_run() -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    values = _values()
+    subject = values["subject"]
+    commands = values["commands"]
+    assert isinstance(subject, PilotSubject)
+    assert isinstance(commands, tuple) and isinstance(commands[0], PilotCommandExecution)
+    values["subject"] = PilotSubject.model_validate(
+        {**subject.model_dump(mode="json"), "source_revision": revision}
+    )
+    values["commands"] = (
+        PilotCommandExecution.model_validate(
+            {
+                **commands[0].model_dump(mode="json"),
+                "implementation_source_revision": revision,
+            }
+        ),
+    )
+
+    evidence = ExternalPilotEvidence.build(**values)
+
+    assert evidence.subject.source_revision == revision
+    assert evidence.commands[0].implementation_source_revision == revision
+
+
+def test_external_evidence_does_not_project_git_like_bytes_from_ordinary_text() -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+
+    with pytest.raises(ValidationError, match="privacy-filtered metadata"):
+        _external_evidence(limitations=(revision,))
 
 
 def test_pilot_command_rejects_reversed_submicrosecond_times_instead_of_truncating() -> None:
@@ -622,7 +654,7 @@ def test_distribution_binary_content_scope_is_role_specific() -> None:
     with pytest.raises(ValidationError, match="require distribution_binary"):
         PilotArtifactDigest(
             artifact_id="distribution",
-            path="agent_assure-0.6.6-py3-none-any.whl",
+            path="agent_assure-0.7.0-py3-none-any.whl",
             role=PilotArtifactRole.tested_distribution,
             sha256="1" * 64,
             content_scope=PilotArtifactContentScope.metadata_only,
@@ -1202,7 +1234,7 @@ def _review_receipt(**overrides: object) -> ExternalPilotIndependenceReviewRecei
         "prior_planned_candidate_evidence_digest": "f" * 64,
         "capture_workflow_run": _workflow_run("capture"),
         "finalize_workflow_run": _workflow_run("finalize"),
-        "expected_release_line": "0.6.6",
+        "expected_release_line": "0.7.0",
         "reviewer_pseudonym": "release-reviewer-001",
         "manual_approval_is_trust_root": True,
         "reviewer_independent_of_pilot_execution": True,
@@ -1231,6 +1263,191 @@ def _review_receipt(**overrides: object) -> ExternalPilotIndependenceReviewRecei
     return ExternalPilotIndependenceReviewReceipt.build(**values)
 
 
+def test_review_receipt_accepts_only_typed_git_revisions_with_card_like_run() -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    trusted_revision = "b8b553e1722d1f4789092253776fc22044e6fce7"
+    remediation_revision = "a8b553e1722d1f4789092253776fc22044e6fce7"
+    capture_head_revision = "c8b553e1722d1f4789092253776fc22044e6fce7"
+    finalize_head_revision = "d8b553e1722d1f4789092253776fc22044e6fce7"
+    capture_payload = _workflow_run("capture").model_dump(mode="python")
+    capture_payload.pop("public_inputs_sha256")
+    capture_payload.update(
+        run_head_sha=capture_head_revision,
+        trusted_workflow_revision=trusted_revision,
+        execution_source_revision=revision,
+    )
+    capture = PilotWorkflowRunReview.build(**capture_payload)
+
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload.update(
+        run_head_sha=finalize_head_revision,
+        trusted_workflow_revision=trusted_revision,
+        execution_source_revision=revision,
+    )
+    finalize_payload["public_inputs"] = tuple(
+        {
+            **item,
+            "value": (
+                remediation_revision
+                if item["name"] == "remediation_source_revision"
+                else item["value"]
+            ),
+        }
+        for item in finalize_payload["public_inputs"]
+    )
+    finalize = PilotWorkflowRunReview.build(**finalize_payload)
+
+    receipt = _review_receipt(
+        pilot_execution_source_revision=revision,
+        pilot_remediation_source_revision=remediation_revision,
+        capture_workflow_run=capture,
+        finalize_workflow_run=finalize,
+    )
+
+    assert receipt.pilot_execution_source_revision == revision
+    assert receipt.pilot_remediation_source_revision == remediation_revision
+    assert receipt.capture_workflow_run.run_head_sha == capture_head_revision
+    assert (
+        receipt.finalize_workflow_run.input_values["remediation_source_revision"]
+        == remediation_revision
+    )
+
+
+@pytest.mark.parametrize(
+    "sensitive_value",
+    (
+        "f8b553e1722d1f4789092253776fc22044e6fce7",
+        "c646deba739b87a9e0497482330808d2e500e84dfab7b893a75224e2bca4957a",
+    ),
+)
+def test_review_receipt_does_not_project_structural_bytes_from_rationale(
+    sensitive_value: str,
+) -> None:
+    with pytest.raises(ValidationError, match="privacy-filtered metadata"):
+        _review_receipt(reviewer_independence_rationale=sensitive_value)
+
+
+def test_review_receipt_accepts_bound_nested_digest_with_card_like_run() -> None:
+    digest = "c646deba739b87a9e0497482330808d2e500e84dfab7b893a75224e2bca4957a"
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload["public_inputs"] = tuple(
+        {
+            **item,
+            "value": (
+                digest if item["name"] == "prior_candidate_evidence_digest" else item["value"]
+            ),
+        }
+        for item in finalize_payload["public_inputs"]
+    )
+    finalize = PilotWorkflowRunReview.build(**finalize_payload)
+
+    receipt = _review_receipt(
+        prior_planned_candidate_evidence_digest=digest,
+        finalize_workflow_run=finalize,
+    )
+
+    assert receipt.prior_planned_candidate_evidence_digest == digest
+    assert receipt.finalize_workflow_run.input_values["prior_candidate_evidence_digest"] == digest
+
+
+def test_review_receipt_accepts_bound_luhn_valid_github_run_id() -> None:
+    capture_run_id = "4111111111111111"
+    finalize_run_id = "4012888888881881"
+    capture_payload = _workflow_run("capture").model_dump(mode="python")
+    capture_payload.pop("public_inputs_sha256")
+    capture_payload["run_url"] = (
+        f"https://github.com/example/agent-assure/actions/runs/{capture_run_id}/attempts/1"
+    )
+    capture = PilotWorkflowRunReview.build(**capture_payload)
+
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload["run_url"] = (
+        f"https://github.com/example/agent-assure/actions/runs/{finalize_run_id}/attempts/1"
+    )
+    finalize_payload["public_inputs"] = tuple(
+        {
+            **item,
+            "value": capture_run_id if item["name"] == "capture_run_id" else item["value"],
+        }
+        for item in finalize_payload["public_inputs"]
+    )
+    finalize = PilotWorkflowRunReview.build(**finalize_payload)
+
+    receipt = _review_receipt(
+        capture_workflow_run=capture,
+        finalize_workflow_run=finalize,
+    )
+
+    assert receipt.capture_workflow_run.run_id == capture_run_id
+    assert receipt.finalize_workflow_run.run_id == finalize_run_id
+    assert receipt.finalize_workflow_run.input_values["capture_run_id"] == capture_run_id
+
+
+def test_review_receipt_rejects_same_capture_and_finalize_run() -> None:
+    capture = _workflow_run("capture")
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload["run_url"] = capture.run_url
+    finalize = PilotWorkflowRunReview.build(**finalize_payload)
+
+    with pytest.raises(ValidationError, match="distinct workflow runs"):
+        _review_receipt(capture_workflow_run=capture, finalize_workflow_run=finalize)
+
+
+def test_review_receipt_rejects_self_referential_applied_remediation() -> None:
+    revision = "9" * 40
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload["public_inputs"] = tuple(
+        {
+            **item,
+            "value": revision if item["name"] == "remediation_source_revision" else item["value"],
+        }
+        for item in finalize_payload["public_inputs"]
+    )
+    finalize = PilotWorkflowRunReview.build(**finalize_payload)
+
+    with pytest.raises(ValidationError, match="must postdate the tested source"):
+        _review_receipt(
+            pilot_execution_source_revision=revision,
+            pilot_remediation_source_revision=revision,
+            finalize_workflow_run=finalize,
+        )
+
+
+def test_review_receipt_rejects_self_referential_workflow_source_pins() -> None:
+    revision = "9" * 40
+    capture_payload = _workflow_run("capture").model_dump(mode="python")
+    capture_payload.pop("public_inputs_sha256")
+    capture_payload["trusted_workflow_revision"] = revision
+    finalize_payload = _workflow_run("finalize").model_dump(mode="python")
+    finalize_payload.pop("public_inputs_sha256")
+    finalize_payload["trusted_workflow_revision"] = revision
+
+    with pytest.raises(ValidationError, match="trusted workflow revision must be distinct"):
+        _review_receipt(
+            capture_workflow_run=PilotWorkflowRunReview.build(**capture_payload),
+            finalize_workflow_run=PilotWorkflowRunReview.build(**finalize_payload),
+        )
+
+    for stage in ("capture", "finalize"):
+        run_payload = _workflow_run(stage).model_dump(mode="python")
+        run_payload.pop("public_inputs_sha256")
+        run_payload["run_head_sha"] = revision
+        overrides = {f"{stage}_workflow_run": PilotWorkflowRunReview.build(**run_payload)}
+        with pytest.raises(ValidationError, match="run heads must be distinct"):
+            _review_receipt(**overrides)
+
+    capture_payload = _workflow_run("capture").model_dump(mode="python")
+    capture_payload.pop("public_inputs_sha256")
+    capture_payload["run_head_sha"] = capture_payload["trusted_workflow_revision"]
+    with pytest.raises(ValidationError, match="participant commit"):
+        _review_receipt(capture_workflow_run=PilotWorkflowRunReview.build(**capture_payload))
+
+
 def test_workflow_run_review_binds_exact_trusted_bytes_and_complete_public_inputs() -> None:
     reviewed = _workflow_run("capture")
 
@@ -1244,6 +1461,19 @@ def test_workflow_run_review_binds_exact_trusted_bytes_and_complete_public_input
     mismatched["trusted_workflow_sha256"] = "0" * 64
     with pytest.raises(ValidationError, match="must match the trusted workflow bytes"):
         PilotWorkflowRunReview.build(**mismatched)
+
+    for noncanonical_url in (
+        "https://github.com/./agent-assure/actions/runs/4004/attempts/1",
+        "https://github.com/example/../actions/runs/4004/attempts/1",
+        "https://github.com/invalid_owner/repo/actions/runs/4004/attempts/1",
+        "https://github.com/foo--bar/repo/actions/runs/4004/attempts/1",
+        f"https://github.com/example/{'r' * 101}/actions/runs/4004/attempts/1",
+    ):
+        noncanonical = reviewed.model_dump(mode="python")
+        noncanonical.pop("public_inputs_sha256")
+        noncanonical["run_url"] = noncanonical_url
+        with pytest.raises(ValidationError, match="public GitHub Actions run|dot path segments"):
+            PilotWorkflowRunReview.build(**noncanonical)
 
     incomplete = reviewed.model_dump(mode="python")
     incomplete.pop("public_inputs_sha256")

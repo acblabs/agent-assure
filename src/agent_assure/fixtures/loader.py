@@ -37,11 +37,22 @@ def load_compiled_suite(path: Path, *, expected_digest: str | None = None) -> Co
 
 
 def write_compiled_suite(compiled: CompiledSuite, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    write_text_atomic(
-        path,
-        json.dumps(compiled.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+    # Imported lazily for the same registry-cycle reason as the loader above.
+    from agent_assure.schema.validation import validate_loaded_artifact_payload
+
+    payload = compiled.model_dump(mode="json", warnings="error")
+    compiled = CompiledSuite.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "compiled-suite")
+    rendered = (
+        json.dumps(
+            compiled.model_dump(mode="json", warnings="error"),
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
     )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    write_text_atomic(path, rendered)
 
 
 def compiled_suite_digest(compiled: CompiledSuite) -> str:

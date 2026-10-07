@@ -8,6 +8,7 @@ from typing import Any
 from agent_assure.schema.common import ReasonCode
 
 DECIMAL_QUANTUM = Decimal("0.000001")
+_MAX_DECIMAL_PRECISION = 4_096
 
 
 class CanonicalizationError(ValueError):
@@ -20,21 +21,29 @@ def normalize_decimal(value: Decimal | str) -> str:
     decimal = Decimal(str(value))
     if not decimal.is_finite():
         raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal is not finite")
+    if len(decimal.as_tuple().digits) > _MAX_DECIMAL_PRECISION:
+        raise ValueError("decimal value exceeds the supported precision bound")
     quantum_exponent = DECIMAL_QUANTUM.as_tuple().exponent
     if not isinstance(quantum_exponent, int):
         raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal quantum is not finite")
     fractional_places = abs(quantum_exponent)
     integer_digits = max(decimal.adjusted() + 1, 1)
+    required_precision = integer_digits + fractional_places + 1
+    if required_precision > _MAX_DECIMAL_PRECISION:
+        raise ValueError("decimal value exceeds the supported precision bound")
     # Canonical bytes must not inherit process-global Decimal rounding or trap
     # settings. The extra digit admits a carry into the integer part when the
     # discarded fraction rounds upward.
     with localcontext(
         Context(
-            prec=integer_digits + fractional_places + 1,
+            prec=required_precision,
             rounding=ROUND_HALF_EVEN,
         )
     ):
-        return format(decimal.quantize(DECIMAL_QUANTUM), "f")
+        quantized = decimal.quantize(DECIMAL_QUANTUM)
+    if quantized.is_zero():
+        quantized = quantized.copy_abs()
+    return format(quantized, "f")
 
 
 def ensure_nfc(value: str) -> str:
@@ -66,7 +75,11 @@ def digest_projection(value: Any) -> Any:
         projected_items: list[tuple[str, Any]] = []
         seen_keys: set[str] = set()
         for key, item in value.items():
-            projected_key = ensure_nfc(str(key))
+            if not isinstance(key, str):
+                raise TypeError(
+                    f"digest projection object keys must be strings; received {type(key).__name__}"
+                )
+            projected_key = ensure_nfc(key)
             if projected_key in seen_keys:
                 raise TypeError(f"duplicate projected object key: {projected_key!r}")
             seen_keys.add(projected_key)

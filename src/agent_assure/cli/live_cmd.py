@@ -20,6 +20,8 @@ from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.runner import run_live_suite
 from agent_assure.live.statistics import evaluate_live_runset
 from agent_assure.live.trajectory import build_live_trajectory_report
+from agent_assure.network_authority import normalize_endpoint_host
+from agent_assure.onboarding.diagnostics import bounded_error, bounded_text, display_path
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.reporting.live import (
     write_live_comparison_json,
@@ -41,7 +43,7 @@ from agent_assure.schema.validation import (
 )
 
 app = typer.Typer(help="Live provider execution and stochastic reports.")
-console = Console()
+console = Console(markup=False)
 
 
 @app.command("adapters")
@@ -91,6 +93,26 @@ def run(
             help="Allow a trusted live config to pass selected host environment variables.",
         ),
     ] = False,
+    authorized_endpoint_hosts: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--authorized-endpoint-host",
+            help=(
+                "Operator-owned endpoint hostname authorization. Repeat for each "
+                "permitted configured network destination."
+            ),
+        ),
+    ] = None,
+    authorized_api_key_envs: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--authorized-api-key-env",
+            help=(
+                "Operator-owned credential environment-variable authorization. "
+                "Repeat for each permitted configured credential reference."
+            ),
+        ),
+    ] = None,
     strict_endpoint_resolution: Annotated[
         bool,
         typer.Option(
@@ -127,6 +149,8 @@ def run(
             allow_network=allow_network,
             allow_external_script=allow_external_script,
             allow_script_env=allow_script_env,
+            authorized_endpoint_hosts=tuple(authorized_endpoint_hosts or ()),
+            authorized_api_key_envs=tuple(authorized_api_key_envs or ()),
         )
         protocol_record = _load_protocol(protocol)
         runset = run_live_suite(
@@ -138,8 +162,8 @@ def run(
         )
         write_runset(runset, out)
     except (KeyError, ValueError, TypeError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    console.print(f"live run set: {out}")
+        raise typer.BadParameter(bounded_error(exc)) from exc
+    console.print(f"live run set: {display_path(out)}")
 
 
 def _confirm_trusted_live_config(
@@ -150,7 +174,13 @@ def _confirm_trusted_live_config(
     allow_network: bool,
     allow_external_script: bool,
     allow_script_env: bool,
+    authorized_endpoint_hosts: tuple[str, ...] = (),
+    authorized_api_key_envs: tuple[str, ...] = (),
 ) -> TrustedLiveExecution:
+    normalized_authorized_hosts = tuple(
+        sorted({normalize_endpoint_host(host) for host in authorized_endpoint_hosts})
+    )
+    normalized_authorized_key_envs = tuple(sorted(set(authorized_api_key_envs)))
     risks = _trusted_live_config_risks(config)
     if not risks:
         return TrustedLiveExecution()
@@ -168,17 +198,38 @@ def _confirm_trusted_live_config(
     if (ci or trust_config) and missing_flags:
         flags = ", ".join(missing_flags)
         raise ValueError(f"{message}; explicit allow flag(s) required: {flags}")
+    missing_bindings = _missing_operator_network_bindings(
+        config,
+        authorized_endpoint_hosts=normalized_authorized_hosts,
+        authorized_api_key_envs=normalized_authorized_key_envs,
+    )
+    if (ci or trust_config) and missing_bindings:
+        flags = ", ".join(missing_bindings)
+        raise ValueError(
+            f"{message}; explicit operator-owned network binding flag(s) required: {flags}"
+        )
     if trust_config:
-        console.print(f"warning: {message}", markup=False)
-        return _trusted_live_execution_for_risks(risks)
-    console.print(f"warning: {message}", markup=False)
+        console.print(f"warning: {bounded_text(message)}", markup=False)
+        return _trusted_live_execution_for_risks(
+            config,
+            risks,
+            authorized_endpoint_hosts=normalized_authorized_hosts,
+            authorized_api_key_envs=normalized_authorized_key_envs,
+        )
+    console.print(f"warning: {bounded_text(message)}", markup=False)
     for risk_id, reason, _ in risks:
         if not typer.confirm(
-            f"Grant {risk_id!r} capability? {reason}",
+            bounded_text(f"Grant {risk_id!r} capability? {reason}"),
             default=False,
         ):
             raise typer.Abort()
-    return _trusted_live_execution_for_risks(risks)
+    return _trusted_live_execution_for_risks(
+        config,
+        risks,
+        authorized_endpoint_hosts=normalized_authorized_hosts,
+        authorized_api_key_envs=normalized_authorized_key_envs,
+        interactive_confirmation=True,
+    )
 
 
 def _trusted_live_config_reasons(config: object) -> tuple[str, ...]:
@@ -186,14 +237,59 @@ def _trusted_live_config_reasons(config: object) -> tuple[str, ...]:
 
 
 def _trusted_live_execution_for_risks(
+    config: object,
     risks: tuple[tuple[str, str, str], ...],
+    *,
+    authorized_endpoint_hosts: tuple[str, ...] = (),
+    authorized_api_key_envs: tuple[str, ...] = (),
+    interactive_confirmation: bool = False,
 ) -> TrustedLiveExecution:
     risk_ids = {risk_id for risk_id, _, _ in risks}
+    expected_host, expected_key_env = _configured_network_binding(config)
+    if interactive_confirmation:
+        if expected_host is not None:
+            authorized_endpoint_hosts = (expected_host,)
+        if expected_key_env is not None:
+            authorized_api_key_envs = (expected_key_env,)
     return TrustedLiveExecution(
         allow_network="network" in risk_ids,
         allow_external_script="external-script" in risk_ids,
         allow_script_env="script-env" in risk_ids,
+        authorized_endpoint_hosts=authorized_endpoint_hosts,
+        authorized_api_key_envs=authorized_api_key_envs,
     )
+
+
+def _missing_operator_network_bindings(
+    config: object,
+    *,
+    authorized_endpoint_hosts: tuple[str, ...],
+    authorized_api_key_envs: tuple[str, ...],
+) -> tuple[str, ...]:
+    expected_host, expected_key_env = _configured_network_binding(config)
+    if expected_host is None and expected_key_env is None:
+        return ()
+    missing: list[str] = []
+    if expected_host not in authorized_endpoint_hosts:
+        missing.append("--authorized-endpoint-host")
+    if expected_key_env not in authorized_api_key_envs:
+        missing.append("--authorized-api-key-env")
+    return tuple(missing)
+
+
+def _configured_network_binding(config: object) -> tuple[str | None, str | None]:
+    adapter = getattr(config, "adapter", None)
+    if (
+        adapter is None
+        or getattr(adapter, "adapter_id", None) != "openai-chat-completions"
+        or not getattr(adapter, "allow_network", False)
+    ):
+        return None, None
+    endpoint = getattr(adapter, "endpoint_url", None)
+    endpoint_host = urlparse(endpoint).hostname if endpoint else None
+    normalized_host = normalize_endpoint_host(endpoint_host) if endpoint_host is not None else None
+    key_env = getattr(adapter, "api_key_env", None)
+    return normalized_host, key_env if isinstance(key_env, str) else None
 
 
 def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ...]:
@@ -232,8 +328,15 @@ def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ..
             endpoint = getattr(adapter, "endpoint_url", None)
             endpoint_host = urlparse(endpoint).hostname if endpoint else None
             destination = endpoint_host or "an unspecified external destination"
+            api_key_env = getattr(adapter, "api_key_env", None)
+            credential_context = (
+                f" using credential environment variable {redact_text(api_key_env)!r}"
+                if isinstance(api_key_env, str)
+                else ""
+            )
             network_reason = (
-                f"allow_network can send prompts and metadata to {redact_text(destination)!r}"
+                f"allow_network can send prompts and metadata to "
+                f"{redact_text(destination)!r}{credential_context}"
             )
         risks.append(
             (
@@ -287,7 +390,7 @@ def evaluate(
             protocol=protocol_record,
         )
     except (ValueError, TypeError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_live_evaluation_json(report, out_dir)
     write_live_evaluation_markdown(report, out_dir)
     console.print(
@@ -322,7 +425,7 @@ def drift(
         protocol_record = _load_protocol(protocol_path)
         report = build_live_drift_report(reports, protocol=protocol_record)
     except (KeyError, ValueError, TypeError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_live_drift_json(report, out_dir)
     write_live_drift_markdown(report, out_dir)
     console.print(
@@ -368,7 +471,7 @@ def trajectory(
             protocol=protocol_record,
         )
     except (KeyError, ValueError, TypeError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_live_trajectory_json(report, out_dir)
     write_live_trajectory_markdown(report, out_dir)
     console.print(
@@ -406,7 +509,7 @@ def compare(
             protocol=protocol_record,
         )
     except (KeyError, ValueError, TypeError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_live_comparison_json(report, out_dir)
     write_live_comparison_markdown(report, out_dir)
     console.print(

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import io
 import json
 import shutil
 import socket
+import subprocess
 import sys
+import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable
@@ -24,10 +28,13 @@ from agent_assure.cli.live_cmd import (
     _confirm_trusted_live_config,
     _trusted_live_config_reasons,
 )
+from agent_assure.evaluation.evaluator import evaluate_runset
+from agent_assure.live import adapters as live_adapters
 from agent_assure.live import runner as live_runner
 from agent_assure.live.adapters import (
     GOVERNING_EVIDENCE_RENDERER_ID,
     MAX_PROVIDER_RESPONSE_BYTES,
+    ExternalScriptAdapter,
     LiveProviderRequest,
     LiveProviderRequestError,
     LiveProviderResponse,
@@ -40,16 +47,22 @@ from agent_assure.live.adapters import (
     _PinnedHTTPSConnection,
     _PinnedHTTPSHandler,
     _read_provider_response,
+    _ScreenedEndpointAddressCache,
+    _TransportDeadline,
     build_adapter,
     live_provider_input_text,
     render_governing_evidence_message,
+    snapshot_live_adapter_resource,
 )
 from agent_assure.live.config import (
+    MAX_LIVE_ADAPTER_TIMEOUT_SECONDS,
     MAX_LIVE_REQUESTS,
     MAX_LIVE_RETRIES,
     LiveAdapterConfig,
     LivePromptCase,
     LiveRunConfig,
+    LiveScriptEnvVar,
+    _bounded_getaddrinfo,
     is_disallowed_endpoint_host,
     load_live_run_config,
 )
@@ -89,12 +102,81 @@ from agent_assure.study_dispatch import ValidatedStudyDispatchPreflight
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
 
 
+def _network_trust(
+    endpoint_host: str = "api.openai.com",
+    api_key_env: str = "OPENAI_TEST_KEY",
+) -> TrustedLiveExecution:
+    return TrustedLiveExecution(
+        allow_network=True,
+        authorized_endpoint_hosts=(endpoint_host,),
+        authorized_api_key_envs=(api_key_env,),
+    )
+
+
 def _decision_contract_request_fields() -> dict[str, str]:
     return {
         "structured_output_contract_id": OPENAI_DECISION_OUTPUT_CONTRACT_ID,
         "structured_output_contract_digest": OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
         "provider_response_format_json": OPENAI_DECISION_RESPONSE_FORMAT_JSON,
     }
+
+
+def _openai_test_request() -> LiveProviderRequest:
+    return LiveProviderRequest(
+        run_id="run-001",
+        observation_id="obs-001",
+        case_id="case-001",
+        repetition_index=0,
+        prompt="Decide this case.",
+        provider="openai",
+        model="gpt-test",
+        **_decision_contract_request_fields(),
+    )
+
+
+def _governing_openai_test_request() -> LiveProviderRequest:
+    evidence = '{"governing":"deny"}'
+    evidence_digest = sha256(evidence.encode("utf-8")).hexdigest()
+    knowledge_contract_digest = "a" * 64
+    return LiveProviderRequest(
+        run_id="run-001",
+        observation_id="obs-001",
+        case_id="case-001",
+        repetition_index=0,
+        prompt="Decide this case.",
+        provider="openai",
+        model="gpt-test",
+        governing_evidence=evidence,
+        governing_evidence_digest=evidence_digest,
+        rendered_governing_evidence_message=render_governing_evidence_message(
+            governing_evidence=evidence,
+            governing_evidence_digest=evidence_digest,
+            knowledge_contract_digest=knowledge_contract_digest,
+        ),
+        governing_evidence_renderer_id=GOVERNING_EVIDENCE_RENDERER_ID,
+        knowledge_contract_digest=knowledge_contract_digest,
+        **_decision_contract_request_fields(),
+    )
+
+
+_PROVIDER_REQUEST_RELATIONAL_FORGERIES = (
+    (
+        {"rendered_governing_evidence_message": "forged-policy=true"},
+        "rendered governing evidence message does not match exact bound inputs",
+    ),
+    (
+        {"governing_evidence_digest": "0" * 64},
+        "governing evidence does not match its exact byte digest",
+    ),
+    (
+        {"structured_output_contract_digest": "0" * 64},
+        "structured output contract digest does not match exact bytes",
+    ),
+    (
+        {"provider_response_format_json": None},
+        "structured output contract fields must be supplied together",
+    ),
+)
 
 
 def _test_openai_response(
@@ -196,6 +278,8 @@ def _authority_snapshot_config(
             adapter_id="openai-chat-completions",
             provider="openai",
             model="gpt-4o",
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+            api_key_env="OPENAI_TEST_KEY",
             allow_network=True,
             max_output_tokens=64,
         ),
@@ -483,7 +567,7 @@ def test_live_config_requires_complete_pricing_and_bounded_retry_delays() -> Non
             adapter_id="openai-chat-completions",
             provider="openai",
             model="gpt-test",
-            cost_per_1k_prompt_tokens_usd="0.001000",
+            cost_per_million_prompt_tokens_usd="1.000000",
         )
 
     with pytest.raises(ValueError, match="hard limit"):
@@ -493,12 +577,58 @@ def test_live_config_requires_complete_pricing_and_bounded_retry_delays() -> Non
             retry_max_backoff_seconds="301.000000",
         )
 
+    with pytest.raises(ValueError, match="less than or equal to 300"):
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            timeout_seconds=MAX_LIVE_ADAPTER_TIMEOUT_SECONDS + 1,
+        )
+
     with pytest.raises(ValueError, match="must not exceed"):
         _config(
             tokens_per_minute=20,
             max_output_tokens=7,
             retry_initial_backoff_seconds="9.000000",
             retry_max_backoff_seconds="8.000000",
+        )
+
+
+def test_live_config_canonicalizes_legacy_per_thousand_pricing() -> None:
+    config = LiveAdapterConfig.model_validate(
+        {
+            "adapter_id": "openai-chat-completions",
+            "provider": "openai",
+            "model": "gpt-test",
+            "cost_per_1k_prompt_tokens_usd": "0.001250",
+            "cost_per_1k_completion_tokens_usd": "0.002500",
+        }
+    )
+
+    assert config.cost_per_million_prompt_tokens_usd == "1.250000"
+    assert config.cost_per_million_completion_tokens_usd == "2.500000"
+    assert "cost_per_1k_prompt_tokens_usd" not in config.model_dump(mode="json")
+    with pytest.raises(ValueError, match="not both"):
+        LiveAdapterConfig.model_validate(
+            {
+                "adapter_id": "openai-chat-completions",
+                "provider": "openai",
+                "model": "gpt-test",
+                "cost_per_1k_prompt_tokens_usd": "0.001000",
+                "cost_per_million_prompt_tokens_usd": "1.000000",
+                "cost_per_1k_completion_tokens_usd": "0.002000",
+                "cost_per_million_completion_tokens_usd": "2.000000",
+            }
+        )
+    with pytest.raises(ValueError, match="not both"):
+        LiveAdapterConfig.model_validate(
+            {
+                "adapter_id": "openai-chat-completions",
+                "provider": "openai",
+                "model": "gpt-test",
+                "cost_per_1k_prompt_tokens_usd": "0.001000",
+                "cost_per_million_completion_tokens_usd": "2.000000",
+            }
         )
 
 
@@ -547,8 +677,8 @@ def test_openai_cost_estimate_is_unavailable_without_complete_usage() -> None:
         adapter_id="openai-chat-completions",
         provider="openai",
         model="gpt-test",
-        cost_per_1k_prompt_tokens_usd="0.001000",
-        cost_per_1k_completion_tokens_usd="0.002000",
+        cost_per_million_prompt_tokens_usd="1.000000",
+        cost_per_million_completion_tokens_usd="2.000000",
     )
 
     missing_usage = _test_openai_response(
@@ -569,8 +699,32 @@ def test_openai_cost_estimate_is_unavailable_without_complete_usage() -> None:
 
     assert missing_usage.estimated_cost_source == "not_reported"
     assert missing_usage.estimated_cost_usd == "0.000000"
+    assert missing_usage.estimated_cost_picousd is None
     assert measured.estimated_cost_source == "local_estimate"
     assert measured.estimated_cost_usd == "0.003000"
+    assert measured.estimated_cost_picousd == 3_000_000_000
+
+
+def test_openai_cost_projection_rounds_half_even_only_at_reporting_boundary() -> None:
+    config = LiveAdapterConfig(
+        adapter_id="openai-chat-completions",
+        provider="openai",
+        model="gpt-test",
+        cost_per_million_prompt_tokens_usd="0.500000",
+        cost_per_million_completion_tokens_usd="0.500000",
+    )
+
+    response = _test_openai_response(
+        {
+            "model": "gpt-test",
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 0, "total_tokens": 1},
+        },
+        config,
+    )
+
+    assert response.estimated_cost_picousd == 500_000
+    assert response.estimated_cost_usd == "0.000000"
 
 
 def test_openai_response_preserves_requested_alias_and_audits_provider_snapshot() -> None:
@@ -590,6 +744,45 @@ def test_openai_response_preserves_requested_alias_and_audits_provider_snapshot(
 
     assert response.model == "gpt-4o"
     assert response.resolved_model == "gpt-4o-2024-08-06"
+
+
+def test_vertex_style_model_version_separator_is_accepted_only_in_model_identity() -> None:
+    vertex_model = "claude-sonnet-4@20250514"
+    config = LiveAdapterConfig(
+        adapter_id="openai-chat-completions",
+        provider="anthropic",
+        model=vertex_model,
+    )
+
+    response = _test_openai_response(
+        {
+            "model": vertex_model,
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
+        },
+        config,
+    )
+
+    assert response.model == vertex_model
+    assert response.resolved_model == vertex_model
+    with pytest.raises(ValueError, match="provider"):
+        LiveProviderResponse(
+            content="{}",
+            provider="anthropic@vertex",
+            model=vertex_model,
+            provider_response_payload_sha256="a" * 64,
+            provider_response_payload_scope="complete_adapter_declared_response_bytes",
+        )
+
+
+@pytest.mark.parametrize("model", ("@20250514", "model@", "model@v1@extra"))
+def test_provider_model_version_separator_requires_one_bounded_pair(model: str) -> None:
+    with pytest.raises(ValueError, match="model"):
+        LiveAdapterConfig(
+            adapter_id="static-jsonl",
+            provider="provider",
+            model=model,
+            response_jsonl_path="responses.jsonl",
+        )
 
 
 def test_openai_response_captures_bounded_serving_and_termination_metadata() -> None:
@@ -674,6 +867,35 @@ def test_provider_response_rejects_inconsistent_token_accounting() -> None:
 
 
 @pytest.mark.parametrize(
+    ("field_name", "value"),
+    (
+        ("provider", "p" * 257),
+        ("model", "model with spaces"),
+        ("resolved_model", "m" * 257),
+        ("provider_api_version", "version\nspoof"),
+        ("provider_sdk", "sdk" + "\x1b[31m"),
+        ("provider_region", "r" * 257),
+        ("provider_response_id", "response id"),
+    ),
+)
+def test_provider_response_rejects_unbounded_or_non_machine_metadata(
+    field_name: str,
+    value: str,
+) -> None:
+    fields: dict[str, object] = {
+        "content": "{}",
+        "provider": "provider",
+        "model": "model",
+        "provider_response_payload_sha256": "a" * 64,
+        "provider_response_payload_scope": "complete_adapter_declared_response_bytes",
+    }
+    fields[field_name] = value
+
+    with pytest.raises(ValueError, match=field_name):
+        LiveProviderResponse.model_validate(fields)
+
+
+@pytest.mark.parametrize(
     "commitment_fields",
     (
         {"provider_response_payload_sha256": "a" * 64},
@@ -748,6 +970,125 @@ def test_live_cli_network_trust_reason_displays_only_endpoint_host() -> None:
 
     assert reasons == ("allow_network can send prompts and metadata to 'api.example.test'",)
     assert "api-version" not in reasons[0]
+
+
+def test_live_cli_network_trust_reason_names_credential_environment_variable() -> None:
+    config = LiveRunConfig(
+        variant_id="network-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            endpoint_url="https://api.example.test/v1",
+            api_key_env="AGENT_ASSURE_PROVIDER_KEY",
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    reasons = _trusted_live_config_reasons(config)
+
+    assert "api.example.test" in reasons[0]
+    assert "AGENT_ASSURE_PROVIDER_KEY" in reasons[0]
+
+
+def test_noninteractive_network_trust_requires_operator_owned_exact_bindings() -> None:
+    config = LiveRunConfig(
+        variant_id="network-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            endpoint_url="https://gateway.example.test/v1/chat/completions",
+            api_key_env="AGENT_ASSURE_PROVIDER_KEY",
+            allowed_endpoint_hosts=("gateway.example.test",),
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="--authorized-endpoint-host"):
+        _confirm_trusted_live_config(
+            config,
+            trust_config=True,
+            ci=True,
+            allow_network=True,
+            allow_external_script=False,
+            allow_script_env=False,
+        )
+    with pytest.raises(ValueError, match="--authorized-api-key-env"):
+        _confirm_trusted_live_config(
+            config,
+            trust_config=True,
+            ci=True,
+            allow_network=True,
+            allow_external_script=False,
+            allow_script_env=False,
+            authorized_endpoint_hosts=("gateway.example.test",),
+            authorized_api_key_envs=("DIFFERENT_KEY",),
+        )
+
+    trust = _confirm_trusted_live_config(
+        config,
+        trust_config=True,
+        ci=True,
+        allow_network=True,
+        allow_external_script=False,
+        allow_script_env=False,
+        authorized_endpoint_hosts=("GATEWAY.EXAMPLE.TEST.",),
+        authorized_api_key_envs=("AGENT_ASSURE_PROVIDER_KEY",),
+    )
+
+    assert trust.authorized_endpoint_hosts == ("gateway.example.test",)
+    assert trust.authorized_api_key_envs == ("AGENT_ASSURE_PROVIDER_KEY",)
+
+
+@pytest.mark.parametrize(
+    "credential_name",
+    (
+        "GITHUB_TOKEN",
+        "ACTIONS_RUNTIME_TOKEN",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_SESSION_TOKEN",
+        "AZURE_CLIENT_SECRET",
+        "CI_JOB_TOKEN",
+        "GH_TOKEN",
+        "GITHUB_PAT",
+        "NPM_TOKEN",
+        "CI_JOB_JWT_V2",
+        "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+        "IDENTITY_HEADER",
+        "SYSTEM_ACCESSTOKEN",
+    ),
+)
+def test_live_config_rejects_high_privilege_ambient_api_key_names(
+    credential_name: str,
+) -> None:
+    with pytest.raises(ValueError, match="ambient CI or cloud credential"):
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            api_key_env=credential_name,
+        )
 
 
 def test_live_cli_external_script_prompt_matches_direct_launcher_and_network_scope() -> None:
@@ -1373,6 +1714,61 @@ def test_direct_live_runner_rejects_study_bound_config_before_adapter_constructi
     assert adapter_constructed is False
 
 
+def test_live_runner_exact_admits_persisted_inputs_before_adapter_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    responses = tmp_path / "responses.jsonl"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    responses.write_text("{}\n", encoding="utf-8")
+    current_protocol = LiveProtocolRecord.model_validate(
+        {
+            **_protocol_payload(compiled),
+            "drift_monitoring_plan": _drift_monitoring_plan_payload(),
+        }
+    )
+    expanded_historical_payload = current_protocol.model_dump(mode="json", warnings="error")
+    expanded_historical_payload["schema_version"] = "0.6.5"
+    expanded_historical_protocol = LiveProtocolRecord.model_validate(expanded_historical_payload)
+    config = _static_config(
+        prompt,
+        responses,
+        expanded_historical_protocol,
+        sha256_hexdigest(expanded_historical_protocol),
+    )
+    adapter_constructed = False
+
+    def unexpected_adapter(*args: object, **kwargs: object) -> object:
+        nonlocal adapter_constructed
+        del args, kwargs
+        adapter_constructed = True
+        raise AssertionError("public-invalid protocol reached adapter construction")
+
+    monkeypatch.setattr(live_runner, "build_adapter", unexpected_adapter)
+
+    with pytest.raises(ValueError, match="live-protocol-record artifact failed JSON Schema"):
+        run_live_suite(
+            compiled,
+            config,
+            protocol=expanded_historical_protocol,
+            config_dir=tmp_path,
+        )
+
+    assert adapter_constructed is False
+
+    forged_suite = compiled.model_copy(update={"artifact_kind": "forged-suite"})
+    with pytest.raises(ValueError, match="artifact_kind"):
+        run_live_suite(
+            forged_suite,
+            config,
+            protocol=current_protocol,
+            config_dir=tmp_path,
+        )
+    assert adapter_constructed is False
+
+
 def test_study_dispatch_authorization_is_bound_to_exact_executable_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1790,17 +2186,16 @@ def test_static_jsonl_rejects_unsupported_capability_fields(
 
 
 @pytest.mark.parametrize(
-    ("field_name", "field_value", "required_trust"),
+    ("field_name", "field_value"),
     (
-        ("allow_network", True, "allow_network"),
-        ("script_env_allowlist", ("OPENAI_API_KEY",), "allow_script_env"),
+        ("allow_network", True),
+        ("script_env_allowlist", ("OPENAI_API_KEY",)),
     ),
 )
-def test_build_adapter_applies_trust_gate_to_static_jsonl(
+def test_build_adapter_revalidates_unsupported_static_capabilities_before_trust(
     tmp_path: Path,
     field_name: str,
     field_value: object,
-    required_trust: str,
 ) -> None:
     config = LiveAdapterConfig(
         adapter_id="static-jsonl",
@@ -1809,7 +2204,7 @@ def test_build_adapter_applies_trust_gate_to_static_jsonl(
         response_jsonl_path="missing.jsonl",
     ).model_copy(update={field_name: field_value})
 
-    with pytest.raises(ValueError, match=required_trust):
+    with pytest.raises(ValueError, match=rf"static-jsonl.*{field_name}"):
         build_adapter(config, base_dir=tmp_path)
 
 
@@ -1890,6 +2285,48 @@ cases:
     )
 
     with pytest.raises(ValueError, match="aliases are not supported"):
+        load_live_run_config(config_path)
+
+
+def test_live_run_config_yaml_accepts_only_canonical_decimal_integers(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "live.yaml"
+    config_text = """
+variant_id: static-live
+pipeline_id: pipeline
+tool_schema_digest: '1111111111111111111111111111111111111111111111111111111111111111'
+policy_bundle_digest: '2222222222222222222222222222222222222222222222222222222222222222'
+adapter:
+  adapter_id: static-jsonl
+  provider: static-provider
+  model: static-model
+  response_jsonl_path: responses.jsonl
+  timeout_seconds: 5
+cases:
+  - case_id: case-001
+    prompt_path: prompt.txt
+    input_summary: summary
+repetitions: 2
+randomization_seed: 17
+max_requests: 2
+max_retries: 0
+""".lstrip()
+    config_path.write_text(config_text, encoding="utf-8")
+
+    config = load_live_run_config(config_path)
+
+    assert config.adapter.timeout_seconds == 5
+    assert config.repetitions == 2
+    assert config.randomization_seed == 17
+    assert config.max_requests == 2
+    assert config.max_retries == 0
+
+    config_path.write_text(
+        config_text.replace("timeout_seconds: 5", "timeout_seconds: 010"),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="timeout_seconds"):
         load_live_run_config(config_path)
 
 
@@ -1988,7 +2425,13 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
     )
     monkeypatch.setattr(live_runner, "_utc_now", lambda: next(timestamps))
 
-    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+    runset = run_live_suite(
+        compiled,
+        config,
+        protocol=protocol,
+        config_dir=tmp_path,
+        trust=_network_trust(),
+    )
 
     assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.STRUCTURED_OUTPUT_INVALID,)
     assert runset.runs[0].observation_status == "excluded"
@@ -2398,8 +2841,8 @@ def test_execution_snapshot_revalidates_governing_inputs_before_adapter(
     assert isinstance(adapter_payload, dict)
     adapter_payload.update(
         {
-            "cost_per_1k_prompt_tokens_usd": "0.001000",
-            "cost_per_1k_completion_tokens_usd": "0.002000",
+            "cost_per_million_prompt_tokens_usd": "1.000000",
+            "cost_per_million_completion_tokens_usd": "2.000000",
         }
     )
     config = LiveRunConfig.model_validate(config_payload)
@@ -3580,9 +4023,19 @@ def test_rejected_retry_after_is_value_free_and_stops_unissued_tail(
     assert retry_after not in runset.model_dump_json()
 
 
+@pytest.mark.parametrize(
+    ("estimated_cost_usd", "estimated_cost_picousd", "expected_commitment"),
+    (
+        ("2.000000", None, "2.000000"),
+        ("1.000000", 1_000_000_400_000, "1.000001"),
+    ),
+)
 def test_network_per_attempt_cost_ceiling_breach_stops_later_observations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    estimated_cost_usd: str,
+    estimated_cost_picousd: int | None,
+    expected_commitment: str,
 ) -> None:
     compiled = compile_suite(SUITE)
     prompt = tmp_path / "prompt.txt"
@@ -3648,7 +4101,8 @@ def test_network_per_attempt_cost_ceiling_breach_stops_later_observations(
                 model="fake-model",
                 provider_response_payload_sha256="a" * 64,
                 provider_response_payload_scope="complete_adapter_declared_response_bytes",
-                estimated_cost_usd="2.000000",
+                estimated_cost_usd=estimated_cost_usd,
+                estimated_cost_picousd=estimated_cost_picousd,
                 estimated_cost_source="adapter_reported",
                 prompt_tokens=4,
                 completion_tokens=3,
@@ -3661,7 +4115,7 @@ def test_network_per_attempt_cost_ceiling_breach_stops_later_observations(
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
     assert adapter.calls == 1
-    assert runset.runs[0].cost_budget_committed_usd == "2.000000"
+    assert runset.runs[0].cost_budget_committed_usd == expected_commitment
     assert runset.runs[1].exclusion_reason == "terminal_policy_stop"
     assert runset.stop_reasons == ("cost_budget_exceeded_after_response",)
 
@@ -3773,6 +4227,61 @@ def test_openai_run_requires_pricing_rates_before_adapter_construction(
         run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
 
+def test_openai_run_rejects_declared_worst_case_cost_before_adapter_construction(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    payload = _protocol_payload(compiled)
+    payload.update(
+        {
+            "max_total_cost_usd": "1.000000",
+            "max_cost_per_observation_usd": "1.000000",
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(payload)
+    config = LiveRunConfig(
+        variant_id="network-live",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+            allow_network=True,
+            cost_per_million_prompt_tokens_usd="1000000.000000",
+            cost_per_million_completion_tokens_usd="1000000.000000",
+            max_output_tokens=1,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        max_requests=1,
+        max_total_cost_usd="1.000000",
+        max_cost_per_observation_usd="1.000000",
+        max_retries=0,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+    monkeypatch.setattr(
+        live_runner,
+        "build_adapter",
+        lambda *_args, **_kwargs: pytest.fail("adapter construction must not be reached"),
+    )
+
+    with pytest.raises(ValueError, match="declared worst-case cost"):
+        run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+
 def test_malformed_adapter_usage_becomes_a_sanitized_error_record(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -3872,8 +4381,8 @@ def test_missing_network_cost_accounting_stops_before_next_request(
             api_key_env="OPENAI_TEST_KEY",
             endpoint_url="https://api.openai.com/v1/chat/completions",
             allow_network=True,
-            cost_per_1k_prompt_tokens_usd="0.001000",
-            cost_per_1k_completion_tokens_usd="0.002000",
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="2.000000",
             max_output_tokens=64,
         ),
         cases=(
@@ -3923,6 +4432,126 @@ def test_missing_network_cost_accounting_stops_before_next_request(
     assert runset.stop_reasons == ("cost_accounting_unavailable",)
     assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
     assert runset.runs[1].exclusion_reason == "budget_accounting_unavailable"
+
+
+def test_zero_provider_usage_cannot_release_pre_dispatch_budget_reservation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    payload = _protocol_payload(compiled)
+    payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 2,
+            "max_total_cost_usd": "1.000000",
+            "max_cost_per_observation_usd": "0.600000",
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(payload)
+    config = LiveRunConfig(
+        variant_id="network-zero-usage",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+            allow_network=True,
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="2.000000",
+            max_output_tokens=64,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        repetitions=2,
+        max_requests=2,
+        max_total_cost_usd="1.000000",
+        max_cost_per_observation_usd="0.600000",
+        max_retries=0,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+
+    class ZeroUsageAdapter:
+        adapter_id = "openai-chat-completions"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
+            return LiveProviderResponse(
+                content=json.dumps(
+                    {
+                        "recommendation": "approve",
+                        "outcome": "approve",
+                        "output_summary": "approved",
+                    }
+                ),
+                provider="openai",
+                model="gpt-test",
+                provider_response_payload_sha256="a" * 64,
+                provider_response_payload_scope="complete_http_response_body",
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                estimated_cost_usd="0.000000",
+                estimated_cost_source="provider_reported",
+            )
+
+    adapter = ZeroUsageAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert adapter.calls == 1
+    assert runset.runs[0].cost_budget_committed_usd == "0.600000"
+    assert runset.runs[0].generated_token_budget_committed == 64
+    assert runset.runs[0].total_token_budget_committed >= 64
+    assert runset.network_authority_receipt is not None
+    assert runset.network_authority_receipt.endpoint_host == "api.openai.com"
+    assert runset.network_authority_receipt.api_key_env == "OPENAI_TEST_KEY"
+    evaluation_input = runset.model_copy(
+        update={
+            "runs": tuple(
+                run.model_copy(
+                    update={
+                        "provenance": run.provenance.model_copy(
+                            update={
+                                "fixture_manifest_digest": runset.fixture_manifest_digest,
+                            }
+                        )
+                    }
+                )
+                for run in runset.runs
+            )
+        }
+    )
+    evaluation = evaluate_runset(compiled, evaluation_input).candidate_vs_expectations
+    assert evaluation.network_authority_receipt == runset.network_authority_receipt
+    assert (
+        evaluation.model_validate(
+            evaluation.model_dump(mode="json", warnings="error")
+        ).network_authority_receipt
+        == runset.network_authority_receipt
+    )
+    assert runset.runs[1].exclusion_reason == "budget_exhausted"
+    assert runset.stop_reasons == ("budget_exhausted",)
 
 
 def test_missing_token_accounting_stops_before_next_request(tmp_path: Path) -> None:
@@ -4043,10 +4672,12 @@ def test_governing_corpus_is_delivered_and_included_in_request_accounting(
             adapter_id="openai-chat-completions",
             provider="openai",
             model="gpt-4o",
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+            api_key_env="OPENAI_TEST_KEY",
             allow_network=True,
             max_output_tokens=64,
-            cost_per_1k_prompt_tokens_usd="0.001000",
-            cost_per_1k_completion_tokens_usd="0.002000",
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="2.000000",
         ),
         cases=(
             LivePromptCase(case_id="exp-001", prompt_path=prompt.name, input_summary="expense"),
@@ -4110,7 +4741,13 @@ def test_governing_corpus_is_delivered_and_included_in_request_accounting(
         config=config,
         config_dir=tmp_path,
     )
-    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+    runset = run_live_suite(
+        compiled,
+        config,
+        protocol=protocol,
+        config_dir=tmp_path,
+        trust=_network_trust(),
+    )
 
     request = captured["request"]
     assert isinstance(request, LiveProviderRequest)
@@ -4197,6 +4834,105 @@ def test_provider_input_digest_does_not_claim_phantom_governing_messages(
             "knowledge_contract_digest": contract.knowledge_contract_digest,
         }
     )
+
+
+def _unsafe_live_adapter_config(forgery: str) -> tuple[LiveAdapterConfig, str]:
+    if forgery == "scalar":
+        config = LiveAdapterConfig(
+            adapter_id="static-jsonl",
+            provider="static-provider",
+            model="static-model",
+            response_jsonl_path="responses.jsonl",
+        )
+        return config.model_copy(update={"allow_network": True}), "allow_network"
+    if forgery == "nested":
+        config = LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="script-provider",
+            model="script-model",
+            script_path="adapter.py",
+            script_env=(LiveScriptEnvVar(name="MODE", value="evaluation"),),
+        )
+        forged_environment = config.script_env[0].model_copy(
+            update={
+                "name": "OPENAI_API_KEY",
+                "value": "sk-proj-" + "a" * 32,
+            }
+        )
+        return config.model_copy(update={"script_env": (forged_environment,)}), "script_env"
+    raise AssertionError(f"unsupported test forgery: {forgery}")
+
+
+@pytest.mark.parametrize(
+    "entry",
+    (
+        "static-constructor",
+        "openai-constructor",
+        "external-script-constructor",
+        "resource-snapshot",
+        "adapter-builder",
+    ),
+)
+@pytest.mark.parametrize("forgery", ("scalar", "nested"))
+def test_live_adapter_public_entries_revalidate_unsafe_config_before_side_effects(
+    entry: str,
+    forgery: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config, expected_error = _unsafe_live_adapter_config(forgery)
+    side_effects: list[str] = []
+
+    def forbidden_side_effect(name: str) -> Callable[..., object]:
+        def reject(*_args: object, **_kwargs: object) -> object:
+            side_effects.append(name)
+            raise AssertionError(f"{name} occurred before adapter config revalidation")
+
+        return reject
+
+    for name in (
+        "resolve_live_config_path",
+        "read_file_bounded_at",
+        "open_directory_at",
+        "open_file_bounded_at",
+        "snapshot_live_adapter_resource",
+        "run_external_script",
+        "_validate_openai_endpoint_configuration",
+        "_validate_openai_endpoint",
+        "_open_no_redirects",
+    ):
+        monkeypatch.setattr(live_adapters, name, forbidden_side_effect(name))
+
+    class ForbiddenEnvironment:
+        def get(self, *_args: object, **_kwargs: object) -> object:
+            return forbidden_side_effect("environment lookup")()
+
+    class ForbiddenOs:
+        environ = ForbiddenEnvironment()
+
+    monkeypatch.setattr(live_adapters, "os", ForbiddenOs())
+
+    class ForbiddenBaseDir:
+        def __getattribute__(self, name: str) -> object:
+            side_effects.append(f"filesystem base_dir.{name}")
+            raise AssertionError(f"filesystem access {name!r} preceded config revalidation")
+
+    base_dir = cast(Path, ForbiddenBaseDir())
+
+    with pytest.raises(ValueError, match=expected_error):
+        if entry == "static-constructor":
+            StaticJsonlAdapter(config, base_dir=base_dir)
+        elif entry == "openai-constructor":
+            OpenAIChatCompletionsAdapter(config, base_dir=base_dir)
+        elif entry == "external-script-constructor":
+            ExternalScriptAdapter(config, base_dir=base_dir)
+        elif entry == "resource-snapshot":
+            snapshot_live_adapter_resource(config, base_dir=base_dir)
+        elif entry == "adapter-builder":
+            build_adapter(config, base_dir=base_dir)
+        else:  # pragma: no cover - guarded by the parameter list
+            raise AssertionError(f"unsupported adapter entry: {entry}")
+
+    assert side_effects == []
 
 
 def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:
@@ -4292,6 +5028,47 @@ def test_static_jsonl_commitment_covers_only_selected_exact_record_bytes(
     assert response.provider_response_payload_scope == "complete_static_jsonl_record"
 
 
+def test_static_jsonl_keeps_unicode_line_separator_inside_json_string(
+    tmp_path: Path,
+) -> None:
+    responses = tmp_path / "responses.jsonl"
+    row = {
+        "case_id": "case-001",
+        "repetition_index": 0,
+        "content": "before\u2028after",
+        "provider": "static-provider",
+        "model": "static-model",
+    }
+    responses.write_text(
+        json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    adapter = StaticJsonlAdapter(
+        LiveAdapterConfig(
+            adapter_id="static-jsonl",
+            provider="static-provider",
+            model="static-model",
+            response_jsonl_path=responses.name,
+        ),
+        base_dir=tmp_path,
+    )
+
+    response = adapter.complete(
+        LiveProviderRequest(
+            run_id="run-001",
+            observation_id="obs-001",
+            case_id="case-001",
+            repetition_index=0,
+            prompt="prompt",
+            provider="static-provider",
+            model="static-model",
+        )
+    )
+
+    assert response.content == "before\u2028after"
+
+
 def test_static_jsonl_case_only_fallback_is_limited_to_one_repetition(tmp_path: Path) -> None:
     responses = tmp_path / "responses.jsonl"
     responses.write_text(
@@ -4366,7 +5143,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
         del args, kwargs
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", fake_getaddrinfo)
     common = {
         "adapter_id": "openai-chat-completions",
         "provider": "openai",
@@ -4382,8 +5159,20 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 endpoint_url="http://api.openai.com/v1/chat/completions",
             ),
             base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+            trust=_network_trust(),
         )
+
+    with pytest.raises(ValueError, match="HTTPS port 443"):
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://api.openai.com:4443/v1/chat/completions",
+        )
+
+    explicit_default_port = LiveAdapterConfig(
+        **common,
+        endpoint_url="https://api.openai.com:443/v1/chat/completions",
+    )
+    assert explicit_default_port.endpoint_url == ("https://api.openai.com:443/v1/chat/completions")
 
     with pytest.raises(ValueError, match="allowed_endpoint_hosts"):
         OpenAIChatCompletionsAdapter(
@@ -4392,7 +5181,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 endpoint_url="https://gateway.example.com/v1/chat/completions",
             ),
             base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+            trust=_network_trust("gateway.example.com"),
         )
 
     with pytest.raises(ValueError, match="localhost, private"):
@@ -4403,7 +5192,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 allowed_endpoint_hosts=("127.0.0.1",),
             ),
             base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+            trust=_network_trust("127.0.0.1"),
         )
 
     with pytest.raises(ValueError, match="localhost, private"):
@@ -4442,7 +5231,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 allowed_endpoint_hosts=("gateway.example.com",),
             ),
             base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+            trust=_network_trust("gateway.example.com"),
         )
 
     adapter = OpenAIChatCompletionsAdapter(
@@ -4450,20 +5239,63 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
             **common,
             endpoint_url="https://gateway.example.com/v1/chat/completions",
             allowed_endpoint_hosts=("gateway.example.com",),
-            cost_per_1k_prompt_tokens_usd="0.001000",
-            cost_per_1k_completion_tokens_usd="0.001000",
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="1.000000",
             max_output_tokens=64,
         ),
         base_dir=tmp_path,
-        trust=TrustedLiveExecution(allow_network=True),
+        trust=_network_trust("gateway.example.com"),
     )
 
     assert adapter.adapter_id == "openai-chat-completions"
 
 
-def test_endpoint_host_screening_normalizes_ipv4_mapped_addresses() -> None:
+def test_endpoint_host_screening_blocks_ipv4_mapped_addresses() -> None:
     assert is_disallowed_endpoint_host("::ffff:127.0.0.1")
     assert is_disallowed_endpoint_host("::ffff:100.100.100.200")
+    assert is_disallowed_endpoint_host("::ffff:8.8.8.8")
+
+
+@pytest.mark.parametrize(
+    "address",
+    (
+        "0.0.0.1",
+        "10.0.0.1",
+        "100.64.0.1",
+        "168.63.129.16",
+        "169.254.169.254",
+        "172.31.255.255",
+        "192.0.2.1",
+        "192.168.1.1",
+        "198.18.0.1",
+        "198.51.100.1",
+        "203.0.113.1",
+        "224.0.0.1",
+        "255.255.255.255",
+        "::1",
+        "::169.254.169.254",
+        "::ffff:0:127.0.0.1",
+        "64:ff9b::a00:1",
+        "2001:db8::1",
+        "2002:0a00:1::",
+        "3fff::1",
+        "5f00::1",
+        "fc00::1",
+        "fe80::1%25eth0",
+        "ff02::1",
+        "4000::1",
+    ),
+)
+def test_endpoint_special_use_policy_is_explicit_and_stable(address: str) -> None:
+    assert is_disallowed_endpoint_host(address)
+
+
+@pytest.mark.parametrize(
+    "address",
+    ("8.8.8.8", "93.184.216.34", "2606:4700:4700::1111"),
+)
+def test_endpoint_policy_allows_ordinary_global_addresses(address: str) -> None:
+    assert not is_disallowed_endpoint_host(address)
 
 
 @pytest.mark.parametrize(
@@ -4481,24 +5313,153 @@ def test_endpoint_screening_rejects_resolution_without_a_usable_ip(
 ) -> None:
     monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
     monkeypatch.setattr(
-        "agent_assure.live.config.socket.getaddrinfo",
+        "agent_assure.live.config._bounded_getaddrinfo",
         lambda *args, **kwargs: resolver_result,
     )
 
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://gateway.example.com/v1/chat/completions",
+            allowed_endpoint_hosts=("gateway.example.com",),
+        ),
+        base_dir=tmp_path,
+        trust=_network_trust("gateway.example.com"),
+    )
+
     with pytest.raises(ValueError, match="could not be resolved"):
-        OpenAIChatCompletionsAdapter(
-            LiveAdapterConfig(
-                adapter_id="openai-chat-completions",
+        adapter.complete(_openai_test_request())
+
+
+@pytest.mark.parametrize("terminate_exits", (True, False))
+def test_bounded_dns_timeout_terminates_kills_if_needed_and_reaps_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    terminate_exits: bool,
+) -> None:
+    monkeypatch.setenv("AGENT_ASSURE_TEST_PARENT_SECRET", "must-not-reach-dns-worker")
+    captured_command: tuple[str, ...] | None = None
+
+    class StuckResolverProcess:
+        def __init__(self) -> None:
+            self.returncode: int | None = None
+            self.stdout = io.BytesIO()
+            self.terminated = False
+            self.killed = False
+            self.wait_calls = 0
+
+        def communicate(self, *, timeout: float) -> tuple[bytes, None]:
+            raise subprocess.TimeoutExpired("dns-worker", timeout)
+
+        def poll(self) -> int | None:
+            return self.returncode
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def kill(self) -> None:
+            self.killed = True
+
+        def wait(self, *, timeout: float) -> int:
+            self.wait_calls += 1
+            if self.terminated and not self.killed and not terminate_exits:
+                raise subprocess.TimeoutExpired("dns-worker", timeout)
+            self.returncode = -9 if self.killed else -15
+            return self.returncode
+
+    process = StuckResolverProcess()
+
+    def fake_popen(command: tuple[str, ...], **kwargs: object) -> StuckResolverProcess:
+        nonlocal captured_command
+        captured_command = command
+        assert kwargs["stdin"] is subprocess.DEVNULL
+        assert kwargs["stdout"] is subprocess.PIPE
+        assert kwargs["stderr"] is subprocess.DEVNULL
+        assert kwargs["close_fds"] is True
+        worker_environment = kwargs["env"]
+        assert isinstance(worker_environment, dict)
+        assert set(worker_environment) <= {"SystemRoot"}
+        assert "AGENT_ASSURE_TEST_PARENT_SECRET" not in worker_environment
+        return process
+
+    monkeypatch.setattr("agent_assure.live.config.subprocess.Popen", fake_popen)
+
+    with pytest.raises(TimeoutError, match="DNS resolution exceeded"):
+        _bounded_getaddrinfo("gateway.example.com", timeout_seconds=0.01)
+
+    assert captured_command is not None
+    assert captured_command[1] == "-I"
+    assert captured_command[2].endswith("_dns_worker.py")
+    assert Path(captured_command[2]).is_absolute()
+    assert captured_command[3] == "gateway.example.com"
+    assert process.terminated is True
+    assert process.killed is not terminate_exits
+    assert process.wait_calls == (1 if terminate_exits else 2)
+    assert process.stdout.closed is True
+
+
+@pytest.mark.enable_socket
+def test_bounded_dns_worker_runs_by_absolute_source_path_under_isolated_python() -> None:
+    results = _bounded_getaddrinfo("localhost", timeout_seconds=10)
+
+    assert results
+    assert all(
+        result[0] in {socket.AF_INET, socket.AF_INET6}
+        and result[1] == socket.SOCK_STREAM
+        and isinstance(result[4][0], str)
+        for result in results
+    )
+
+
+def test_openai_adapter_treats_dns_deadline_as_retryable_without_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+    resolution_calls = 0
+
+    def deadline_resolver(*_args: object, **_kwargs: object) -> list[tuple[object, ...]]:
+        nonlocal resolution_calls
+        resolution_calls += 1
+        raise TimeoutError("endpoint DNS resolution exceeded its total transport deadline")
+
+    def unexpected_open(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("DNS timeout reached outbound dispatch")
+
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", deadline_resolver)
+    monkeypatch.setattr("agent_assure.live.adapters._open_no_redirects", unexpected_open)
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+        ),
+        base_dir=tmp_path,
+        trust=_network_trust(),
+    )
+
+    with pytest.raises(LiveProviderRequestError, match="total transport deadline") as error_info:
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-dns-timeout",
+                observation_id="obs-dns-timeout",
+                case_id="case-001",
+                repetition_index=0,
+                prompt="Decide this case.",
                 provider="openai",
                 model="gpt-test",
-                api_key_env="OPENAI_TEST_KEY",
-                allow_network=True,
-                endpoint_url="https://gateway.example.com/v1/chat/completions",
-                allowed_endpoint_hosts=("gateway.example.com",),
-            ),
-            base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+                **_decision_contract_request_fields(),
+            )
         )
+
+    assert error_info.value.retryable is True
+    assert resolution_calls == 1
 
 
 def test_openai_transport_disables_environment_proxies(
@@ -4547,18 +5508,33 @@ def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
-    raw_socket = object()
     tls_socket = object()
 
-    def fake_create_connection(
-        address: tuple[str, int],
-        timeout: object,
-        source_address: object,
-    ) -> object:
-        captured["address"] = address
-        captured["timeout"] = timeout
-        captured["source_address"] = source_address
+    class FakeRawSocket:
+        def settimeout(self, timeout: object) -> None:
+            captured["timeout"] = timeout
+
+        def bind(self, source_address: object) -> None:
+            captured["source_address"] = source_address
+
+        def connect(self, address: tuple[object, ...]) -> None:
+            captured["address"] = address
+
+        def shutdown(self, _how: int) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    raw_socket = FakeRawSocket()
+
+    def fake_socket(family: int, kind: int) -> FakeRawSocket:
+        captured["family"] = family
+        captured["kind"] = kind
         return raw_socket
+
+    def unexpected_resolution(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("pinned provider connection must not resolve DNS")
 
     class FakeTlsContext:
         def wrap_socket(self, sock: object, *, server_hostname: str) -> object:
@@ -4566,7 +5542,8 @@ def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
             captured["server_hostname"] = server_hostname
             return tls_socket
 
-    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    monkeypatch.setattr(socket, "socket", fake_socket)
+    monkeypatch.setattr(socket, "getaddrinfo", unexpected_resolution)
     connection = _PinnedHTTPSConnection(
         "gateway.example.com",
         pinned_addresses=("93.184.216.34",),
@@ -4577,6 +5554,9 @@ def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
     connection.connect()
 
     assert captured["address"] == ("93.184.216.34", 443)
+    assert captured["family"] == socket.AF_INET
+    assert captured["kind"] == socket.SOCK_STREAM
+    assert captured["timeout"] == 7
     assert captured["server_hostname"] == "gateway.example.com"
     assert captured["raw_socket"] is raw_socket
     assert connection.sock is tls_socket
@@ -4595,18 +5575,26 @@ def test_pinned_https_connection_rechecks_guard_before_address_failover(
         if not window_open:
             raise ValueError("execution window closed during address failover")
 
-    def fake_create_connection(
-        address: tuple[str, int],
-        timeout: object,
-        source_address: object,
-    ) -> object:
-        nonlocal window_open
-        del timeout, source_address
-        dialed_addresses.append(address)
-        window_open = False
-        raise OSError("first screened address was unreachable")
+    class FailingSocket:
+        def settimeout(self, _timeout: object) -> None:
+            return None
 
-    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+        def connect(self, address: tuple[str, int]) -> None:
+            nonlocal window_open
+            dialed_addresses.append(address)
+            window_open = False
+            raise OSError("first screened address was unreachable")
+
+        def shutdown(self, _how: int) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    def fake_socket(_family: int, _kind: int) -> FailingSocket:
+        return FailingSocket()
+
+    monkeypatch.setattr(socket, "socket", fake_socket)
     connection = _PinnedHTTPSConnection(
         "gateway.example.com",
         pinned_addresses=("93.184.216.34", "93.184.216.35"),
@@ -4621,12 +5609,77 @@ def test_pinned_https_connection_rechecks_guard_before_address_failover(
     assert dialed_addresses == [("93.184.216.34", 443)]
 
 
+def test_pinned_https_connection_registers_socket_before_connect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    class FakeRawSocket:
+        def settimeout(self, _timeout: object) -> None:
+            events.append("timeout")
+
+        def connect(self, _address: tuple[object, ...]) -> None:
+            assert events == ["timeout", "register"]
+            events.append("connect")
+
+        def shutdown(self, _how: int) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    raw_socket = FakeRawSocket()
+
+    class FakeDeadline:
+        def remaining_seconds(self) -> float:
+            return 3.0
+
+        def register(self, registered: object) -> None:
+            events.append("register" if registered is raw_socket else "tls-register")
+
+        def unregister(self, _registered: object) -> None:
+            events.append("unregister")
+
+    class FakeTlsContext:
+        def wrap_socket(self, sock: object, *, server_hostname: str) -> object:
+            assert sock is raw_socket
+            assert server_hostname == "gateway.example.com"
+            return object()
+
+    monkeypatch.setattr(socket, "socket", lambda *_args: raw_socket)
+    connection = _PinnedHTTPSConnection(
+        "gateway.example.com",
+        pinned_addresses=("2606:2800:220:1:248:1893:25c8:1946",),
+        timeout=7,
+        transport_deadline=FakeDeadline(),  # type: ignore[arg-type]
+    )
+    connection._context = FakeTlsContext()  # type: ignore[assignment]
+
+    connection.connect()
+
+    assert events[:3] == ["timeout", "register", "connect"]
+
+
 def test_pinned_https_connection_closes_socket_when_guard_closes_during_tls(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     window_open = True
     guard_checks = 0
-    raw_socket = object()
+
+    class FakeRawSocket:
+        def settimeout(self, _timeout: object) -> None:
+            return None
+
+        def connect(self, _address: tuple[object, ...]) -> None:
+            return None
+
+        def shutdown(self, _how: int) -> None:
+            return None
+
+        def close(self) -> None:
+            return None
+
+    raw_socket = FakeRawSocket()
 
     class FakeTlsSocket:
         closed = False
@@ -4642,8 +5695,7 @@ def test_pinned_https_connection_closes_socket_when_guard_closes_during_tls(
         if not window_open:
             raise ValueError("execution window closed during TLS")
 
-    def fake_create_connection(*args: object, **kwargs: object) -> object:
-        del args, kwargs
+    def fake_socket(_family: int, _kind: int) -> FakeRawSocket:
         return raw_socket
 
     class ClosingTlsContext:
@@ -4654,7 +5706,7 @@ def test_pinned_https_connection_closes_socket_when_guard_closes_during_tls(
             window_open = False
             return tls_socket
 
-    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    monkeypatch.setattr(socket, "socket", fake_socket)
     connection = _PinnedHTTPSConnection(
         "gateway.example.com",
         pinned_addresses=("93.184.216.34",),
@@ -4726,22 +5778,24 @@ def test_openai_adapter_rejects_allowed_host_resolving_to_private_address(
             )
         ]
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", fake_getaddrinfo)
+
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://gateway.example.com/v1/chat/completions",
+            allowed_endpoint_hosts=("gateway.example.com",),
+        ),
+        base_dir=tmp_path,
+        trust=_network_trust("gateway.example.com"),
+    )
 
     with pytest.raises(ValueError, match="resolves to localhost, private"):
-        OpenAIChatCompletionsAdapter(
-            LiveAdapterConfig(
-                adapter_id="openai-chat-completions",
-                provider="openai",
-                model="gpt-test",
-                api_key_env="OPENAI_TEST_KEY",
-                allow_network=True,
-                endpoint_url="https://gateway.example.com/v1/chat/completions",
-                allowed_endpoint_hosts=("gateway.example.com",),
-            ),
-            base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
-        )
+        adapter.complete(_openai_test_request())
 
 
 def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
@@ -4754,7 +5808,7 @@ def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
         del args, kwargs
         raise OSError("resolver unavailable")
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", unresolved_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", unresolved_getaddrinfo)
     config = LiveAdapterConfig(
         adapter_id="openai-chat-completions",
         provider="openai",
@@ -4765,15 +5819,17 @@ def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
         allowed_endpoint_hosts=("gateway.example.com",),
     )
 
+    adapter = OpenAIChatCompletionsAdapter(
+        config,
+        base_dir=tmp_path,
+        trust=_network_trust("gateway.example.com"),
+    )
+
     with pytest.raises(ValueError, match="could not be resolved"):
-        OpenAIChatCompletionsAdapter(
-            config,
-            base_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
-        )
+        adapter.complete(_openai_test_request())
 
 
-def test_openai_adapter_rechecks_resolution_before_each_request(
+def test_openai_adapter_reuses_screened_pinned_addresses_within_deadline(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -4788,7 +5844,7 @@ def test_openai_adapter_rechecks_resolution_before_each_request(
         address = responses.pop(0)
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", address)]
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", changing_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", changing_getaddrinfo)
     adapter = OpenAIChatCompletionsAdapter(
         LiveAdapterConfig(
             adapter_id="openai-chat-completions",
@@ -4800,22 +5856,212 @@ def test_openai_adapter_rechecks_resolution_before_each_request(
             allowed_endpoint_hosts=("gateway.example.com",),
         ),
         base_dir=tmp_path,
-        trust=TrustedLiveExecution(allow_network=True),
+        trust=_network_trust("gateway.example.com"),
     )
 
-    with pytest.raises(ValueError, match="resolves to localhost, private"):
-        adapter.complete(
-            LiveProviderRequest(
-                run_id="run-001",
-                observation_id="obs-001",
-                case_id="case-001",
-                repetition_index=0,
-                prompt="prompt",
-                provider="openai",
-                model="gpt-test",
-                **_decision_contract_request_fields(),
-            )
+    outbound_calls = 0
+
+    def stop_after_resolution(*_args: object, **_kwargs: object) -> object:
+        nonlocal outbound_calls
+        outbound_calls += 1
+        raise LiveProviderRequestError("synthetic stop after screened resolution")
+
+    monkeypatch.setattr("agent_assure.live.adapters._open_no_redirects", stop_after_resolution)
+    request = _openai_test_request()
+    assert len(responses) == 2
+
+    with pytest.raises(LiveProviderRequestError, match="synthetic stop"):
+        adapter.complete(request)
+    with pytest.raises(LiveProviderRequestError, match="synthetic stop"):
+        adapter.complete(request)
+
+    # The second (private) DNS answer is deliberately left unread: cache hits
+    # reuse only the first screened public IP and the pinned transport never
+    # asks the system resolver to reinterpret the hostname.
+    assert responses == [("10.0.0.5", 443)]
+    assert outbound_calls == 2
+
+
+def test_screened_endpoint_cache_expires_without_extension_and_blocks_rebinding() -> None:
+    current_time = [100.0]
+    cache = _ScreenedEndpointAddressCache(
+        max_entries=1,
+        clock=lambda: current_time[0],
+    )
+    resolution_calls = 0
+
+    def public_resolution() -> tuple[str, ...]:
+        nonlocal resolution_calls
+        resolution_calls += 1
+        return ("93.184.216.34",)
+
+    assert cache.get_or_resolve(
+        scheme="https",
+        host="gateway.example.com",
+        port=443,
+        expires_monotonic=160.0,
+        resolve_and_screen=public_resolution,
+    ) == ("93.184.216.34",)
+
+    current_time[0] = 130.0
+    assert cache.get_or_resolve(
+        scheme="HTTPS",
+        host="GATEWAY.EXAMPLE.COM.",
+        port=443,
+        # A hit must not extend the original entry's deadline to this value.
+        expires_monotonic=190.0,
+        resolve_and_screen=public_resolution,
+    ) == ("93.184.216.34",)
+    assert resolution_calls == 1
+
+    current_time[0] = 160.0
+
+    def rebound_to_private() -> tuple[str, ...]:
+        nonlocal resolution_calls
+        resolution_calls += 1
+        return ("10.0.0.5",)
+
+    with pytest.raises(ValueError, match="disallowed address"):
+        cache.get_or_resolve(
+            scheme="https",
+            host="gateway.example.com",
+            port=443,
+            expires_monotonic=220.0,
+            resolve_and_screen=rebound_to_private,
         )
+    assert resolution_calls == 2
+
+    # Failed or disallowed refreshes are not negatively cached.
+    assert cache.get_or_resolve(
+        scheme="https",
+        host="gateway.example.com",
+        port=443,
+        expires_monotonic=220.0,
+        resolve_and_screen=public_resolution,
+    ) == ("93.184.216.34",)
+    assert resolution_calls == 3
+
+
+def test_screened_endpoint_cache_is_authority_keyed_and_size_bounded() -> None:
+    cache = _ScreenedEndpointAddressCache(max_entries=1, clock=lambda: 10.0)
+    resolution_calls = 0
+
+    def resolve(address: str) -> Callable[[], tuple[str, ...]]:
+        def resolution() -> tuple[str, ...]:
+            nonlocal resolution_calls
+            resolution_calls += 1
+            return (address,)
+
+        return resolution
+
+    cache.get_or_resolve(
+        scheme="https",
+        host="one.example.com",
+        port=443,
+        expires_monotonic=20.0,
+        resolve_and_screen=resolve("8.8.8.8"),
+    )
+    cache.get_or_resolve(
+        scheme="https",
+        host="two.example.com",
+        port=443,
+        expires_monotonic=20.0,
+        resolve_and_screen=resolve("9.9.9.9"),
+    )
+    cache.get_or_resolve(
+        scheme="https",
+        host="one.example.com",
+        port=443,
+        expires_monotonic=20.0,
+        resolve_and_screen=resolve("8.8.8.8"),
+    )
+
+    assert resolution_calls == 3
+    assert len(cache._entries) == 1
+
+
+def test_screened_endpoint_cache_does_not_publish_a_late_resolution() -> None:
+    current_time = [100.0]
+    cache = _ScreenedEndpointAddressCache(
+        max_entries=1,
+        clock=lambda: current_time[0],
+    )
+
+    def late_resolution() -> tuple[str, ...]:
+        current_time[0] = 160.0
+        return ("93.184.216.34",)
+
+    with pytest.raises(TimeoutError, match="total transport deadline"):
+        cache.get_or_resolve(
+            scheme="https",
+            host="gateway.example.com",
+            port=443,
+            expires_monotonic=160.0,
+            resolve_and_screen=late_resolution,
+        )
+
+    assert cache._entries == {}
+
+
+def test_screened_endpoint_cache_lock_wait_is_deadline_bounded() -> None:
+    cache = _ScreenedEndpointAddressCache(max_entries=1, clock=time.monotonic)
+    assert cache._lock.acquire(timeout=0)
+    try:
+        with pytest.raises(TimeoutError, match="total transport deadline"):
+            cache.get_or_resolve(
+                scheme="https",
+                host="gateway.example.com",
+                port=443,
+                expires_monotonic=time.monotonic() + 0.02,
+                resolve_and_screen=lambda: pytest.fail(
+                    "resolver ran without acquiring the single-flight lock"
+                ),
+            )
+    finally:
+        cache._lock.release()
+
+
+def test_screened_endpoint_cache_coalesces_concurrent_resolution() -> None:
+    cache = _ScreenedEndpointAddressCache(max_entries=1, clock=time.monotonic)
+    worker_count = 8
+    ready = threading.Barrier(worker_count)
+    resolution_calls = 0
+    results: list[tuple[str, ...]] = []
+    failures: list[BaseException] = []
+    result_lock = threading.Lock()
+
+    def slow_resolution() -> tuple[str, ...]:
+        nonlocal resolution_calls
+        resolution_calls += 1
+        time.sleep(0.05)
+        return ("93.184.216.34",)
+
+    def worker() -> None:
+        try:
+            ready.wait(timeout=2)
+            result = cache.get_or_resolve(
+                scheme="https",
+                host="gateway.example.com",
+                port=443,
+                expires_monotonic=time.monotonic() + 30.0,
+                resolve_and_screen=slow_resolution,
+            )
+            with result_lock:
+                results.append(result)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            with result_lock:
+                failures.append(exc)
+
+    workers = [threading.Thread(target=worker) for _ in range(worker_count)]
+    for worker_thread in workers:
+        worker_thread.start()
+    for worker_thread in workers:
+        worker_thread.join(timeout=3)
+
+    assert all(not worker_thread.is_alive() for worker_thread in workers)
+    assert failures == []
+    assert results == [("93.184.216.34",)] * worker_count
+    assert resolution_calls == 1
 
 
 def test_openai_adapter_rechecks_guard_after_dns_before_outbound_request(
@@ -4831,7 +6077,7 @@ def test_openai_adapter_rechecks_guard_after_dns_before_outbound_request(
         nonlocal resolution_calls, window_open
         del args, kwargs
         resolution_calls += 1
-        if resolution_calls == 2:
+        if resolution_calls == 1:
             window_open = False
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
 
@@ -4845,7 +6091,7 @@ def test_openai_adapter_rechecks_guard_after_dns_before_outbound_request(
         outbound_calls += 1
         raise AssertionError("closed window reached outbound request")
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", resolving_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", resolving_getaddrinfo)
     monkeypatch.setattr("agent_assure.live.adapters._open_no_redirects", unexpected_open)
     adapter = OpenAIChatCompletionsAdapter(
         LiveAdapterConfig(
@@ -4858,7 +6104,7 @@ def test_openai_adapter_rechecks_guard_after_dns_before_outbound_request(
             allowed_endpoint_hosts=("gateway.example.com",),
         ),
         base_dir=tmp_path,
-        trust=TrustedLiveExecution(allow_network=True),
+        trust=_network_trust("gateway.example.com"),
         network_dispatch_guard=guard,
     )
 
@@ -4876,7 +6122,7 @@ def test_openai_adapter_rechecks_guard_after_dns_before_outbound_request(
             )
         )
 
-    assert resolution_calls == 2
+    assert resolution_calls == 1
     assert outbound_calls == 0
 
 
@@ -4897,7 +6143,7 @@ def test_live_runner_does_not_record_provider_failure_when_dns_closes_guard(
         nonlocal resolution_calls, window_open
         del args, kwargs
         resolution_calls += 1
-        if resolution_calls == 2:
+        if resolution_calls == 1:
             window_open = False
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
 
@@ -4911,7 +6157,7 @@ def test_live_runner_does_not_record_provider_failure_when_dns_closes_guard(
         outbound_calls += 1
         raise AssertionError("closed window reached outbound request")
 
-    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", resolving_getaddrinfo)
+    monkeypatch.setattr("agent_assure.live.config._bounded_getaddrinfo", resolving_getaddrinfo)
     monkeypatch.setattr("agent_assure.live.adapters._open_no_redirects", unexpected_open)
     config = LiveRunConfig(
         variant_id="dns-window-runner",
@@ -4926,8 +6172,8 @@ def test_live_runner_does_not_record_provider_failure_when_dns_closes_guard(
             allow_network=True,
             endpoint_url="https://gateway.example.com/v1/chat/completions",
             allowed_endpoint_hosts=("gateway.example.com",),
-            cost_per_1k_prompt_tokens_usd="0.001000",
-            cost_per_1k_completion_tokens_usd="0.001000",
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="1.000000",
             max_output_tokens=64,
         ),
         cases=(
@@ -4952,12 +6198,12 @@ def test_live_runner_does_not_record_provider_failure_when_dns_closes_guard(
             config,
             protocol=protocol,
             config_dir=tmp_path,
-            trust=TrustedLiveExecution(allow_network=True),
+            trust=_network_trust("gateway.example.com"),
             attempt_observer=notifications.append,
             provider_dispatch_guard=guard,
         )
 
-    assert resolution_calls == 2
+    assert resolution_calls == 1
     assert outbound_calls == 0
     assert [item.phase for item in notifications] == ["issued"]
 
@@ -4977,7 +6223,7 @@ def test_openai_adapter_keeps_adversarial_governing_evidence_out_of_system_role(
 ) -> None:
     monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
     monkeypatch.setattr(
-        "agent_assure.live.config.socket.getaddrinfo",
+        "agent_assure.live.config._bounded_getaddrinfo",
         lambda *_args, **_kwargs: [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
         ],
@@ -5019,7 +6265,7 @@ def test_openai_adapter_keeps_adversarial_governing_evidence_out_of_system_role(
             endpoint_url="https://api.openai.com/v1/chat/completions",
         ),
         base_dir=tmp_path,
-        trust=TrustedLiveExecution(allow_network=True),
+        trust=_network_trust(),
     )
     evidence = json.dumps(
         {"governing": "deny", "document_text": attack_text},
@@ -5080,6 +6326,54 @@ def test_governing_evidence_system_policy_rejects_unbound_or_injectable_metadata
         )
 
 
+@pytest.mark.parametrize(
+    ("updates", "expected_error"),
+    _PROVIDER_REQUEST_RELATIONAL_FORGERIES,
+)
+def test_live_provider_input_text_revalidates_unsafe_relational_forgeries(
+    updates: dict[str, object],
+    expected_error: str,
+) -> None:
+    request = _governing_openai_test_request()
+    assert request.rendered_governing_evidence_message is not None
+    assert request.governing_evidence is not None
+    assert request.provider_response_format_json is not None
+    assert live_provider_input_text(request) == (
+        f"{request.rendered_governing_evidence_message}\n"
+        f"{request.governing_evidence}\n"
+        f"{request.prompt}\n"
+        f"{request.provider_response_format_json}"
+    )
+
+    forged = request.model_copy(update=updates)
+
+    with pytest.raises(ValueError, match=expected_error):
+        live_provider_input_text(forged)
+
+
+@pytest.mark.parametrize(
+    "adapter_type",
+    (StaticJsonlAdapter, OpenAIChatCompletionsAdapter, ExternalScriptAdapter),
+    ids=("static-jsonl", "openai-chat-completions", "external-script"),
+)
+@pytest.mark.parametrize(
+    ("updates", "expected_error"),
+    _PROVIDER_REQUEST_RELATIONAL_FORGERIES,
+)
+def test_live_adapters_revalidate_unsafe_requests_before_state_or_dispatch(
+    adapter_type: type[StaticJsonlAdapter | OpenAIChatCompletionsAdapter | ExternalScriptAdapter],
+    updates: dict[str, object],
+    expected_error: str,
+) -> None:
+    forged = _governing_openai_test_request().model_copy(update=updates)
+    # Deliberately skip initialization: validation must fail before an adapter
+    # reads configuration, static response state, files, processes, DNS, or network.
+    adapter = object.__new__(adapter_type)
+
+    with pytest.raises(ValueError, match=expected_error):
+        adapter.complete(forged)
+
+
 def test_openai_adapter_redirect_handler_blocks_redirected_authorization() -> None:
     request = urllib.request.Request(
         "https://api.openai.com/v1/chat/completions",
@@ -5098,6 +6392,124 @@ def test_openai_adapter_redirect_handler_blocks_redirected_authorization() -> No
         )
 
 
+def test_openai_adapter_closes_http_error_response(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+    monkeypatch.setattr(
+        "agent_assure.live.config._bounded_getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+
+    class ErrorBody:
+        closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    body = ErrorBody()
+    error = urllib.error.HTTPError(
+        "https://api.openai.com/v1/chat/completions",
+        429,
+        "Too Many Requests",
+        {"Retry-After": "1"},
+        body,
+    )
+
+    def fail_open(*_args: object, **_kwargs: object) -> object:
+        raise error
+
+    monkeypatch.setattr("agent_assure.live.adapters._open_no_redirects", fail_open)
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+        ),
+        base_dir=tmp_path,
+        trust=_network_trust(),
+    )
+
+    with pytest.raises(LiveProviderRequestError, match="HTTP 429"):
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-http-error",
+                observation_id="obs-http-error",
+                case_id="case-001",
+                repetition_index=0,
+                prompt="Decide this case.",
+                provider="openai",
+                model="gpt-test",
+                **_decision_contract_request_fields(),
+            )
+        )
+
+    assert body.closed is True
+
+
+def test_openai_adapter_treats_closed_deadline_socket_as_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+    monkeypatch.setattr(
+        "agent_assure.live.config._bounded_getaddrinfo",
+        lambda *_args, **_kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
+        ],
+    )
+
+    class ClosedSocketResponse:
+        def __enter__(self) -> ClosedSocketResponse:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self, _size: int = -1) -> bytes:
+            raise OSError("socket closed by deadline watchdog")
+
+    monkeypatch.setattr(
+        "agent_assure.live.adapters._open_no_redirects",
+        lambda *_args, **_kwargs: ClosedSocketResponse(),
+    )
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+        ),
+        base_dir=tmp_path,
+        trust=_network_trust(),
+    )
+
+    with pytest.raises(LiveProviderRequestError) as error_info:
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-deadline",
+                observation_id="obs-deadline",
+                case_id="case-001",
+                repetition_index=0,
+                prompt="Decide this case.",
+                provider="openai",
+                model="gpt-test",
+                **_decision_contract_request_fields(),
+            )
+        )
+
+    assert error_info.value.retryable is True
+    assert "transport socket closed" in str(error_info.value)
+
+
 def test_openai_provider_response_is_size_bounded() -> None:
     class OversizedResponse:
         def read(self, size: int = -1) -> bytes:
@@ -5106,6 +6518,78 @@ def test_openai_provider_response_is_size_bounded() -> None:
 
     with pytest.raises(ValueError, match="provider response exceeded"):
         _read_provider_response(OversizedResponse())
+
+
+def test_transport_deadline_closes_registered_socket_at_monotonic_expiry() -> None:
+    now = [0.0]
+
+    class FakeSocket:
+        closed = False
+        shutdown_how: int | None = None
+
+        def shutdown(self, how: int) -> None:
+            self.shutdown_how = how
+
+        def close(self) -> None:
+            assert self.shutdown_how == socket.SHUT_RDWR
+            self.closed = True
+
+    transport_socket = FakeSocket()
+    deadline = _TransportDeadline(1, clock=lambda: now[0])
+    deadline.register(transport_socket)
+    now[0] = 1.1
+
+    with pytest.raises(TimeoutError, match="total transport deadline"):
+        deadline.remaining_seconds()
+
+    assert transport_socket.shutdown_how == socket.SHUT_RDWR
+    assert transport_socket.closed is True
+
+
+@pytest.mark.enable_socket
+def test_transport_deadline_interrupts_a_real_blocked_socket_read() -> None:
+    reader, writer = socket.socketpair()
+    read_started = threading.Event()
+    read_finished = threading.Event()
+
+    def blocked_read() -> None:
+        read_started.set()
+        try:
+            reader.recv(1)
+        except OSError:
+            pass
+        finally:
+            read_finished.set()
+
+    worker = threading.Thread(target=blocked_read, daemon=True)
+    try:
+        deadline = _TransportDeadline(60)
+        deadline.register(reader)
+        worker.start()
+        assert read_started.wait(timeout=1)
+
+        deadline._expire()
+
+        assert read_finished.wait(timeout=2)
+        assert not worker.is_alive()
+    finally:
+        reader.close()
+        writer.close()
+        worker.join(timeout=1)
+
+
+def test_provider_response_rejects_body_finishing_after_total_deadline() -> None:
+    now = [0.0]
+
+    class LateResponse:
+        def read(self, _size: int = -1) -> bytes:
+            now[0] = 2.0
+            return b"{}"
+
+    deadline = _TransportDeadline(1, clock=lambda: now[0])
+
+    with pytest.raises(TimeoutError, match="total transport deadline"):
+        _read_provider_response(LateResponse(), transport_deadline=deadline)
 
 
 def test_openai_provider_response_reads_short_chunks_through_explicit_eof() -> None:
@@ -5424,7 +6908,7 @@ def _protocol_payload(compiled: CompiledSuite) -> dict[str, object]:
     payload = compiled.model_dump(mode="json")
     return {
         "artifact_kind": "live-protocol-record",
-        "schema_version": "0.2.0",
+        "schema_version": "0.6.6",
         "protocol_id": "protocol-external-live",
         "suite_id": "expense-approval-minimal",
         "suite_version": "0.1.0",
@@ -5462,4 +6946,39 @@ def _protocol_payload(compiled: CompiledSuite) -> dict[str, object]:
         "analysis_digest": "6" * 64,
         "approved_data_boundary": "synthetic local prompts",
         "safety_limits": ["no raw sensitive content"],
+    }
+
+
+def _drift_monitoring_plan_payload() -> dict[str, object]:
+    return {
+        "artifact_kind": "drift-monitoring-plan",
+        "schema_version": "0.6.6",
+        "plan_id": "drift-live-runner-boundary",
+        "interpretation": "exploratory",
+        "ordering_variable": "window_index",
+        "comparability_mode": "strict_protocol_digest",
+        "metrics": [
+            {
+                "artifact_kind": "drift-metric-plan",
+                "schema_version": "0.6.6",
+                "metric": "expectation_pass_rate",
+                "label": "Expectation pass rate",
+                "interpretation": "exploratory",
+                "analysis_methods": [
+                    "descriptive_trend",
+                    "lag1_autocorrelation",
+                    "ar1_summary",
+                    "state_space_ewma",
+                ],
+                "minimum_windows": 3,
+                "minimum_dependence_windows": 8,
+                "minimum_state_space_windows": 6,
+                "minimum_observations_per_window": 1,
+                "slope_review_threshold": "0.050000",
+                "step_review_threshold": "0.100000",
+                "autocorrelation_review_threshold": "0.500000",
+                "ar1_review_threshold": "0.500000",
+                "state_space_alpha": "0.300000",
+            }
+        ],
     }

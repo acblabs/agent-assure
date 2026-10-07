@@ -15,6 +15,8 @@ from agent_assure.schema.common import (
     DigestHex,
     GateState,
     MachineIdentifier,
+    NonnegativeDecimal6String,
+    UnitInterval6String,
     coerce_enum,
     coerce_tuple,
 )
@@ -193,14 +195,8 @@ GraphSourceId = Annotated[
     str,
     Field(min_length=1, max_length=(2 * MAX_ARTIFACT_JSON_BYTES) + 2),
 ]
-GraphUnitDecimalString = Annotated[
-    str,
-    Field(pattern=r"^(0|1)\.[0-9]{6}$"),
-]
-GraphNonnegativeDecimalString = Annotated[
-    str,
-    Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$"),
-]
+GraphUnitDecimalString = UnitInterval6String
+GraphNonnegativeDecimalString = NonnegativeDecimal6String
 GraphMessage = Annotated[
     str,
     Field(min_length=0, max_length=MAX_ARTIFACT_JSON_BYTES),

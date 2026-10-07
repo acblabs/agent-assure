@@ -15,7 +15,10 @@ from agent_assure.schema.common import (
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     MachineIdentifier,
+    ProviderModelIdentifier,
     ProviderResponsePayloadScope,
+    UnitInterval6String,
+    UnitInterval12String,
     coerce_enum,
     coerce_tuple,
 )
@@ -58,8 +61,8 @@ UNRESOLVED_INDEPENDENCE_BASIS = (
     "design-based argument before real-provider preregistration."
 )
 
-UnitDecimalString = Annotated[str, Field(pattern=r"^(0|1)\.[0-9]{6}$")]
-BoundDecimalString = Annotated[str, Field(pattern=r"^(0|1)\.[0-9]{12}$")]
+UnitDecimalString = UnitInterval6String
+BoundDecimalString = UnitInterval12String
 Timestamp = Annotated[
     str,
     Field(max_length=64, pattern=STRICT_RFC3339_TIMESTAMP_PATTERN),
@@ -1739,8 +1742,8 @@ class StudyConditionBinding(FrozenStrictModel):
     protocol_digest: DigestHex
     design_commitment_digest: DigestHex
     provider: MachineIdentifier
-    requested_model: MachineIdentifier
-    expected_resolved_model: MachineIdentifier
+    requested_model: ProviderModelIdentifier
+    expected_resolved_model: ProviderModelIdentifier
     resolved_model_version_policy: Literal["dated_provider_snapshot_identifier"] = (
         "dated_provider_snapshot_identifier"
     )
@@ -2098,8 +2101,8 @@ class RealModelStudyManifest(SelfDigestedArtifact):
 
 class StudyObservedModelIdentity(FrozenStrictModel):
     provider: MachineIdentifier
-    requested_model: MachineIdentifier
-    resolved_model: MachineIdentifier | None = None
+    requested_model: ProviderModelIdentifier
+    resolved_model: ProviderModelIdentifier | None = None
     provider_api_version: MachineIdentifier | None = None
     provider_sdk: MachineIdentifier | None = None
     provider_region: MachineIdentifier | None = None

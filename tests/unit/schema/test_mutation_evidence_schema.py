@@ -353,7 +353,7 @@ def test_frozen_v060_contracts_apply_self_digest_validation_after_shape(
 ) -> None:
     payload = factory().model_dump(mode="json")
 
-    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema"
+    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema+semantic-replay"
 
     payload[digest_field] = "0" * 64
     frozen_schema = json.loads(
@@ -384,7 +384,7 @@ def test_frozen_v061_contracts_apply_self_digest_validation_after_shape(
 ) -> None:
     payload = factory().model_dump(mode="json")
 
-    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema"
+    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema+semantic-replay"
 
     payload[digest_field] = "0" * 64
     frozen_schema = json.loads(
@@ -448,7 +448,7 @@ def test_current_wire_schemas_pin_each_persisted_model_to_its_own_default() -> N
     run_schema = writer_json_schema(SCHEMA_MODELS["agent-run-record"])
     definitions = run_schema["$defs"]
     assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.6")
-    assert definitions["UsageSummary"]["properties"]["schema_version"]["const"] == ("0.4.3")
+    assert definitions["UsageSummary"]["properties"]["schema_version"]["const"] == ("0.6.6")
 
 
 @pytest.mark.parametrize(

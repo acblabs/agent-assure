@@ -8,25 +8,187 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # The bounded 4,096-cluster journal transport regressions are deliberately
+    # expensive. Keep this aligned with the sharded coverage qualification.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
       - run: make release-check
       - run: python scripts/update_golden.py
+  dependency-lower-bounds:
+    name: dependency lower bounds / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --require-hashes -r requirements-min.lock
+      - run: python -m pip install --no-deps --no-build-isolation .
+      - name: Verify installed direct dependencies equal their declared floors
+        run: >-
+          python scripts/check_dependency_lock_freshness.py
+          --verify-installed-minimums
+      - name: Verify the installed minimum dependency graph is compatible
+        run: python -m pip check
+      - name: Run the full suite against declared dependency lower bounds
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          --basetemp "$RUNNER_TEMP/pytest-dependency-lower-bounds"
+  composite-action-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Exercise the local composite action migration profile on a real runner
+        uses: ./.github/actions/agent-assure
+        with:
+          suite: examples/prior_auth_synthetic/suite.yaml
+          candidate-variant: examples/prior_auth_synthetic/variants/baseline.yaml
+          out-dir: ${{ runner.temp }}/agent-assure-composite-smoke
+          report-mode: full
+          allow-missing-efficacy-for-migration: "true"
+          upload-reports: "false"
+          upload-full-artifacts: "false"
+      - name: Verify the non-assurance smoke outputs
+        env:
+          AGENT_ASSURE_SMOKE_OUT: ${{ runner.temp }}/agent-assure-composite-smoke
+        run: |
+          set -euo pipefail
+          required=(
+            "suite.compiled.json"
+            "fixtures.json"
+            "candidate.runset.json"
+            "reports/evaluation-report.json"
+            "reports/evaluation-summary.json"
+            "reports/evidence-packet.json"
+            "reports/release-artifact-manifest.json"
+          )
+          for relative_path in "${required[@]}"; do
+            test -s "${AGENT_ASSURE_SMOKE_OUT}/${relative_path}"
+          done
+          agent-assure validate \
+            "${AGENT_ASSURE_SMOKE_OUT}/reports/evidence-packet.json" \
+            --kind evidence-packet
+  composite-action-strict-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Build deterministic strict-efficacy inputs
+        run: |
+          set -euo pipefail
+          agent-assure init controls-mutation \
+            --out-dir .tmp/composite-strict-efficacy
+          # Build the efficacy campaign from the exact deterministic subject that
+          # the composite action will evaluate. The evidence graph deliberately
+          # rejects efficacy evidence bound to any other RunSet digest.
+          agent-assure suite compile examples/prior_auth_synthetic/suite.yaml \
+            --out .tmp/composite-strict-efficacy/suite.compiled.json \
+            --manifest .tmp/composite-strict-efficacy/fixtures.json
+          agent-assure suite run \
+            .tmp/composite-strict-efficacy/suite.compiled.json \
+            --variant examples/prior_auth_synthetic/variants/baseline.yaml \
+            --manifest .tmp/composite-strict-efficacy/fixtures.json \
+            --out .tmp/composite-strict-efficacy/runset.json
+          config=.tmp/composite-strict-efficacy/controls-mutation.yaml
+          test "$(grep -Fxc 'suite_path: suite.yaml' "${config}")" -eq 1
+          sed -i \
+            's/^suite_path: suite.yaml$/suite_path: suite.compiled.json/' \
+            "${config}"
+          test "$(grep -Fxc 'suite_path: suite.compiled.json' "${config}")" -eq 1
+          agent-assure doctor controls-mutate --config "${config}"
+          agent-assure controls mutate \
+            --suite .tmp/composite-strict-efficacy/suite.compiled.json \
+            --runset .tmp/composite-strict-efficacy/runset.json \
+            --catalog core/v1 \
+            --operator drop-material-evidence-link \
+            --out .tmp/composite-strict-efficacy/mutation-results
+          agent-assure controls efficacy \
+            --config .tmp/composite-strict-efficacy/controls-mutation.yaml
+      - name: Exercise the local composite action strict profile on a real runner
+        uses: ./.github/actions/agent-assure
+        with:
+          suite: examples/prior_auth_synthetic/suite.yaml
+          candidate-variant: examples/prior_auth_synthetic/variants/baseline.yaml
+          out-dir: .tmp/agent-assure-composite-strict
+          report-mode: full
+          control-efficacy-report: .tmp/composite-strict-efficacy/control-efficacy/control-efficacy-report.json
+          efficacy-policy: .tmp/composite-strict-efficacy/controls-mutation.yaml
+          upload-reports: "false"
+          upload-full-artifacts: "false"
+      - name: Verify the strict assurance smoke outputs and gate
+        env:
+          AGENT_ASSURE_STRICT_OUT: .tmp/agent-assure-composite-strict
+          AGENT_ASSURE_STRICT_POLICY: .tmp/composite-strict-efficacy/controls-mutation.yaml
+        run: |
+          set -euo pipefail
+          required=(
+            "suite.compiled.json"
+            "fixtures.json"
+            "candidate.runset.json"
+            "reports/evaluation-report.json"
+            "reports/evaluation-summary.json"
+            "reports/evidence-packet.json"
+            "reports/assurance-evidence-graph.json"
+            "reports/release-artifact-manifest.json"
+          )
+          for relative_path in "${required[@]}"; do
+            test -s "${AGENT_ASSURE_STRICT_OUT}/${relative_path}"
+          done
+          agent-assure validate \
+            "${AGENT_ASSURE_STRICT_OUT}/reports/evidence-packet.json" \
+            --kind evidence-packet
+          agent-assure ci gate \
+            "${AGENT_ASSURE_STRICT_OUT}/reports/evidence-packet.json" \
+            --artifact-root "${GITHUB_WORKSPACE}" \
+            --efficacy-policy "${AGENT_ASSURE_STRICT_POLICY}" \
+            --require-efficacy \
+            --fail-on-warn \
+            --fail-on-not-evaluated
   coverage-shards:
     name: coverage / ${{ matrix.shard }}
     runs-on: ubuntu-24.04
@@ -59,13 +221,13 @@ jobs:
     env:
       COVERAGE_FILE: .coverage.${{ matrix.shard }}
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements.lock
@@ -78,8 +240,8 @@ jobs:
           ${{ matrix.test_paths }}
       - name: Upload exact coverage database
         if: ${{ always() }}
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: coverage-${{ matrix.shard }}
           path: .coverage.${{ matrix.shard }}
@@ -95,18 +257,18 @@ jobs:
       - name: Require every coverage shard to succeed
         if: ${{ needs.coverage-shards.result != 'success' }}
         run: exit 1
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements.lock
       - name: Download all coverage databases
-        # actions/download-artifact@v4
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        # actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           pattern: coverage-*
           path: .coverage-data
@@ -138,18 +300,19 @@ jobs:
           --critical-prefix src/agent_assure/statistics/=82
           --critical-prefix src/agent_assure/cli/=67
   windows-containment:
-    runs-on: windows-latest
+    runs-on: windows-2025
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.14"]
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --require-hashes -r requirements.lock
@@ -179,27 +342,29 @@ jobs:
           tests/unit/runner/test_subprocess_harness.py::test_windows_external_script_success_kills_descendant_when_job_closes
           tests/integration/test_evidence_sensitivity_cli.py::test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings
   schema-immutability:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python scripts/check_tagged_schema_immutability.py --require-release-tags
   langgraph-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements-langgraph.lock
@@ -208,14 +373,15 @@ jobs:
         run: python -c "from langgraph.graph import StateGraph; print(StateGraph.__module__)"
       - run: pytest -q -p no:cacheprovider --basetemp .tmp/pytest-langgraph tests/integration/test_langgraph_expense_assurance.py
   adk-smoke:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements-adk.lock
@@ -224,14 +390,15 @@ jobs:
         run: python -c "from google.adk.events.event import Event; from google.adk.events.event_actions import EventActions; print(Event.__module__, EventActions.__module__)"
       - run: pytest -q -p no:cacheprovider --basetemp .tmp/pytest tests/unit/adapters/test_adk_adapter.py::test_adk_adapter_reads_real_google_adk_event_when_available
   otel-contract:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements-otel.lock

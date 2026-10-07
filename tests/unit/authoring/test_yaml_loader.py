@@ -11,6 +11,7 @@ from agent_assure.authoring.yaml_nodes import (
     LoadedYaml,
     load_yaml_nodes,
     load_yaml_nodes_text,
+    safe_load_yaml_text,
     validate_yaml_nodes_text,
 )
 
@@ -54,6 +55,42 @@ cases:
     assert compiled.resolved_expectations[0].case_id == "00123"
     assert warnings
     assert "ambiguous scalar preserved as string" in warnings[0].message
+
+
+def test_safe_yaml_loader_returns_the_same_bounded_dialect_as_node_loader() -> None:
+    text = (
+        "leading_zero: 010\n"
+        "zero: 0\n"
+        "positive: 17\n"
+        "negative: -4\n"
+        "negative_zero: -0\n"
+        "explicit_positive: +1\n"
+        "underscored: 1_000\n"
+        "sexagesimal: 1:30\n"
+        "scientific: 1e3\n"
+        "timestamp: 2026-09-30\n"
+        "boolean: true\n"
+        "items: [one, two]\n"
+    )
+
+    safe_loaded = safe_load_yaml_text(text, label="test YAML")
+    node_loaded = load_yaml_nodes_text(text, label="test YAML").data
+
+    assert safe_loaded == node_loaded
+    assert safe_loaded == {
+        "leading_zero": "010",
+        "zero": 0,
+        "positive": 17,
+        "negative": -4,
+        "negative_zero": "-0",
+        "explicit_positive": "+1",
+        "underscored": "1_000",
+        "sexagesimal": "1:30",
+        "scientific": "1e3",
+        "timestamp": "2026-09-30",
+        "boolean": True,
+        "items": ["one", "two"],
+    }
 
 
 def test_yaml_lint_warns_on_non_nfc_string(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -281,12 +318,19 @@ def test_yaml_structural_error_escapes_control_characters(escaped_key: str) -> N
 
 
 def test_yaml_ambiguous_scalar_warning_redacts_sensitive_value() -> None:
-    value = "4111111111111111"
+    value = "+4111111111111111"
 
     loaded = load_yaml_nodes_text(f"card: {value}\n")
 
     assert value not in loaded.warnings[0].message
     assert "[REDACTED]" in loaded.warnings[0].message
+
+
+def test_yaml_canonical_integer_digit_count_is_bounded() -> None:
+    text = "value: " + ("1" * 4_097) + "\n"
+
+    with pytest.raises(ValueError, match="canonical integer exceeds maximum supported"):
+        safe_load_yaml_text(text, label="test YAML")
 
 
 def test_yaml_warning_preserves_clean_structural_path() -> None:

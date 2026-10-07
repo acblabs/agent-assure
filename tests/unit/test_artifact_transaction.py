@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_assure.artifact_io import write_bytes_atomic
+from agent_assure.artifact_io import unlink_file_if_exists, write_bytes_atomic
 from agent_assure.artifact_transaction import OutputPublicationRollback
 from agent_assure.rooted_io import RootedDirectoryDescriptor
 
@@ -73,6 +73,41 @@ def test_publication_rollback_does_not_restore_unmarked_output(
 
     assert written.read_bytes() == b"written-original\n"
     assert untouched.read_bytes() == b"independent-writer\n"
+
+
+def test_publication_rollback_restores_transaction_owned_deletion(tmp_path: Path) -> None:
+    deleted = tmp_path / "deleted.json"
+    deleted.write_bytes(b"original\n")
+    rollback = _capture((deleted,))
+
+    unlink_file_if_exists(deleted)
+    rollback.mark_deleted(deleted)
+
+    rollback.restore()
+
+    assert deleted.read_bytes() == b"original\n"
+
+
+def test_publication_rollback_rejects_concurrent_recreation_before_any_restore(
+    tmp_path: Path,
+) -> None:
+    written = tmp_path / "written.json"
+    deleted = tmp_path / "deleted.json"
+    written.write_bytes(b"written-original\n")
+    deleted.write_bytes(b"deleted-original\n")
+    rollback = _capture((written, deleted))
+    write_bytes_atomic(written, b"written-published\n")
+    rollback.mark_written(written)
+    unlink_file_if_exists(deleted)
+    rollback.mark_deleted(deleted)
+
+    deleted.write_bytes(b"concurrent-writer\n")
+
+    with pytest.raises(ValueError, match="test output changed concurrently"):
+        rollback.restore()
+
+    assert written.read_bytes() == b"written-published\n"
+    assert deleted.read_bytes() == b"concurrent-writer\n"
 
 
 def test_publication_rollback_rejects_byte_identical_replacement_inode(

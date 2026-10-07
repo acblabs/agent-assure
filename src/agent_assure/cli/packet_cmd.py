@@ -24,6 +24,7 @@ from agent_assure.onboarding.controls_mutation import (
     ControlsMutationOnboardingConfig,
     parse_controls_mutation_config,
 )
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.onboarding.path_safety import (
     confined_config_input_file,
     read_confined_file_snapshot,
@@ -662,10 +663,10 @@ def build(
                     "packet publication failed and prior outputs could not be restored"
                 ) from rollback_exc
         if isinstance(exc, (OSError, ValueError)):
-            raise typer.BadParameter(str(exc)) from exc
+            raise typer.BadParameter(bounded_error(exc)) from exc
         raise
-    typer.echo(f"assurance evidence graph: {graph_path}")
-    typer.echo(f"evidence packet: {out}")
+    typer.echo(f"assurance evidence graph: {display_path(graph_path)}")
+    typer.echo(f"evidence packet: {display_path(out)}")
 
 
 @app.command("graph")
@@ -747,8 +748,8 @@ def graph(
         )
         write_evidence_graph(evidence_graph, out)
     except (OSError, UnicodeError, ValueError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    typer.echo(f"assurance evidence graph: {out}")
+        raise typer.BadParameter(bounded_error(exc)) from exc
+    typer.echo(f"assurance evidence graph: {display_path(out)}")
     if loaded_results and loaded_packet.evidence_graph_digest is not None:
         typer.echo(f"packet-bound base graph digest: {base_graph.graph_digest}")
     typer.echo(f"graph digest: {evidence_graph.graph_digest}")

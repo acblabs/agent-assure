@@ -30,6 +30,8 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
         ),
         owner="suite",
     )
+    suite_id = _required_string(data.get("suite_id"), owner="suite_id")
+    suite_version = _required_string(data.get("suite_version"), owner="suite_version")
     defaults_data = dict(_mapping(data.get("defaults", {})))
     if "expectation" in defaults_data and "expectation_defaults" in defaults_data:
         raise ValueError("defaults must not declare both expectation and expectation_defaults")
@@ -92,8 +94,8 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
         cases.append(case)
         expectations.append(expectation)
     return CompiledSuite(
-        suite_id=_required_string(data.get("suite_id"), owner="suite_id"),
-        suite_version=_required_string(data.get("suite_version"), owner="suite_version"),
+        suite_id=suite_id,
+        suite_version=suite_version,
         defaults=defaults,
         cases=tuple(cases),
         resolved_expectations=tuple(expectations),

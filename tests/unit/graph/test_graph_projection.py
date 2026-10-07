@@ -57,6 +57,7 @@ from agent_assure.schema.sensitivity import (
     EvidenceSensitivityState,
     RAGSensitivityReport,
 )
+from agent_assure.schema.validation import ArchivalOnlyArtifactError
 from agent_assure.sensitivity_comparison import derive_sensitivity_comparison
 from tests.unit.controls.test_control_efficacy import (
     _DROP_OPERATOR,
@@ -174,13 +175,6 @@ def _evaluation(*, runset_id: str, runset_digest: str, message: str) -> Evaluati
             ),
         ),
     )
-
-
-def _legacy_digestless_evaluation(summary: EvaluationSummary) -> EvaluationSummary:
-    payload = summary.model_dump(mode="json")
-    payload["schema_version"] = "0.6.4"
-    payload.pop("runset_digest", None)
-    return EvaluationSummary.model_validate(payload)
 
 
 def _complete_graph(sources: _RepresentativeSources) -> AssuranceEvidenceGraph:
@@ -713,7 +707,7 @@ def test_comparison_projection_uses_its_authenticated_runset_identities(
     assert scoped_subject_id == graph.primary_subject_node_id
 
 
-def test_digestless_comparison_remains_disconnected_from_authenticated_subject(
+def test_digestless_archival_comparison_cannot_enter_a_current_graph(
     representative_sources: _RepresentativeSources,
 ) -> None:
     payload = representative_sources.comparison.model_dump(mode="json")
@@ -722,32 +716,15 @@ def test_digestless_comparison_remains_disconnected_from_authenticated_subject(
     payload.pop("candidate_runset_digest")
     comparison = ComparisonSummary.model_validate(payload)
     assert comparison.candidate_runset_digest is None
-    graph = build_evidence_graph(
-        subject=EvidenceGraphSubjectPayload(
-            subject_type="run_set",
-            subject_id=comparison.candidate_runset_id,
-            subject_digest="c" * 64,
-        ),
-        comparison=comparison,
-    )
-    comparison_evidence = next(
-        node
-        for node in graph.nodes
-        if isinstance(node.payload, EvidenceGraphEvidencePayload)
-        and node.payload.evidence_type is EvidenceGraphEvidenceType.comparison
-    )
-    scoped_subject_id = next(
-        edge.target_node_id
-        for edge in graph.edges
-        if edge.kind is EvidenceGraphEdgeKind.scoped_to
-        and edge.source_node_id == comparison_evidence.node_id
-    )
-    scoped_subject = next(node for node in graph.nodes if node.node_id == scoped_subject_id)
-
-    assert scoped_subject_id != graph.primary_subject_node_id
-    assert isinstance(scoped_subject.payload, EvidenceGraphSubjectPayload)
-    assert scoped_subject.payload.subject_id == comparison.candidate_runset_id
-    assert scoped_subject.payload.subject_digest is None
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=comparison.candidate_runset_id,
+                subject_digest="c" * 64,
+            ),
+            comparison=comparison,
+        )
 
 
 def test_comparison_candidate_digest_must_match_authenticated_primary_subject(
@@ -1493,80 +1470,20 @@ def test_distinct_mutation_execution_identities_do_not_collide(
     assert reversed_graph == graph
 
 
-def test_digest_only_mutation_evidence_is_not_joined_to_textual_runset_id(
+def test_archival_evaluation_cannot_be_laundered_into_current_graph(
     representative_sources: _RepresentativeSources,
 ) -> None:
-    evaluation = _legacy_digestless_evaluation(representative_sources.evaluation)
-    result = representative_sources.mutation_result
-    replacement_digest = "f" * 64
-    if replacement_digest == result.mutated_digest:
-        replacement_digest = "e" * 64
-    values = result.model_dump(mode="json", exclude={"result_digest"})
-    values["source_digest"] = replacement_digest
-    foreign_result = AssuranceMutationResult.build(**values)
+    payload = representative_sources.evaluation.model_dump(mode="json")
+    payload["schema_version"] = "0.6.4"
+    payload.pop("runset_digest", None)
+    evaluation = EvaluationSummary.model_validate(payload)
     subject = EvidenceGraphSubjectPayload(
         subject_type="run_set",
         subject_id=evaluation.runset_id,
     )
 
-    graph = build_evidence_graph(
-        subject=subject,
-        evaluation=evaluation,
-        mutation_results=(foreign_result,),
-    )
-    primary = next(node for node in graph.nodes if node.node_id == graph.primary_subject_node_id)
-    mutation_evidence = next(
-        node
-        for node in graph.nodes
-        if isinstance(node.payload, EvidenceGraphEvidencePayload)
-        and node.payload.evidence_type is EvidenceGraphEvidenceType.mutation_result
-    )
-    scoped_subject_id = next(
-        edge.target_node_id
-        for edge in graph.edges
-        if edge.kind is EvidenceGraphEdgeKind.scoped_to
-        and edge.source_node_id == mutation_evidence.node_id
-    )
-    scoped_subject = next(node for node in graph.nodes if node.node_id == scoped_subject_id)
-
-    assert isinstance(primary.payload, EvidenceGraphSubjectPayload)
-    assert primary.payload.subject_digest is None
-    assert scoped_subject_id != graph.primary_subject_node_id
-    assert isinstance(scoped_subject.payload, EvidenceGraphSubjectPayload)
-    assert scoped_subject.payload.subject_id == f"sha256:{replacement_digest}"
-    assert scoped_subject.payload.subject_digest == replacement_digest
-
-    scopes_by_node: dict[str, list[str]] = {}
-    for edge in graph.edges:
-        if edge.kind is EvidenceGraphEdgeKind.scoped_to:
-            scopes_by_node.setdefault(edge.source_node_id, []).append(edge.target_node_id)
-    assert all(
-        len(scopes_by_node.get(node.node_id, ())) == 1
-        for node in graph.nodes
-        if node.kind is not EvidenceGraphNodeKind.subject
-    )
-
-    evaluation_controls = {
-        finding.control_id for finding in evaluation.findings if finding.control_id is not None
-    }
-    mutation_controls = {
-        target.control_id for target in foreign_result.provenance.target_controls
-    } | {finding.control_id for finding in foreign_result.observed_findings}
-    shared_controls = evaluation_controls & mutation_controls
-    assert shared_controls
-    shared_control = sorted(shared_controls)[0]
-    shared_requirements = tuple(
-        node
-        for node in graph.nodes
-        if isinstance(node.payload, EvidenceGraphRequirementPayload)
-        and node.payload.requirement_type is EvidenceGraphRequirementType.control
-        and node.payload.requirement_id == shared_control
-    )
-    assert len(shared_requirements) == 2
-    assert {scopes_by_node[node.node_id][0] for node in shared_requirements} == {
-        graph.primary_subject_node_id,
-        scoped_subject_id,
-    }
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        build_evidence_graph(subject=subject, evaluation=evaluation)
 
 
 def test_authenticated_packet_graph_keeps_gate_decision_on_primary_subject(
@@ -1669,17 +1586,16 @@ def test_missing_gate_decision_does_not_trigger_gate_derivation(
     )
 
 
-def test_primary_subject_is_an_identity_anchor_not_a_complete_traversal_root(
+def test_matching_digest_connects_secondary_evidence_scope_to_primary_identity_anchor(
     representative_sources: _RepresentativeSources,
 ) -> None:
     sources = representative_sources
-    evaluation = _legacy_digestless_evaluation(sources.evaluation)
     graph = build_evidence_graph(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
-            subject_id=evaluation.runset_id,
+            subject_id="unrelated-current-runset",
+            subject_digest=sources.efficacy.source_digest,
         ),
-        evaluation=evaluation,
         control_efficacy=sources.efficacy,
         gate_profile=sources.gate_profile,
         gate_decision=sources.gate_decision,
@@ -1711,14 +1627,15 @@ def test_primary_subject_is_an_identity_anchor_not_a_complete_traversal_root(
     )
     gate_subject = next(node for node in graph.nodes if node.node_id == gate_subject_id)
 
-    assert gate_evidence.node_id not in primary_component
-    assert gate_subject_id not in primary_component
+    assert gate_evidence.node_id in primary_component
+    assert gate_subject_id in primary_component
+    assert gate_subject_id == graph.primary_subject_node_id
     assert isinstance(gate_subject.payload, EvidenceGraphSubjectPayload)
-    assert gate_subject.payload.subject_id == f"sha256:{sources.efficacy.source_digest}"
+    assert gate_subject.payload.subject_id == "unrelated-current-runset"
     assert gate_subject.payload.subject_digest == sources.efficacy.source_digest
 
 
-def test_legacy_empty_evaluation_runset_id_fails_explicitly_at_graph_boundary() -> None:
+def test_archival_evaluation_with_empty_runset_id_is_rejected_at_graph_boundary() -> None:
     summary = EvaluationSummary(
         schema_version="0.6.2",
         runset_id="",
@@ -1727,7 +1644,7 @@ def test_legacy_empty_evaluation_runset_id_fails_explicitly_at_graph_boundary() 
         state=GateState.pass_,
     )
 
-    with pytest.raises(ValueError, match="graph evaluation runset_id must be non-empty"):
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
         build_evidence_graph(
             subject=EvidenceGraphSubjectPayload(
                 subject_type="run_set",
@@ -1737,7 +1654,7 @@ def test_legacy_empty_evaluation_runset_id_fails_explicitly_at_graph_boundary() 
         )
 
 
-def test_legacy_empty_comparison_runset_id_fails_explicitly_at_graph_boundary() -> None:
+def test_archival_comparison_with_empty_runset_id_is_rejected_at_graph_boundary() -> None:
     summary = ComparisonSummary(
         schema_version="0.6.2",
         baseline_runset_id="",
@@ -1747,10 +1664,7 @@ def test_legacy_empty_comparison_runset_id_fails_explicitly_at_graph_boundary() 
         classification=ComparisonClassification.not_evaluated,
     )
 
-    with pytest.raises(
-        ValueError,
-        match="graph comparison baseline_runset_id must be non-empty",
-    ):
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
         build_evidence_graph(
             subject=EvidenceGraphSubjectPayload(
                 subject_type="run_set",
@@ -1760,7 +1674,7 @@ def test_legacy_empty_comparison_runset_id_fails_explicitly_at_graph_boundary() 
         )
 
 
-def test_legacy_empty_finding_identity_fails_explicitly_at_graph_boundary() -> None:
+def test_archival_evaluation_with_empty_finding_id_is_rejected_at_graph_boundary() -> None:
     finding = Finding(
         schema_version="0.6.2",
         finding_id="",
@@ -1778,10 +1692,7 @@ def test_legacy_empty_finding_identity_fails_explicitly_at_graph_boundary() -> N
         findings=(finding,),
     )
 
-    with pytest.raises(
-        ValueError,
-        match="graph evaluation finding 0 finding_id must be non-empty",
-    ):
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
         build_evidence_graph(
             subject=EvidenceGraphSubjectPayload(
                 subject_type="run_set",
@@ -2022,15 +1933,24 @@ def test_gate_profile_is_provenance_not_a_verdict(
 
 
 @pytest.mark.parametrize(
-    ("fixture_state", "expected_state"),
+    ("fixture_state", "classification", "expected_state"),
     (
-        (GateState.fail, EvidenceState.error),
-        (GateState.warn, EvidenceState.inconclusive),
-        (GateState.not_evaluated, EvidenceState.not_evaluated),
+        (
+            GateState.fail,
+            ComparisonClassification.invalid_comparison,
+            EvidenceState.error,
+        ),
+        (GateState.warn, ComparisonClassification.unchanged, EvidenceState.inconclusive),
+        (
+            GateState.not_evaluated,
+            ComparisonClassification.unchanged,
+            EvidenceState.not_evaluated,
+        ),
     ),
 )
 def test_non_pass_fixture_equivalence_cannot_support_comparison_acceptability(
     fixture_state: GateState,
+    classification: ComparisonClassification,
     expected_state: EvidenceState,
 ) -> None:
     summary = ComparisonSummary(
@@ -2040,7 +1960,7 @@ def test_non_pass_fixture_equivalence_cannot_support_comparison_acceptability(
         candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-        classification=ComparisonClassification.unchanged,
+        classification=classification,
         fixture_equivalence_state=fixture_state,
         baseline_state=GateState.pass_,
         candidate_state=GateState.pass_,

@@ -21,6 +21,7 @@ from agent_assure.mutation.catalog import (  # noqa: E402
     registered_operators,
     target_control_component_path,
 )
+from agent_assure.onboarding.diagnostics import bounded_text  # noqa: E402
 from agent_assure.schema.mutation import OperatorProvenance  # noqa: E402
 
 CreationSourceLoader = Callable[[str, str], bytes]
@@ -483,7 +484,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if failures:
         print("mutation release provenance is incomplete:", file=sys.stderr)
         for failure in failures:
-            print(f"- {failure}", file=sys.stderr)
+            print(f"- {bounded_text(failure)}", file=sys.stderr)
         return 1
     print("mutation release provenance is complete")
     return 0

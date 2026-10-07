@@ -39,6 +39,143 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "not": {
+              "required": [
+                "schema_version"
+              ]
+            }
+          },
+          {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "properties": {
+              "expected_recommendation": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expected_recommendation"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_outcomes": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "allowed_outcomes"
+            ]
+          },
+          {
+            "properties": {
+              "forbidden_outcomes": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "forbidden_outcomes"
+            ]
+          },
+          {
+            "properties": {
+              "required_evidence_refs": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "required_evidence_refs"
+            ]
+          },
+          {
+            "properties": {
+              "material_claim_ids": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "material_claim_ids"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_providers": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "allowed_providers"
+            ]
+          },
+          {
+            "properties": {
+              "forbidden_providers": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "forbidden_providers"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_tools": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "allowed_tools"
+            ]
+          },
+          {
+            "properties": {
+              "forbidden_tools": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "forbidden_tools"
+            ]
+          },
+          {
+            "properties": {
+              "allowed_tools_override": {
+                "const": true
+              }
+            },
+            "required": [
+              "allowed_tools_override"
+            ]
+          },
+          {
+            "properties": {
+              "required_human_review": {
+                "const": true
+              }
+            },
+            "required": [
+              "required_human_review"
+            ]
+          }
+        ]
+      }
     }
   ],
   "properties": {
@@ -85,7 +222,7 @@
     "expectation_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {

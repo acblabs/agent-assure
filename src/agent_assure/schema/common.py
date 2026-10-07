@@ -19,7 +19,7 @@ from enum import StrEnum
 from re import fullmatch
 from typing import Annotated, Any, Literal, TypeVar
 
-from pydantic import Field
+from pydantic import AfterValidator, Field, WithJsonSchema
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.timestamps import (
@@ -89,16 +89,185 @@ class ReasonCode(StrEnum):
 
 
 DigestHex = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+STRICT_JSON_SCHEMA_END = r"(?![\s\S])"
+FRACTION_6_PATTERN = r"^0\.[0-9]{6}(?![\s\S])"
+NONNEGATIVE_DECIMAL_6_PATTERN = r"^(?:0|[1-9][0-9]*)\.[0-9]{6}(?![\s\S])"
+SIGNED_DECIMAL_6_PATTERN = r"^-?(?:0|[1-9][0-9]*)\.[0-9]{6}(?![\s\S])"
+ZERO_ONE_TWO_DECIMAL_6_PATTERN = r"^(?:0|1|2)\.[0-9]{6}(?![\s\S])"
+TEMPERATURE_DECIMAL_6_PATTERN = r"^(?:[01]\.[0-9]{6}|2\.000000)(?![\s\S])"
+UNIT_INTERVAL_6_PATTERN = r"^(?:0\.[0-9]{6}|1\.000000)(?![\s\S])"
+SIGNED_UNIT_INTERVAL_6_PATTERN = r"^-?(?:0\.[0-9]{6}|1\.000000)(?![\s\S])"
+UNIT_INTERVAL_12_PATTERN = r"^(?:0\.[0-9]{12}|1\.000000000000)(?![\s\S])"
+
+
+def strict_json_schema_pattern_end(pattern: str) -> str:
+    """Replace an unescaped terminal dollar with an absolute ECMA-262 end.
+
+    JSON Schema regular expressions use ECMA-262 semantics, where dollar also
+    matches immediately before a final line terminator. That is weaker than
+    the full-string validation performed by our runtime models. The negative
+    lookahead cannot match at any position with a remaining UTF-16 code unit,
+    including before LF, CR, CRLF, U+2028, or U+2029.
+
+    This function is for emitted JSON Schemas only. Pydantic's Rust regex
+    engine does not support lookaround, so source Field patterns intentionally
+    retain their runtime-compatible expressions.
+    """
+
+    if not pattern.endswith("$"):
+        return pattern
+    preceding_backslashes = 0
+    for character in reversed(pattern[:-1]):
+        if character != "\\":
+            break
+        preceding_backslashes += 1
+    if preceding_backslashes % 2:
+        return pattern
+    return pattern[:-1] + STRICT_JSON_SCHEMA_END
+
+
+def harden_json_schema_pattern_ends(schema: object) -> None:
+    """Harden JSON Schema patterns and pattern-property keys in place."""
+
+    pending = [schema]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "pattern" and isinstance(child, str):
+                    value[key] = strict_json_schema_pattern_end(child)
+                elif key == "patternProperties" and isinstance(child, dict):
+                    hardened_properties: dict[object, object] = {}
+                    for property_pattern, declaration in child.items():
+                        hardened_pattern = (
+                            strict_json_schema_pattern_end(property_pattern)
+                            if isinstance(property_pattern, str)
+                            else property_pattern
+                        )
+                        if hardened_pattern in hardened_properties:
+                            raise ValueError(
+                                "strict JSON Schema pattern hardening produced "
+                                "duplicate patternProperties keys"
+                            )
+                        hardened_properties[hardened_pattern] = declaration
+                    value[key] = hardened_properties
+                    pending.append(hardened_properties)
+                else:
+                    pending.append(child)
+        elif isinstance(value, list):
+            pending.extend(value)
+
+
+def _require_fraction_6(value: str) -> str:
+    if fullmatch(r"0\.[0-9]{6}", value) is None:
+        raise ValueError("value must be a canonical six-place number in [0, 1)")
+    return value
+
+
+def _require_nonnegative_decimal_6(value: str) -> str:
+    if fullmatch(r"(?:0|[1-9][0-9]*)\.[0-9]{6}", value) is None:
+        raise ValueError("value must be a canonical nonnegative six-place number")
+    return value
+
+
+def _require_signed_decimal_6(value: str) -> str:
+    if fullmatch(r"-?(?:0|[1-9][0-9]*)\.[0-9]{6}", value) is None:
+        raise ValueError("value must be a canonical signed six-place number")
+    return value
+
+
+def _require_zero_one_two_decimal_6(value: str) -> str:
+    if fullmatch(r"(?:0|1|2)\.[0-9]{6}", value) is None:
+        raise ValueError("value must have a 0, 1, or 2 whole part and six decimal places")
+    return value
+
+
+def _require_temperature_decimal_6(value: str) -> str:
+    if fullmatch(r"(?:[01]\.[0-9]{6}|2\.000000)", value) is None:
+        raise ValueError("temperature must be a canonical six-place number in [0, 2]")
+    return value
+
+
+def _require_unit_interval_6(value: str) -> str:
+    if fullmatch(r"(?:0\.[0-9]{6}|1\.000000)", value) is None:
+        raise ValueError("value must be a canonical six-place number in [0, 1]")
+    return value
+
+
+def _require_signed_unit_interval_6(value: str) -> str:
+    if fullmatch(r"-?(?:0\.[0-9]{6}|1\.000000)", value) is None:
+        raise ValueError("value must be a canonical six-place number in [-1, 1]")
+    return value
+
+
+def _require_unit_interval_12(value: str) -> str:
+    if fullmatch(r"(?:0\.[0-9]{12}|1\.000000000000)", value) is None:
+        raise ValueError("value must be a canonical twelve-place number in [0, 1]")
+    return value
+
+
+Fraction6String = Annotated[
+    str,
+    AfterValidator(_require_fraction_6),
+    WithJsonSchema({"type": "string", "pattern": FRACTION_6_PATTERN}),
+]
+NonnegativeDecimal6String = Annotated[
+    str,
+    AfterValidator(_require_nonnegative_decimal_6),
+    WithJsonSchema({"type": "string", "pattern": NONNEGATIVE_DECIMAL_6_PATTERN}),
+]
+SignedDecimal6String = Annotated[
+    str,
+    AfterValidator(_require_signed_decimal_6),
+    WithJsonSchema({"type": "string", "pattern": SIGNED_DECIMAL_6_PATTERN}),
+]
+ZeroOneTwoDecimal6String = Annotated[
+    str,
+    AfterValidator(_require_zero_one_two_decimal_6),
+    WithJsonSchema({"type": "string", "pattern": ZERO_ONE_TWO_DECIMAL_6_PATTERN}),
+]
+TemperatureDecimal6String = Annotated[
+    str,
+    AfterValidator(_require_temperature_decimal_6),
+    WithJsonSchema({"type": "string", "pattern": TEMPERATURE_DECIMAL_6_PATTERN}),
+]
+UnitInterval6String = Annotated[
+    str,
+    AfterValidator(_require_unit_interval_6),
+    WithJsonSchema({"type": "string", "pattern": UNIT_INTERVAL_6_PATTERN}),
+]
+SignedUnitInterval6String = Annotated[
+    str,
+    AfterValidator(_require_signed_unit_interval_6),
+    WithJsonSchema({"type": "string", "pattern": SIGNED_UNIT_INTERVAL_6_PATTERN}),
+]
+UnitInterval12String = Annotated[
+    str,
+    AfterValidator(_require_unit_interval_12),
+    WithJsonSchema({"type": "string", "pattern": UNIT_INTERVAL_12_PATTERN}),
+]
 MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
 MACHINE_IDENTIFIER_MAX_CHARS = 256
 MACHINE_IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+PROVIDER_MODEL_IDENTIFIER_PATTERN = (
+    r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}"
+    r"(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?$"
+)
 MachineIdentifier = Annotated[
     str,
     Field(
         min_length=1,
         max_length=MACHINE_IDENTIFIER_MAX_CHARS,
         pattern=MACHINE_IDENTIFIER_PATTERN,
+    ),
+]
+ProviderModelIdentifier = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=MACHINE_IDENTIFIER_MAX_CHARS,
+        pattern=PROVIDER_MODEL_IDENTIFIER_PATTERN,
     ),
 ]
 
@@ -219,6 +388,18 @@ def validate_machine_identifier(value: str, *, field_name: str) -> str:
         or fullmatch(MACHINE_IDENTIFIER_PATTERN, value) is None
     ):
         raise ValueError(f"{field_name} must use the ASCII machine-identifier grammar")
+    return value
+
+
+def validate_provider_model_identifier(value: str, *, field_name: str) -> str:
+    """Validate a bounded ASCII provider model ID, including one version separator."""
+    if (
+        len(value) > MACHINE_IDENTIFIER_MAX_CHARS
+        or fullmatch(PROVIDER_MODEL_IDENTIFIER_PATTERN, value) is None
+    ):
+        raise ValueError(
+            f"{field_name} must use the ASCII machine-identifier grammar for provider models"
+        )
     return value
 
 

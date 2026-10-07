@@ -8,9 +8,11 @@ from datetime import date
 from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
+from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
+    MAX_SUMMARY_CHARS,
     GateState,
     ReasonCode,
     Severity,
@@ -19,8 +21,13 @@ from agent_assure.schema.common import (
 )
 from agent_assure.schema.evaluation import (
     MAX_WAIVER_DISPOSITIONS,
+    MAX_WAIVER_VALIDITY_DAYS,
     WaiverDisposition,
     WaiverDispositionStatus,
+    validate_independent_waiver_approvers,
+    validate_unique_waiver_bindings,
+    validate_waiver_id,
+    waiver_expiry_horizon,
 )
 
 
@@ -103,7 +110,7 @@ class GateProfile(StrictModel):
         if result.state is GateState.not_evaluated:
             return self.fail_on_not_evaluated
         if result.state is GateState.warn:
-            return self.fail_on_warn
+            return self.fail_on_warn and not result.waived
         if result.state is not GateState.fail:
             return False
         return (
@@ -113,13 +120,27 @@ class GateProfile(StrictModel):
 
 class Waiver(StrictModel):
     waiver_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
-    owner: str = Field(min_length=1)
-    rationale: str = Field(min_length=1)
+    owner: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    rationale: str = Field(min_length=1, max_length=MAX_SUMMARY_CHARS)
     reason_code: ReasonCode
     finding_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     artifact_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     expires_on: date
-    reviewer: str = Field(min_length=1)
+    reviewer: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+
+    @field_validator("waiver_id")
+    @classmethod
+    def _validate_waiver_id(cls, value: str) -> str:
+        return validate_waiver_id(value)
+
+    @field_validator("owner", "reviewer", "rationale")
+    @classmethod
+    def _validate_persisted_governance_text(cls, value: str) -> str:
+        if value != value.strip():
+            raise ValueError("waiver governance text must not have surrounding whitespace")
+        if contains_sensitive_value(value):
+            raise ValueError("waiver governance text contains sensitive-looking content")
+        return value
 
     @field_validator("reason_code", mode="before")
     @classmethod
@@ -140,7 +161,8 @@ class Waiver(StrictModel):
 
     def applies_to(self, result: ControlResult, artifact_digest: str, today: date) -> bool:
         return (
-            not self.is_expired(today)
+            result.state is GateState.fail
+            and not self.is_expired(today)
             and self.reason_code is result.reason_code
             and self.finding_id == result.finding_id
             and self.artifact_digest == artifact_digest
@@ -180,6 +202,9 @@ def apply_waivers_with_dispositions(
 ) -> WaiverApplication:
     if len(waivers) > MAX_WAIVER_DISPOSITIONS:
         raise ValueError(f"waiver count exceeds disposition limit {MAX_WAIVER_DISPOSITIONS}")
+    validate_unique_waiver_bindings(waivers)
+    for supplied_waiver in waivers:
+        _validate_waiver_governance(supplied_waiver, today=today)
     adjusted: list[ControlResult] = []
     adjusted.extend(
         ControlResult(
@@ -238,6 +263,15 @@ def apply_waivers_with_dispositions(
     return WaiverApplication(results=tuple(adjusted), dispositions=dispositions)
 
 
+def _validate_waiver_governance(waiver: Waiver, *, today: date) -> None:
+    validate_independent_waiver_approvers(waiver.owner, waiver.reviewer)
+    if waiver.expires_on > waiver_expiry_horizon(today):
+        raise ValueError(
+            f"waiver expires_on must be no more than {MAX_WAIVER_VALIDITY_DAYS} days "
+            "after the evaluation date"
+        )
+
+
 def _waiver_disposition(
     waiver: Waiver,
     *,
@@ -257,10 +291,18 @@ def _waiver_disposition(
             status = WaiverDispositionStatus.unmatched_finding
         elif not any(result.reason_code is waiver.reason_code for result in finding_matches):
             status = WaiverDispositionStatus.unmatched_reason
+        elif not any(
+            result.reason_code is waiver.reason_code and result.state is GateState.fail
+            for result in finding_matches
+        ):
+            status = WaiverDispositionStatus.unmatched_finding
         else:
             status = WaiverDispositionStatus.matched
     return WaiverDisposition(
         waiver_id=waiver.waiver_id,
+        owner=waiver.owner,
+        reviewer=waiver.reviewer,
+        rationale=waiver.rationale,
         status=status,
         reason_code=waiver.reason_code,
         finding_id=waiver.finding_id,

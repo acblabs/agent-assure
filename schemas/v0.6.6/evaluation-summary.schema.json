@@ -12,7 +12,7 @@
         "dependency_inventory_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -69,7 +69,7 @@
         "lockfile_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -182,7 +182,7 @@
           "type": "string"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         },
@@ -206,10 +206,10 @@
     },
     "EvaluationWaiverContext": {
       "additionalProperties": false,
-      "description": "Privacy-minimized waiver fields that can affect evaluation semantics.",
+      "description": "Bounded waiver governance and scoring fields required for exact replay.",
       "properties": {
         "artifact_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Artifact Digest",
           "type": "string"
         },
@@ -224,8 +224,26 @@
           "title": "Finding Id",
           "type": "string"
         },
+        "owner": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
         "reason_code": {
           "$ref": "#/$defs/ReasonCode"
+        },
+        "reviewer": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
         },
         "waiver_id": {
           "maxLength": 512,
@@ -370,6 +388,32 @@
       "title": "InstalledPackage",
       "type": "object"
     },
+    "LiveNetworkAuthorityReceipt": {
+      "additionalProperties": false,
+      "description": "Non-secret record of the exact egress and credential-name authority used.",
+      "properties": {
+        "api_key_env": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:API_KEY|PROVIDER_KEY|TEST_KEY)(?![\\s\\S])",
+          "title": "Api Key Env",
+          "type": "string"
+        },
+        "endpoint_host": {
+          "maxLength": 253,
+          "minLength": 1,
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9a-f:]{2,45})(?![\\s\\S])",
+          "title": "Endpoint Host",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_host",
+        "api_key_env"
+      ],
+      "title": "LiveNetworkAuthorityReceipt",
+      "type": "object"
+    },
     "ReasonCode": {
       "enum": [
         "EXPECTED_OUTCOME_MISMATCH",
@@ -407,6 +451,43 @@
       ],
       "title": "Severity",
       "type": "string"
+    },
+    "UsageMetricCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost_microusd": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "total_latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Latency Ms",
+          "type": "integer"
+        },
+        "total_retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Retries",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        },
+        "total_tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetricCoverage",
+      "type": "object"
     },
     "UsageSummary": {
       "additionalProperties": false,
@@ -452,6 +533,98 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "aggregation_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_basis"
+                  ]
+                },
+                {
+                  "required": [
+                    "source_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_counts"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method",
+              "coverage_basis",
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -467,9 +640,175 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tokens": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tool_calls": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tool_calls"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tool_calls": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_retries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_retries"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_retries": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_latency_ms": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "estimated_cost_microusd": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
         }
       ],
       "properties": {
+        "aggregation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "sum_known_fields_v1",
+                "sum_complete_fields_v2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregation Method"
+        },
         "artifact_kind": {
           "const": "usage-summary",
           "default": "usage-summary",
@@ -497,9 +836,37 @@
           "default": null,
           "title": "Cost Observation Count"
         },
+        "coverage_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "usage_segment",
+                "usage_summary",
+                "run_record"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Basis"
+        },
+        "coverage_counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageMetricCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -516,6 +883,19 @@
           "default": null,
           "title": "Estimated Cost Microusd"
         },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -527,7 +907,7 @@
         "pricing_snapshot_digests": {
           "default": [],
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Pricing Snapshot Digests",
@@ -542,10 +922,23 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Count"
         },
         "total_latency_ms": {
           "anyOf": [
@@ -682,6 +1075,44 @@
       }
     },
     {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "$comment": "Current EvaluationSummary parents enforce at runtime that each waiver expires no more than 90 days after evaluation_date; Draft 2020-12 cannot compare date-valued sibling fields.",
+        "properties": {
+          "replay_context": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "waivers": {
+                    "items": {
+                      "$comment": "Current parent artifacts require bounded owner, reviewer, and rationale fields. Unicode-normalized reviewer independence and sensitive-value screening, unique waiver IDs, and replay/disposition coherence are runtime model constraints; uniqueItems rejects only byte-equivalent JSON members.",
+                      "required": [
+                        "owner",
+                        "reviewer",
+                        "rationale"
+                      ]
+                    },
+                    "type": "array",
+                    "uniqueItems": true
+                  }
+                },
+                "type": "object"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "else": {
         "not": {
           "anyOf": [
@@ -762,8 +1193,20 @@
       "title": "Findings",
       "type": "array"
     },
+    "network_authority_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveNetworkAuthorityReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Non-secret verified endpoint host and credential environment-variable name copied from the digest-bound source RunSet."
+    },
     "privacy_profile_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Privacy Profile Digest",
       "type": "string"
     },
@@ -787,7 +1230,7 @@
     "runset_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {

@@ -2,8 +2,9 @@
 
 Status: development contract. No real-provider study result is included in this
 repository, and no provider execution is authorized by this documentation. The
-latest published package remains `v0.6.5`; the `0.6.6` schemas and commands
-described here are an untagged development surface.
+latest published package remains `v0.6.5`; the `0.7.0` package candidate,
+its `0.6.6` schemas, and its commands described here are an untagged
+development surface.
 
 The real-model study workflow measures one narrow behavior: whether a model's
 structured decision follows a frozen, authoritative context substitution under
@@ -271,7 +272,8 @@ adjusted alpha `0.025`, not `0.0125`. At `n=42` and materiality threshold
   `contradicted` requires zero in both decision-flip targets;
 - nine inertia clusters have lower bound `0.102959649897`, so `supported`
   requires at least nine in either target; and
-- one through eight inertia clusters in every target are `inconclusive`.
+- every remaining pair is `inconclusive`: both target counts are between zero
+  and eight, inclusive, and at least one is nonzero (for example, `(0, 5)`).
 
 For scale only, if each target truly had inertia probability `0.05`, the chance
 of observing zero among 42 is `0.115982` per target; it is `0.013452` for both
@@ -434,10 +436,10 @@ agent-assure rag study finalize \
 The benchmark path above is also the fixed source-tree release trust-anchor
 location. Before any confirmatory provider call, a newly constructed non-grid
 frame must be frozen there and mirrored byte-for-byte at
-`src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json`. The
+`src/agent_assure/release_trust/v0_7_0/frozen-non-grid-benchmark.json`. The
 qualified statistical-method review receipt must likewise be frozen as
 `study/registration/frozen-non-grid-benchmark-statistical-method-review.json`
-and mirrored under `src/agent_assure/release_trust/v0_6_6/`. The release checker
+and mirrored under `src/agent_assure/release_trust/v0_7_0/`. The release checker
 validates both pairs, rejects registered ineligible structures, and requires
 the mirrored receipt's explicit `approved_confirmatory_independent_clusters`
 decision to bind the exact raw and semantic benchmark digests and to equal the

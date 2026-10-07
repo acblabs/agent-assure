@@ -233,7 +233,8 @@ def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() ->
                 evidence_items=(_evidence_item("ref-safe"),),
                 claim_evidence_links=(_link(hostile_claim_id, "ref-safe", schema_version="0.5.0"),),
             ),
-        )
+        ),
+        schema_version="0.5.0",
     )
 
     targets = drop_material_evidence_link_targets(
@@ -351,7 +352,7 @@ def test_inject_forbidden_tool_isolates_explicit_and_allowlist_branches() -> Non
 
 
 def test_inject_forbidden_tool_uses_synthetic_sentinel_for_allowlist() -> None:
-    expectation = _expectation("allowlist-tool-case")
+    expectation = _expectation("allowlist-tool-case", expected_recommendation="approve")
     suite = _suite((expectation,), allowed_tools=("safe-tool",))
     subject = _runset((_run("allowlist-tool-case", tools=("safe-tool",)),))
     source_payload = _source_payload(subject)
@@ -379,7 +380,7 @@ def test_inject_forbidden_tool_uses_synthetic_sentinel_for_allowlist() -> None:
 
 
 def test_inject_forbidden_tool_is_inapplicable_without_tool_boundary() -> None:
-    expectation = _expectation("unrestricted-tool-case")
+    expectation = _expectation("unrestricted-tool-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset((_run("unrestricted-tool-case", tools=("ordinary-tool",)),))
     source_payload = _source_payload(subject)
@@ -396,7 +397,7 @@ def test_inject_forbidden_tool_is_inapplicable_without_tool_boundary() -> None:
 
 
 def test_skew_evidence_source_identity_changes_only_reference_side() -> None:
-    expectation = _expectation("provenance-case")
+    expectation = _expectation("provenance-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset(
         (
@@ -429,7 +430,7 @@ def test_skew_evidence_source_identity_changes_only_reference_side() -> None:
 
 
 def test_skew_evidence_source_identity_requires_a_clean_paired_identity() -> None:
-    expectation = _expectation("conflicting-provenance-case")
+    expectation = _expectation("conflicting-provenance-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset(
         (
@@ -454,7 +455,7 @@ def test_skew_evidence_source_identity_requires_a_clean_paired_identity() -> Non
 
 
 def test_inject_synthetic_sensitive_summary_is_one_fixed_replacement() -> None:
-    expectation = _expectation("privacy-case")
+    expectation = _expectation("privacy-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset((_run("privacy-case"),))
     source_payload = _source_payload(subject)
@@ -477,7 +478,7 @@ def test_inject_synthetic_sensitive_summary_is_one_fixed_replacement() -> None:
 
 
 def test_replay_duplicate_case_observation_appends_an_exact_copy() -> None:
-    expectation = _expectation("replay-case")
+    expectation = _expectation("replay-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset((_run("replay-case"),))
     source_payload = _source_payload(subject)
@@ -507,7 +508,9 @@ def test_replay_target_planning_defers_all_runset_copies(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     case_ids = tuple(f"replay-scale-{index:03d}" for index in range(128))
-    suite = _suite(tuple(_expectation(case_id) for case_id in case_ids))
+    suite = _suite(
+        tuple(_expectation(case_id, expected_recommendation="approve") for case_id in case_ids)
+    )
     subject = _runset(tuple(_run(case_id) for case_id in case_ids))
     source_payload = _source_payload(subject)
     real_deepcopy = deepcopy
@@ -536,7 +539,7 @@ def test_replay_target_planning_defers_all_runset_copies(
 
 
 def test_mark_incomplete_budget_stop_changes_only_runset_status() -> None:
-    expectation = _expectation("budget-case")
+    expectation = _expectation("budget-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset((_run("budget-case"),))
     source_payload = _source_payload(subject)
@@ -559,7 +562,7 @@ def test_mark_incomplete_budget_stop_changes_only_runset_status() -> None:
 
 
 def test_mark_incomplete_budget_stop_is_inapplicable_after_a_stop() -> None:
-    expectation = _expectation("stopped-case")
+    expectation = _expectation("stopped-case", expected_recommendation="approve")
     suite = _suite((expectation,))
     subject = _runset((_run("stopped-case"),)).model_copy(
         update={
@@ -783,8 +786,13 @@ def _suite(
     )
 
 
-def _runset(runs: tuple[AgentRunRecord, ...]) -> RunSet:
+def _runset(
+    runs: tuple[AgentRunRecord, ...],
+    *,
+    schema_version: SchemaVersion = _CURRENT_SCHEMA_VERSION,
+) -> RunSet:
     return RunSet(
+        schema_version=schema_version,
         runset_id="mutation-operator-test-runset",
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,

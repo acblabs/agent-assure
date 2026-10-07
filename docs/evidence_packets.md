@@ -58,12 +58,15 @@ identify the exact bytes that produced the nested evidence and policy.
 
 A current packet requires every nested persisted artifact covered by the
 packet writer schema to use the packet's current schema version; independently
-versioned usage artifacts retain their own emitted version. Coherent legacy
-packets remain readable through their matching frozen schemas. Before writing,
-the packet writer revalidates the redacted payload against the schema selected
-by the packet root version—the pinned current writer schema for current output
-or the matching frozen schema for supported legacy output. A mixed-version
-packet therefore fails before packet bytes are created.
+versioned usage artifacts retain their own emitted version. The public packet
+loader, writer, artifact validator, and CI gate reject every historical
+`evidence-packet` root through v0.6.5 with an `archival-only` diagnostic.
+Frozen schemas remain available for direct structural inspection, and
+compatibility models remain available to explicit non-assurance migration
+tooling; neither path authorizes public load, write, validation, or gate
+acceptance. Before writing current output, the packet writer revalidates the
+complete redacted payload against the pinned current writer schema. A
+mixed-version packet therefore fails before packet bytes are created.
 
 The v0.6.4 comparison contract requires canonical digests for both compared
 RunSets. Packet construction requires the comparison candidate RunSet ID to
@@ -71,17 +74,17 @@ match the evaluation RunSet ID and rejects unequal candidate digests when the
 evaluation also carries an authenticated digest. An evaluation without a
 digest remains explicitly unbound; the packet never invents one from the
 comparison. Frozen comparison summaries through v0.6.3 remain digestless.
-Legacy readability does not imply CI acceptance: a standalone legacy
-comparison or a comparison-bearing packet with either comparison digest absent
-is invalid with exit `2` by default. This closes an ID-only downgrade in which
-a schema-valid legacy comparison can share the evaluation's display ID while
-referring to unauthenticated bytes. A verifier that must retain this historical
-behavior can opt in explicitly with `--allow-legacy-unbound-comparison`; the
-compatibility use is recorded in the decision message. Supplying the override
-for a packet without a comparison or for an already digest-bound comparison is
-itself invalid, so the exception cannot be enabled speculatively across all
-artifacts. The override applies only after normal frozen-schema and model
-validation and does not weaken artifact loading.
+Direct frozen-schema inspection or compatibility-model projection does not
+imply CI acceptance: a standalone legacy comparison or a historical packet is
+invalid with exit `2`. This closes an ID-only downgrade in which a schema-valid
+legacy comparison can share the evaluation's display ID while referring to
+unauthenticated bytes. Historical comparison roots and all historical packet
+roots, whether comparison-bearing or not, are archival-only at the public
+artifact-validation boundary. `--allow-legacy-unbound-comparison` cannot
+authorize their persisted bytes; it is retained only as a narrow programmatic
+compatibility control for callers that have already projected historical data
+into validated models. The CLI rejects the option for current digest-bound
+artifacts, packets without a comparison, and full `ci` producer invocations.
 
 `control-efficacy-onboarding-config` identifies the exact controls-mutation
 onboarding YAML supplied to `packet build --efficacy-config`.
@@ -209,9 +212,10 @@ the sensitivity requirement, the field remains intentionally optional for
 non-RAG and legacy workflows.
 
 `--allow-advisory-efficacy` explicitly restores transported-profile advisory
-gating. In that mode, `--fail-on-not-evaluated` examines both semantic
-dimensions and `--fail-on-warn` makes review findings blocking. A bare
-gate-profile JSON can be supplied as an advisory verifier override, but cannot
+verification, but the `ci gate` process still blocks review findings by default.
+`--fail-on-warn` remains an accepted, idempotent compatibility restatement, and
+`--fail-on-not-evaluated` examines both semantic dimensions. A bare gate-profile
+JSON can be supplied as an advisory verifier override, but cannot
 satisfy strict mode because it does not pin a separate threat manifest. The
 bare profile has no selected-operator set, so its expected selected set equals
 its required set and reports with a different selected set are rejected.

@@ -7,7 +7,13 @@ from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFI
 from agent_assure.rag.repeated_sensitivity import build_paired_runset_dependencies
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    LiveExecutionAttemptEvent,
+    LiveExecutionAttemptJournal,
+    LiveNetworkAuthorityReceipt,
+    RunSet,
+)
 from agent_assure.schema.sensitivity import (
     EvidenceSensitivityExpectedRelation,
     RAGSensitivityAuthorityAssignment,
@@ -174,6 +180,14 @@ def materialize_stochastic_sources(
             stop_reasons=(
                 () if completion_status == "complete" else ("source-records-incomplete",)
             ),
+            network_authority_receipt=(
+                LiveNetworkAuthorityReceipt(
+                    endpoint_host="api.openai.com",
+                    api_key_env="OPENAI_API_KEY",
+                )
+                if binding.adapter_id == "openai-chat-completions"
+                else None
+            ),
             runs=tuple(runs),
         )
         sources.append(source)
@@ -208,3 +222,98 @@ def materialize_stochastic_sources(
     typed_sources = (sources[0], sources[1])
     dependencies = build_paired_runset_dependencies(protocol, *typed_sources)
     return tuple(rebound_observations), dependencies, typed_sources
+
+
+def bind_complete_attempt_journal(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+    sources: tuple[RunSet, RunSet],
+) -> tuple[RunSet, RunSet]:
+    """Bind a complete synthetic attempt journal to current live test sources."""
+
+    if protocol.execution_attempt_id is None:
+        raise ValueError("journal-bound source fixture requires execution_attempt_id")
+
+    def add_attempt_accounting(runset: RunSet) -> RunSet:
+        return runset.model_copy(
+            update={
+                "runs": tuple(
+                    run.model_copy(
+                        update={
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "rate_limit_events": 0,
+                            "provider_response_id": f"response-{run.run_id}",
+                        }
+                    )
+                    for run in runset.runs
+                )
+            }
+        )
+
+    baseline = add_attempt_accounting(sources[0])
+    counterfactual = add_attempt_accounting(sources[1])
+    event_payloads: list[dict[str, object]] = []
+
+    def append_event(event_type: str, **values: object) -> None:
+        event_payloads.append(
+            {
+                "event_index": len(event_payloads),
+                "event_type": event_type,
+                "occurred_at_utc": "2026-09-05T12:00:00Z",
+                **values,
+            }
+        )
+
+    for arm_id, runset in (
+        (protocol.baseline_arm.arm_id, baseline),
+        (protocol.counterfactual_arm.arm_id, counterfactual),
+    ):
+        append_event("arm_started", arm_id=arm_id)
+        for run in runset.runs:
+            identity = {
+                "arm_id": arm_id,
+                "run_id": run.run_id,
+                "observation_id": run.observation_id,
+                "case_id": run.case_id,
+                "repetition_index": run.repetition_index,
+                "adapter_attempt_index": 1,
+            }
+            append_event("request_issued", **identity)
+            append_event(
+                "request_succeeded",
+                **identity,
+                provider_response_id_digest=sha256_hexdigest(
+                    {
+                        "purpose": "provider-response-id/v1",
+                        "provider_response_id": run.provider_response_id,
+                    }
+                ),
+            )
+        append_event("arm_completed", arm_id=arm_id)
+    append_event("attempt_completed")
+    journal = LiveExecutionAttemptJournal.build(
+        journal_version="1.0.0",
+        execution_attempt_id=protocol.execution_attempt_id,
+        repeated_protocol_digest=protocol.protocol_digest,
+        operational_protocol_digest=baseline.protocol_digest,
+        study_manifest_digest=None,
+        baseline_configuration_digest=protocol.baseline_arm.configuration_digest,
+        counterfactual_configuration_digest=protocol.counterfactual_arm.configuration_digest,
+        status="complete",
+        events=tuple(
+            LiveExecutionAttemptEvent.model_validate(payload) for payload in event_payloads
+        ),
+    )
+
+    def attach(runset: RunSet) -> RunSet:
+        payload = runset.model_dump(mode="json")
+        payload.update(
+            {
+                "execution_attempt_id": journal.execution_attempt_id,
+                "execution_attempt_journal_digest": journal.journal_digest,
+                "execution_attempt_journal": journal.model_dump(mode="json"),
+            }
+        )
+        return RunSet.model_validate(payload)
+
+    return attach(baseline), attach(counterfactual)

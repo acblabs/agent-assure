@@ -1,7 +1,99 @@
 {
+  "$comment": "Current protocol records require current-version nested plans and plan items. Runtime validation also applies corrected Bonferroni floor arithmetic and independence-cluster rare-event exposure. JSON Schema expresses the version and rare-event constraints; adjusted-alpha division remains a runtime relational constraint.",
   "$defs": {
     "AdvancedAnalysisPlan": {
+      "$comment": "For schema_version 0.6.6 (including the model default when omitted), the runtime model rejects a Bonferroni-adjusted alpha below the persisted six-decimal precision using ROUND_FLOOR and requires independence-cluster exposure for every embedded exact-binomial endpoint, including endpoints with historical schema labels. Released 0.6.5 parent artifacts retain their historical behavior. JSON Schema can express the exposure constraint and reject a zero familywise alpha, but Draft 2020-12 cannot express division by the number of confirmatory endpoints; consumers must also run model validation for that relational constraint.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "multiplicity_method": {
+                "const": "bonferroni"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "multiplicity_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "familywise_alpha": {
+                "not": {
+                  "const": "0.000000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "if": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "clopper_pearson_exact_one_sided"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "exposure_unit": {
+                        "const": "independence_cluster"
+                      }
+                    },
+                    "required": [
+                      "exposure_unit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "not": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "poisson_upper_bound"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "advanced-analysis-plan",
@@ -13,13 +105,14 @@
           "items": {
             "$ref": "#/$defs/StatisticalEndpointPlan"
           },
+          "maxItems": 64,
           "minItems": 1,
           "title": "Endpoints",
           "type": "array"
         },
         "familywise_alpha": {
           "default": "0.050000",
-          "pattern": "^0\\.[0-9]{6}$",
+          "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
           "title": "Familywise Alpha",
           "type": "string"
         },
@@ -73,6 +166,38 @@
     },
     "DriftMetricPlan": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "uniqueItems": true
+              },
+              "reason_codes": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "analysis_methods": {
+              "contains": {
+                "const": "descriptive_trend"
+              },
+              "minContains": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      ],
       "properties": {
         "analysis_methods": {
           "default": [
@@ -87,12 +212,14 @@
             ],
             "type": "string"
           },
+          "maxItems": 4,
+          "minItems": 1,
           "title": "Analysis Methods",
           "type": "array"
         },
         "ar1_review_threshold": {
           "default": "0.500000",
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Ar1 Review Threshold",
           "type": "string"
         },
@@ -104,7 +231,7 @@
         },
         "autocorrelation_review_threshold": {
           "default": "0.500000",
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Autocorrelation Review Threshold",
           "type": "string"
         },
@@ -164,6 +291,7 @@
           "items": {
             "$ref": "#/$defs/ReasonCode"
           },
+          "maxItems": 22,
           "title": "Reason Codes",
           "type": "array"
         },
@@ -175,19 +303,19 @@
         },
         "slope_review_threshold": {
           "default": "0.050000",
-          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
           "title": "Slope Review Threshold",
           "type": "string"
         },
         "state_space_alpha": {
           "default": "0.300000",
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "State Space Alpha",
           "type": "string"
         },
         "step_review_threshold": {
           "default": "0.100000",
-          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
           "title": "Step Review Threshold",
           "type": "string"
         }
@@ -203,6 +331,99 @@
     },
     "DriftMonitoringPlan": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ordering_variable": {
+                "enum": [
+                  "window_index",
+                  "window_start_utc"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "drift_hypothesis": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "metrics": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "drift_hypothesis"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "metrics": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "drift_hypothesis": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation",
+              "drift_hypothesis"
+            ]
+          }
+        }
+      ],
       "properties": {
         "allow_bounded_sensitivity_on_comparability_failure": {
           "default": false,
@@ -258,6 +479,7 @@
           "items": {
             "$ref": "#/$defs/DriftMetricPlan"
           },
+          "maxItems": 64,
           "minItems": 1,
           "title": "Metrics",
           "type": "array"
@@ -324,12 +546,77 @@
     },
     "StatisticalEndpointPlan": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_codes": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_method": {
+                "const": "clopper_pearson_exact_one_sided"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "analysis_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exposure_unit": {
+                "const": "independence_cluster"
+              }
+            },
+            "required": [
+              "exposure_unit"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "properties": {
+                "analysis_method": {
+                  "const": "poisson_upper_bound"
+                }
+              },
+              "required": [
+                "analysis_method"
+              ]
+            }
+          }
+        }
+      ],
       "properties": {
         "analysis_method": {
           "default": "descriptive_rate",
           "enum": [
             "cluster_t_interval",
             "cluster_bootstrap_percentile",
+            "clopper_pearson_exact_one_sided",
             "poisson_upper_bound",
             "hierarchical_binomial_summary",
             "beta_binomial_cluster_summary",
@@ -450,6 +737,7 @@
           "items": {
             "$ref": "#/$defs/ReasonCode"
           },
+          "maxItems": 22,
           "title": "Reason Codes",
           "type": "array"
         },
@@ -482,6 +770,201 @@
     },
     "TrajectoryAnalysisPlan": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "analysis_methods": {
+              "contains": {
+                "const": "observable_transition_profile"
+              },
+              "minContains": 1,
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "event_process_summary"
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "analysis_methods"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "burst_window_count"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "burst_window_count"
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "analysis_methods"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "event_process_summary"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariants": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "sequence_invariant_check"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "allOf": [
+                  {
+                    "contains": {
+                      "const": "burst_window_count"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "event_process_summary"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "observable_transition_profile"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "sequence_invariant_check"
+                    },
+                    "minContains": 1
+                  }
+                ],
+                "maxItems": 4,
+                "minItems": 4
+              },
+              "invariants": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariants": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          },
+          "then": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          }
+        }
+      ],
       "properties": {
         "analysis_methods": {
           "default": [
@@ -499,6 +982,8 @@
             ],
             "type": "string"
           },
+          "maxItems": 4,
+          "minItems": 1,
           "title": "Analysis Methods",
           "type": "array"
         },
@@ -534,6 +1019,7 @@
           "items": {
             "$ref": "#/$defs/TrajectoryInvariantPlan"
           },
+          "maxItems": 64,
           "title": "Invariants",
           "type": "array"
         },
@@ -582,7 +1068,85 @@
       "type": "object"
     },
     "TrajectoryInvariantPlan": {
+      "$comment": "required_review_for_approval currently supports only the observable human_review state. Other invariant types must not carry required_state or before_state. Runtime validation additionally applies the same conditional contract.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "forbidden_states": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "before_state": {
+                "type": "null"
+              },
+              "required_state": {
+                "type": "null"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "invariant_type": {
+                "const": "required_review_for_approval"
+              }
+            },
+            "required": [
+              "invariant_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "before_state": {
+                "type": "null"
+              },
+              "required_state": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "required_state"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariant_type": {
+                "const": "required_review_for_approval"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "invariant_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "required_state": {
+                "const": "human_review"
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "trajectory-invariant-plan",
@@ -642,6 +1206,7 @@
             ],
             "type": "string"
           },
+          "maxItems": 11,
           "title": "Forbidden States",
           "type": "array"
         },
@@ -726,6 +1291,139 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/live-protocol-record.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "allowed_exclusion_reasons": {
+            "uniqueItems": true
+          },
+          "provider_version_capture": {
+            "uniqueItems": true
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "advanced_analysis_plan": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "if": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "clopper_pearson_exact_one_sided"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  },
+                  "properties": {
+                    "schema_version": {
+                      "const": "0.6.6"
+                    }
+                  },
+                  "then": {
+                    "properties": {
+                      "exposure_unit": {
+                        "const": "independence_cluster"
+                      }
+                    },
+                    "required": [
+                      "exposure_unit"
+                    ]
+                  }
+                }
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "drift_monitoring_plan": {
+            "properties": {
+              "metrics": {
+                "items": {
+                  "properties": {
+                    "schema_version": {
+                      "const": "0.6.6"
+                    }
+                  }
+                }
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "trajectory_analysis_plan": {
+            "properties": {
+              "invariants": {
+                "items": {
+                  "properties": {
+                    "schema_version": {
+                      "const": "0.6.6"
+                    }
+                  }
+                }
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "advanced_analysis_plan": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "not": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "poisson_upper_bound"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "advanced_analysis_plan": {
       "anyOf": [
@@ -747,7 +1445,7 @@
       "type": "array"
     },
     "analysis_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Analysis Digest",
       "type": "string"
     },
@@ -777,7 +1475,7 @@
       "type": "string"
     },
     "assumed_intraclass_correlation": {
-      "pattern": "^0\\.[0-9]{6}$",
+      "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
       "title": "Assumed Intraclass Correlation",
       "type": "string"
     },
@@ -816,7 +1514,7 @@
       "type": "string"
     },
     "design_effect": {
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Design Effect",
       "type": "string"
     },
@@ -839,7 +1537,7 @@
     "fixed_reference_pass_rate": {
       "anyOf": [
         {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -860,13 +1558,13 @@
       "type": "string"
     },
     "max_cost_per_observation_usd": {
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Max Cost Per Observation Usd",
       "type": "string"
     },
     "max_exclusion_rate": {
       "default": "0.000000",
-      "pattern": "^0\\.[0-9]{6}$",
+      "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
       "title": "Max Exclusion Rate",
       "type": "string"
     },
@@ -890,6 +1588,7 @@
       "type": "integer"
     },
     "max_requests": {
+      "maximum": 4096,
       "minimum": 1,
       "title": "Max Requests",
       "type": "integer"
@@ -901,7 +1600,7 @@
       "type": "integer"
     },
     "max_total_cost_usd": {
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Max Total Cost Usd",
       "type": "string"
     },
@@ -919,37 +1618,40 @@
       "title": "Max Total Tokens"
     },
     "non_inferiority_margin": {
-      "pattern": "^0\\.[0-9]{6}$",
+      "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
       "title": "Non Inferiority Margin",
       "type": "string"
     },
     "planned_clusters": {
+      "maximum": 4096,
       "minimum": 1,
       "title": "Planned Clusters",
       "type": "integer"
     },
     "planned_effective_n": {
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Planned Effective N",
       "type": "string"
     },
     "planned_observations": {
+      "maximum": 4096,
       "minimum": 1,
       "title": "Planned Observations",
       "type": "integer"
     },
     "planned_observations_per_cluster": {
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Planned Observations Per Cluster",
       "type": "string"
     },
     "planned_repetitions": {
+      "maximum": 4096,
       "minimum": 1,
       "title": "Planned Repetitions",
       "type": "integer"
     },
     "policy_bundle_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Policy Bundle Digest",
       "type": "string"
     },
@@ -1001,13 +1703,13 @@
     },
     "retry_initial_backoff_seconds": {
       "default": "1.000000",
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Retry Initial Backoff Seconds",
       "type": "string"
     },
     "retry_max_backoff_seconds": {
       "default": "8.000000",
-      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
       "title": "Retry Max Backoff Seconds",
       "type": "string"
     },
@@ -1039,7 +1741,7 @@
       "type": "array"
     },
     "suite_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Suite Digest",
       "type": "string"
     },
@@ -1067,7 +1769,7 @@
       "title": "Tokens Per Minute"
     },
     "tool_schema_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Tool Schema Digest",
       "type": "string"
     },

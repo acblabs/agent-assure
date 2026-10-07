@@ -68,6 +68,41 @@ def test_graph_persistence_rejects_unfiltered_sensitive_payloads() -> None:
         evidence_graph_json_text(graph)
 
 
+def test_graph_persistence_accepts_card_like_digits_in_validated_node_ids() -> None:
+    evaluation = EvaluationSummary(
+        runset_id="relocated-packet-candidate",
+        runset_digest="b154f9a3766d9729cc9e01508248c445de1198da60511179f95d9f702f6c713a",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=evaluation.runset_id,
+            subject_digest=evaluation.runset_digest,
+        ),
+        evaluation=evaluation,
+    )
+    card_like_node_id = "evidence:09b07bd1dd6c3df985385cad530b971ec10471c91af93748654877853ab541df"
+
+    assert card_like_node_id in {node.node_id for node in graph.nodes}
+    assert card_like_node_id in evidence_graph_json_text(graph)
+
+
+def test_graph_persistence_still_rejects_card_numbers_in_human_identifiers() -> None:
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id="4111111111111111",
+            subject_digest="a" * 64,
+        )
+    )
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
+
+
 def test_graph_persistence_revalidates_forged_model_copies() -> None:
     graph = _subject_only_graph()
     forged = graph.model_copy(update={"graph_digest": "f" * 64})

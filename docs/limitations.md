@@ -84,11 +84,24 @@ unknown threat applicability, postcontrol provenance, or zero independent
 challenge coverage.
 
 Strict `ci gate` verifies a report against a separate policy; it does not
-re-execute the campaign. A protected CI workflow making an efficacy assurance
-claim must regenerate campaign and efficacy artifacts from pinned inputs.
-Protect the policy, threat manifest, operator scope, and workflow with
-mandatory review; otherwise an authorized repository change can alter the
-facts and the rules together.
+re-execute the campaign. A CI workflow making an efficacy assurance claim must
+regenerate campaign and efficacy artifacts from pinned inputs. The policy,
+threat manifest, operator scope, and workflow require the documented explicit
+human-maintainer authorization; branch protection may enforce that review but
+is not required. Without the procedural review, an authorized repository
+change can alter the facts and the rules together.
+
+Waiver records are digest-bound, expiry-bounded, and require distinct owner and
+reviewer identities, but they are not cryptographically signed. Those identity
+fields are governance assertions, not authenticated principals. A deployment
+that treats waivers as release authority must protect waiver changes with an
+external approval system, signed commits, or an independently verified signing
+workflow; repository write access alone is not an enterprise approval boundary.
+Current validation rejects duplicate waiver IDs, duplicate authority bindings,
+and invisible/control-format identity characters. It does not implement a
+Unicode confusables registry or authenticate a human identity; use immutable
+identity-provider subject IDs and protected approval evidence at the external
+governance boundary.
 
 The privacy-redaction operator is a narrow exception to ordinary fail-closed
 candidate privacy validation. It permits only the catalog's fixed, clearly
@@ -109,12 +122,25 @@ outcome-rate, reason-code, exclusion-rate, cost, and latency analyses with
 cluster/effective-sample metadata, completion status, stop reasons, and
 tool-schema/policy-bundle provenance checks; they are not general model-quality
 claims.
+Standalone live-comparison validation replays decision-bearing statistics and
+checks each latency and cost delta's arithmetic without embedding the source
+reports needed to rederive the absolute values. The trust boundary is explicit:
+source-evaluation digests are external linkage; latency and cost absolutes
+remain source-declarative until both digests are resolved against trusted
+evaluation reports. These operational fields do not affect the comparison gate
+state.
 Network retries reserve the declared per-attempt ceiling conservatively, and
 ambiguous failed attempts retain that commitment, but agent-assure cannot prove
 what a provider ultimately bills. Use provider-side spend caps when invoice-level
 enforcement is required. Token commitments use prompt UTF-8 bytes plus the
 declared output cap; undisclosed provider-added prompt tokens remain an external
 billing uncertainty.
+
+The persisted `population_claim_permitted` flag is conditional on declared
+protocol assumptions and artifact-consistency checks. It does not independently
+establish exchangeability, causal identification, external validity, sampling
+representativeness, or provider quality. Reviewer-facing output labels that
+boundary explicitly.
 
 ## Measurement Boundary
 
@@ -134,9 +160,10 @@ and sensitivity metadata; the reported cluster intervals are computed from
 empirical cluster-rate values, not from `effective_n`. Paired-difference
 intervals with zero between-cluster variance can collapse to zero width and are
 labeled as degenerate descriptive intervals. Per-arm rates with identical
-cluster values use a labeled degenerate-boundary heuristic; that heuristic is a
-conservative display aid, not an ordinary t interval or an observation-level
-Wilson analysis.
+cluster values use a labeled degenerate empirical point mass. The point mass
+describes the observed cluster values; it is not an ordinary t interval, an
+observation-level Wilson analysis, or a confidence-coverage claim, and it
+remains exploratory at every cluster count.
 
 Advanced live endpoint plans add rare-event upper bounds, observed
 cluster-correlation summaries, and paired randomization tests only when those
@@ -151,6 +178,20 @@ interpretation below the planned-ICC analysis. Paired randomization tests check
 that included clusters and included case/repetition sets match, but the
 exchangeability assumption remains a reviewed design assumption rather than a
 property the tool can prove.
+
+Rare-event bounds reduce each declared independence cluster to one binary
+endpoint (whether the cluster contains at least one event). Through 1,000
+clusters, the runtime uses exact one-sided Clopper--Pearson tail inversion. For
+larger zero-event samples it evaluates the exact Clopper--Pearson closed-form
+boundary with rational logarithm enclosures. Larger nonzero samples use the
+separately labeled `bernoulli_kl_chernoff_upper_bound_one_sided`. That branch
+conservatively inverts the one-sided Bernoulli KL-Chernoff inequality with
+rational logarithm enclosures and a fixed rational grid, so its work is bounded
+independently of the cluster count. It is explicitly non-exact: it does not
+claim exact Clopper--Pearson or binomial-tail inversion. Its fixed-grid result
+and every persisted upper endpoint round outward. The bound's exposure is the
+number of distinct independence clusters, while the enclosing endpoint
+continues to report the raw observation-level numerator, denominator, and rate.
 
 Cross-window live drift reports are monitoring artifacts. They compare ordered
 live evaluation windows only after a comparability check over suite identity,
@@ -168,6 +209,12 @@ rates. EWMA state labels such as governance health, control reliability, and dri
 only to observable governance records; they are not claims about model intent,
 reasoning, consciousness, or hidden mental state.
 
+The AR(1) diagnostic does not coerce an unconstrained coefficient into the
+stationary range. When the raw coefficient magnitude is at least one, fitted
+AR(1) statistics are suppressed and a review reason is emitted. This means the
+stationary summary is inapplicable; it is not proof that the underlying process
+is explosive.
+
 Live trajectory reports are also review artifacts. They derive observable path
 summaries from structured run, evaluation, and emergency-process records, then
 report canonical state-transition profiles, sequence invariants, history-dependent
@@ -182,6 +229,44 @@ ordering metadata, or weak transition support make trajectory and event-process
 outputs exploratory or invalid. Observed path coverage is sampled evidence over
 the declared run, not proof that unsafe paths are impossible.
 
+Trajectory analysis methods are enforced as output authority, not treated as
+labels after the fact. Observable transitions are always declared; sequence
+and event-process families are omitted when undeclared. Confirmatory status
+requires the complete supported method set and met prerequisites. Adequately
+exposed zero-count event types are analyzable observed zero rates, which keeps
+confirmatory validity reachable without inventing events. Positive event types
+below the declared event-count threshold, or any positive type with incomplete
+timestamps, cannot assert `burst_signal: none`; their burst signal is invalid.
+
+Drift and trajectory source digests authenticate external linkage only when a
+trusted verifier resolves and reconciles the exact dependencies: the ordered
+source evaluation reports for drift, and the source RunSet plus evaluation
+report for trajectory. The public `verify_live_drift_report_sources` and
+`verify_live_trajectory_report_sources` verifiers rebuild the report from those
+dependencies and require an exact match. Validation or replay using only a
+report's embedded aggregates proves internal projection consistency; it does
+not establish source completeness, provider-side truth, or remote event
+authenticity.
+
+Historical decision-artifact replay is intentionally narrower. Evaluation
+summaries and reports, comparison summaries and reports, and evidence packets
+through v0.6.5 are archival-only at the public validator, loader, writer, and
+gate boundaries. Historical drift and trajectory roots are likewise rejected
+through v0.6.5 because their wire forms do not bind the complete plans and exact
+source artifacts needed to close a version-downgrade attack. Compatibility
+models can rederive recoverable statistics and governance findings for explicit
+non-assurance migration work, but that partial projection is not public
+assurance acceptance. Immutable frozen JSON Schemas remain available for direct
+archival shape inspection. Regenerate decision-bearing evidence with the
+current writer rather than treating schema-only or migration-model acceptance
+as assurance.
+
+The current trajectory path is a deterministic projection of those aggregate
+records, not a reconstruction of chronologically ordered model/tool telemetry.
+It therefore cannot prove the order of a multi-turn ReAct loop, detect arbitrary
+model-tool cycles, or enforce recursion depth unless the corresponding event
+journal is separately captured and evaluated.
+
 Statistical, state-space, and event-process language in this repository refers
 to bounded analyses over observable artifacts. Markov-style transition
 summaries describe adjacent structured states; history-dependent checks cover
@@ -192,6 +277,25 @@ path-integral claims.
 
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
+
+Current evaluation-report validation proves internal evidence integrity: its
+case counters are exact projections of unique per-case outcomes, global finding
+counts are derived from finding scope, and its mandatory capability inventory
+is complete relative to a required persisted `source_projection`. That
+projection records the source identity/digest pairs, suite-case record coverage,
+unknown RunSet case IDs, and tool-policy configuration. Its opaque digests do
+not let a standalone report validator reconstruct either source artifact.
+Establishing that the projection was honestly derived requires
+`verify_evaluation_report_sources` against the separately trusted exact suite
+and RunSet plus a caller-authorized gate profile, complete waiver set, and
+evaluation date, or verification inside an authenticated release/evidence
+envelope. Those three mandatory inputs must not be copied from the untrusted
+report. The source verifier supports current full-mode reports, revalidates the
+authorized inputs, and exactly replays all decision and waiver-audit fields.
+Environment enrichment is excluded because it does not change the decision;
+non-full report modes fail closed. A coordinated rewrite of an unsigned report,
+its source projection, and all dependent projections can remain self-consistent
+and is outside standalone schema validation; trusted-source replay rejects it.
 
 Framework adapters are experimental trusted translators. The LangGraph and
 Google ADK adapters read allowlisted `agent_assure` metadata from framework
@@ -231,11 +335,22 @@ creates the child suspended, revalidates identities, assigns a kill-on-close
 job, and only then resumes it. Unsupported POSIX platforms fail closed for
 external-script execution.
 
+The composite action validates both its output directory and `reports` child
+before and after creation, including Windows reparse-point ancestors. Later
+composite steps still pass ordinary pathnames between separate processes; they
+do not retain a directory handle or descriptor across the whole job. The
+action therefore assumes that no untrusted same-job background process or
+other principal with workspace/runner-temp write access can replace those
+directories between steps. Run assurance jobs in an isolated runner and do not
+execute attacker-controlled background code in the same job.
+
 This boundary is not a hardened sandbox against malicious local scripts. The
 external-script adapter sends the full live request payload, including the
 original prompt text, to the configured script. The configured interpreter or
 executable, native libraries, imports, and runtime-loaded dependencies are
-trusted mutable host state. A malicious same-UID Linux child can signal the
+trusted mutable host state. The harness bounds elapsed time and captured output
+and terminates the observed process tree, but it does not impose a portable
+virtual-memory limit or child-process-count quota. A malicious same-UID Linux child can signal the
 agent or supervisor, deliberately retain output pipes in an escaped descendant,
 or survive catastrophic parent death; the harness does not provide a separate
 UID, PID or mount namespace, seccomp policy, container, or cgroup. Rooted path
@@ -274,13 +389,18 @@ provider authentication, a signature, proof of transport completeness, or
 semantic verification. Plain SHA-256 commitments can be guessable or linkable
 and do not make sensitive payloads safe to retain elsewhere.
 
-For the OpenAI-compatible adapter, `timeout_seconds` is a Python HTTPS
-connect/socket-I/O timeout, not a monotonic end-to-end deadline. It does not
-bound synchronous DNS resolution, and progress just inside each socket timeout
-can keep one response open longer. Study execution-window checks do not cancel
-that in-flight call; the post-response guard prevents later dispatch only after
-the call returns. Deployments needing a whole-operation deadline must enforce
-one around the Agent Assure process or job.
+For the OpenAI-compatible adapter, `timeout_seconds` is a monotonic transport
+deadline, hard-capped at 300 seconds, that covers isolated DNS safety screening,
+numeric-address connection establishment, TLS, response headers, and the
+complete bounded response body. DNS runs in a killable subprocess, and dialing
+does not re-resolve screened numeric addresses. Successful screens enter a
+per-adapter, one-authority, bounded single-flight cache. Cache entries are
+non-sliding: the resolving request's monotonic deadline is their fixed expiry,
+and a hit cannot extend it. Invalid, disallowed, failed, and late resolutions
+are not cached. A watchdog closes registered transport sockets at expiry, so
+resolver stalls or incremental response progress cannot extend the call
+indefinitely. A separate process/job deadline remains a recommended
+defense-in-depth control for failures outside this transport boundary.
 
 A live RunSet is one bounded JSON artifact rather than a streaming log. Live
 and repeated-sensitivity plans therefore reject more than 4,096 observations
@@ -304,11 +424,17 @@ owned tag, policy ID, state, and reason-code contract.
 The OpenAI-compatible adapter requires HTTPS and an allowlisted
 endpoint host; non-default gateways must be listed explicitly. CI live network
 runs fail closed when endpoint DNS safety screening cannot resolve the host.
-Each OpenAI-compatible request resolves and screens the endpoint immediately
-before dispatch, then connects only to one of those screened IP addresses while
-preserving the original hostname for TLS verification and the HTTP Host header.
-Redirects are disabled, so each request has one screened, pinned connection
-target.
+The first dispatch and the first dispatch after cache expiry resolve and screen
+the endpoint; requests inside the fixed cache window reuse only that immutable
+screened address tuple. Every connection still dials a pinned numeric IP while
+preserving the original hostname for TLS SNI, certificate verification, and the
+HTTP Host header, so a DNS change cannot redirect a cache hit. After expiry,
+fresh screening is mandatory and fails closed. Under successful sustained
+traffic this changes resolver launches from once per request to approximately
+once per configured timeout window. The tradeoff is that a stale but still
+public address can fail connect or TLS until the fixed expiry; transport never
+falls back to hostname resolution. Redirects are disabled, so each request has
+one screened, pinned connection target.
 
 Optional OpenTelemetry export is a projection from persisted, privacy-filtered
 span plans. OTLP HTTP export requires an explicit HTTPS endpoint and an explicit
@@ -316,13 +442,21 @@ allowed endpoint host; ambient SDK endpoint defaults are not used, and DNS
 safety screening is mandatory and always rejects unresolved hosts. It is useful
 for correlation, but it is not live SDK instrumentation of adapter HTTP calls
 or external subprocess execution.
-Unlike the OpenAI-compatible adapter, the upstream OTLP exporter resolves the
-hostname again when it opens the connection; the project does not currently pin
-that connection to the addresses screened during validation. A DNS change in
-that interval is therefore a documented TOCTOU limitation. HTTPS hostname
-verification, the explicit allowlist, redirect refusal, and ambient-proxy
-refusal still apply, but operators needing address-level egress guarantees must
-enforce them outside this process.
+Immediately before exporter construction, the hardened OTLP HTTP transport
+re-resolves and screens the hostname, then pins its Requests/urllib3 sockets to
+that exact address set while retaining the original hostname for TLS SNI and
+certificate verification. Redirects, proxies, ambient CA overrides, netrc
+credentials, and client certificates are disabled. This is address pinning,
+not certificate or SPKI pinning; it does not protect against compromise of an
+otherwise valid endpoint or trusted certificate authority.
+Each OTLP HTTP request uses a project-owned monotonic watchdog across numeric
+connect, TLS, response headers, and the complete decoded response body. The
+decoded response is streamed under a 65,536-byte ceiling, and connections are
+closed rather than reused outside their request deadline. DNS screening has its
+own bounded subprocess timeout. These are per-screen and per-request bounds;
+configuration validation, multiple span exports, SDK retries, force-flush, and
+shutdown can make the complete command take longer. Deployments requiring one
+whole-command wall-clock limit must enforce an outer process or job deadline.
 Catastrophic host termination, production workload isolation, and distributed
 tracing beyond the local W3C context propagated by the live runner remain out
 of scope.
@@ -439,6 +573,13 @@ ordinary directory entries and filesystem inodes. Finalization of separate
 files still coordinates compliant writers with persistent rooted advisory lock
 files: POSIX whole-file `flock` and Windows byte-lock acquisition retry against
 an explicit 60-second monotonic deadline and fail closed on timeout.
+Because these coordination files are intentionally persistent and are created
+beside their output targets, a downstream project that publishes inside its
+working tree should add `.agent-assure-*.lock` to its own `.gitignore`. Use that
+specific rule rather than `*.lock`, which would hide dependency lockfiles and
+unrelated project state. The files contain no assurance evidence or credentials
+and can remain for reuse; deleting them while any publisher may be active can
+reintroduce the unlink/replacement race they are designed to avoid.
 
 Deterministic evidence-sensitivity publication is atomic at its target-directory
 commit point, not globally transactional with later external workflows. A
@@ -581,6 +722,21 @@ external pilot is fixed to the `pre_candidate` phase and
 `learning_and_remediation_only` use; it cannot satisfy a later
 clean-reproduction or exact-candidate CI integration gate.
 
+Pilot privacy validation treats canonical Git revisions as public structural
+provenance only at exact typed and cross-field-bound paths. Standalone metadata
+also requires a complete extra-forbidding role-specific contract. Every
+environment, control, execution, friction, remediation, and consent record is
+relationally bound before the bundle is accepted; environment, control, and
+execution revisions must equal the evidence or capture subject before
+projection. Remediation provenance remains subject to the later receipt
+binding. Exact capture CI-identity digests and receipt-owned SHA-256 and
+workflow-run fields receive equivalent post-binding treatment. This prevents
+random payment-card false positives without a general key-name exemption, but
+it does not prove that a declared revision is a remote Git object;
+repository/workflow binding and independent review remain the trust anchors.
+The generic privacy boundary continues to scan identifier-shaped bytes
+everywhere else.
+
 Tested pilot wheels and final release wheel/source distributions cross a
 bounded, closed-inventory privacy scan. Unknown or undecodable member types,
 credential-shaped member names, credential files, raw-output capture paths,
@@ -588,7 +744,16 @@ literal credential values, and credential-valued assignments in installable
 Python fail closed. Credential-handling source is parsed structurally rather
 than rejected for vocabulary alone. The sole binary source-distribution asset
 is bound to an explicitly reviewed path and SHA-256 digest and must also pass
-bounded PNG structure and decompression checks. Intentional credential-detector
+bounded PNG structure and decompression checks.
+
+Pilot wheel scanning retains independent archive-member and expanded-byte
+ceilings, per-Python-member byte/line/token ceilings, and an aggregate text-line
+ceiling. Every UTF-8 member, including historical JSON Schema resources,
+consumes that aggregate budget. The pilot ceiling permits only two maximum-line
+Python-member units of maintenance headroom above its reviewed 500,000-line
+baseline; exhaustion rejects the wheel before handoff.
+
+Intentional credential-detector
 test vectors may neutralize only reviewed, counted Python string tokens bound
 to an exact test-member path and exact token-byte SHA-256. Original source and
 the neutralized projection both pass syntax and resource checks; every other
@@ -603,6 +768,9 @@ binary asset bytes.
 ## Release-Evidence Boundary
 
 Digest replay checks reproducibility. Keyless cosign verification can verify
-exact signed blob bytes and GitHub Actions workflow identity. Neither digest
-replay nor signature verification establishes safety, legal or regulatory
-status, clinical validity, live model quality, or standards acceptance.
+exact signed blob bytes and GitHub Actions workflow identity. Standard
+production release assets also carry GitHub-hosted SLSA v1 workflow provenance
+after fresh-job verification. That provenance is not an independent-build or
+SLSA Build Level 3 claim. Digest replay, signature verification, and workflow
+provenance do not establish safety, legal or regulatory status, clinical
+validity, live model quality, or standards acceptance.

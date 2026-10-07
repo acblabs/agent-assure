@@ -7,6 +7,7 @@ import shutil
 import threading
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -29,6 +30,7 @@ from agent_assure.fixtures.manifest import (
     build_fixture_manifest,
     fixture_manifest_digest,
 )
+from agent_assure.io_limits import BoundedFileContents
 from agent_assure.privacy.detectors import MAX_PRIVACY_SCAN_CHARS
 from agent_assure.rag.sensitivity import (
     SensitivityInputError,
@@ -46,6 +48,8 @@ from agent_assure.reporting.packet import (
 from agent_assure.reporting.sensitivity import (
     SensitivityPrivacyError,
     render_sensitivity_html,
+    render_sensitivity_markdown,
+    sensitivity_report_json_text,
     write_sensitivity_execution_artifacts,
 )
 from agent_assure.rooted_io import RootedDirectoryDescriptor
@@ -895,7 +899,7 @@ def test_exact_sensitivity_generation_can_be_republished_idempotently(
     } == first_metadata
 
 
-def test_cli_and_html_strip_bidi_format_controls_from_display_text(tmp_path: Path) -> None:
+def test_cli_strips_bidi_path_and_html_rejects_unbound_display_mutation(tmp_path: Path) -> None:
     out = tmp_path / "bidi-\u202ereport"
     result = _invoke_sensitivity(
         example=EXAMPLE,
@@ -909,9 +913,29 @@ def test_cli_and_html_strip_bidi_format_controls_from_display_text(tmp_path: Pat
     unsafe_display = report.model_copy(
         update={"limitations": ("Synthetic \u202etxt.exe limitation",)}
     )
-    rendered = render_sensitivity_html(unsafe_display)
-    assert "\u202e" not in rendered
-    assert "Synthetic txt.exe limitation" in rendered
+    with pytest.raises(ValueError, match="report_digest"):
+        render_sensitivity_html(unsafe_display)
+
+
+def test_direct_sensitivity_renderers_revalidate_unsafe_report_copy() -> None:
+    report = load_sensitivity_report(
+        ROOT / "tests" / "golden" / "reports" / "evidence-sensitivity-responsive.json"
+    )
+    assert report.state is EvidenceSensitivityState.responsive
+    forged = report.model_copy(update={"state": EvidenceSensitivityState.evidence_insensitive})
+    constructed_values = {name: getattr(report, name) for name in RAGSensitivityReport.model_fields}
+    constructed_values["state"] = EvidenceSensitivityState.evidence_insensitive
+    constructed = RAGSensitivityReport.model_construct(**constructed_values)
+
+    for renderer in (
+        sensitivity_report_json_text,
+        render_sensitivity_markdown,
+        render_sensitivity_html,
+    ):
+        with pytest.raises(ValueError):
+            renderer(forged)
+        with pytest.raises(ValueError):
+            renderer(constructed)
 
 
 def test_each_arm_recompiles_suite_and_reloads_bound_fixtures(
@@ -1250,6 +1274,47 @@ def test_bundle_publisher_ignores_planted_stage_and_lock_entries_without_parent_
         == planted_identities
     )
     assert planted_lock.is_dir()
+
+
+def test_postcommit_semantic_proof_requires_every_pinned_byte_to_match() -> None:
+    payloads = tuple(
+        (name, f"validated:{name}".encode())
+        for name in sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    )
+    validated = sensitivity_reporting_module._ValidatedSensitivityGeneration(payloads=payloads)
+    snapshots = {
+        name: BoundedFileContents(
+            data=data,
+            sha256=hashlib.sha256(data).hexdigest(),
+            device=1,
+            inode=index + 1,
+            size=len(data),
+            modified_ns=1,
+            changed_ns=1,
+        )
+        for index, (name, data) in enumerate(payloads)
+    }
+    existing = cast(Any, SimpleNamespace(snapshots=snapshots))
+
+    sensitivity_reporting_module._require_exact_validated_sensitivity_generation(
+        existing,
+        validated,
+    )
+
+    victim = sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES[-1]
+    original = snapshots[victim]
+    snapshots[victim] = replace(
+        original,
+        data=original.data[:-1] + bytes((original.data[-1] ^ 1,)),
+    )
+    with pytest.raises(
+        sensitivity_reporting_module.SensitivityOutputConflictError,
+        match="changed after semantic validation",
+    ):
+        sensitivity_reporting_module._require_exact_validated_sensitivity_generation(
+            existing,
+            validated,
+        )
 
 
 def test_bundle_publisher_reopens_every_child_after_fsync_before_commit(
@@ -2301,6 +2366,9 @@ def _assert_renderings(
     assert "not a causal guarantee" in markdown
     assert "does not estimate failure prevalence" in markdown
     assert "<title>Controlled Evidence Sensitivity</title>" in html
+    assert 'http-equiv="Content-Security-Policy"' in html
+    assert "default-src 'none'" in html
+    assert 'name="referrer" content="no-referrer"' in html
     assert "Synthetic detector contract test" in html
     assert "not a causal guarantee" in html
     assert "<script" not in html.lower()

@@ -4,7 +4,7 @@
       "additionalProperties": false,
       "properties": {
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -17,7 +17,7 @@
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         }
@@ -52,19 +52,19 @@
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
         "corpus_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Corpus Id",
           "type": "string"
         },
         "corpus_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Corpus Version",
           "type": "string"
         },
@@ -80,19 +80,19 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
         "retrieval_algorithm_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Retrieval Algorithm Id",
           "type": "string"
         },
         "retrieval_algorithm_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Retrieval Algorithm Version",
           "type": "string"
         },
@@ -178,7 +178,7 @@
         "ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Ref Id",
           "type": "string"
         },
@@ -186,7 +186,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -203,7 +203,7 @@
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         },
@@ -262,7 +262,7 @@
       "$ref": "#/$defs/RAGSensitivityCorpusManifest"
     },
     "corpus_manifest_file_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Corpus Manifest File Sha256",
       "type": "string"
     },
@@ -294,7 +294,7 @@
       "type": "string"
     },
     "snapshot_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Snapshot Digest",
       "type": "string"
     }

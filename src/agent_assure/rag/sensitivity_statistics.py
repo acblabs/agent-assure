@@ -40,6 +40,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     derive_sufficiency_prerequisites,
     has_structural_prerequisite_failure,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.statistics.cluster_binomial import (
     cluster_binomial_rejection_region_contains,
     plan_cluster_binomial_design,
@@ -193,7 +194,12 @@ def evaluate_statistical_sufficiency(
     Structural invalidity is represented separately as ``prerequisites_unmet``.
     """
 
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
     if isinstance(protocol.design, BinaryPairedDesignPlan):
         validate_binary_paired_design_plan(protocol)
     elif not isinstance(protocol.design, FixedFrameDescriptivePlan):
@@ -286,6 +292,7 @@ def evaluate_statistical_sufficiency(
             "Deterministic fixture execution reports observations only and bypasses inference."
         )
     return StatisticalSufficiencyReport.build(
+        schema_version=protocol.schema_version,
         report_id=f"{protocol.protocol_id}/sufficiency",
         protocol=protocol,
         source_runsets=source_runsets,
@@ -316,7 +323,12 @@ def build_stochastic_sensitivity_report(
 ) -> StochasticEvidenceSensitivityReport:
     """Build the only verdict-bearing result from authenticated sufficiency."""
 
-    sufficiency = StatisticalSufficiencyReport.model_validate(sufficiency.model_dump(mode="json"))
+    sufficiency_payload = sufficiency.model_dump(mode="json", warnings="error")
+    sufficiency = StatisticalSufficiencyReport.model_validate(sufficiency_payload)
+    validate_loaded_artifact_payload(
+        sufficiency_payload,
+        "statistical-sufficiency-report",
+    )
     protocol = sufficiency.protocol
     included = tuple(
         item for item in sufficiency.observations if item.disposition is PairDisposition.included
@@ -432,6 +444,7 @@ def build_stochastic_sensitivity_report(
         }
     )
     return StochasticEvidenceSensitivityReport.build(
+        schema_version=sufficiency.schema_version,
         report_id=f"{protocol.protocol_id}/stochastic-result",
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol.protocol_digest,

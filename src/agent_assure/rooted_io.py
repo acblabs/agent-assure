@@ -3027,7 +3027,11 @@ def _open_posix_rooted_file(
     _require_directory(root_before, path=root_path, label=f"{label} root")
 
     no_follow = cast(int, vars(os)["O_NOFOLLOW"])
-    directory_flags = os.O_RDONLY | os.O_DIRECTORY | no_follow
+    directory_access = cast(
+        int,
+        getattr(os, "O_SEARCH", getattr(os, "O_PATH", os.O_RDONLY)),
+    )
+    directory_flags = directory_access | os.O_DIRECTORY | no_follow
     directory_flags |= getattr(os, "O_CLOEXEC", 0)
     directory_flags |= getattr(os, "O_NONBLOCK", 0)
     file_flags = os.O_RDONLY | no_follow

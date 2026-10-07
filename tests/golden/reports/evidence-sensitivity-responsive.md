@@ -24,7 +24,7 @@ This report is a **synthetic detector contract test**. It measures a declared co
 - Raw content persistence: `exact_corpus_and_fixture_utf8_embedded`
 - Claim scope: `controlled_evidence_sensitivity_not_causal_guarantee`
 - Population claim: `none_bundled_synthetic_fixture_only`
-- Protocol digest: `8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e`
+- Protocol digest: `4eb9077ea4e1cbbaf32d85d849e47453c867552ac5ff369cb63c1b421f6e4148`
 - Authority contract digest: `187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2`
 - Reason codes: none
 
@@ -58,7 +58,7 @@ This report is a **synthetic detector contract test**. It measures a declared co
 | `model_digest` | `protocol_fixed` | `bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c` | `bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c` | `equal` | `controlled` |
 | `non_governing_evidence_digest` | `arm_observed` | `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` | `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` | `equal` | `controlled` |
 | `prompt_template_digest` | `protocol_fixed` | `fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9` | `fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9` | `equal` | `controlled` |
-| `producer_version` | `protocol_fixed` | `0.6.6` | `0.6.6` | `equal` | `controlled` |
+| `producer_version` | `protocol_fixed` | `0.7.0` | `0.7.0` | `equal` | `controlled` |
 | `query_digest` | `protocol_fixed` | `81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d` | `81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d` | `equal` | `controlled` |
 | `query_family_id` | `arm_observed` | `synthetic-benefit-eligibility` | `synthetic-benefit-eligibility` | `equal` | `controlled` |
 | `request_digest` | `protocol_fixed` | `8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e` | `8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e` | `equal` | `controlled` |

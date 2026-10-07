@@ -48,7 +48,7 @@ def test_frozen_v064_report_replays_relational_semantics() -> None:
     payload = json.loads(fixture_bytes)
 
     assert validate_artifact_payload(payload, "evidence-sensitivity-report") == (
-        "frozen-jsonschema"
+        "frozen-jsonschema+semantic-replay"
     )
 
     payload["report_digest"] = "0" * 64

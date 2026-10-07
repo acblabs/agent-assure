@@ -1,17 +1,30 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from decimal import Decimal, localcontext
+from decimal import ROUND_FLOOR, Decimal
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.live.intervals import percentile_interval, seeded_random, stable_seed_int
+from agent_assure.live.intervals import percentile_interval, seeded_sampler, stable_seed_int
 from agent_assure.live.primitives import (
     decimal_string,
+    live_decimal_context,
     mean_decimal,
-    probability_string,
+    outward_upper_string,
+    probability_upper_string,
     rate_string,
     signed_unit_decimal_string,
+    signed_unit_lower_string,
+    signed_unit_upper_string,
+    with_live_decimal_context,
+)
+from agent_assure.live.work_limits import (
+    LIVE_ICC_BOOTSTRAP_ITERATIONS,
+    LIVE_MAX_EXACT_PERMUTATION_CLUSTERS,
+    LIVE_MONTE_CARLO_ITERATIONS,
+    LiveAnalysisWorkPlan,
+    validate_live_analysis_work_plan,
+    validate_live_resampling_work,
 )
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
@@ -27,13 +40,21 @@ from agent_assure.schema.live import (
     StatisticalInvariantResult,
 )
 from agent_assure.schema.run import AgentRunRecord
+from agent_assure.statistics.binomial_intervals import (
+    BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD,
+    MAX_CLOPPER_PEARSON_TRIALS,
+    ZERO_EVENT_CLOSED_FORM_METHOD,
+    binomial_upper_bound_one_sided,
+)
 
 # Exact paired permutation enumerates 2**clusters sign assignments using Decimal
-# arithmetic; 20 clusters is already 1,048,576 evaluations per endpoint.
-_MAX_EXACT_PERMUTATION_CLUSTERS = 20
-_MONTE_CARLO_RESAMPLES = 10000
-_ICC_BOOTSTRAP_ITERATIONS = 1000
+# arithmetic; the explicit cluster cap keeps the full kernel under the shared
+# live-resampling work ceiling.
+_MAX_EXACT_PERMUTATION_CLUSTERS = LIVE_MAX_EXACT_PERMUTATION_CLUSTERS
+_MONTE_CARLO_RESAMPLES = LIVE_MONTE_CARLO_ITERATIONS
+_ICC_BOOTSTRAP_ITERATIONS = LIVE_ICC_BOOTSTRAP_ITERATIONS
 _POISSON_BOUND_TOLERANCE = Decimal("0.000000000001")
+_RARE_EVENT_ANALYSIS_METHODS = frozenset({"clopper_pearson_exact_one_sided", "poisson_upper_bound"})
 _IccUncertaintyMethod = Literal["cluster_bootstrap_percentile", "not_evaluated"]
 _ObservedIccConfirmatoryUse = Literal[
     "disabled",
@@ -58,6 +79,7 @@ def _effective_prerequisite_status(
     return observed
 
 
+@with_live_decimal_context
 def evaluate_statistical_invariants(
     runs: tuple[AgentRunRecord, ...],
     observations: tuple[LiveObservationResult, ...],
@@ -68,6 +90,13 @@ def evaluate_statistical_invariants(
         return ()
     confirmatory_count = sum(
         1 for endpoint in plan.endpoints if endpoint.interpretation == "confirmatory"
+    )
+    _validate_invariant_work_budget(
+        runs,
+        observations,
+        protocol=protocol,
+        plan=plan,
+        confirmatory_count=confirmatory_count,
     )
     return tuple(
         _evaluate_endpoint(
@@ -82,6 +111,91 @@ def evaluate_statistical_invariants(
     )
 
 
+def _validate_invariant_work_budget(
+    runs: tuple[AgentRunRecord, ...],
+    observations: tuple[LiveObservationResult, ...],
+    *,
+    protocol: LiveProtocolRecord,
+    plan: AdvancedAnalysisPlan,
+    confirmatory_count: int,
+) -> None:
+    validate_live_analysis_work_plan(
+        _statistical_invariant_work_plan(
+            runs,
+            observations,
+            protocol=protocol,
+            plan=plan,
+            confirmatory_count=confirmatory_count,
+        )
+    )
+
+
+def _statistical_invariant_work_plan(
+    runs: tuple[AgentRunRecord, ...],
+    observations: tuple[LiveObservationResult, ...],
+    *,
+    protocol: LiveProtocolRecord,
+    plan: AdvancedAnalysisPlan,
+    confirmatory_count: int,
+) -> LiveAnalysisWorkPlan:
+    """Plan every expensive invariant operation without executing a kernel."""
+
+    intervals: list[tuple[int, int, Decimal]] = []
+    resampling_work: list[tuple[str, int]] = []
+    for endpoint in plan.endpoints:
+        values = _endpoint_values(endpoint, runs, observations)
+        cluster_counts = _cluster_counts(values)
+        count_values = tuple(cluster_counts.values())
+        bootstrap_clusters = _icc_bootstrap_cluster_count(count_values)
+        if bootstrap_clusters:
+            resampling_work.append(
+                (
+                    f"ICC bootstrap for endpoint {endpoint.endpoint_id!r}",
+                    _ICC_BOOTSTRAP_ITERATIONS * bootstrap_clusters,
+                )
+            )
+        if endpoint.analysis_method not in _RARE_EVENT_ANALYSIS_METHODS:
+            continue
+        if not cluster_counts:
+            continue
+        observed_events = sum(1 for event_count, _ in cluster_counts.values() if event_count > 0)
+        confidence_alpha = _confidence_alpha(protocol.confidence_level)
+        if endpoint.interpretation == "confirmatory" and plan.multiplicity_method == "bonferroni":
+            confidence_alpha = _endpoint_alpha(
+                endpoint,
+                plan=plan,
+                confirmatory_count=confirmatory_count,
+            )
+        if len(cluster_counts) <= MAX_CLOPPER_PEARSON_TRIALS:
+            intervals.append((observed_events, len(cluster_counts), confidence_alpha))
+    return LiveAnalysisWorkPlan(
+        resampling_items=tuple(resampling_work),
+        clopper_pearson_intervals=tuple(intervals),
+    )
+
+
+def _icc_bootstrap_cluster_count(counts: tuple[tuple[int, int], ...]) -> int:
+    """Return bootstrap sample width iff the observed ICC can be defined.
+
+    This integer-only predicate mirrors the undefined cases in
+    :func:`_icc_from_counts` without running the Decimal ICC kernel during
+    preflight. With positive cluster denominators and at least one repeated
+    observation, the ICC denominator is zero exactly when every observation
+    has the same binary value.
+    """
+
+    if len(counts) < 3 or any(denominator <= 0 for _, denominator in counts):
+        return 0
+    total_observations = sum(denominator for _, denominator in counts)
+    if total_observations <= len(counts):
+        return 0
+    total_events = sum(numerator for numerator, _ in counts)
+    if total_events in {0, total_observations}:
+        return 0
+    return len(counts)
+
+
+@with_live_decimal_context
 def evaluate_paired_randomization_test(
     differences: tuple[Decimal, ...],
     *,
@@ -144,9 +258,9 @@ def evaluate_paired_randomization_test(
         compared_clusters=len(differences),
         observed_difference=signed_unit_decimal_string(observed),
         non_inferiority_margin=decimal_string(margin),
-        p_value=probability_string(p_value) if p_value is not None else None,
+        p_value=probability_upper_string(p_value) if p_value is not None else None,
         adjusted_p_value=(
-            probability_string(adjusted_p_value) if adjusted_p_value is not None else None
+            probability_upper_string(adjusted_p_value) if adjusted_p_value is not None else None
         ),
         exhaustive=exhaustive,
         resamples=resamples,
@@ -225,12 +339,18 @@ def _evaluate_endpoint(
         raise ValueError(
             f"statistical endpoint {endpoint.endpoint_id!r} rate is undefined for zero exposure"
         )
-    cluster_count = len({cluster_id for cluster_id, _ in values})
+    cluster_counts = _cluster_counts(values)
+    cluster_count = len(cluster_counts)
+    cluster_event_count = sum(1 for event_count, _ in cluster_counts.values() if event_count > 0)
     prerequisite_status = _endpoint_prerequisite_status(
         endpoint,
         denominator=denominator,
         cluster_count=cluster_count,
-        event_count=numerator,
+        event_count=(
+            cluster_event_count
+            if endpoint.analysis_method in _RARE_EVENT_ANALYSIS_METHODS
+            else numerator
+        ),
     )
     if protocol.cluster_by == "source_group_id" and prerequisite_status == "met":
         prerequisite_status = "exploratory"
@@ -258,7 +378,7 @@ def _evaluate_endpoint(
             "execution configuration is not protocol-bound; interpretation is exploratory"
         )
     rare_event_bound = None
-    if endpoint.analysis_method == "poisson_upper_bound":
+    if endpoint.analysis_method in _RARE_EVENT_ANALYSIS_METHODS:
         bonferroni_adjusted = (
             endpoint.interpretation == "confirmatory" and plan.multiplicity_method == "bonferroni"
         )
@@ -267,8 +387,8 @@ def _evaluate_endpoint(
             confidence_alpha = adjusted_alpha
         rare_event_bound = _rare_event_bound(
             endpoint,
-            observed_events=numerator,
-            exposure=denominator,
+            observed_events=cluster_event_count,
+            exposure=len(cluster_counts),
             confidence_alpha=confidence_alpha,
             bonferroni_adjusted=bonferroni_adjusted,
         )
@@ -286,7 +406,11 @@ def _evaluate_endpoint(
         endpoint_kind=endpoint.endpoint_kind,
         role=endpoint.role,
         interpretation=_effective_interpretation(endpoint.interpretation),
-        analysis_method=endpoint.analysis_method,
+        analysis_method=(
+            rare_event_bound.analysis_method
+            if rare_event_bound is not None
+            else endpoint.analysis_method
+        ),
         prerequisite_status=prerequisite_status,
         multiplicity_method=plan.multiplicity_method,
         adjusted_alpha=decimal_string(adjusted_alpha),
@@ -363,6 +487,7 @@ def _endpoint_prerequisite_status(
     return "met"
 
 
+@with_live_decimal_context
 def _endpoint_alpha(
     endpoint: StatisticalEndpointPlan,
     *,
@@ -373,10 +498,19 @@ def _endpoint_alpha(
     if endpoint.interpretation != "confirmatory":
         return alpha
     if plan.multiplicity_method == "bonferroni" and confirmatory_count > 1:
-        return alpha / Decimal(confirmatory_count)
+        adjusted = (alpha / Decimal(confirmatory_count)).quantize(
+            Decimal("0.000001"),
+            rounding=ROUND_FLOOR,
+        )
+        if adjusted <= Decimal("0"):
+            raise ValueError(
+                "Bonferroni-adjusted alpha is below the persisted six-decimal precision"
+            )
+        return adjusted
     return alpha
 
 
+@with_live_decimal_context
 def _adjust_p_value(
     p_value: Decimal,
     *,
@@ -414,6 +548,7 @@ def _endpoint_limitations(
     return tuple(limitations)
 
 
+@with_live_decimal_context
 def _rare_event_bound(
     endpoint: StatisticalEndpointPlan,
     *,
@@ -424,21 +559,55 @@ def _rare_event_bound(
 ) -> RareEventUpperBound:
     if exposure == 0:
         raise ValueError("rare-event rate and bound are undefined for zero exposure")
-    confidence_level = Decimal("1") - confidence_alpha
-    upper_count = _poisson_upper_count_bound(
+    interval = binomial_upper_bound_one_sided(
         observed_events,
-        alpha=confidence_alpha,
+        exposure,
+        confidence_alpha,
     )
-    upper_rate = upper_count / Decimal(exposure)
-    limitations = [
-        (
-            "rare-event Poisson bound is a one-sided upper bound at the endpoint-adjusted "
-            "confidence level after Bonferroni multiplicity control"
+    upper_rate = interval.upper_rate_bound
+    upper_count = interval.upper_count_bound
+    if interval.method == "clopper_pearson_exact_one_sided":
+        method_limitation = (
+            "rare-event exact binomial Clopper-Pearson bound is a one-sided upper bound "
+            "at the endpoint-adjusted confidence level after Bonferroni multiplicity control"
             if bonferroni_adjusted
-            else "rare-event Poisson bound is a one-sided upper bound at the protocol "
-            "confidence level"
+            else "rare-event exact binomial Clopper-Pearson bound is a one-sided upper "
+            "bound at the protocol confidence level"
         )
-    ]
+    elif interval.method == ZERO_EVENT_CLOSED_FORM_METHOD:
+        method_limitation = (
+            "zero-event rare-event analysis uses the exact Clopper-Pearson closed-form "
+            "boundary with rigorous rational log enclosures and outward serialization at "
+            + (
+                "the endpoint-adjusted confidence level after Bonferroni multiplicity control"
+                if bonferroni_adjusted
+                else "the protocol confidence level"
+            )
+        )
+    elif interval.method == BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD:
+        method_limitation = (
+            "nonzero rare-event exposure above the exact-computation ceiling uses a "
+            "separately labeled conservative one-sided Bernoulli KL-Chernoff upper "
+            "bound with rigorous rational log enclosures and outward serialization; "
+            "it uses "
+            + (
+                "the endpoint-adjusted alpha after Bonferroni multiplicity control"
+                if bonferroni_adjusted
+                else "the protocol alpha"
+            )
+        )
+    else:  # pragma: no cover - exhaustive guard for future method additions
+        raise AssertionError(f"unsupported binomial upper-bound method: {interval.method}")
+    limitations = [method_limitation]
+    if endpoint.analysis_method == "poisson_upper_bound":
+        limitations.append(
+            "the legacy Poisson selector was evaluated with the exact binomial method "
+            "because exposure is binary cluster incidence"
+        )
+    limitations.append(
+        "rare-event exposure is one binary event indicator per independence cluster; "
+        "the enclosing endpoint rate separately preserves raw observation counts"
+    )
     if observed_events == 0:
         limitations.append(
             "zero observed events produce an upper bound, not proof that the event is absent"
@@ -451,16 +620,17 @@ def _rare_event_bound(
         exposure=exposure,
         exposure_unit=endpoint.exposure_unit,
         event_rate=rate_string(observed_events, exposure),
-        upper_count_bound=decimal_string(upper_count),
-        upper_rate_bound=decimal_string(upper_rate),
-        confidence_level=decimal_string(confidence_level),
+        upper_count_bound=outward_upper_string(upper_count),
+        upper_rate_bound=outward_upper_string(upper_rate),
+        confidence_level=decimal_string(interval.confidence_level),
         interval_sidedness="one_sided_upper",
-        analysis_method="poisson_upper_bound",
+        analysis_method=interval.method,
         zero_events=observed_events == 0,
         limitations=tuple(limitations),
     )
 
 
+@with_live_decimal_context
 def _cluster_correlation_summary(
     endpoint: StatisticalEndpointPlan,
     values: tuple[tuple[str, bool], ...],
@@ -525,6 +695,13 @@ def _cluster_correlation_summary(
         and cluster_count >= plan.observed_icc_large_cluster_threshold
     ):
         confirmatory_use = "eligible_large_cluster_threshold"
+    if lower is None or upper is None:
+        ci_lower = ci_upper = None
+    elif lower == upper:
+        ci_lower = ci_upper = signed_unit_decimal_string(lower)
+    else:
+        ci_lower = signed_unit_lower_string(lower)
+        ci_upper = signed_unit_upper_string(upper)
     return ClusterCorrelationSummary(
         artifact_kind="cluster-correlation-summary",
         endpoint_id=endpoint.endpoint_id,
@@ -536,8 +713,8 @@ def _cluster_correlation_summary(
             signed_unit_decimal_string(observed_icc) if observed_icc is not None else None
         ),
         uncertainty_method=uncertainty_method,
-        ci_lower=signed_unit_decimal_string(lower) if lower is not None else None,
-        ci_upper=signed_unit_decimal_string(upper) if upper is not None else None,
+        ci_lower=ci_lower,
+        ci_upper=ci_upper,
         bootstrap_iterations=iterations,
         confirmatory_use=confirmatory_use,
         confirmatory_interval_uses_planned_icc=LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION,
@@ -553,6 +730,7 @@ def _cluster_counts(values: tuple[tuple[str, bool], ...]) -> dict[str, tuple[int
     return {cluster_id: (counts[0], counts[1]) for cluster_id, counts in clustered.items()}
 
 
+@with_live_decimal_context
 def _icc_from_counts(counts: tuple[tuple[int, int], ...]) -> Decimal | None:
     if len(counts) < 2:
         return None
@@ -585,6 +763,7 @@ def _icc_from_counts(counts: tuple[tuple[int, int], ...]) -> Decimal | None:
     return max(Decimal("-1"), min(Decimal("1"), (ms_between - ms_within) / denominator))
 
 
+@with_live_decimal_context
 def _bootstrap_icc_interval(
     counts: tuple[tuple[int, int], ...],
     *,
@@ -592,10 +771,15 @@ def _bootstrap_icc_interval(
     confidence_level: str,
     iterations: int,
 ) -> tuple[Decimal, Decimal] | None:
-    rng = seeded_random(seed)
+    if type(iterations) is not int or iterations < 1 or iterations > _ICC_BOOTSTRAP_ITERATIONS:
+        raise ValueError(
+            f"ICC bootstrap iterations must be between 1 and {_ICC_BOOTSTRAP_ITERATIONS}"
+        )
+    validate_live_resampling_work((("ICC bootstrap", iterations * len(counts)),))
+    sampler = seeded_sampler(seed)
     estimates: list[Decimal] = []
     for _ in range(iterations):
-        sample = tuple(counts[rng.randrange(len(counts))] for _ in range(len(counts)))
+        sample = tuple(counts[sampler.randbelow(len(counts))] for _ in range(len(counts)))
         estimate = _icc_from_counts(sample)
         if estimate is not None:
             estimates.append(estimate)
@@ -604,6 +788,7 @@ def _bootstrap_icc_interval(
     return percentile_interval(tuple(sorted(estimates)), confidence_level)
 
 
+@with_live_decimal_context
 def _permutation_p_value(
     differences: tuple[Decimal, ...],
     *,
@@ -617,12 +802,18 @@ def _permutation_p_value(
         )
     if not differences:
         raise ValueError("paired randomization is undefined for an empty sample")
+    if method not in {
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
+    }:
+        raise ValueError(f"unsupported paired randomization method: {method}")
     observed = mean_decimal(differences)
     if method == "paired_cluster_permutation_exact":
         if len(differences) > _MAX_EXACT_PERMUTATION_CLUSTERS:
             return Decimal("1"), 0, False
         count = 0
         total = 1 << len(differences)
+        validate_live_resampling_work((("exact paired permutation", total * len(differences)),))
         for mask in range(total):
             statistic = sum(
                 value if mask & (1 << index) else -value for index, value in enumerate(differences)
@@ -630,18 +821,22 @@ def _permutation_p_value(
             if statistic >= observed:
                 count += 1
         return Decimal(count) / Decimal(total), total, True
-    rng = seeded_random(seed)
+    sampler = seeded_sampler(seed)
     count = 1
+    validate_live_resampling_work(
+        (("Monte Carlo paired permutation", _MONTE_CARLO_RESAMPLES * len(differences)),)
+    )
     total = _MONTE_CARLO_RESAMPLES + 1
     for _ in range(_MONTE_CARLO_RESAMPLES):
-        statistic = sum(value if rng.randrange(2) else -value for value in differences) / Decimal(
-            len(differences)
-        )
+        statistic = sum(
+            value if sampler.randbelow(2) else -value for value in differences
+        ) / Decimal(len(differences))
         if statistic >= observed:
             count += 1
     return Decimal(count) / Decimal(total), total, False
 
 
+@with_live_decimal_context
 def _poisson_upper_count_bound(events: int, *, alpha: Decimal) -> Decimal:
     low = Decimal("0")
     high = max(Decimal("1"), Decimal(events + 1))
@@ -659,8 +854,7 @@ def _poisson_upper_count_bound(events: int, *, alpha: Decimal) -> Decimal:
 
 
 def _poisson_cdf(events: int, rate: Decimal) -> Decimal:
-    with localcontext() as context:
-        context.prec = max(50, len(str(events)) + 30)
+    with live_decimal_context(precision=max(50, len(str(events)) + 30)):
         rate = +rate
         term = (-rate).exp()
         total = term
@@ -670,5 +864,6 @@ def _poisson_cdf(events: int, rate: Decimal) -> Decimal:
         return +total
 
 
+@with_live_decimal_context
 def _confidence_alpha(confidence_level: str) -> Decimal:
     return Decimal("1") - Decimal(confidence_level)

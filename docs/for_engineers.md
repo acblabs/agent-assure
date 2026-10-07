@@ -16,7 +16,7 @@ make check
 
 Commands below that use
 `--allow-missing-efficacy-for-migration` or `--release-profile` describe the
-unreleased 0.6.6 source checkout. They are not options in the currently
+unreleased 0.7.0 source checkout. They are not options in the currently
 published v0.6.5 package; do not mix package and action versions.
 
 ## Run flagship demo

@@ -9,13 +9,41 @@ taxonomies:
     release_date: "2026-06-30"
     artifact_modified_date: "2026-05-27"
     format_version: "6.0.0"
-    source: https://atlas.mitre.org/atlas-data/dist/v6/ATLAS-2026.06.yaml
+    source: https://github.com/mitre-atlas/atlas-data/releases/download/v2026.06/ATLAS-2026.06.yaml
+    release_tag: v2026.06
+    release_commit: 651dad90d3c007e797c89356fa1f4d8732f90c8d
+    asset_sha256: b771de8b1489564b2838a709c7429849a9575dbd94073928817fe1a21661e70a
+    release_announcement_tactic_count: 16
+    release_announcement_technique_count: 104
+    release_announcement_sub_technique_count: 69
+    verified_tactic_count: 16
+    verified_base_technique_count: 103
+    verified_sub_technique_count: 70
     note: >
       Crosswalk only; maps local controls to ATLAS adversary tactics and
       techniques without claiming ATLAS coverage or validation. ATLAS uses
       richer strength, tactic, and technique fields because it is an adversary
       technique catalog; OWASP, NIST, and ISO remain tag-style review
       dimensions in this matrix.
+assessment_scopes:
+  system_under_test:
+    - runtime_success_required
+    - runset_completion_required
+    - structured_output_required
+    - valid_record_required
+    - evidence_required
+    - material_claims_have_evidence
+    - evidence_provenance_identity
+    - tool_allowlist
+    - provider_review_boundary
+    - human_review_required
+    - redaction_required
+    - prompt_injection_control_boundary
+    - live_persisted_policy_results
+  tool_integrity:
+    - live_config_path_confinement
+    - live_openai_endpoint_allowlist
+    - external_script_output_limit
 controls:
   - id: runtime_success_required
     status: evaluated
@@ -151,7 +179,7 @@ controls:
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
-    owasp_risks: [LLM06, LLM07]
+    owasp_risks: []
     mitre_atlas:
       mapping_strength: partial
       tactics: [AML.TA0006, AML.TA0008, AML.TA0013]
@@ -161,7 +189,7 @@ controls:
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
-    owasp_risks: [LLM05, LLM07]
+    owasp_risks: []
     mitre_atlas:
       mapping_strength: partial
       tactics: [AML.TA0000, AML.TA0014]
@@ -171,7 +199,7 @@ controls:
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [monitoring]
-    owasp_risks: [LLM06]
+    owasp_risks: []
     mitre_atlas:
       mapping_strength: partial
       tactics: [AML.TA0005, AML.TA0011]

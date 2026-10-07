@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
@@ -14,6 +16,7 @@ from agent_assure import __version__
 from agent_assure.artifact_io import (
     ensure_unlinked_directory,
     unlink_file_if_exists,
+    write_bytes_atomic,
     write_text_atomic,
 )
 from agent_assure.artifact_transaction import OutputPublicationRollback
@@ -28,20 +31,27 @@ from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    BoundedFileContents,
     load_json_bytes_bounded,
+    read_file_bounded_from_filesystem_root,
 )
 from agent_assure.mutation.campaign import build_core_catalog
 from agent_assure.onboarding.controls_mutation import ControlsMutationOnboardingConfig
 from agent_assure.onboarding.path_safety import read_confined_file_snapshot
-from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
+from agent_assure.policies.base import (
+    DEFAULT_GATE_PROFILE,
+    GateProfile,
+    Waiver,
+    control_finding_id,
+)
 from agent_assure.reporting.environment import (
     artifact_project_root,
     attach_comparison_environment,
     attach_evaluation_environment,
     build_release_manifest,
-    environment_with_dependency_inventory,
-    release_artifact,
+    collect_environment,
     source_project_root,
+    write_dependency_inventory,
     write_release_manifest,
 )
 from agent_assure.reporting.graph import write_evidence_graph
@@ -49,20 +59,24 @@ from agent_assure.reporting.json_report import write_comparison_json, write_eval
 from agent_assure.reporting.markdown import write_comparison_markdown, write_evaluation_markdown
 from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
+    PacketSourceFileSnapshot,
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
     load_comparison_summary_snapshot,
     load_evaluation_summary_snapshot,
     load_evidence_graph_snapshot,
     load_evidence_packet,
+    load_identity_bound_packet_source_file_snapshot,
     packet_artifact_digest_from_snapshot,
     packet_summary_files_binding_error,
-    packet_summary_files_binding_error_for_trusted_publication,
+    packet_summary_snapshots_binding_error,
+    release_artifact_from_source_snapshot,
     release_artifact_from_summary_snapshot,
     stochastic_source_runsets_binding_error,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.campaign import AssuranceMutationCatalog
 from agent_assure.schema.common import (
     V063_CONTRACT_SCHEMA_VERSIONS,
@@ -110,6 +124,7 @@ from agent_assure.schema.stochastic_sensitivity import (
 )
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
+    ArchivalOnlyArtifactError,
     load_json,
     load_validated_artifact_payload,
     project_validated_artifact_payload,
@@ -160,6 +175,14 @@ class EfficacyVerificationMode(StrEnum):
     strict = "strict"
 
 
+class WaiverAuthorizationState(StrEnum):
+    not_applicable = "not_applicable"
+    authorized_exact = "authorized_exact"
+
+
+CI_GATE_ENVELOPE_VERSION = "1.0.0"
+
+
 _GATE_OUTCOME_EXIT_CODES = {
     GateOutcome.invalid: 2,
     GateOutcome.fail: 1,
@@ -177,6 +200,58 @@ _PACKET_OUTCOME_PRECEDENCE = (
 
 
 @dataclass(frozen=True)
+class GateDecisionComponent:
+    """One machine-readable component of a composite CI gate decision."""
+
+    exit_code: int
+    outcome: GateOutcome
+    message: str
+    reason_code: str | None = None
+    artifact_kind: str = ""
+    waiver_authorization: WaiverAuthorizationState = WaiverAuthorizationState.not_applicable
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.outcome, GateOutcome):
+            raise TypeError("CI gate component outcome must be a GateOutcome")
+        if not isinstance(self.waiver_authorization, WaiverAuthorizationState):
+            raise TypeError(
+                "CI gate component waiver authorization must be a WaiverAuthorizationState"
+            )
+        expected_exit_code = _GATE_OUTCOME_EXIT_CODES[self.outcome]
+        if self.exit_code != expected_exit_code:
+            raise ValueError(
+                "CI gate component outcome/exit_code mismatch: "
+                f"{self.outcome.value} requires {expected_exit_code}, got {self.exit_code}"
+            )
+        if (
+            self.waiver_authorization is WaiverAuthorizationState.authorized_exact
+            and self.outcome is not GateOutcome.review
+        ):
+            raise ValueError("exact waiver authorization requires a review outcome")
+
+    @classmethod
+    def from_decision(cls, decision: GateDecision) -> GateDecisionComponent:
+        return cls(
+            exit_code=decision.exit_code,
+            outcome=decision.outcome,
+            message=decision.message,
+            reason_code=(decision.reason_code.value if decision.reason_code is not None else None),
+            artifact_kind=decision.artifact_kind,
+            waiver_authorization=decision.waiver_authorization,
+        )
+
+    def model_dump(self) -> dict[str, object]:
+        return {
+            "exit_code": self.exit_code,
+            "outcome": self.outcome.value,
+            "message": self.message,
+            "reason_code": self.reason_code,
+            "artifact_kind": self.artifact_kind,
+            "waiver_authorization": self.waiver_authorization.value,
+        }
+
+
+@dataclass(frozen=True)
 class GateDecision:
     exit_code: int
     outcome: GateOutcome
@@ -190,6 +265,10 @@ class GateDecision:
     efficacy_evidence: EfficacyEvidenceState = EfficacyEvidenceState.not_applicable
     efficacy_verification: EfficacyVerificationMode = EfficacyVerificationMode.not_requested
     efficacy_required: bool = False
+    waiver_authorization: WaiverAuthorizationState = WaiverAuthorizationState.not_applicable
+    control_decision: GateDecisionComponent | None = None
+    efficacy_decision: GateDecisionComponent | None = None
+    component_decisions: tuple[GateDecisionComponent, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.outcome, GateOutcome):
@@ -198,15 +277,56 @@ class GateDecision:
             raise TypeError("CI gate efficacy evidence must be an EfficacyEvidenceState")
         if not isinstance(self.efficacy_verification, EfficacyVerificationMode):
             raise TypeError("CI gate efficacy verification must be an EfficacyVerificationMode")
+        if not isinstance(self.waiver_authorization, WaiverAuthorizationState):
+            raise TypeError("CI gate waiver authorization must be a WaiverAuthorizationState")
+        if not isinstance(self.component_decisions, tuple) or any(
+            not isinstance(component, GateDecisionComponent)
+            for component in self.component_decisions
+        ):
+            raise TypeError("CI gate component decisions must be GateDecisionComponent values")
+        if self.component_decisions:
+            aggregate_outcome = next(
+                outcome
+                for outcome in _PACKET_OUTCOME_PRECEDENCE
+                if any(component.outcome is outcome for component in self.component_decisions)
+            )
+            if self.outcome is not aggregate_outcome:
+                raise ValueError(
+                    "CI gate outcome must equal the highest-precedence component outcome"
+                )
         expected_exit_code = _GATE_OUTCOME_EXIT_CODES[self.outcome]
         if self.exit_code != expected_exit_code:
             raise ValueError(
                 "CI gate outcome/exit_code mismatch: "
                 f"{self.outcome.value} requires {expected_exit_code}, got {self.exit_code}"
             )
+        if (
+            self.waiver_authorization is WaiverAuthorizationState.authorized_exact
+            and self.outcome is not GateOutcome.review
+        ):
+            raise ValueError("exact waiver authorization requires a review outcome")
+        if (
+            self.waiver_authorization is WaiverAuthorizationState.authorized_exact
+            and self.component_decisions
+        ):
+            non_pass_components = tuple(
+                component
+                for component in self.component_decisions
+                if component.outcome is not GateOutcome.pass_
+            )
+            if not non_pass_components or any(
+                component.outcome is not GateOutcome.review
+                or component.waiver_authorization is not WaiverAuthorizationState.authorized_exact
+                for component in non_pass_components
+            ):
+                raise ValueError(
+                    "packet exact waiver authorization requires every non-pass "
+                    "component to be an exactly authorized review"
+                )
 
     def model_dump(self) -> dict[str, object]:
         return {
+            "envelope_version": CI_GATE_ENVELOPE_VERSION,
             "exit_code": self.exit_code,
             "outcome": self.outcome.value,
             "message": self.message,
@@ -217,7 +337,32 @@ class GateDecision:
             "efficacy_evidence": self.efficacy_evidence.value,
             "efficacy_verification": self.efficacy_verification.value,
             "efficacy_required": self.efficacy_required,
+            "waiver_authorization": self.waiver_authorization.value,
+            "control_decision": (
+                self.control_decision.model_dump() if self.control_decision is not None else None
+            ),
+            "efficacy_decision": (
+                self.efficacy_decision.model_dump() if self.efficacy_decision is not None else None
+            ),
+            "component_decisions": [
+                component.model_dump() for component in self.component_decisions
+            ],
         }
+
+
+def _packet_waiver_authorization(
+    decisions: list[GateDecision],
+) -> WaiverAuthorizationState:
+    non_pass_decisions = tuple(
+        decision for decision in decisions if decision.outcome is not GateOutcome.pass_
+    )
+    if non_pass_decisions and all(
+        decision.outcome is GateOutcome.review
+        and decision.waiver_authorization is WaiverAuthorizationState.authorized_exact
+        for decision in non_pass_decisions
+    ):
+        return WaiverAuthorizationState.authorized_exact
+    return WaiverAuthorizationState.not_applicable
 
 
 def _trusted_model_revalidation_message(subject: str, error: Exception) -> str:
@@ -256,7 +401,9 @@ def _efficacy_gate_decision(
     evidence: EfficacyEvidenceState,
     verification: EfficacyVerificationMode,
     required: bool,
-    reason_code: ReasonCode | ControlEfficacyGateReason | None = None,
+    reason_code: ReasonCode | ControlEfficacyGateReason | EvidenceSensitivityReasonCode | None = (
+        None
+    ),
     artifact_kind: str = "",
 ) -> GateDecision:
     return GateDecision(
@@ -688,8 +835,22 @@ def gate_evaluation_summary(
     fail_on_not_evaluated: bool = True,
 ) -> GateDecision:
     try:
-        summary = EvaluationSummary.model_validate(
-            summary.model_dump(mode="json", warnings="error")
+        payload = summary.model_dump(mode="json", warnings="error")
+        summary = EvaluationSummary.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "evaluation-summary")
+    except ArchivalOnlyArtifactError as error:
+        legacy_waiver_denial = _legacy_waiver_strict_ci_denial(
+            summary,
+            fail_on_warn=fail_on_warn,
+        )
+        if legacy_waiver_denial is not None:
+            return legacy_waiver_denial
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message("evaluation-summary", error),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="evaluation-summary",
         )
     except (TypeError, ValueError) as error:
         return GateDecision(
@@ -723,12 +884,54 @@ def gate_evaluation_summary(
             artifact_kind=summary.artifact_kind,
         )
 
-    decision = _decision_for_state(
-        summary.state,
-        subject=f"evaluation-summary {summary.runset_id}",
-        fail_on_warn=fail_on_warn,
-        fail_on_not_evaluated=fail_on_not_evaluated,
+    waiver_identity_error = _evaluation_waiver_identity_error(summary)
+    if waiver_identity_error is not None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=f"ci gate invalid: {waiver_identity_error}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=summary.artifact_kind,
+        )
+
+    not_evaluated_finding = next(
+        (finding for finding in summary.findings if finding.state is GateState.not_evaluated),
+        None,
     )
+    if fail_on_not_evaluated and not_evaluated_finding is not None:
+        return GateDecision(
+            exit_code=1,
+            outcome=GateOutcome.fail,
+            message=(
+                "ci gate fail: evaluation-summary "
+                f"{summary.runset_id} contains a finding with state=not_evaluated"
+            ),
+            reason_code=not_evaluated_finding.reason_code,
+            artifact_kind=summary.artifact_kind,
+        )
+
+    warnings_fully_waived = _evaluation_warnings_fully_waived(
+        summary,
+        verification_date=_current_gate_verification_date(),
+    )
+    decision = replace(
+        _decision_for_state(
+            summary.state,
+            subject=f"evaluation-summary {summary.runset_id}",
+            fail_on_warn=fail_on_warn and not warnings_fully_waived,
+            fail_on_not_evaluated=fail_on_not_evaluated,
+        ),
+        artifact_kind=summary.artifact_kind,
+    )
+    if warnings_fully_waived and summary.state is GateState.warn and decision.exit_code == 0:
+        decision = replace(
+            decision,
+            waiver_authorization=WaiverAuthorizationState.authorized_exact,
+            message=(
+                f"{decision.message}; disposition=authorized-exact-waiver; "
+                "unrelated_warnings_remain_blocking"
+            ),
+        )
     if decision.exit_code:
         finding = summary.findings[0] if summary.findings else None
         return GateDecision(
@@ -741,6 +944,115 @@ def gate_evaluation_summary(
     return decision
 
 
+def _legacy_waiver_strict_ci_denial(
+    summary: EvaluationSummary,
+    *,
+    fail_on_warn: bool,
+) -> GateDecision | None:
+    """Keep parseable legacy waivers non-authorizing under a strict warning policy.
+
+    Historical evaluation summaries remain archival-only at every public artifact
+    trust boundary.  The typed compatibility model can nevertheless encounter a
+    previously parsed v0.6.x summary.  When such a summary carries legacy waiver
+    metadata that cannot satisfy the current governance contract, preserve the
+    ordinary strict-warning result (a policy failure) without granting waiver
+    authority.  Every other archival summary remains invalid.
+    """
+
+    context = summary.replay_context
+    if (
+        summary.schema_version == SCHEMA_VERSION
+        or not fail_on_warn
+        or summary.state is not GateState.warn
+        or context is None
+        or not context.waivers
+    ):
+        return None
+    warning_finding = next(
+        (finding for finding in summary.findings if finding.state is GateState.warn),
+        None,
+    )
+    return GateDecision(
+        exit_code=1,
+        outcome=GateOutcome.fail,
+        message=(
+            "ci gate fail: evaluation-summary "
+            f"{summary.runset_id} state=warn; legacy waiver metadata from "
+            f"schema_version={summary.schema_version} is archival-only and cannot "
+            "authorize strict CI"
+        ),
+        reason_code=(
+            warning_finding.reason_code if warning_finding is not None else ReasonCode.POLICY_FAILED
+        ),
+        artifact_kind=summary.artifact_kind,
+    )
+
+
+def _current_gate_verification_date() -> date:
+    """Return a conservative, non-overridable date for waiver authorization."""
+
+    return max(date.today(), datetime.now(UTC).date())
+
+
+def _evaluation_waiver_identity_error(summary: EvaluationSummary) -> str | None:
+    """Reject ambiguous or rebound finding identities before honoring waivers."""
+
+    context = summary.replay_context
+    if summary.schema_version != SCHEMA_VERSION or context is None or not context.waivers:
+        return None
+    seen_finding_ids: set[str] = set()
+    for finding in summary.findings:
+        expected_finding_id = control_finding_id(
+            finding.case_id,
+            finding.control_id,
+            finding.reason_code,
+            finding.target,
+        )
+        if finding.finding_id != expected_finding_id:
+            return (
+                "waiver-bearing evaluation-summary contains a noncanonical "
+                f"finding_id for control {finding.control_id!r}"
+            )
+        if finding.finding_id in seen_finding_ids:
+            return (
+                "waiver-bearing evaluation-summary contains duplicate finding_id "
+                f"{finding.finding_id!r}"
+            )
+        seen_finding_ids.add(finding.finding_id)
+    return None
+
+
+def _evaluation_warnings_fully_waived(
+    summary: EvaluationSummary,
+    *,
+    verification_date: date,
+) -> bool:
+    """Return true only when every warning has exact, active replay authority."""
+
+    if summary.schema_version != SCHEMA_VERSION:
+        return False
+    context = summary.replay_context
+    if context is None or summary.runset_digest is None:
+        return False
+    if verification_date < context.evaluation_date:
+        return False
+    warning_findings = tuple(
+        finding for finding in summary.findings if finding.state is GateState.warn
+    )
+    if not warning_findings:
+        return False
+    return all(
+        any(
+            waiver.artifact_digest == summary.runset_digest
+            and waiver.finding_id == finding.finding_id
+            and waiver.reason_code is finding.reason_code
+            and waiver.expires_on >= verification_date
+            for waiver in context.waivers
+        )
+        for finding in warning_findings
+    )
+
+
 def gate_comparison_summary(
     summary: ComparisonSummary,
     *,
@@ -749,9 +1061,9 @@ def gate_comparison_summary(
     allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
     try:
-        summary = ComparisonSummary.model_validate(
-            summary.model_dump(mode="json", warnings="error")
-        )
+        payload = summary.model_dump(mode="json", warnings="error")
+        summary = ComparisonSummary.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "comparison-summary")
     except (TypeError, ValueError) as error:
         return GateDecision(
             exit_code=2,
@@ -831,18 +1143,24 @@ def gate_comparison_summary(
             if legacy_unbound_comparison
             else decision
         )
-    decision = _decision_for_state(
-        summary.candidate_state,
-        subject=subject,
-        fail_on_warn=fail_on_warn,
-        fail_on_not_evaluated=fail_on_not_evaluated,
+    decision = replace(
+        _decision_for_state(
+            summary.candidate_state,
+            subject=subject,
+            fail_on_warn=fail_on_warn,
+            fail_on_not_evaluated=fail_on_not_evaluated,
+        ),
+        artifact_kind=summary.artifact_kind,
     )
     if persistent_failure and summary.candidate_state is GateState.warn:
+        disposition = (
+            "blocking-candidate-warning" if fail_on_warn else "nonblocking-candidate-evaluation"
+        )
         decision = replace(
             decision,
             message=(
                 f"{decision.message}; classification={summary.classification.value}; "
-                "raw_regression=true; disposition=nonblocking-candidate-evaluation"
+                f"raw_regression=true; disposition={disposition}"
             ),
         )
     return (
@@ -856,6 +1174,7 @@ def gate_evidence_packet(
     packet: EvidencePacket,
     *,
     artifact_root: Path | None = None,
+    artifact_snapshots_by_path: Mapping[str, BoundedFileContents] | None = None,
     stochastic_source_runsets: tuple[RunSet, RunSet] | None = None,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = True,
@@ -877,7 +1196,9 @@ def gate_evidence_packet(
     escape hatch and is the only supported way to accept missing efficacy.
     """
     try:
-        packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
+        payload = packet.model_dump(mode="json", warnings="error")
+        packet = EvidencePacket.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "evidence-packet")
     except (TypeError, ValueError) as error:
         return GateDecision(
             exit_code=2,
@@ -917,13 +1238,28 @@ def gate_evidence_packet(
                 required=False,
                 artifact_kind=packet.artifact_kind,
             )
-    if packet.release_manifest is not None and artifact_root is None:
+    if artifact_root is not None and artifact_snapshots_by_path is not None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=(
+                "ci gate invalid: choose either artifact_root or exact artifact snapshots, not both"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=packet.artifact_kind,
+        )
+    if (
+        packet.release_manifest is not None
+        and artifact_root is None
+        and artifact_snapshots_by_path is None
+    ):
         return GateDecision(
             exit_code=2,
             outcome=GateOutcome.invalid,
             message=(
                 "ci gate invalid: a release-manifest-bearing evidence packet requires "
-                "artifact_root so every advertised file and nested binding can be verified"
+                "artifact_root or exact snapshots so every advertised file and nested "
+                "binding can be verified"
             ),
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind=packet.artifact_kind,
@@ -1054,10 +1390,17 @@ def gate_evidence_packet(
                     artifact_kind=packet.artifact_kind,
                 )
             )
-    if artifact_root is not None:
-        summary_file_error = packet_summary_files_binding_error(
-            packet,
-            artifact_root=artifact_root,
+    if artifact_root is not None or artifact_snapshots_by_path is not None:
+        summary_file_error = (
+            packet_summary_files_binding_error(
+                packet,
+                artifact_root=artifact_root,
+            )
+            if artifact_root is not None
+            else packet_summary_snapshots_binding_error(
+                packet,
+                snapshots_by_path=artifact_snapshots_by_path or {},
+            )
         )
         if summary_file_error is not None:
             return finish(
@@ -1223,10 +1566,18 @@ def gate_evidence_packet(
             )
         decisions.append(efficacy_decision)
     elif efficacy_required:
+        underlying_decision = next(
+            candidate
+            for outcome in _PACKET_OUTCOME_PRECEDENCE
+            for candidate in decisions
+            if candidate.outcome is outcome
+        )
         return finish(
             _missing_packet_efficacy_decision(
                 packet,
                 strict_efficacy=strict_efficacy,
+                underlying_decision=underlying_decision,
+                decisions=decisions,
             )
         )
     controlling_decision = next(
@@ -1235,6 +1586,10 @@ def gate_evidence_packet(
         for candidate in decisions
         if candidate.outcome is outcome
     )
+    component_decisions = tuple(
+        GateDecisionComponent.from_decision(candidate) for candidate in decisions
+    )
+    packet_waiver_authorization = _packet_waiver_authorization(decisions)
     stochastic_requirement_suffix = ""
     if (
         require_stochastic_evidence_sensitivity
@@ -1253,6 +1608,7 @@ def gate_evidence_packet(
                 packet,
                 controlling_decision,
                 efficacy_decision,
+                decisions=decisions,
                 verifier_policy=verifier_policy,
                 efficacy_required=efficacy_required,
             ),
@@ -1269,6 +1625,8 @@ def gate_evidence_packet(
                 else EfficacyVerificationMode.not_requested
             ),
             efficacy_required=efficacy_required,
+            waiver_authorization=packet_waiver_authorization,
+            component_decisions=component_decisions,
         )
         return finish(decision)
     if efficacy_decision is not None:
@@ -1285,6 +1643,7 @@ def gate_evidence_packet(
             efficacy_evidence=EfficacyEvidenceState.present,
             efficacy_verification=efficacy_decision.efficacy_verification,
             efficacy_required=efficacy_required,
+            component_decisions=component_decisions,
         )
         return finish(decision)
     decision = _efficacy_gate_decision(
@@ -1298,7 +1657,7 @@ def gate_evidence_packet(
         required=False,
         artifact_kind=packet.artifact_kind,
     )
-    return finish(decision)
+    return finish(replace(decision, component_decisions=component_decisions))
 
 
 def _gate_stochastic_sensitivity_report(
@@ -1309,9 +1668,9 @@ def _gate_stochastic_sensitivity_report(
 ) -> GateDecision:
     """Map a coherent stochastic result into packet CI gate semantics."""
     try:
-        report = StochasticEvidenceSensitivityReport.model_validate(
-            report.model_dump(mode="json", warnings="error")
-        )
+        payload = report.model_dump(mode="json", warnings="error")
+        report = StochasticEvidenceSensitivityReport.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "stochastic-evidence-sensitivity-report")
     except (TypeError, ValueError) as error:
         return GateDecision(
             exit_code=2,
@@ -1401,9 +1760,9 @@ def gate_evidence_sensitivity_report(
 ) -> GateDecision:
     """Map the report's typed gate role into the common CI outcome vocabulary."""
     try:
-        report = RAGSensitivityReport.model_validate(
-            report.model_dump(mode="json", warnings="error")
-        )
+        payload = report.model_dump(mode="json", warnings="error")
+        report = RAGSensitivityReport.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "evidence-sensitivity-report")
     except (TypeError, ValueError) as error:
         return GateDecision(
             exit_code=2,
@@ -1505,10 +1864,21 @@ def _packet_gate_message(
     controlling_decision: GateDecision,
     efficacy_decision: GateDecision | None,
     *,
+    decisions: list[GateDecision] | None = None,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     efficacy_required: bool,
 ) -> str:
     parts = [controlling_decision.message]
+    for component in decisions or [controlling_decision]:
+        if component is controlling_decision or component.outcome is GateOutcome.pass_:
+            continue
+        parts.append(
+            "additional packet component decision: "
+            f"artifact_kind={component.artifact_kind or 'unspecified'} "
+            f"outcome={component.outcome.value} "
+            f"waiver_authorization={component.waiver_authorization.value}; "
+            f"{component.message}"
+        )
     if efficacy_decision is not None and controlling_decision is not efficacy_decision:
         report = packet.control_efficacy
         gate = packet.control_efficacy_gate
@@ -1545,20 +1915,60 @@ def _missing_packet_efficacy_decision(
     packet: EvidencePacket,
     *,
     strict_efficacy: bool,
+    underlying_decision: GateDecision | None = None,
+    decisions: list[GateDecision] | None = None,
 ) -> GateDecision:
-    return _efficacy_gate_decision(
+    preserved_reason_code = None
+    efficacy_message = (
+        "ci gate invalid: evidence-packet "
+        f"{packet.packet_id} has no control-efficacy evidence; it is required "
+        "by the default evidence-packet gate; only the explicitly named "
+        "non-assurance migration override may accept absence"
+    )
+    source_decisions = decisions or (
+        [underlying_decision] if underlying_decision is not None else []
+    )
+    message = efficacy_message
+    if underlying_decision is not None and underlying_decision.outcome is not GateOutcome.pass_:
+        preserved_reason_code = underlying_decision.reason_code
+    for component in source_decisions:
+        if component.outcome is GateOutcome.pass_:
+            continue
+        reason = component.reason_code.value if component.reason_code is not None else "none"
+        message += (
+            "; underlying packet component decision preserved: "
+            f"artifact_kind={component.artifact_kind or 'unspecified'} "
+            f"outcome={component.outcome.value} reason_code={reason}; "
+            f"{component.message}"
+        )
+    decision = _efficacy_gate_decision(
         exit_code=2,
         outcome=GateOutcome.invalid,
-        message=(
-            "ci gate invalid: evidence-packet "
-            f"{packet.packet_id} has no control-efficacy evidence; it is required "
-            "by the default evidence-packet gate; only the explicitly named "
-            "non-assurance migration override may accept absence"
-        ),
+        message=message,
         evidence=EfficacyEvidenceState.absent,
         verification=_efficacy_mode(strict_efficacy),
         required=True,
+        reason_code=preserved_reason_code,
         artifact_kind=packet.artifact_kind,
+    )
+    efficacy_component = GateDecisionComponent(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=efficacy_message,
+        artifact_kind=packet.artifact_kind,
+    )
+    return replace(
+        decision,
+        control_decision=(
+            GateDecisionComponent.from_decision(underlying_decision)
+            if underlying_decision is not None
+            else None
+        ),
+        efficacy_decision=efficacy_component,
+        component_decisions=(
+            *(GateDecisionComponent.from_decision(component) for component in source_decisions),
+            efficacy_component,
+        ),
     )
 
 
@@ -1822,9 +2232,9 @@ def gate_control_efficacy_report(
     """Gate a report using verifier-owned policy when strict verification is requested."""
     efficacy_required = require_efficacy or verifier_policy is not None
     try:
-        report = ControlEfficacyReport.model_validate(
-            report.model_dump(mode="json", warnings="error")
-        )
+        payload = report.model_dump(mode="json", warnings="error")
+        report = ControlEfficacyReport.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "control-efficacy-report")
     except (TypeError, ValueError) as error:
         return _efficacy_gate_decision(
             exit_code=2,
@@ -1913,9 +2323,15 @@ def gate_control_efficacy_decision(
 ) -> GateDecision:
     resolved_verification = verification_mode or _efficacy_mode(strict_efficacy)
     try:
-        report = ControlEfficacyReport.model_validate(report.model_dump(mode="json"))
-        profile = ControlEfficacyGateProfile.model_validate(profile.model_dump(mode="json"))
-        decision = ControlEfficacyGateDecision.model_validate(decision.model_dump(mode="json"))
+        report_payload = report.model_dump(mode="json", warnings="error")
+        report = ControlEfficacyReport.model_validate(report_payload)
+        validate_loaded_artifact_payload(report_payload, "control-efficacy-report")
+        profile = ControlEfficacyGateProfile.model_validate(
+            profile.model_dump(mode="json", warnings="error")
+        )
+        decision = ControlEfficacyGateDecision.model_validate(
+            decision.model_dump(mode="json", warnings="error")
+        )
         expected_decision = evaluate_control_efficacy_gate(report, profile)
     except (TypeError, ValueError):
         return _efficacy_gate_decision(
@@ -2124,8 +2540,6 @@ def run_ci(
         if path is not None
     )
     _ensure_ci_inputs_do_not_alias_outputs(input_paths, out_dir)
-    ensure_unlinked_directory(out_dir)
-    _remove_previous_ci_outputs(out_dir)
     source_root = (
         project_root.resolve()
         if project_root is not None
@@ -2155,32 +2569,28 @@ def run_ci(
         ),
         default_root=source_root,
     )
-    environment = environment_with_dependency_inventory(
-        source_root,
-        out_dir,
-        artifact_root=artifact_root,
-    )
+
+    # Every authored and persisted source is admitted, evaluated, and gated
+    # before the first byte is written to the caller-owned output directory.
     suite = load_compiled_suite(suite_path)
     candidate = _load_runset(candidate_runset_path)
-    candidate_report = attach_evaluation_environment(
-        evaluate_runset(
-            suite,
-            candidate,
-            gate_profile=gate_profile,
-            waivers=waivers,
-            today=today or date.today(),
-        ),
-        environment,
+    evaluation_date = today or date.today()
+    candidate_report = evaluate_runset(
+        suite,
+        candidate,
+        gate_profile=gate_profile,
+        waivers=waivers,
+        today=evaluation_date,
     )
     if report_mode == "fail-fast":
         candidate_report = _fail_fast_evaluation_report(candidate_report)
-    report_paths = list(_write_evaluation_outputs(candidate_report, out_dir))
     decision = gate_evaluation_summary(
         candidate_report.candidate_vs_expectations,
+        fail_on_warn=gate_profile.fail_on_warn,
         fail_on_not_evaluated=not allow_not_evaluated,
     )
+    comparison_report: ComparisonReport | None = None
     comparison_summary: ComparisonSummary | None = None
-    comparison_paths: tuple[Path, ...] = ()
 
     if not (report_mode == "fail-fast" and decision.exit_code) and baseline_runset_path is not None:
         baseline = _load_runset(baseline_runset_path)
@@ -2190,109 +2600,294 @@ def run_ci(
             candidate=candidate,
             gate_profile=gate_profile,
             waivers=waivers,
-            today=today or date.today(),
+            today=evaluation_date,
         )
-        comparison_report = attach_comparison_environment(comparison_report, environment)
-        comparison_paths = _write_comparison_outputs(comparison_report, out_dir)
-        report_paths.extend(comparison_paths)
         comparison_summary = comparison_report.comparison_summary
         decision = gate_comparison_summary(
             comparison_summary,
+            fail_on_warn=gate_profile.fail_on_warn,
             fail_on_not_evaluated=not allow_not_evaluated,
         )
 
-    try:
-        packet_path, packet_markdown_path, graph_path, manifest_path = _write_ci_packet(
+    # Render the complete candidate generation privately. A renderer, packet
+    # binder, or gate may fail here without disturbing prior public evidence.
+    with tempfile.TemporaryDirectory(prefix="agent-assure-ci-") as staging_parent:
+        staging_dir = Path(staging_parent) / "outputs"
+        ensure_unlinked_directory(staging_dir)
+        initial_environment = collect_environment(project_root=source_root)
+        inventory_digest = write_dependency_inventory(
+            initial_environment,
+            staging_dir / "dependency-inventory.json",
+        )
+        environment = collect_environment(
+            project_root=source_root,
+            artifact_root=artifact_root,
+            dependency_inventory_path=out_dir / "dependency-inventory.json",
+            dependency_inventory_digest=inventory_digest,
+        )
+        candidate_report = attach_evaluation_environment(candidate_report, environment)
+        if comparison_report is not None:
+            comparison_report = attach_comparison_environment(comparison_report, environment)
+            comparison_summary = comparison_report.comparison_summary
+
+        staged_report_paths = list(_write_evaluation_outputs(candidate_report, staging_dir))
+        comparison_paths: tuple[Path, ...] = ()
+        if comparison_report is not None:
+            comparison_paths = _write_comparison_outputs(comparison_report, staging_dir)
+            staged_report_paths.extend(comparison_paths)
+
+        try:
+            (
+                staged_packet_path,
+                staged_packet_markdown_path,
+                staged_graph_path,
+                staged_manifest_path,
+                artifact_snapshots,
+            ) = _write_ci_packet(
+                out_dir=staging_dir,
+                published_out_dir=out_dir,
+                environment=environment,
+                evaluation_summary_path=staging_dir / "evaluation-summary.json",
+                comparison_summary_path=(
+                    (staging_dir / "comparison-summary.json") if comparison_paths else None
+                ),
+                expected_evaluation_summary=candidate_report.candidate_vs_expectations,
+                expected_comparison_summary=comparison_summary,
+                suite_path=suite_path,
+                candidate_runset_path=candidate_runset_path,
+                baseline_runset_path=baseline_runset_path,
+                project_root=artifact_root,
+            )
+        except _CiPacketBindingError as exc:
+            return CiRunResult(
+                decision=GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {exc}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind="evidence-packet",
+                ),
+                report_paths=(),
+                packet_path=out_dir / "evidence-packet.json",
+            )
+        packet = load_evidence_packet(staged_packet_path)
+        artifact_snapshots = _refresh_staged_packet_snapshots(
+            artifact_snapshots,
+            staging_dir=staging_dir,
+            published_out_dir=out_dir,
+            artifact_root=artifact_root,
+        )
+        final_binding_error = packet_summary_snapshots_binding_error(
+            packet,
+            snapshots_by_path=artifact_snapshots,
+        )
+        if final_binding_error is not None:
+            return CiRunResult(
+                decision=GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {final_binding_error}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind="evidence-packet",
+                ),
+                report_paths=(),
+                packet_path=out_dir / "evidence-packet.json",
+            )
+        packet_decision = gate_evidence_packet(
+            packet,
+            artifact_snapshots_by_path=artifact_snapshots,
+            fail_on_warn=gate_profile.fail_on_warn,
+            fail_on_not_evaluated=not allow_not_evaluated,
+            allow_missing_efficacy_for_migration=allow_missing_efficacy_for_migration,
+        )
+        if (
+            packet_decision.outcome is GateOutcome.invalid
+            or (decision.exit_code == 0 and packet_decision.exit_code != 0)
+            or allow_missing_efficacy_for_migration
+        ):
+            decision = packet_decision
+
+        staged_report_paths.extend(
+            (
+                staged_packet_path,
+                staged_packet_markdown_path,
+                staged_graph_path,
+                staged_manifest_path,
+                staging_dir / "dependency-inventory.json",
+            )
+        )
+        final_report_paths = tuple(out_dir / path.name for path in staged_report_paths)
+        diagnostics_path = None
+        if decision.exit_code:
+            reason_code = decision.reason_code
+            if (
+                reason_code is ReasonCode.POLICY_FAILED
+                and decision.outcome is not GateOutcome.invalid
+                and candidate_report.failed_controls
+            ):
+                reason_code = candidate_report.failed_controls[0].reason_code
+            diagnostics_path = out_dir / "ci-diagnostics.json"
+            decision = GateDecision(
+                exit_code=decision.exit_code,
+                outcome=decision.outcome,
+                message=decision.message,
+                reason_code=reason_code,
+                artifact_kind=decision.artifact_kind,
+                artifact_path=str(out_dir / "evidence-packet.json"),
+                validator=decision.validator,
+                efficacy_evidence=decision.efficacy_evidence,
+                efficacy_verification=decision.efficacy_verification,
+                efficacy_required=decision.efficacy_required,
+                waiver_authorization=decision.waiver_authorization,
+                control_decision=decision.control_decision,
+                efficacy_decision=decision.efficacy_decision,
+                component_decisions=decision.component_decisions,
+            )
+            write_diagnostics(
+                decision,
+                staging_dir / diagnostics_path.name,
+                report_paths=final_report_paths,
+            )
+
+        desired_names = tuple(path.name for path in staged_report_paths)
+        if diagnostics_path is not None:
+            desired_names = (*desired_names, diagnostics_path.name)
+        _publish_ci_outputs(
+            staging_dir=staging_dir,
             out_dir=out_dir,
-            environment=environment,
-            evaluation_summary_path=out_dir / "evaluation-summary.json",
-            comparison_summary_path=(
-                (out_dir / "comparison-summary.json") if comparison_paths else None
-            ),
-            expected_evaluation_summary=candidate_report.candidate_vs_expectations,
-            expected_comparison_summary=comparison_summary,
-            suite_path=suite_path,
-            candidate_runset_path=candidate_runset_path,
-            baseline_runset_path=baseline_runset_path,
-            project_root=artifact_root,
-        )
-    except _CiPacketBindingError as exc:
-        packet_path = out_dir / "evidence-packet.json"
-        report_paths.append(out_dir / "dependency-inventory.json")
-        decision = GateDecision(
-            exit_code=2,
-            outcome=GateOutcome.invalid,
-            message=f"ci gate invalid: {exc}",
-            reason_code=ReasonCode.POLICY_FAILED,
-            artifact_kind="evidence-packet",
-        )
-        binding_diagnostics_path = out_dir / "ci-diagnostics.json"
-        write_diagnostics(
-            decision,
-            binding_diagnostics_path,
-            report_paths=tuple(report_paths),
+            desired_names=desired_names,
+            expected_contents_by_name={
+                name: artifact_snapshots[
+                    _ci_artifact_relative_path(
+                        out_dir / name,
+                        artifact_root=artifact_root,
+                    )
+                ].data
+                for name in (
+                    "evaluation-summary.json",
+                    "assurance-evidence-graph.json",
+                    "dependency-inventory.json",
+                    *(("comparison-summary.json",) if comparison_paths else ()),
+                )
+            },
         )
         return CiRunResult(
             decision=decision,
-            report_paths=tuple((*report_paths, binding_diagnostics_path)),
-            packet_path=packet_path,
-            diagnostics_path=binding_diagnostics_path,
+            report_paths=(
+                *final_report_paths,
+                *(() if diagnostics_path is None else (diagnostics_path,)),
+            ),
+            packet_path=out_dir / "evidence-packet.json",
+            diagnostics_path=diagnostics_path,
         )
-    packet_decision = gate_evidence_packet(
-        load_evidence_packet(packet_path),
-        artifact_root=artifact_root,
-        fail_on_not_evaluated=not allow_not_evaluated,
-        allow_missing_efficacy_for_migration=allow_missing_efficacy_for_migration,
-    )
-    if (
-        packet_decision.outcome is GateOutcome.invalid
-        or (decision.exit_code == 0 and packet_decision.exit_code != 0)
-        or allow_missing_efficacy_for_migration
+
+
+def _publish_ci_outputs(
+    *,
+    staging_dir: Path,
+    out_dir: Path,
+    desired_names: tuple[str, ...],
+    expected_contents_by_name: Mapping[str, bytes],
+) -> None:
+    """Commit one fully rendered CI generation with byte-exact rollback."""
+
+    if len(set(desired_names)) != len(desired_names):
+        raise ValueError("CI publication output names must be unique")
+    unsupported = set(desired_names).difference(_CI_OUTPUT_FILENAMES)
+    if unsupported:
+        raise ValueError("CI publication contains an unsupported owned output")
+    staged_contents = {
+        name: read_file_bounded_from_filesystem_root(
+            staging_dir / name,
+            max_bytes=_MAX_CI_PACKET_ROLLBACK_BYTES,
+            label=f"staged CI {name}",
+        ).data
+        for name in desired_names
+    }
+    if any(
+        staged_contents.get(name) != expected
+        for name, expected in expected_contents_by_name.items()
     ):
-        decision = packet_decision
-    report_paths.extend(
-        (
-            packet_path,
-            packet_markdown_path,
-            graph_path,
-            manifest_path,
-            out_dir / "dependency-inventory.json",
-        )
+        raise _CiPacketBindingError("staged CI evidence changed after packet verification")
+    owned_paths = tuple(out_dir / name for name in _CI_OUTPUT_FILENAMES)
+    rollback = OutputPublicationRollback.capture(
+        owned_paths,
+        max_bytes=_MAX_CI_PACKET_ROLLBACK_BYTES,
+        label="CI output",
+        path_resolution_error="CI artifact path cannot be safely resolved",
+        concurrent_change_error=("CI output changed concurrently; refusing rollback overwrite"),
     )
-    diagnostics_path = None
-    if decision.exit_code:
-        reason_code = decision.reason_code
-        if (
-            reason_code is ReasonCode.POLICY_FAILED
-            and decision.outcome is not GateOutcome.invalid
-            and candidate_report.failed_controls
-        ):
-            reason_code = candidate_report.failed_controls[0].reason_code
-        diagnostics_path = out_dir / "ci-diagnostics.json"
-        decision = GateDecision(
-            exit_code=decision.exit_code,
-            outcome=decision.outcome,
-            message=decision.message,
-            reason_code=reason_code,
-            artifact_kind=decision.artifact_kind,
-            artifact_path=str(packet_path),
-            validator=decision.validator,
-            efficacy_evidence=decision.efficacy_evidence,
-            efficacy_verification=decision.efficacy_verification,
-            efficacy_required=decision.efficacy_required,
-        )
-        write_diagnostics(decision, diagnostics_path, report_paths=tuple(report_paths))
-    return CiRunResult(
-        decision=decision,
-        report_paths=tuple(report_paths),
-        packet_path=packet_path,
-        diagnostics_path=diagnostics_path,
-    )
+    out_dir_preexisted = out_dir.exists()
+    try:
+        ensure_unlinked_directory(out_dir)
+        for name in desired_names:
+            destination = out_dir / name
+            write_bytes_atomic(destination, staged_contents[name])
+            rollback.mark_written(destination)
+        for name in _CI_OUTPUT_FILENAMES:
+            if name in staged_contents:
+                continue
+            stale_path = out_dir / name
+            unlink_file_if_exists(stale_path)
+            rollback.mark_deleted(stale_path)
+    except BaseException:
+        try:
+            rollback.restore()
+        except BaseException as rollback_exc:
+            raise ValueError(
+                "CI publication failed and prior outputs could not be restored"
+            ) from rollback_exc
+        if not out_dir_preexisted:
+            try:
+                out_dir.rmdir()
+            except (FileNotFoundError, OSError):
+                # Preserve a concurrently created unrelated entry. The caller
+                # receives the original publication error without clobbering it.
+                pass
+        raise
 
 
-def _remove_previous_ci_outputs(out_dir: Path) -> None:
-    for filename in _CI_OUTPUT_FILENAMES:
-        unlink_file_if_exists(out_dir / filename)
+def _refresh_staged_packet_snapshots(
+    snapshots_by_path: Mapping[str, BoundedFileContents],
+    *,
+    staging_dir: Path,
+    published_out_dir: Path,
+    artifact_root: Path,
+) -> dict[str, BoundedFileContents]:
+    """Bind packet verification to the final staged bytes, not earlier models."""
+
+    refreshed = dict(snapshots_by_path)
+    for name in (
+        "evaluation-summary.json",
+        "comparison-summary.json",
+        "assurance-evidence-graph.json",
+        "dependency-inventory.json",
+    ):
+        relative_path = _ci_artifact_relative_path(
+            published_out_dir / name,
+            artifact_root=artifact_root,
+        )
+        if relative_path not in refreshed:
+            continue
+        refreshed[relative_path] = read_file_bounded_from_filesystem_root(
+            staging_dir / name,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label=f"staged CI {name}",
+        )
+    return refreshed
+
+
+def _ci_artifact_relative_path(path: Path, *, artifact_root: Path) -> str:
+    absolute_path = Path(os.path.abspath(path))
+    absolute_root = Path(os.path.abspath(artifact_root))
+    try:
+        relative = absolute_path.relative_to(absolute_root)
+    except ValueError as exc:
+        raise ValueError("CI artifact escapes its release artifact root") from exc
+    portable = relative.as_posix()
+    if not portable or portable == "." or "\\" in portable:
+        raise ValueError("CI artifact path is not normalized and confined")
+    return portable
 
 
 def _ensure_ci_output_directory_safe(out_dir: Path) -> None:
@@ -2465,6 +3060,7 @@ def _write_comparison_outputs(report: ComparisonReport, out_dir: Path) -> tuple[
 def _write_ci_packet(
     *,
     out_dir: Path,
+    published_out_dir: Path,
     environment: EnvironmentInfo,
     evaluation_summary_path: Path,
     comparison_summary_path: Path | None,
@@ -2474,21 +3070,36 @@ def _write_ci_packet(
     candidate_runset_path: Path,
     baseline_runset_path: Path | None,
     project_root: Path,
-) -> tuple[Path, Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path, dict[str, BoundedFileContents]]:
     evaluation_snapshot = load_evaluation_summary_snapshot(
         evaluation_summary_path,
-        root=project_root,
-        artifact_root=project_root,
+        root=out_dir,
+        artifact_root=out_dir,
+    )
+    evaluation_snapshot = replace(
+        evaluation_snapshot,
+        relative_path=_ci_artifact_relative_path(
+            published_out_dir / "evaluation-summary.json",
+            artifact_root=project_root,
+        ),
     )
     comparison_snapshot = (
         load_comparison_summary_snapshot(
             comparison_summary_path,
-            root=project_root,
-            artifact_root=project_root,
+            root=out_dir,
+            artifact_root=out_dir,
         )
         if comparison_summary_path is not None
         else None
     )
+    if comparison_snapshot is not None:
+        comparison_snapshot = replace(
+            comparison_snapshot,
+            relative_path=_ci_artifact_relative_path(
+                published_out_dir / "comparison-summary.json",
+                artifact_root=project_root,
+            ),
+        )
     if evaluation_snapshot.summary != expected_evaluation_summary:
         raise ValueError("evaluation summary changed before packet snapshot")
     if (comparison_snapshot is None) is not (expected_comparison_summary is None):
@@ -2508,100 +3119,134 @@ def _write_ci_packet(
     manifest_path = out_dir / "release-artifact-manifest.json"
     packet_path = out_dir / "evidence-packet.json"
     packet_markdown_path = out_dir / "evidence-packet.md"
-    rollback = OutputPublicationRollback.capture(
-        (graph_path, manifest_path, packet_path, packet_markdown_path),
-        max_bytes=_MAX_CI_PACKET_ROLLBACK_BYTES,
-        label="CI packet output",
-        path_resolution_error="CI artifact path cannot be safely resolved",
-        concurrent_change_error=(
-            "CI packet output changed concurrently; refusing rollback overwrite"
-        ),
+    suite_snapshot = load_identity_bound_packet_source_file_snapshot(
+        suite_path,
+        root=project_root,
+        artifact_root=project_root,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label="compiled suite",
     )
-    try:
-        write_evidence_graph(evidence_graph, graph_path)
-        rollback.mark_written(graph_path)
-        graph_snapshot = load_evidence_graph_snapshot(
-            graph_path,
+    candidate_snapshot = load_identity_bound_packet_source_file_snapshot(
+        candidate_runset_path,
+        root=project_root,
+        artifact_root=project_root,
+        max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+        label="candidate RunSet",
+    )
+    baseline_snapshot = (
+        load_identity_bound_packet_source_file_snapshot(
+            baseline_runset_path,
             root=project_root,
             artifact_root=project_root,
+            max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+            label="baseline RunSet",
         )
-        artifact_paths = [
-            release_artifact("compiled-suite", suite_path, project_root=project_root),
-            release_artifact("candidate-runset", candidate_runset_path, project_root=project_root),
-            release_artifact_from_summary_snapshot(
-                "evaluation-summary",
-                evaluation_snapshot,
-            ),
-            release_artifact_from_summary_snapshot(
-                "assurance-evidence-graph",
-                graph_snapshot,
-            ),
-            release_artifact(
-                "dependency-inventory",
-                out_dir / "dependency-inventory.json",
-                project_root=project_root,
-            ),
-        ]
-        packet_digests = [
-            packet_artifact_digest_from_snapshot(
-                "evaluation-summary",
-                evaluation_snapshot,
-            ),
-            packet_artifact_digest_from_snapshot(
-                "assurance-evidence-graph",
-                graph_snapshot,
-            ),
-        ]
-        if baseline_runset_path is not None and comparison_snapshot is not None:
-            artifact_paths.append(
-                release_artifact(
-                    "baseline-runset",
-                    baseline_runset_path,
-                    project_root=project_root,
-                )
-            )
-        if comparison_snapshot is not None:
-            artifact_paths.append(
-                release_artifact_from_summary_snapshot(
-                    "comparison-summary",
-                    comparison_snapshot,
-                )
-            )
-            packet_digests.append(
-                packet_artifact_digest_from_snapshot(
-                    "comparison-summary",
-                    comparison_snapshot,
-                )
-            )
-        manifest = build_release_manifest(tuple(artifact_paths), environment=environment)
-        packet = build_evidence_packet(
-            evaluation_snapshot.summary,
-            comparison=(comparison_snapshot.summary if comparison_snapshot is not None else None),
-            environment=environment,
-            release_manifest=manifest,
-            evidence_graph_digest=evidence_graph.graph_digest,
-            artifact_digests=tuple(packet_digests),
-            limitations=packet_limitations,
-        )
-        binding_error = packet_summary_files_binding_error_for_trusted_publication(
-            packet,
+        if baseline_runset_path is not None and comparison_snapshot is not None
+        else None
+    )
+    dependency_contents = read_file_bounded_from_filesystem_root(
+        out_dir / "dependency-inventory.json",
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label="dependency inventory",
+    )
+    dependency_snapshot = PacketSourceFileSnapshot(
+        contents=dependency_contents,
+        relative_path=_ci_artifact_relative_path(
+            published_out_dir / "dependency-inventory.json",
             artifact_root=project_root,
-            expected_graph=evidence_graph,
+        ),
+    )
+
+    write_evidence_graph(evidence_graph, graph_path)
+    graph_snapshot = load_evidence_graph_snapshot(
+        graph_path,
+        root=out_dir,
+        artifact_root=out_dir,
+    )
+    graph_snapshot = replace(
+        graph_snapshot,
+        relative_path=_ci_artifact_relative_path(
+            published_out_dir / "assurance-evidence-graph.json",
+            artifact_root=project_root,
+        ),
+    )
+    artifact_paths = [
+        release_artifact_from_source_snapshot("compiled-suite", suite_snapshot),
+        release_artifact_from_source_snapshot("candidate-runset", candidate_snapshot),
+        release_artifact_from_summary_snapshot(
+            "evaluation-summary",
+            evaluation_snapshot,
+        ),
+        release_artifact_from_summary_snapshot(
+            "assurance-evidence-graph",
+            graph_snapshot,
+        ),
+        release_artifact_from_source_snapshot(
+            "dependency-inventory",
+            dependency_snapshot,
+        ),
+    ]
+    packet_digests = [
+        packet_artifact_digest_from_snapshot(
+            "evaluation-summary",
+            evaluation_snapshot,
+        ),
+        packet_artifact_digest_from_snapshot(
+            "assurance-evidence-graph",
+            graph_snapshot,
+        ),
+    ]
+    if baseline_snapshot is not None:
+        artifact_paths.append(
+            release_artifact_from_source_snapshot("baseline-runset", baseline_snapshot)
         )
-        if binding_error is not None:
-            raise _CiPacketBindingError(binding_error)
-        write_release_manifest(manifest, manifest_path)
-        rollback.mark_written(manifest_path)
-        write_evidence_packet(packet, packet_path)
-        rollback.mark_written(packet_path)
-        write_evidence_packet_markdown(packet, packet_markdown_path)
-        rollback.mark_written(packet_markdown_path)
-    except BaseException:
-        try:
-            rollback.restore()
-        except BaseException as rollback_exc:
-            raise ValueError(
-                "CI packet publication failed and prior outputs could not be restored"
-            ) from rollback_exc
-        raise
-    return packet_path, packet_markdown_path, graph_path, manifest_path
+    if comparison_snapshot is not None:
+        artifact_paths.append(
+            release_artifact_from_summary_snapshot(
+                "comparison-summary",
+                comparison_snapshot,
+            )
+        )
+        packet_digests.append(
+            packet_artifact_digest_from_snapshot(
+                "comparison-summary",
+                comparison_snapshot,
+            )
+        )
+    manifest = build_release_manifest(tuple(artifact_paths), environment=environment)
+    packet = build_evidence_packet(
+        evaluation_snapshot.summary,
+        comparison=(comparison_snapshot.summary if comparison_snapshot is not None else None),
+        environment=environment,
+        release_manifest=manifest,
+        evidence_graph_digest=evidence_graph.graph_digest,
+        artifact_digests=tuple(packet_digests),
+        limitations=packet_limitations,
+    )
+    artifact_snapshots = {
+        suite_snapshot.relative_path: suite_snapshot.contents,
+        candidate_snapshot.relative_path: candidate_snapshot.contents,
+        evaluation_snapshot.relative_path: evaluation_snapshot.contents,
+        graph_snapshot.relative_path: graph_snapshot.contents,
+        dependency_snapshot.relative_path: dependency_snapshot.contents,
+    }
+    if baseline_snapshot is not None:
+        artifact_snapshots[baseline_snapshot.relative_path] = baseline_snapshot.contents
+    if comparison_snapshot is not None:
+        artifact_snapshots[comparison_snapshot.relative_path] = comparison_snapshot.contents
+    binding_error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=artifact_snapshots,
+    )
+    if binding_error is not None:
+        raise _CiPacketBindingError(binding_error)
+    write_release_manifest(manifest, manifest_path)
+    write_evidence_packet(packet, packet_path)
+    write_evidence_packet_markdown(packet, packet_markdown_path)
+    return (
+        packet_path,
+        packet_markdown_path,
+        graph_path,
+        manifest_path,
+        artifact_snapshots,
+    )

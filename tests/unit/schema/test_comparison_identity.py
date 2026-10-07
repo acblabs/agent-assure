@@ -13,7 +13,7 @@ from agent_assure.schema.comparison import (
 )
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.export import writer_json_schema
-from agent_assure.schema.validation import validate_artifact_payload
+from agent_assure.schema.validation import ArchivalOnlyArtifactError, validate_artifact_payload
 
 
 def _comparison() -> ComparisonSummary:
@@ -83,13 +83,14 @@ def test_v064_comparison_model_round_trips_through_the_writer_contract() -> None
     assert validate_artifact_payload(payload, "comparison-summary") == "pydantic+jsonschema"
 
 
-def test_legacy_comparison_can_be_projected_without_synthesized_runset_digests() -> None:
+def test_legacy_comparison_can_be_projected_only_for_explicit_compatibility_use() -> None:
     payload = _comparison().model_dump(mode="json")
     payload["schema_version"] = "0.6.3"
     payload.pop("baseline_runset_digest")
     payload.pop("candidate_runset_digest")
 
-    assert validate_artifact_payload(payload, "comparison-summary") == "frozen-jsonschema"
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        validate_artifact_payload(payload, "comparison-summary")
     projected = ComparisonSummary.model_validate(payload)
     assert projected.baseline_runset_digest is None
     assert projected.candidate_runset_digest is None
@@ -101,7 +102,7 @@ def test_legacy_comparison_rejects_v064_runset_digest_fields() -> None:
 
     with pytest.raises(ValidationError, match="does not support authenticated RunSet digests"):
         ComparisonSummary.model_validate(payload)
-    with pytest.raises(JsonSchemaValidationError):
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
         validate_artifact_payload(payload, "comparison-summary")
 
 

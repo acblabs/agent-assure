@@ -15,8 +15,10 @@ from agent_assure.privacy.detectors import (
     PRIVACY_REDACTION_TEXT,
     contains_sensitive_mapping_entry,
     contains_sensitive_value,
+    payment_card_spans,
     privacy_scan_views,
     sensitive_patterns_for,
+    url_query_secret_spans,
 )
 from agent_assure.privacy.digest_fields import is_digest_field_name, is_sha256_hex_digest
 from agent_assure.privacy.persistence import (
@@ -114,6 +116,21 @@ def redact_text(value: str) -> str:
     redacted = value
     for pattern in sensitive_patterns_for(value):
         redacted = pattern.sub(REDACTION, redacted)
+        # Replacements such as a short email address -> ``[REDACTED]`` can
+        # enlarge an originally bounded scalar. The span scanners below
+        # intentionally refuse over-limit input, so passing the transformed
+        # value through would otherwise leave a later card or URL secret
+        # intact. Preserve the declared fail-closed scalar contract at every
+        # transform boundary and avoid running further detectors on expanded
+        # attacker-controlled text.
+        if len(redacted) > MAX_PRIVACY_SCAN_CHARS:
+            return REDACTION
+    redacted = _replace_payment_cards(redacted, preserve_length=False)
+    if len(redacted) > MAX_PRIVACY_SCAN_CHARS:
+        return REDACTION
+    redacted = _replace_url_query_secrets(redacted, preserve_length=False)
+    if len(redacted) > MAX_PRIVACY_SCAN_CHARS:
+        return REDACTION
     return redacted
 
 
@@ -213,16 +230,31 @@ def mask_sensitive_text_preserving_length(value: str) -> str:
             lambda match: REDACTION_MASK_CHARACTER * len(match.group(0)),
             masked,
         )
-    return masked
+    masked = _replace_payment_cards(masked, preserve_length=True)
+    return _replace_url_query_secrets(masked, preserve_length=True)
+
+
+def _replace_payment_cards(value: str, *, preserve_length: bool) -> str:
+    spans = payment_card_spans(value)
+    for start, end in reversed(spans):
+        replacement = REDACTION_MASK_CHARACTER * (end - start) if preserve_length else REDACTION
+        value = value[:start] + replacement + value[end:]
+    return value
+
+
+def _replace_url_query_secrets(value: str, *, preserve_length: bool) -> str:
+    spans = url_query_secret_spans(value)
+    for start, end in reversed(spans):
+        replacement = REDACTION_MASK_CHARACTER * (end - start) if preserve_length else REDACTION
+        value = value[:start] + replacement + value[end:]
+    return value
 
 
 def _deobfuscated_view_contains_sensitive(value: str) -> bool:
     for scan_view in privacy_scan_views(value)[1:]:
         if len(scan_view) > MAX_PRIVACY_SCAN_CHARS:
             return True
-        if any(
-            pattern.search(scan_view) is not None for pattern in sensitive_patterns_for(scan_view)
-        ):
+        if contains_sensitive_value(scan_view):
             return True
     return False
 
@@ -426,6 +458,7 @@ def redact_artifact_payload(
         if (
             isinstance(parent_key, str)
             and parent_key in sensitive_preserve_keys
+            and not _is_valid_structural_digest(parent_key, value)
             and (_contains_sensitive_value(value) or _contains_control_character(value))
         ):
             return REDACTION

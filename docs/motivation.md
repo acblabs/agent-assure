@@ -32,7 +32,7 @@ cluster structure, analyze rates with declared guardrails, and keep trajectory,
 drift, and event-process outputs as bounded review evidence. The project uses
 statistical, state-space, dependence, and time-series diagnostics where they
 match the data: clustered rates and intraclass correlation for repeated trials,
-rare-event Poisson bounds for sparse failures, randomization tests for paired
+bounded-work one-sided binomial bounds for sparse failures, randomization tests for paired
 designs, state-path summaries for observable execution trajectories, and
 burst-window surveillance for retry or rate-limit cascades.
 

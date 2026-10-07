@@ -19,9 +19,16 @@ from pathlib import Path
 from typing import IO
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+for import_path in (ROOT, SRC):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
+from agent_assure.onboarding.diagnostics import (  # noqa: E402
+    bounded_error,
+    bounded_text,
+    display_path,
+)
 from agent_assure.privacy.distribution import (  # noqa: E402
     validate_distribution_member_privacy,
     validate_zip_metadata_absent,
@@ -100,12 +107,16 @@ SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS = {
         "2df8c4ba30ab694fb44512da3fd848f03989a00b3679c8dda9482dfe0a6c3eda": 1,
         "3a41287d7e5b448b14e2a061b535695e9a15f397b153287ad0dcd73c0152fbe1": 1,
         "5fb2662dc76044d0a16a1f702b0f78c06458cc37ffdf2735c0eb3db27bf38751": 1,
+        "6431015b0d1120c6f3eda1f313374483f9ae07ea13ed3d4e126613c7cf33b92a": 1,
         "663aca1c4213594882b035651ce45efbc2f6a0c43957cee6b9beeb950703b5a0": 1,
         "84d1c0a6027715b87bcba228321a64c3a8bf47ecfa5fa3a14dcb745b2ff3f29e": 1,
         "f22cd8d77ca8f770f6fc8cb4f3fb600ca4f37695480d2940859cb838804c0713": 2,
     },
     "tests/unit/rag/test_repeated_live_workflow.py": {
         "75b235290b1a43180ffa99ec7fe61b462a265f016b59fde2699d836c1975c5cc": 1,
+    },
+    "tests/unit/runner/test_fixture_runner.py": {
+        "3a41287d7e5b448b14e2a061b535695e9a15f397b153287ad0dcd73c0152fbe1": 1,
     },
     "tests/unit/release/test_wheel_content_checks.py": {
         "077244c46e1bb12d01ca4114d5c9b3d5bf5e3332ee0cf463c5b1892f95f136c5": 3,
@@ -218,15 +229,19 @@ RELEASE_TRUST_FILENAMES = (
     "frozen-non-grid-benchmark.json",
     "frozen-non-grid-benchmark-statistical-method-review.json",
 )
-RELEASE_TRUST_WHEEL_ROOT = "agent_assure/release_trust/v0_6_6"
+RELEASE_TRUST_WHEEL_ROOT = "agent_assure/release_trust/v0_7_0"
 
 
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
+    "agent_assure/py.typed",
+    "agent_assure/THIRD_PARTY_NOTICES.md",
+    "agent_assure/third_party/mitre-atlas-atlas-data/LICENSE",
     "agent_assure/cli/main.py",
     "agent_assure/cli/rag_cmd.py",
     "agent_assure/cli/study_cmd.py",
     "agent_assure/demo/evidence_sensitivity.py",
+    "agent_assure/live/_dns_worker.py",
     "agent_assure/live/config.py",
     "agent_assure/live/runner.py",
     "agent_assure/mutation/campaign.py",
@@ -321,6 +336,7 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/mappings/owasp_llm_top_10_2025.yaml",
     "agent_assure/mappings/iso_iec_42001.yaml",
     "agent_assure/mappings/mitre_atlas_2026_06.yaml",
+    "agent_assure/mappings/mitre_atlas_2026_06_catalog.yaml",
 )
 
 FORBIDDEN_ARCHIVE_PREFIXES = (
@@ -365,7 +381,7 @@ def main(argv: list[str] | None = None) -> int:
         validate_distribution_identity(wheel, sdist)
         validate_distribution_payload_equivalence(wheel, sdist)
     except (OSError, tarfile.TarError, UnicodeError, ValueError, zipfile.BadZipFile) as exc:
-        print(f"wheel-contents: {exc}", file=sys.stderr)
+        print(f"wheel-contents: {bounded_error(exc)}", file=sys.stderr)
         return 1
 
     failures = []
@@ -385,12 +401,12 @@ def main(argv: list[str] | None = None) -> int:
             "missing required sdist paths:\n" + "\n".join(f"  - {path}" for path in sdist_missing)
         )
     if failures:
-        print(f"wheel-contents: {wheel}", file=sys.stderr)
-        print(f"sdist-contents: {sdist}", file=sys.stderr)
-        print("\n".join(failures), file=sys.stderr)
+        print(f"wheel-contents: {display_path(wheel)}", file=sys.stderr)
+        print(f"sdist-contents: {display_path(sdist)}", file=sys.stderr)
+        print("\n".join(bounded_text(failure) for failure in failures), file=sys.stderr)
         return 1
 
-    print(f"wheel-contents: ok ({wheel.name}, {sdist.name})")
+    print(f"wheel-contents: ok ({bounded_text(wheel.name)}, {bounded_text(sdist.name)})")
     return 0
 
 
@@ -790,8 +806,15 @@ def required_sdist_paths(
         f"agent_assure/schema_resources/{version}/" for version in versions
     )
     mapped: list[str] = [
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "FEATURES.md",
         "LICENSE",
         "README.md",
+        "SECURITY.md",
+        "THIRD_PARTY_NOTICES.md",
         "pyproject.toml",
         *(f"study/registration/{filename}" for filename in trust_filenames),
     ]
@@ -800,6 +823,10 @@ def required_sdist_paths(
             mapped.append("schemas/" + path.removeprefix("agent_assure/schema_resources/"))
         elif path.startswith("agent_assure/mappings/"):
             mapped.append("mappings/" + path.removeprefix("agent_assure/mappings/"))
+        elif path == "agent_assure/THIRD_PARTY_NOTICES.md":
+            mapped.append("THIRD_PARTY_NOTICES.md")
+        elif path.startswith("agent_assure/third_party/"):
+            mapped.append(path.removeprefix("agent_assure/"))
         else:
             mapped.append("src/" + path)
     return tuple(dict.fromkeys(mapped))
@@ -1013,6 +1040,11 @@ def _intended_wheel_payload_path(
     *,
     schema_versions: frozenset[str],
 ) -> str | None:
+    if source_name == "THIRD_PARTY_NOTICES.md":
+        return "agent_assure/THIRD_PARTY_NOTICES.md"
+    third_party_prefix = "third_party/"
+    if source_name.startswith(third_party_prefix):
+        return "agent_assure/third_party/" + source_name.removeprefix(third_party_prefix)
     package_prefix = "src/agent_assure/"
     if source_name.startswith(package_prefix):
         return "agent_assure/" + source_name.removeprefix(package_prefix)

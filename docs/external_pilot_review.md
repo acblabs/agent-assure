@@ -46,6 +46,8 @@ Before asserting any checklist value, verify:
   SHA-256;
 - the compiled-suite, RunSet, and complete waiver-set semantic identities
   match the input manifest;
+- the participant waiver names distinct owner and reviewer pseudonyms and its
+  expiry was current and no more than 90 days after the capture date;
 - exact argv, input bindings, timestamps, exit code, execution evidence, and
   optional campaign output agree;
 - the flat directory contains only the evidence descriptor and every declared
@@ -54,6 +56,13 @@ Before asserting any checklist value, verify:
   re-finalization, verify the prior planned candidate digest, confirm the
   remediation revision is a later upstream descendant of the tested source,
   and inspect whether its bytes actually address the recorded friction;
+
+The capture runtime reads the committed participant input through a bounded
+Git object verifier: it rehashes the full commit, every traversed tree, and the
+final regular-file blob before comparing bytes. Object types, lengths, modes,
+path depth, cumulative tree bytes, blob bytes, and subprocess time are bounded.
+This closes local loose-object substitution and path-resolution ambiguity; it
+does not replace the reviewer's independent fetch and byte comparison above.
 - no raw input, raw command stream, credential value, direct participant
   identifier, or confidential content entered the candidate; and
 - the consent record explicitly covers the evidence descriptor, the receipt
@@ -126,6 +135,16 @@ finalization inputs for the later source revision and prior planned-candidate
 digest must match the digest-bound remediation-record bytes; planned and
 no-friction candidates must retain `none`.
 
+The two records must name distinct GitHub run IDs under one canonical fork
+owner/repository. Owner, repository, run, and attempt syntax is validated before
+URL-derived identity is used. The trusted workflow revision must differ from
+the embedded execution-source revision, both run heads must differ from that
+execution source, and the Stage-1 run head must differ from the trusted workflow
+revision because it includes the participant's committed waiver. An applied
+remediation source must also differ from the tested execution source. These are
+machine-checked provenance invariants, not substitutes for the out-of-band
+human review of the named public runs and repository.
+
 From the candidate's parent directory, run:
 
 ```bash
@@ -139,7 +158,7 @@ agent-assure release pilot review \
 Then verify the complete bundle against the intended release line:
 
 ```bash
-python -c "from pathlib import Path; from agent_assure.pilot_bundle import load_verified_external_pilot_bundle; load_verified_external_pilot_bundle(Path('external-pilot-candidate'), evidence_path='external-pilot-evidence.json', review_receipt_path='external-pilot-independence-review.json', expected_release='0.6.6')"
+python -c "from pathlib import Path; from agent_assure.pilot_bundle import load_verified_external_pilot_bundle; load_verified_external_pilot_bundle(Path('external-pilot-candidate'), evidence_path='external-pilot-evidence.json', review_receipt_path='external-pilot-independence-review.json', expected_release='0.7.0')"
 ```
 
 Do not edit participant artifacts. Any changed byte invalidates the descriptor

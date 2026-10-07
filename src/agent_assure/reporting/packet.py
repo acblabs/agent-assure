@@ -67,7 +67,9 @@ from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
+    load_validated_artifact_payload_with_sha256,
     project_validated_artifact_payload,
+    validate_loaded_artifact_model,
     validate_loaded_artifact_payload,
 )
 from agent_assure.sensitivity_contract import SENSITIVITY_HARNESS_NOTICE
@@ -139,6 +141,7 @@ SummaryT = TypeVar(
     StochasticEvidenceSensitivityReport,
 )
 GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
+PacketInputT = TypeVar("PacketInputT", bound=BaseModel)
 
 
 @dataclass(frozen=True)
@@ -211,6 +214,7 @@ def stochastic_source_runsets_binding_error(
 def _unchanged_privacy_safe_runset(runset: RunSet) -> RunSet:
     runset = RunSet.model_validate(runset.model_dump(mode="json", warnings="error"))
     payload = runset.model_dump(mode="json", warnings="error")
+    validate_loaded_artifact_payload(payload, "run-set")
     filtered = redact_runset_payload(payload)
     assert_runset_payload_safe_for_persistence(filtered)
     if filtered != payload:
@@ -1101,13 +1105,13 @@ def _evaluation_source_binding_error(
         waivers = tuple(
             Waiver(
                 waiver_id=waiver.waiver_id,
-                owner="authenticated-replay-context",
-                rationale="authenticated scoring-semantic replay projection",
+                owner=waiver.owner,
+                rationale=waiver.rationale,
                 reason_code=waiver.reason_code,
                 finding_id=waiver.finding_id,
                 artifact_digest=waiver.artifact_digest,
                 expires_on=waiver.expires_on,
-                reviewer="authenticated-replay-context",
+                reviewer=waiver.reviewer,
             )
             for waiver in replay_context.waivers
         )
@@ -1417,6 +1421,73 @@ def build_evidence_packet(
     interpretation: tuple[str, ...] = DEFAULT_INTERPRETATION,
     limitations: tuple[str, ...] = DEFAULT_PACKET_LIMITATIONS,
 ) -> EvidencePacket:
+    evaluation = _admit_packet_artifact(
+        evaluation,
+        EvaluationSummary,
+        "evaluation-summary",
+    )
+    if comparison is not None:
+        comparison = _admit_packet_artifact(
+            comparison,
+            ComparisonSummary,
+            "comparison-summary",
+        )
+    if evidence_sensitivity is not None:
+        evidence_sensitivity = _admit_packet_artifact(
+            evidence_sensitivity,
+            RAGSensitivityReport,
+            "evidence-sensitivity-report",
+        )
+    if statistical_sufficiency is not None:
+        statistical_sufficiency = _admit_packet_artifact(
+            statistical_sufficiency,
+            StatisticalSufficiencyReport,
+            "statistical-sufficiency-report",
+        )
+    if stochastic_evidence_sensitivity is not None:
+        stochastic_evidence_sensitivity = _admit_packet_artifact(
+            stochastic_evidence_sensitivity,
+            StochasticEvidenceSensitivityReport,
+            "stochastic-evidence-sensitivity-report",
+        )
+    if control_efficacy is not None:
+        control_efficacy = _admit_packet_artifact(
+            control_efficacy,
+            ControlEfficacyReport,
+            "control-efficacy-report",
+        )
+    if control_efficacy_gate_profile is not None:
+        control_efficacy_gate_profile = ControlEfficacyGateProfile.model_validate(
+            control_efficacy_gate_profile.model_dump(mode="json", warnings="error")
+        )
+    if control_efficacy_gate is not None:
+        control_efficacy_gate = ControlEfficacyGateDecision.model_validate(
+            control_efficacy_gate.model_dump(mode="json", warnings="error")
+        )
+    if environment is not None:
+        environment = _admit_packet_artifact(
+            environment,
+            EnvironmentInfo,
+            "environment-info",
+        )
+    if release_manifest is not None:
+        release_manifest = _admit_packet_artifact(
+            release_manifest,
+            ReleaseArtifactManifest,
+            "release-artifact-manifest",
+        )
+    if usage_summary is not None:
+        usage_summary = _admit_packet_artifact(
+            usage_summary,
+            UsageSummary,
+            "usage-summary",
+        )
+    artifact_digests = tuple(
+        PacketArtifactDigest.model_validate(
+            artifact_digest.model_dump(mode="json", warnings="error")
+        )
+        for artifact_digest in artifact_digests
+    )
     resolved_packet_id = packet_id or _packet_id(
         evaluation,
         comparison=comparison,
@@ -1430,7 +1501,11 @@ def build_evidence_packet(
         interpretation=interpretation,
         limitations=limitations,
     )
-    return EvidencePacket(
+    # Preserve the typed builder contract: invalid programmatic inputs raise a
+    # Pydantic ValidationError with the packet invariant that was violated.
+    # The subsequent trust-boundary replay is still mandatory so a packet is
+    # returned only after both writer-schema and model validation succeed.
+    packet = EvidencePacket(
         artifact_kind="evidence-packet",
         packet_id=resolved_packet_id,
         interpretation=interpretation,
@@ -1449,6 +1524,26 @@ def build_evidence_packet(
         artifact_digests=artifact_digests,
         limitations=limitations,
     )
+    packet_payload = packet.model_dump(mode="json", warnings="error")
+    return validate_loaded_artifact_model(
+        packet_payload,
+        EvidencePacket,
+        kind="evidence-packet",
+    )
+
+
+def _admit_packet_artifact(
+    value: PacketInputT,
+    model: type[PacketInputT],
+    kind: str,
+) -> PacketInputT:
+    payload = value.model_dump(mode="json", warnings="error")
+    # Revalidate the typed input first so this programmatic builder preserves
+    # its historical Pydantic ValidationError contract.  The full artifact
+    # boundary below remains authoritative and additionally enforces the
+    # trusted kind, writer schema, and archival policy.
+    model.model_validate(payload)
+    return validate_loaded_artifact_model(payload, model, kind=kind)
 
 
 def packet_artifact_digest(
@@ -1484,13 +1579,47 @@ def load_evidence_packet(path: Path) -> EvidencePacket:
     )
 
 
+def load_evidence_packet_with_digest(path: Path) -> tuple[EvidencePacket, str]:
+    """Load, validate, and hash one immutable-in-memory packet byte snapshot."""
+
+    payload, digest = load_validated_artifact_payload_with_sha256(path, "evidence-packet")
+    packet = project_validated_artifact_payload(
+        payload,
+        EvidencePacket,
+        kind="evidence-packet",
+    )
+    return packet, digest
+
+
 def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
-    packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
-    payload = redact_packet_payload(packet.model_dump(mode="json", warnings="error"))
-    packet = EvidencePacket.model_validate(payload)
+    source_payload = packet.model_dump(mode="json", warnings="error")
+    # Preserve actionable typed invariant errors for programmatic callers.
+    # Persisted/untrusted loaders retain normalized boundary errors; rendering
+    # still performs the complete schema-plus-model replay immediately after.
+    EvidencePacket.model_validate(source_payload)
+    packet = validate_loaded_artifact_model(
+        source_payload,
+        EvidencePacket,
+        kind="evidence-packet",
+    )
+    validated_payload = packet.model_dump(mode="json", warnings="error")
+    payload = redact_packet_payload(validated_payload)
+    if payload != validated_payload:
+        EvidencePacket.model_validate(payload)
+        packet = validate_loaded_artifact_model(
+            payload,
+            EvidencePacket,
+            kind="evidence-packet",
+        )
     safe_payload = packet.model_dump(mode="json", warnings="error")
     if redact_packet_payload(safe_payload) != safe_payload:
         raise ValueError("evidence packet Markdown payload could not be made privacy-safe")
+    return _render_validated_evidence_packet_markdown(packet)
+
+
+def _render_validated_evidence_packet_markdown(packet: EvidencePacket) -> str:
+    """Render a privacy-safe packet that was fully validated by the caller."""
+
     lines = [
         "# Evidence Packet",
         "",
@@ -1599,8 +1728,13 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 f"planned={sufficiency.planned_clusters}, "
                 f"actual={sufficiency.actual_clusters}, "
                 f"analyzable={sufficiency.analyzable_clusters}",
-                "- Population claim permitted: "
+                "- Protocol-conditional population inference permitted by authored "
+                "checks: "
                 f"{markdown_code_span(str(sufficiency.population_claim_permitted).lower())}",
+                "- Population-inference boundary: this flag verifies declared protocol "
+                "conditions and artifact consistency; it does not independently verify "
+                "exchangeability, causal identification, external validity, or provider "
+                "representativeness.",
                 f"- State: {markdown_code_span(stochastic.state.value)}",
                 f"- Gate effect: {markdown_code_span(stochastic.gate_effect.value)}",
                 f"- Verdict-bearing: {markdown_code_span(str(stochastic.verdict_bearing).lower())}",

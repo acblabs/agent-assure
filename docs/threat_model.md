@@ -32,6 +32,19 @@ a network-isolation boundary against hostile Python or native code.
 - Live artifacts may include host wall-clock timestamps, measured latency,
   scheduling jitter, provider response identifiers, and emergency-record timing.
   They are operational evidence, not byte-replay-stable fixture artifacts.
+- Current live evaluation and comparison artifacts carry bounded sufficient
+  statistics and are rejected when their persisted aggregates, intervals,
+  tests, limitations, or gate state do not rederive exactly. Their source
+  digests are integrity pointers, not signatures or proof of origin. A verifier
+  making an assurance decision must match those digests to independently
+  trusted source bytes (for example, a signed manifest or verifier-controlled
+  workflow input). Internal rederivation prevents a self-contradictory report;
+  it cannot make a hostile adapter's internally consistent observations true.
+  Resolving both comparison source-evaluation digests against separately
+  trusted evaluation reports establishes source consistency, not provider-side
+  truth. Comparison latency and cost absolutes remain source-declarative; their
+  delta arithmetic is replayed, but those operational fields are not
+  decision-bearing.
 
 ## Live Execution Boundary
 
@@ -60,13 +73,17 @@ a network-isolation boundary against hostile Python or native code.
   without displaying their values; sensitive-looking configured display text is
   redacted. Non-interactive CI runs must
   pass `--trust-config` plus the matching risk-specific flags
-  (`--allow-external-script`, `--allow-network`, and/or `--allow-script-env`);
+  (`--allow-external-script`, `--allow-network`, and/or `--allow-script-env`).
+  OpenAI-compatible network runs also require exact, independently supplied
+  `--authorized-endpoint-host` and `--authorized-api-key-env` values; the live
+  config cannot grant itself destination or credential authority. High-privilege
+  ambient CI/cloud credential names are not valid provider API-key references.
   `--ci` alone only suppresses prompts and does not grant trust. CI network
   runs also require endpoint DNS safety screening to succeed.
 - External-script stdout/stderr are streamed through byte-counting pipe readers.
   Oversized output terminates the child and is rejected as invalid output;
   emergency records store only byte counts and redacted summaries.
-- The OpenAI-compatible adapter requires `allow_network: true`, HTTPS, an API
+- The OpenAI-compatible adapter requires `allow_network: true`, HTTPS on port 443, an API
   key environment variable, and an endpoint host allowlist. `api.openai.com` is
   allowed by default; non-default gateways must be listed explicitly in
   `allowed_endpoint_hosts`. Localhost, private, link-local, reserved, multicast,
@@ -76,10 +93,22 @@ a network-isolation boundary against hostile Python or native code.
   `--strict-endpoint-resolution` is retained for CLI compatibility only.
   Endpoint-bound network adapters always fail closed when endpoint hosts cannot
   be resolved for screening.
-  OpenAI-compatible requests repeat DNS screening immediately before dispatch
-  and connect only to one of those screened addresses while retaining the
-  original hostname for TLS verification and the HTTP Host header. This is
-  per-request address pinning, not certificate/public-key pinning.
+  The first OpenAI-compatible dispatch and the first dispatch after cache expiry
+  run DNS screening in a bounded, killable subprocess. Successful address sets
+  enter a per-adapter, one-authority, bounded single-flight cache whose
+  non-sliding expiry is the resolving request's monotonic deadline; hits never
+  extend it, and failed or disallowed results are not cached. Every request
+  connects through a family-specific socket only to one of those screened
+  numeric addresses, without resolver re-entry, while retaining the original
+  hostname for TLS SNI, certificate verification, and the HTTP Host header. A
+  DNS change therefore cannot redirect a cache hit. This is per-request address
+  pinning, not certificate/public-key pinning.
+- Every public provider-input accounting helper and concrete live-adapter
+  dispatch revalidates the complete `LiveProviderRequest` before using adapter
+  state or performing I/O. Cached governing-evidence policy text must rederive
+  exactly from its bound evidence, renderer, and digests, and the structured
+  output contract must remain exact. An unchecked in-process model copy cannot
+  inject replacement system-role text or reach an external provider/script.
 - OTLP HTTP export is explicit operator-controlled network egress. OTLP export
   requires an explicit HTTPS endpoint and an explicit endpoint-host allowlist;
   SDK environment-default endpoints, headers, credential-provider sessions,
@@ -87,17 +116,25 @@ a network-isolation boundary against hostile Python or native code.
   HTTP session disables redirects and ambient Requests configuration. Localhost, private,
   link-local, reserved, multicast, and unspecified endpoint hosts are rejected
   by literal host inspection and by resolved A/AAAA records. OTLP endpoint DNS
-  screening fails closed when resolution is unavailable. The upstream exporter
-  resolves again when connecting, so OTLP retains a documented DNS
-  validation-to-connect TOCTOU window and does not provide address-level
-  pinning.
+  screening fails closed when resolution is unavailable or exceeds the
+  configured exporter timeout. Immediately before exporter construction, the
+  hardened session re-resolves the endpoint in the isolated resolver and
+  connects only to those exact screened numeric addresses without resolver
+  re-entry; it retains the original endpoint hostname for TLS SNI and
+  certificate verification. Each HTTP request has a monotonic socket watchdog,
+  streams at most 65,536 decoded response bytes, and closes rather than reuses
+  its connection. These are per-screen and per-request limits, not one deadline
+  for a multi-span command or SDK retry sequence. This is per-exporter address
+  pinning, not certificate or public-key pinning.
 
 ## Privacy Boundary
 
-- Persistence and reporting apply pattern-based redaction to common identifiers,
-  emails, payment-card-like numbers, DOB patterns, bearer/JWT/API-key-like
-  tokens, selected cloud/source-control tokens, secret-looking key/value pairs,
-  and URL query secrets.
+- Persistence and reporting apply bounded redaction to common identifiers,
+  emails, Luhn-valid payment-card candidates, DOB patterns,
+  bearer/JWT/API-key-like tokens, selected cloud/source-control/package-registry
+  tokens (including the documented GitHub, GitLab, Hugging Face, Google OAuth,
+  npm, PyPI, Azure, and SendGrid forms), secret-looking key/value pairs, and URL
+  query secrets. Card-shaped timestamps that fail Luhn are not treated as cards.
 - RunSet writes also fail closed when schema-preserved decision fields,
   identifiers, provider-response IDs, provider/model provenance labels, pricing
   labels, evidence identifiers, script names, or debug references contain
@@ -150,6 +187,12 @@ a network-isolation boundary against hostile Python or native code.
 - Keyless cosign bundles bind exact release bytes to the GitHub Actions workflow
   identity when downstream verification pins the repository, workflow file, ref,
   commit, workflow name, and trigger.
+- The standard production tag path also requires a GitHub-hosted SLSA v1
+  provenance attestation over the exact freshly verified 22-asset release
+  allowlist. The protected OIDC job has no checkout, shell, dependency
+  installation, or project execution, and both publishers depend on its
+  success. The predicate proves workflow-level provenance, not an independent
+  builder or SLSA Build Level 3.
 - Release evidence does not establish safety assurance, regulatory compliance,
   clinical validity, live model quality, or dependency vulnerability status.
 
@@ -259,8 +302,9 @@ a network-isolation boundary against hostile Python or native code.
   re-derives decisions and verifies schema/digest relationships but does not
   rerun mutation operators. A protected CI workflow making an efficacy
   assurance claim must regenerate campaigns and efficacy reports from pinned
-  inputs, and repository protections should require review for the verifier
-  policy, threat manifest, operator selection, and workflow.
+  inputs. Repository governance requires explicit human-maintainer review for
+  the verifier policy, threat manifest, operator selection, and workflow;
+  branch protection may enforce that review but is not required.
 - Operator execution does not load caller-supplied executable plugins, invoke
   caller-supplied shell text, or require network access.
 - Reports minimize content to paths, digests, reason codes, bounded summaries,
@@ -276,11 +320,12 @@ a network-isolation boundary against hostile Python or native code.
 - Attestation of arbitrary live adapters, network providers, or model responses.
 - Certificate/SPKI pinning, provider-side compromise detection, or MITM
   detection beyond HTTPS, endpoint host allowlisting, and DNS safety screening.
-  The OpenAI-compatible adapter does pin each request socket to a screened
-  address; OTLP does not and retains the documented validation-to-connect DNS
-  TOCTOU window.
+  Both the OpenAI-compatible adapter and OTLP HTTP transport pin sockets to
+  screened addresses while retaining the original hostname for TLS SNI and
+  certificate verification. Neither provides certificate or SPKI pinning.
 - Comprehensive secret discovery, PHI de-identification, malware detection, or
-  supply-chain attestation beyond digest replay and optional cosign signing.
+  supply-chain assurance beyond digest replay, cosign signing, and the scoped
+  GitHub workflow provenance attestation for production release assets.
 - Isolation from a malicious installed package or compromised built-in
   operator implementation.
 - Discovery of every possible control bypass or failure mode.

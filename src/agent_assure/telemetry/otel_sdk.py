@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import importlib.metadata
+import ipaddress
+import math
 import re
+import socket
+import threading
+import time
 import urllib.parse
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Any, Literal, Self
 
@@ -12,8 +18,8 @@ from pydantic import Field
 from pydantic.functional_validators import field_validator, model_validator
 
 from agent_assure import __version__
-from agent_assure.live.config import (
-    assert_endpoint_resolution_allowed,
+from agent_assure.live.config import assert_endpoint_resolution_allowed
+from agent_assure.network_authority import (
     is_disallowed_endpoint_host,
     normalize_endpoint_host,
 )
@@ -27,19 +33,151 @@ from agent_assure.schema.telemetry import (
     MAX_OTEL_SPANS_PER_EXPORT,
     SpanPlan,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.telemetry.context import trace_context_carrier
 from agent_assure.telemetry.privacy_filter import assert_span_plan_safe_for_export
 
 _HEADER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9!#$%&'*+.^_`|~-]+$")
-_FORBIDDEN_TRANSPORT_HEADERS = frozenset({"content-length", "host", "transfer-encoding"})
+_FORBIDDEN_TRANSPORT_HEADERS = frozenset(
+    {
+        "accept-encoding",
+        "connection",
+        "content-encoding",
+        "content-length",
+        "host",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailer",
+        "transfer-encoding",
+        "upgrade",
+    }
+)
 MAX_OTEL_HEADERS = 32
 MAX_OTEL_HEADER_VALUE_CHARS = 8_192
+MAX_OTLP_HTTP_RESPONSE_BYTES = 64 * 1_024
+_OTLP_RESPONSE_READ_CHUNK_BYTES = 8 * 1_024
 _OTEL_COMPATIBILITY_VERSION = "1.44.0"
 _OTEL_COMPATIBILITY_DISTRIBUTIONS = (
     "opentelemetry-api",
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-http",
 )
+
+
+class _OTLPTransportDeadline:
+    """Own one monotonic OTLP HTTP request deadline and its active sockets."""
+
+    def __init__(
+        self,
+        timeout_seconds: float,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise TimeoutError("OTLP HTTP request exceeded its total transport deadline")
+        self._clock = clock
+        self._deadline_monotonic = clock() + timeout_seconds
+        self._lock = threading.Lock()
+        self._sockets: set[Any] = set()
+        self._expired = False
+        self._timer: threading.Timer | None = None
+
+    def __enter__(self) -> _OTLPTransportDeadline:
+        delay = max(0.0, self._deadline_monotonic - self._clock())
+        timer = threading.Timer(delay, self._expire)
+        timer.daemon = True
+        self._timer = timer
+        timer.start()
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: object,
+    ) -> None:
+        if exc_type is not None:
+            self._expire()
+        timer = self._timer
+        if timer is not None:
+            timer.cancel()
+            if timer is not threading.current_thread():
+                timer.join()
+        with self._lock:
+            sockets = tuple(self._sockets)
+            self._sockets.clear()
+        for transport_socket in sockets:
+            _close_otlp_socket(transport_socket, shutdown=False)
+
+    def remaining_seconds(self) -> float:
+        remaining = self._deadline_monotonic - self._clock()
+        if remaining <= 0:
+            self._expire()
+            raise TimeoutError("OTLP HTTP request exceeded its total transport deadline")
+        with self._lock:
+            expired = self._expired
+        if expired:
+            raise TimeoutError("OTLP HTTP request exceeded its total transport deadline")
+        return remaining
+
+    def register(self, transport_socket: Any) -> None:
+        with self._lock:
+            if self._expired:
+                expired = True
+            else:
+                self._sockets.add(transport_socket)
+                expired = False
+        if expired:
+            _close_otlp_socket(transport_socket, shutdown=True)
+            raise TimeoutError("OTLP HTTP request exceeded its total transport deadline")
+
+    def unregister(self, transport_socket: Any) -> None:
+        with self._lock:
+            self._sockets.discard(transport_socket)
+
+    def abort(self) -> None:
+        self._expire()
+
+    def _expire(self) -> None:
+        with self._lock:
+            self._expired = True
+            sockets = tuple(self._sockets)
+            self._sockets.clear()
+        for transport_socket in sockets:
+            _close_otlp_socket(transport_socket, shutdown=True)
+
+
+def _close_otlp_socket(transport_socket: Any, *, shutdown: bool) -> None:
+    if shutdown:
+        try:
+            transport_socket.shutdown(socket.SHUT_RDWR)
+        except (AttributeError, OSError):
+            pass
+    try:
+        transport_socket.close()
+    except (AttributeError, OSError):
+        pass
+
+
+_ACTIVE_OTLP_DEADLINE: ContextVar[_OTLPTransportDeadline | None] = ContextVar(
+    "agent_assure_active_otlp_deadline",
+    default=None,
+)
+
+
+def _screen_otlp_endpoint(host: str, *, timeout_seconds: int) -> tuple[str, ...]:
+    try:
+        return assert_endpoint_resolution_allowed(
+            host,
+            label="OTLP HTTP",
+            timeout_seconds=float(timeout_seconds),
+        )
+    except TimeoutError as exc:
+        raise ValueError(
+            "OTLP HTTP endpoint host resolution exceeded the configured timeout"
+        ) from exc
 
 
 class OpenTelemetryUnavailable(RuntimeError):
@@ -153,10 +291,7 @@ class OTelExportConfig(StrictModel):
         host = normalize_endpoint_host(parsed.hostname or "")
         if host not in set(self.allowed_endpoint_hosts):
             raise ValueError("OTLP HTTP endpoint host must be listed in allowed_endpoint_hosts")
-        assert_endpoint_resolution_allowed(
-            host,
-            label="OTLP HTTP",
-        )
+        _screen_otlp_endpoint(host, timeout_seconds=self.timeout_seconds)
         return self
 
 
@@ -264,10 +399,17 @@ def emit_span_plans(
 ) -> OTelExportResult:
     if len(plans) > MAX_OTEL_SPANS_PER_EXPORT:
         raise ValueError(f"OpenTelemetry export exceeds span limit of {MAX_OTEL_SPANS_PER_EXPORT}")
-    validated_plans = tuple(SpanPlan.model_validate(plan.model_dump(mode="json")) for plan in plans)
+    validated_plans: list[SpanPlan] = []
+    for plan in plans:
+        payload = plan.model_dump(mode="json", warnings="error")
+        validated = SpanPlan.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "span-plan")
+        validated_plans.append(validated)
     for plan in validated_plans:
         assert_span_plan_safe_for_export(plan)
-    validated_config = OTelExportConfig.model_validate(config.model_dump(mode="json"))
+    validated_config = OTelExportConfig.model_validate(
+        config.model_dump(mode="json", warnings="error")
+    )
     sdk = _load_otel_sdk(require_otlp=validated_config.protocol == "otlp-http")
     # Resource.create(), the global propagator, and default provider arguments
     # all consult OTEL_* process configuration. Build each SDK component from
@@ -385,7 +527,19 @@ def _build_exporter(sdk: _OtelSdk, config: OTelExportConfig) -> Any:
         raise OpenTelemetryUnavailable(
             "OTLP exporter does not expose the required compression policy"
         ) from exc
-    session = _new_hardened_requests_session()
+    parsed_endpoint = urllib.parse.urlparse(config.endpoint)
+    endpoint_host = normalize_endpoint_host(parsed_endpoint.hostname or "")
+    pinned_addresses = _screen_otlp_endpoint(
+        endpoint_host,
+        timeout_seconds=config.timeout_seconds,
+    )
+    endpoint_port = parsed_endpoint.port or 443
+    session = _new_hardened_requests_session(
+        expected_host=endpoint_host,
+        expected_port=endpoint_port,
+        pinned_addresses=pinned_addresses,
+        timeout_seconds=config.timeout_seconds,
+    )
     headers = _explicit_export_headers(config)
     kwargs: dict[str, Any] = {
         # Explicit endpoint, headers, timeout, CA policy, and session prevent
@@ -468,13 +622,276 @@ def _explicit_export_headers(config: OTelExportConfig) -> dict[str, str]:
     return headers
 
 
-def _new_hardened_requests_session() -> Any:
+def _effective_otlp_request_timeout(
+    configured_timeout_seconds: int,
+    requested_timeout: object,
+) -> float:
+    configured = float(configured_timeout_seconds)
+    if requested_timeout is None:
+        return configured
+    if isinstance(requested_timeout, bool) or not isinstance(requested_timeout, (int, float)):
+        raise OpenTelemetryExportError(
+            "OTLP HTTP transport received an unsupported timeout contract"
+        )
+    requested = float(requested_timeout)
+    if not math.isfinite(requested) or requested <= 0:
+        raise TimeoutError("OTLP HTTP request exceeded its total transport deadline")
+    return min(configured, requested)
+
+
+def _read_bounded_otlp_response(
+    response: Any,
+    *,
+    transport_deadline: _OTLPTransportDeadline,
+) -> bytes:
+    raw_response = getattr(response, "raw", None)
+    if raw_response is None or not callable(getattr(raw_response, "read", None)):
+        raise OpenTelemetryExportError("OTLP HTTP transport returned an invalid response")
+    response_headers = getattr(response, "headers", None)
+    if response_headers is None or not callable(getattr(response_headers, "get", None)):
+        raise OpenTelemetryExportError("OTLP HTTP transport returned invalid response headers")
+    content_encoding = str(response_headers.get("Content-Encoding", "")).strip().casefold()
+    if content_encoding not in {"", "identity"}:
+        raise OpenTelemetryExportError(
+            "OTLP HTTP transport rejected a non-identity response encoding"
+        )
+    content_length = response_headers.get("Content-Length")
+    if content_length is not None:
+        content_length_text = str(content_length).strip()
+        if not content_length_text.isascii() or not content_length_text.isdecimal():
+            raise OpenTelemetryExportError("OTLP HTTP transport returned an invalid Content-Length")
+        if int(content_length_text) > MAX_OTLP_HTTP_RESPONSE_BYTES:
+            raise OpenTelemetryExportError(
+                "OTLP HTTP response exceeded the 65536-byte decoded body limit"
+            )
+    payload = bytearray()
+    while True:
+        transport_deadline.remaining_seconds()
+        read_size = min(
+            _OTLP_RESPONSE_READ_CHUNK_BYTES,
+            MAX_OTLP_HTTP_RESPONSE_BYTES - len(payload) + 1,
+        )
+        chunk = raw_response.read(read_size, decode_content=True)
+        transport_deadline.remaining_seconds()
+        if not isinstance(chunk, bytes):
+            raise OpenTelemetryExportError("OTLP HTTP transport returned a non-bytes response body")
+        if not chunk:
+            return bytes(payload)
+        payload.extend(chunk)
+        if len(payload) > MAX_OTLP_HTTP_RESPONSE_BYTES:
+            raise OpenTelemetryExportError(
+                "OTLP HTTP response exceeded the 65536-byte decoded body limit"
+            )
+
+
+def _new_hardened_requests_session(
+    *,
+    expected_host: str,
+    expected_port: int,
+    pinned_addresses: tuple[str, ...],
+    timeout_seconds: int,
+) -> Any:
     try:
         import requests
+        from urllib3.connection import HTTPSConnection
+        from urllib3.connectionpool import HTTPSConnectionPool
+        from urllib3.exceptions import ConnectTimeoutError, NewConnectionError
+        from urllib3.poolmanager import PoolManager
     except ImportError as exc:
         raise OpenTelemetryUnavailable(
             "OTLP HTTP export requires the requests transport dependency"
         ) from exc
+
+    if not pinned_addresses:
+        raise OpenTelemetryUnavailable("OTLP HTTP transport requires screened endpoint addresses")
+
+    class _PinnedOTLPHTTPSConnection(HTTPSConnection):
+        _agent_assure_deadline: _OTLPTransportDeadline | None = None
+        _agent_assure_raw_socket: socket.socket | None = None
+        _agent_assure_watch_socket: socket.socket | None = None
+        _agent_assure_tls_socket: socket.socket | None = None
+
+        def _new_conn(self) -> socket.socket:
+            if normalize_endpoint_host(self.host) != expected_host or self.port != expected_port:
+                raise NewConnectionError(
+                    self,
+                    "OTLP transport refused an endpoint outside its pinned authority",
+                )
+            if self.proxy is not None:
+                raise NewConnectionError(self, "OTLP pinned transport does not support proxies")
+            if self.source_address is not None:
+                raise NewConnectionError(
+                    self,
+                    "OTLP pinned transport does not support source-address overrides",
+                )
+            transport_deadline = _ACTIVE_OTLP_DEADLINE.get()
+            if transport_deadline is None:
+                raise NewConnectionError(
+                    self,
+                    "OTLP pinned transport has no active request deadline",
+                )
+            last_error: OSError | None = None
+            for address_text in pinned_addresses:
+                try:
+                    remaining = transport_deadline.remaining_seconds()
+                except TimeoutError as exc:
+                    raise ConnectTimeoutError(
+                        self,
+                        f"Connection to {expected_host} timed out",
+                    ) from exc
+                address = ipaddress.ip_address(address_text)
+                family = socket.AF_INET6 if address.version == 6 else socket.AF_INET
+                transport_socket = socket.socket(family, socket.SOCK_STREAM)
+                watch_socket: socket.socket | None = None
+                try:
+                    transport_socket.settimeout(remaining)
+                    transport_deadline.register(transport_socket)
+                    for option in self.socket_options or ():
+                        transport_socket.setsockopt(*option)
+                    destination: tuple[Any, ...]
+                    if family == socket.AF_INET6:
+                        destination = (str(address), self.port, 0, 0)
+                    else:
+                        destination = (str(address), self.port)
+                    transport_socket.connect(destination)
+                    # SSLContext.wrap_socket() detaches the raw socket before
+                    # its blocking handshake. Keep a duplicate registered so
+                    # the watchdog can still shutdown the underlying transport
+                    # throughout that handoff.
+                    watch_socket = transport_socket.dup()
+                    transport_deadline.register(watch_socket)
+                    self._agent_assure_deadline = transport_deadline
+                    self._agent_assure_raw_socket = transport_socket
+                    self._agent_assure_watch_socket = watch_socket
+                    return transport_socket
+                except TimeoutError as exc:
+                    transport_deadline.unregister(transport_socket)
+                    _close_otlp_socket(transport_socket, shutdown=True)
+                    if watch_socket is not None:
+                        transport_deadline.unregister(watch_socket)
+                        _close_otlp_socket(watch_socket, shutdown=True)
+                    raise ConnectTimeoutError(
+                        self,
+                        f"Connection to {expected_host} timed out",
+                    ) from exc
+                except OSError as exc:
+                    last_error = exc
+                    transport_deadline.unregister(transport_socket)
+                    _close_otlp_socket(transport_socket, shutdown=True)
+                    if watch_socket is not None:
+                        transport_deadline.unregister(watch_socket)
+                        _close_otlp_socket(watch_socket, shutdown=True)
+                    try:
+                        transport_deadline.remaining_seconds()
+                    except TimeoutError as timeout_exc:
+                        raise ConnectTimeoutError(
+                            self,
+                            f"Connection to {expected_host} timed out",
+                        ) from timeout_exc
+            raise NewConnectionError(
+                self,
+                f"Failed to connect to screened OTLP endpoint: "
+                f"{last_error.__class__.__name__ if last_error is not None else 'no address'}",
+            ) from last_error
+
+        def connect(self) -> None:
+            try:
+                super().connect()
+                transport_deadline = self._agent_assure_deadline
+                tls_socket = self.sock
+                if transport_deadline is None or tls_socket is None:
+                    raise OSError("OTLP pinned transport did not establish a TLS socket")
+                transport_deadline.register(tls_socket)
+                self._agent_assure_tls_socket = tls_socket
+                raw_socket = self._agent_assure_raw_socket
+                if raw_socket is not None and raw_socket is not tls_socket:
+                    transport_deadline.unregister(raw_socket)
+                    _close_otlp_socket(raw_socket, shutdown=False)
+                self._agent_assure_raw_socket = None
+                watch_socket = self._agent_assure_watch_socket
+                if watch_socket is not None:
+                    transport_deadline.unregister(watch_socket)
+                    _close_otlp_socket(watch_socket, shutdown=False)
+                self._agent_assure_watch_socket = None
+                transport_deadline.remaining_seconds()
+            except BaseException:
+                self._close_registered_transport(shutdown=True)
+                try:
+                    super().close()
+                except (AttributeError, OSError):
+                    pass
+                raise
+
+        def close(self) -> None:
+            self._close_registered_transport(shutdown=False)
+            super().close()
+
+        def _close_registered_transport(self, *, shutdown: bool) -> None:
+            transport_deadline = self._agent_assure_deadline
+            sockets = (
+                self._agent_assure_tls_socket,
+                self._agent_assure_watch_socket,
+                self._agent_assure_raw_socket,
+            )
+            self._agent_assure_tls_socket = None
+            self._agent_assure_watch_socket = None
+            self._agent_assure_raw_socket = None
+            self._agent_assure_deadline = None
+            seen: set[int] = set()
+            for transport_socket in sockets:
+                if transport_socket is None or id(transport_socket) in seen:
+                    continue
+                seen.add(id(transport_socket))
+                if transport_deadline is not None:
+                    transport_deadline.unregister(transport_socket)
+                _close_otlp_socket(transport_socket, shutdown=shutdown)
+
+    class _PinnedOTLPHTTPSConnectionPool(HTTPSConnectionPool):
+        ConnectionCls = _PinnedOTLPHTTPSConnection
+
+        def _put_conn(self, connection: Any) -> None:
+            # Never reuse a socket outside the request-scoped watchdog that
+            # registered it. Return an empty slot to preserve pool accounting.
+            if connection is not None:
+                connection.close()
+            super()._put_conn(None)
+
+    class _PinnedOTLPAdapter(requests.adapters.HTTPAdapter):
+        def __init__(self) -> None:
+            self._agent_assure_expected_host = expected_host
+            self._agent_assure_expected_port = expected_port
+            self._agent_assure_pinned_addresses = pinned_addresses
+            super().__init__()
+
+        def init_poolmanager(
+            self,
+            connections: int,
+            maxsize: int,
+            block: bool = False,
+            **pool_kwargs: Any,
+        ) -> None:
+            self.poolmanager = PoolManager(
+                num_pools=connections,
+                maxsize=maxsize,
+                block=block,
+                **pool_kwargs,
+            )
+            self.poolmanager.pool_classes_by_scheme = dict(self.poolmanager.pool_classes_by_scheme)
+            self.poolmanager.pool_classes_by_scheme["https"] = _PinnedOTLPHTTPSConnectionPool
+
+        def proxy_manager_for(self, proxy: str, **proxy_kwargs: Any) -> Any:
+            del proxy, proxy_kwargs
+            raise RuntimeError("OTLP pinned transport does not support proxies")
+
+        def send(self, request: Any, **kwargs: Any) -> Any:  # type: ignore[override]
+            response = super().send(request, **kwargs)
+            if 300 <= response.status_code < 400:
+                response.close()
+                raise requests.exceptions.TooManyRedirects(
+                    "OTLP pinned transport does not permit redirects",
+                    response=response,
+                )
+            return response
 
     class _HardenedRequestsSession(requests.Session):
         def request(  # type: ignore[override]
@@ -500,12 +917,52 @@ def _new_hardened_requests_session() -> Any:
             kwargs["cert"] = None
             kwargs["proxies"] = {}
             kwargs["verify"] = True
-            return super().send(request, **kwargs)
+            kwargs["stream"] = True
+            request_headers = getattr(request, "headers", None)
+            if request_headers is None or not hasattr(request_headers, "__setitem__"):
+                raise OpenTelemetryExportError(
+                    "OTLP HTTP transport received an invalid prepared request"
+                )
+            request_headers["Accept-Encoding"] = "identity"
+            request_headers["Connection"] = "close"
+            request_timeout = _effective_otlp_request_timeout(
+                timeout_seconds,
+                kwargs.get("timeout"),
+            )
+            kwargs["timeout"] = request_timeout
+            response: Any | None = None
+            transport_deadline = _OTLPTransportDeadline(request_timeout)
+            with transport_deadline:
+                token = _ACTIVE_OTLP_DEADLINE.set(transport_deadline)
+                try:
+                    response = super().send(request, **kwargs)
+                    response_body = _read_bounded_otlp_response(
+                        response,
+                        transport_deadline=transport_deadline,
+                    )
+                    response._content = response_body
+                    response._content_consumed = True
+                    response.close()
+                    transport_deadline.remaining_seconds()
+                    return response
+                except BaseException:
+                    transport_deadline.abort()
+                    if response is not None:
+                        try:
+                            response.close()
+                        except (AttributeError, OSError):
+                            pass
+                    raise
+                finally:
+                    _ACTIVE_OTLP_DEADLINE.reset(token)
 
     session = _HardenedRequestsSession()
     # Disables HTTP(S)_PROXY, NO_PROXY, netrc credentials, REQUESTS_CA_BUNDLE,
     # and CURL_CA_BUNDLE ambient process configuration.
     session.trust_env = False
+    session.adapters.pop("http://", None)
+    pinned_adapter = _PinnedOTLPAdapter()
+    session.mount("https://", pinned_adapter)
     return session
 
 

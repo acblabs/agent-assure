@@ -1,4 +1,4 @@
-"""Exact one-sided Clopper--Pearson intervals for binomial proportions.
+"""Resource-bounded one-sided upper intervals for binomial proportions.
 
 The Clopper--Pearson construction inverts an exact binomial tail.  This
 implementation deliberately depends only on the Python standard library and
@@ -10,6 +10,13 @@ The returned endpoint is conservative: lower bounds use the lower endpoint of
 the final root bracket and upper bounds use the upper endpoint.  Consequently,
 rounding a lower bound toward zero or an upper bound away from zero preserves
 coverage.  The finite bisection error is reported explicitly.
+
+The scalable upper-bound dispatcher retains that exact inversion through the
+declared work ceiling. Above it, zero-event inputs use the exact
+Clopper--Pearson closed-form boundary with rational log enclosures, while
+nonzero inputs invert the one-sided Bernoulli KL-Chernoff inequality with the
+same rational log enclosures. Those branches use bounded work independent of
+the trial count.
 """
 
 from __future__ import annotations
@@ -17,6 +24,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
+from fractions import Fraction
 from functools import lru_cache
 from math import comb
 from typing import Final, Literal, TypeAlias
@@ -70,6 +78,29 @@ frozen multiplicity family.
 
 _BISECTION_DENOMINATOR: Final = 1 << CLOPPER_PEARSON_BISECTION_STEPS
 
+MAX_SCALABLE_BINOMIAL_TRIALS: Final = (1 << 53) - 1
+"""Largest trial count exactly representable by the artifact JSON contract."""
+
+ZERO_EVENT_CLOSED_FORM_METHOD: Final[Literal["clopper_pearson_zero_event_closed_form"]] = (
+    "clopper_pearson_zero_event_closed_form"
+)
+"""Exact zero-event Clopper--Pearson boundary, rounded outward."""
+
+BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD: Final[
+    Literal["bernoulli_kl_chernoff_upper_bound_one_sided"]
+] = "bernoulli_kl_chernoff_upper_bound_one_sided"
+"""Conservative scalable KL-Chernoff upper bound for nonzero endpoints."""
+
+BinomialUpperBoundMethod: TypeAlias = Literal[
+    "clopper_pearson_exact_one_sided",
+    "clopper_pearson_zero_event_closed_form",
+    "bernoulli_kl_chernoff_upper_bound_one_sided",
+]
+_LOG_SERIES_TERMS: Final = 32
+# Keep count-scale discretization below one serialized micro-unit even at the
+# maximum RFC 8785-safe exposure: MAX_SCALABLE_BINOMIAL_TRIALS / 10**24 < 1e-8.
+_SCALABLE_BOUND_SCALE: Final = 10**24
+
 
 @dataclass(frozen=True, slots=True)
 class ClopperPearsonInterval:
@@ -91,6 +122,110 @@ class ClopperPearsonInterval:
     absolute_error_bound: Decimal
     bisection_steps: int
     method: Literal["clopper_pearson_exact_one_sided"] = CLOPPER_PEARSON_METHOD
+
+
+@dataclass(frozen=True, slots=True)
+class BinomialUpperBound:
+    """Persistable one-sided binomial upper bound selected by bounded work."""
+
+    successes: int
+    trials: int
+    alpha: Decimal
+    confidence_level: Decimal
+    upper_rate_bound: Decimal
+    upper_count_bound: Decimal
+    method: BinomialUpperBoundMethod
+    exact: bool
+
+
+def binomial_upper_bound_one_sided(
+    successes: int,
+    trials: int,
+    alpha: Decimal,
+) -> BinomialUpperBound:
+    """Return a rigorous one-sided upper bound with bounded large-n work.
+
+    Exact integer-tail Clopper--Pearson inversion is retained through
+    ``MAX_CLOPPER_PEARSON_TRIALS``. Above that resource ceiling, zero-event
+    endpoints use the exact Clopper--Pearson closed-form boundary, located on
+    the six-decimal output grid with rational logarithm enclosures. Nonzero
+    endpoints invert the separately labeled one-sided Bernoulli KL-Chernoff
+    inequality on a fixed internal grid. No branch performs work proportional
+    to ``trials`` once the exact ceiling is crossed.
+    """
+
+    validated_trials = _bounded_int(
+        trials,
+        name="trials",
+        lower=1,
+        upper=MAX_SCALABLE_BINOMIAL_TRIALS,
+    )
+    validated_successes = _bounded_int(
+        successes,
+        name="successes",
+        lower=0,
+        upper=validated_trials,
+    )
+    alpha_numerator = _alpha_numerator(alpha)
+    validated_alpha = _scaled_probability(alpha_numerator)
+    confidence_level = _scaled_probability(PROBABILITY_SCALE - alpha_numerator)
+
+    if validated_trials <= MAX_CLOPPER_PEARSON_TRIALS:
+        interval = clopper_pearson_one_sided(
+            validated_successes,
+            validated_trials,
+            validated_alpha,
+            side="upper",
+        )
+        rate = Fraction(interval.bound)
+        return BinomialUpperBound(
+            successes=validated_successes,
+            trials=validated_trials,
+            alpha=validated_alpha,
+            confidence_level=confidence_level,
+            upper_rate_bound=_fraction_outward_decimal(rate),
+            upper_count_bound=_fraction_outward_decimal(rate * validated_trials),
+            method=CLOPPER_PEARSON_METHOD,
+            exact=True,
+        )
+
+    alpha_fraction = Fraction(alpha_numerator, PROBABILITY_SCALE)
+    _, negative_log_alpha_upper = _negative_log_interval(alpha_fraction)
+    if validated_successes == 0:
+        upper_rate_micro = _zero_event_closed_form_upper_micro(
+            trials=validated_trials,
+            alpha=alpha_fraction,
+        )
+        upper_count_micro = _zero_event_closed_form_upper_count_micro(
+            trials=validated_trials,
+            negative_log_alpha_upper=negative_log_alpha_upper,
+        )
+        return BinomialUpperBound(
+            successes=0,
+            trials=validated_trials,
+            alpha=validated_alpha,
+            confidence_level=confidence_level,
+            upper_rate_bound=_scaled_probability(upper_rate_micro),
+            upper_count_bound=_scaled_probability(upper_count_micro),
+            method=ZERO_EVENT_CLOSED_FORM_METHOD,
+            exact=True,
+        )
+
+    rate = _bernoulli_kl_chernoff_upper_fraction(
+        successes=validated_successes,
+        trials=validated_trials,
+        negative_log_alpha_upper=negative_log_alpha_upper,
+    )
+    return BinomialUpperBound(
+        successes=validated_successes,
+        trials=validated_trials,
+        alpha=validated_alpha,
+        confidence_level=confidence_level,
+        upper_rate_bound=_fraction_outward_decimal(rate),
+        upper_count_bound=_fraction_outward_decimal(rate * validated_trials),
+        method=BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD,
+        exact=False,
+    )
 
 
 def clopper_pearson_one_sided(
@@ -310,6 +445,163 @@ def validate_clopper_pearson_work_budget(
     return total
 
 
+def _zero_event_closed_form_upper_micro(*, trials: int, alpha: Fraction) -> int:
+    """Locate an outward six-place rendering of ``1 - alpha**(1/n)``.
+
+    For a candidate grid value ``u``, ``u`` is above the exact boundary iff
+    ``n * -ln(1-u) >= -ln(alpha)``. Rational lower/upper log enclosures make
+    that comparison rigorous without constructing powers whose size scales
+    with ``n``.
+    """
+
+    _, target_upper = _negative_log_interval(alpha)
+    lower_micro = 0
+    upper_micro = PROBABILITY_SCALE
+    while lower_micro < upper_micro:
+        midpoint = (lower_micro + upper_micro) // 2
+        if midpoint == PROBABILITY_SCALE:
+            proven_upper = True
+        else:
+            survival = Fraction(PROBABILITY_SCALE - midpoint, PROBABILITY_SCALE)
+            survival_log_lower, _ = _negative_log_interval(survival)
+            proven_upper = trials * survival_log_lower >= target_upper
+        if proven_upper:
+            upper_micro = midpoint
+        else:
+            lower_micro = midpoint + 1
+    return lower_micro
+
+
+def _zero_event_closed_form_upper_count_micro(
+    *,
+    trials: int,
+    negative_log_alpha_upper: Fraction,
+) -> int:
+    """Locate an outward six-place rendering of ``n * (1-alpha**(1/n))``.
+
+    The exact count-scale endpoint is at most ``-ln(alpha)`` because
+    ``1-exp(-x) <= x``. That inequality supplies a small finite search range
+    even when ``trials`` is the largest RFC 8785-safe integer. Each candidate
+    is then proved above the exact endpoint using rational log enclosures.
+    """
+
+    lower_micro = 0
+    upper_micro = _ceil_fraction(negative_log_alpha_upper * PROBABILITY_SCALE)
+    while lower_micro < upper_micro:
+        midpoint = (lower_micro + upper_micro) // 2
+        survival = Fraction(
+            trials * PROBABILITY_SCALE - midpoint,
+            trials * PROBABILITY_SCALE,
+        )
+        survival_log_lower, _ = _negative_log_interval(survival)
+        if trials * survival_log_lower >= negative_log_alpha_upper:
+            upper_micro = midpoint
+        else:
+            lower_micro = midpoint + 1
+    return lower_micro
+
+
+def _bernoulli_kl_chernoff_upper_fraction(
+    *,
+    successes: int,
+    trials: int,
+    negative_log_alpha_upper: Fraction,
+) -> Fraction:
+    """Invert n * KL(x/n || p) >= -ln(alpha) conservatively.
+
+    For 0 < x < n the Bernoulli divergence is strictly increasing in p on
+    [x/n, 1). Every midpoint comparison uses a rational lower enclosure for
+    the divergence and an upper enclosure for -ln(alpha); therefore a
+    midpoint is accepted only after it is proved to lie on the conservative
+    side of the root. The returned fixed-point endpoint is the first proved
+    upper grid point, so subsequent decimal rendering remains outward. The
+    number of comparisons is bounded by the fixed scale rather than trials.
+    """
+
+    if not 0 < successes <= trials:
+        raise ValueError("KL-Chernoff inversion requires 0 < successes <= trials")
+    if negative_log_alpha_upper <= 0:
+        raise ValueError("KL-Chernoff inversion requires a positive log threshold")
+    if successes == trials:
+        return Fraction(1)
+
+    observed = Fraction(successes, trials)
+    lower_index = (successes * _SCALABLE_BOUND_SCALE) // trials
+    upper_index = _SCALABLE_BOUND_SCALE
+    while upper_index - lower_index > 1:
+        midpoint_index = (lower_index + upper_index) // 2
+        candidate = Fraction(midpoint_index, _SCALABLE_BOUND_SCALE)
+        if candidate <= observed:
+            lower_index = midpoint_index
+            continue
+        divergence_lower = _bernoulli_kl_lower(observed, candidate)
+        if trials * divergence_lower >= negative_log_alpha_upper:
+            upper_index = midpoint_index
+        else:
+            lower_index = midpoint_index
+    return Fraction(upper_index, _SCALABLE_BOUND_SCALE)
+
+
+def _bernoulli_kl_lower(observed: Fraction, candidate: Fraction) -> Fraction:
+    """Return a rigorous lower enclosure of KL(observed || candidate)."""
+
+    if not Fraction(0) < observed < candidate < Fraction(1):
+        raise ValueError("Bernoulli KL inputs must satisfy 0 < observed < candidate < 1")
+    failure_ratio = (1 - candidate) / (1 - observed)
+    success_ratio = observed / candidate
+    failure_log_lower, _ = _negative_log_interval(failure_ratio)
+    _, success_log_upper = _negative_log_interval(success_ratio)
+    return (1 - observed) * failure_log_lower - observed * success_log_upper
+
+
+@lru_cache(maxsize=512)
+def _negative_log_interval(value: Fraction) -> tuple[Fraction, Fraction]:
+    """Return exact rational lower/upper enclosures for ``-ln(value)``."""
+
+    if not Fraction(0) < value <= Fraction(1):
+        raise ValueError("logarithm input must be in (0, 1]")
+    reduced = value
+    powers_of_two = 0
+    while reduced < Fraction(1, 2):
+        reduced *= 2
+        powers_of_two += 1
+    log_two_lower, log_two_upper = _atanh_log_interval(Fraction(1, 3))
+    reduced_z = (1 - reduced) / (1 + reduced)
+    reduced_lower, reduced_upper = _atanh_log_interval(reduced_z)
+    return (
+        powers_of_two * log_two_lower + reduced_lower,
+        powers_of_two * log_two_upper + reduced_upper,
+    )
+
+
+@lru_cache(maxsize=1024)
+def _atanh_log_interval(z: Fraction) -> tuple[Fraction, Fraction]:
+    """Enclose ``2*atanh(z)`` using a positive series and geometric tail."""
+
+    if not Fraction(0) <= z <= Fraction(1, 3):
+        raise ValueError("log-series argument must be in [0, 1/3]")
+    z_squared = z * z
+    term = z
+    partial = Fraction(0)
+    for index in range(_LOG_SERIES_TERMS):
+        partial += term / (2 * index + 1)
+        term *= z_squared
+    lower = 2 * partial
+    tail = 2 * term / ((2 * _LOG_SERIES_TERMS + 1) * (1 - z_squared))
+    return lower, lower + tail
+
+
+def _fraction_outward_decimal(value: Fraction) -> Decimal:
+    if value < 0:
+        raise ValueError("outward decimal value must be non-negative")
+    scaled = _ceil_fraction(value * PROBABILITY_SCALE)
+    return _terminating_decimal(scaled, fractional_places=PROBABILITY_SCALE_DIGITS)
+
+
+def _ceil_fraction(value: Fraction) -> int:
+    return -(-value.numerator // value.denominator)
+
+
 def _invert_increasing_binomial_tail(
     *,
     trials: int,
@@ -523,12 +815,18 @@ def _exact_quotient(numerator: int, denominator: int) -> int:
 
 
 __all__ = [
+    "BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD",
+    "BinomialUpperBound",
+    "BinomialUpperBoundMethod",
     "CLOPPER_PEARSON_BISECTION_STEPS",
     "CLOPPER_PEARSON_METHOD",
     "MAX_CLOPPER_PEARSON_AGGREGATE_WORK_UNITS",
     "MAX_CLOPPER_PEARSON_TRIALS",
+    "MAX_SCALABLE_BINOMIAL_TRIALS",
+    "ZERO_EVENT_CLOSED_FORM_METHOD",
     "ClopperPearsonInterval",
     "IntervalSide",
+    "binomial_upper_bound_one_sided",
     "clear_binomial_interval_cache",
     "clopper_pearson_interval_pair_work_units",
     "clopper_pearson_one_sided",

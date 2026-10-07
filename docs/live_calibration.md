@@ -28,13 +28,58 @@ sensitivity, boundary intervals, paired t intervals, bootstrap path selection,
 fixed-reference comparisons, incomplete stops, exclusions, and budget-stop
 status.
 
-Advanced endpoint tests cover rare-event Poisson upper bounds, one-sided
-sidedness labeling, zero-event interpretation, observed cluster-correlation
-summaries with uncertainty, Bonferroni rejection of unadjusted multiple
-confirmatory endpoints, deterministic SHA-256-derived resampling seeds, and
-exact paired-permutation null behavior. Low-cluster, mismatched-pairing,
-unsupported-confidence, inconsistent-design-effect, and incompatible primary
-endpoint cases fail closed or remain exploratory.
+Advanced endpoint tests cover bounded-work binomial rare-event bounds (exact
+Clopper--Pearson, exact zero-event closed form, and conservative large-n
+one-sided Bernoulli KL-Chernoff inversion with rational logarithm enclosures and
+outward rounding), one-sidedness labeling, zero-event interpretation, observed
+cluster-correlation summaries with uncertainty, Bonferroni rejection of
+unadjusted multiple confirmatory endpoints, deterministic SHA-256-derived
+resampling seeds, and exact paired-permutation null behavior. The scalable
+branches have work bounded independently of cluster count. Tests also assert
+that the KL-Chernoff branch remains explicitly non-exact. Low-cluster,
+mismatched-pairing, unsupported-confidence, inconsistent-design-effect, and
+incompatible primary endpoint cases fail closed or remain exploratory.
+
+Adversarial persistence tests mutate otherwise valid current reports and prove
+that deserialization rejects forged top-level gate states, count/rate and
+zero-event contradictions, altered intervals and p-values, nested
+schema-version downgrades, paired-arm denominator or fixed-reference count
+contradictions, and comparison rates or differences that disagree with their
+paired clusters. The comparison verifier reconstructs both complete arm-rate
+objects from per-cluster integer counts and recomputes inference from the
+unrounded count ratios. This avoids a second display-precision rounding step at
+sign and non-inferiority boundaries. The
+evaluation verifier recomputes decision-bearing projections from bounded
+embedded sufficient statistics. Before any evaluation kernel runs, one
+aggregate plan charges every nondegenerate exclusion, pass, outcome, and reason
+rate for both the overall summary and every group together with every eligible
+ICC bootstrap. Exact Clopper--Pearson items are also collected and checked as
+one batch before the first exact-tail inversion. The shared resampling ceiling
+is 4,096,000 primitive sample/sign units: one 1,000-draw ICC bootstrap over the
+4,096-cluster storage ceiling. Exact paired permutation is capped at 17
+clusters; bootstrap and Monte Carlo protocols are
+rejected during protocol validation when planned clusters exceed the budget.
+T-based and descriptive methods retain the full persisted-observation limit.
+Source digests still require comparison with separately trusted RunSet or
+evaluation-report bytes. Resolving both comparison source-evaluation digests
+against separately trusted evaluation reports establishes source consistency,
+not provider-side truth. Latency and cost absolutes remain source-declarative,
+their delta arithmetic is replayed, and the operational fields remain
+non-decision-bearing. The tests do not turn producer-attested observations into
+remote attestation.
+
+Current evaluation-report loading now checks every execution obligation that is
+recoverable from its bounded observation projection before resampling or
+interval work: planned grid and blocks, cluster derivation, prompt/source-group
+stability, homogeneous arm metadata, exclusions, retry/rate-limit ceilings,
+declared provider capture, tool/policy digests, and exact per-observation and
+total costs. The loader reads one bounded byte snapshot, applies writer or
+frozen JSON Schema validation, and reuses the same single Pydantic projection
+for semantic verification and its return value; it does not rerun statistical
+derivation after validation. The projection deliberately omits token usage, committed
+cost/token budgets, per-run configuration/model provenance, and the full frozen
+suite/prompt manifest. Those properties remain verifiable only against the
+separately trusted source RunSet identified by `source_runset_digest`.
 
 ## Drift Checks
 
@@ -58,6 +103,31 @@ These checks cover Markov-style adjacent-state summaries,
 history-dependent/non-Markov sequence conditions, and burst-window reliability
 signals. They do not calibrate a fitted Hawkes or other point-process intensity
 model.
+
+The frozen plan's method set is authoritative. Drift metrics require their
+descriptive-trend basis and optional dependence/state outputs are conditional
+on declaration. A missing metric value in any declared drift window is never
+silently removed to join the values on either side: adjacency, dependence, and
+EWMA outputs are suppressed across that gap, and a confirmatory metric receives
+an invalid prerequisite and monitoring status. Trajectory sequence and event-process families are omitted
+when undeclared; confirmatory trajectory analysis requires the complete
+supported set and at least one confirmatory invariant target. Exploratory plans
+reject confirmatory invariants, and a targetless result cannot receive
+`trajectory_status: valid`. Each invariant's `evaluated_observations` is its
+applicable exposure, not the report-wide path count: all paths for forbidden
+states, included approval paths requiring review for the review invariant,
+observable included approval paths for claim evidence, and included paths
+carrying both attempt and retry counters for counter consistency. For the
+claim-evidence invariant, control-ineligible included approvals are counted
+separately in `unobservable_observations`; excluded observations contribute to
+neither population. Path status makes that boundary explicit: excluded paths
+are `not_evaluated`, included non-approvals are `not_applicable`, and only
+included approvals may be `complete`, `incomplete`, or `unobservable`. Zero
+applicable exposure invalidates a confirmatory invariant. The currently
+observable review contract supports only
+`required_state: human_review`. A zero-count process with adequate exposure is a
+met observed zero rate, while positive under-threshold or incompletely
+timestamped processes cannot emit a no-burst signal.
 
 `tests/integration/test_live_cli.py` exercises the CLI path end to end with the
 static adapter: live run, live evaluate, live drift, and live trajectory all

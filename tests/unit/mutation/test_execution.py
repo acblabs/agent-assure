@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from collections.abc import Callable, Iterator, Mapping
 from copy import deepcopy
 from datetime import date
@@ -185,6 +186,43 @@ def test_registered_operator_is_caught_only_by_its_normative_detector(
     result_payload = execution.result.model_dump(mode="json")
     assert "diagnostic_exception_class" not in result_payload
     assert "local_debug_reference" not in result_payload
+
+
+def test_evidence_descriptor_rejects_stale_digest_state_copy_before_derivation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    suite, source_payload = _fixture()
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+    )
+    assert execution.result.state is MutationResultState.caught
+    assert execution.evidence_descriptor.result.state is EvidenceState.supported
+    forged = execution.result.model_copy(update={"state": MutationResultState.survived})
+    derivation_started = False
+
+    def unexpected_derivation(_basis: EvidenceEvaluationBasis) -> str | None:
+        nonlocal derivation_started
+        derivation_started = True
+        raise AssertionError("descriptor derivation preceded mutation result admission")
+
+    monkeypatch.setattr(
+        mutation_execution,
+        "_basis_sufficiency_check_id",
+        unexpected_derivation,
+    )
+
+    with pytest.raises(ValueError, match="result_digest"):
+        mutation_execution.build_evidence_descriptor(
+            forged,
+            suite_digest=execution.suite_digest,
+            generated_at=_GENERATED_AT,
+        )
+
+    assert derivation_started is False
 
 
 def test_budget_stop_result_omits_declared_replacement_that_is_already_equal() -> None:
@@ -970,7 +1008,7 @@ def test_prohibited_substitute_produces_invalid_operator_and_is_privacy_minimize
             target=subject.runs[0].run_id,
             message=sensitive_message,
         )
-        return _report_with_findings(report, (substitute,), failed_controls=(substitute,))
+        return _coherent_report_with_findings(report, (substitute,))
 
     execution = execute_mutation(
         suite,
@@ -1014,27 +1052,26 @@ def test_conflicting_evaluator_finding_ids_return_semantic_invalid_operator_resu
         subject: RunSet,
     ) -> EvaluationReport:
         report = evaluate_runset(compiled, subject)
-        normative = next(
-            (
-                finding
-                for finding in report.candidate_vs_expectations.findings
-                if finding.control_id == "material_claims_have_evidence"
-            ),
-            None,
-        )
-        if normative is None:
-            return report
-        conflicting = normative.model_copy(
-            update={
-                "control_id": "runtime_success_required",
-                "reason_code": ReasonCode.RUNTIME_FAILED,
-                "target": subject.runs[0].run_id,
-            }
-        )
-        return _report_with_findings(
+        shared_id = "finding-conflicting-cross-report-identity"
+        if subject.runs[0].claim_evidence_links:
+            injected = _finding(
+                finding_id=shared_id,
+                control_id="runtime_success_required",
+                reason_code=ReasonCode.RUNTIME_FAILED,
+                target=subject.runs[0].run_id,
+                message="synthetic source identity",
+            )
+        else:
+            injected = _finding(
+                finding_id=shared_id,
+                control_id="tool_allowlist",
+                reason_code=ReasonCode.FORBIDDEN_TOOL,
+                target="blocked-tool-case-a",
+                message="synthetic candidate identity",
+            )
+        return _coherent_report_with_findings(
             report,
-            (normative, conflicting),
-            failed_controls=(normative,),
+            (injected,),
         )
 
     execution = execute_mutation(
@@ -1048,7 +1085,7 @@ def test_conflicting_evaluator_finding_ids_return_semantic_invalid_operator_resu
 
     assert execution.result.state is MutationResultState.invalid_operator
     assert execution.result.diagnostic_code == "confounded_operator_output"
-    assert len(execution.result.observed_findings) == 1
+    assert execution.result.observed_findings == ()
     assert execution.result.matched_finding_ids == ()
     assert execution.mutated_payload is None
 
@@ -1788,10 +1825,9 @@ def test_invalid_finding_projection_returns_privacy_safe_execution_error() -> No
         if normative is None:
             return report
         forged = normative.model_copy(update={"finding_id": "x" * (MAX_LABEL_CHARS + 1)})
-        return _report_with_findings(
+        return _coherent_report_with_findings(
             report,
             (forged,),
-            failed_controls=(forged,),
         )
 
     execution = execute_mutation(
@@ -1926,21 +1962,22 @@ def _without_detector(
         subject: RunSet,
     ) -> EvaluationReport:
         report = evaluate_runset(suite, subject)
+        removed_findings = tuple(
+            finding
+            for finding in report.candidate_vs_expectations.findings
+            if finding.control_id == control_id and finding.reason_code is reason_code
+        )
         findings = tuple(
             finding
             for finding in report.candidate_vs_expectations.findings
             if not (finding.control_id == control_id and finding.reason_code is reason_code)
         )
-        failed_controls = tuple(
-            finding
-            for finding in report.failed_controls
-            if not (finding.control_id == control_id and finding.reason_code is reason_code)
-        )
-        return _report_with_findings(
-            report,
-            findings,
-            failed_controls=failed_controls,
-        )
+        if control_id == "valid_record_required" and removed_findings:
+            # A current report must reconcile non-included source coverage with a
+            # validity finding. Model a weakened, mis-scoped detector so the report
+            # remains internally valid while failing the operator's exact target.
+            findings += (removed_findings[0].model_copy(update={"target": "missing"}),)
+        return _coherent_report_with_findings(report, findings)
 
     return evaluate_without_detector
 
@@ -1963,21 +2000,86 @@ def _bound_evaluator(
     )
 
 
-def _report_with_findings(
+def _coherent_report_with_findings(
     report: EvaluationReport,
     findings: tuple[Finding, ...],
-    *,
-    failed_controls: tuple[Finding, ...],
 ) -> EvaluationReport:
+    summary_state = _summary_state(findings)
     summary = report.candidate_vs_expectations.model_copy(
-        update={"findings": findings},
+        update={"findings": findings, "state": summary_state},
+    )
+    case_outcomes = tuple(
+        outcome.model_copy(
+            update={
+                "state": _case_outcome_state(
+                    tuple(finding for finding in findings if finding.case_id == outcome.case_id)
+                )
+            }
+        )
+        for outcome in report.case_outcomes
+    )
+    outcome_counts = Counter(outcome.state for outcome in case_outcomes)
+    outcome_case_ids = {outcome.case_id for outcome in case_outcomes}
+    metrics = report.metrics.model_copy(
+        update={
+            "total_cases": len(case_outcomes),
+            "evaluated_cases": len(case_outcomes) - outcome_counts[GateState.not_evaluated],
+            "unevaluated_cases": outcome_counts[GateState.not_evaluated],
+            "passed_cases": outcome_counts[GateState.pass_],
+            "warning_cases": outcome_counts[GateState.warn],
+            "failed_cases": outcome_counts[GateState.fail],
+            "warning_findings": sum(
+                finding.state in (GateState.warn, GateState.not_evaluated) for finding in findings
+            ),
+            "blocking_findings": sum(finding.state is GateState.fail for finding in findings),
+            "global_blocking_findings": sum(
+                finding.state is GateState.fail and finding.case_id not in outcome_case_ids
+                for finding in findings
+            ),
+            "findings_by_reason": dict(
+                sorted(Counter(finding.reason_code.value for finding in findings).items())
+            ),
+            "findings_by_control": dict(
+                sorted(Counter(finding.control_id for finding in findings).items())
+            ),
+        }
     )
     return report.model_copy(
         update={
             "candidate_vs_expectations": summary,
-            "failed_controls": failed_controls,
+            "case_outcomes": case_outcomes,
+            "metrics": metrics,
+            "failed_controls": tuple(
+                finding for finding in findings if finding.state is GateState.fail
+            ),
+            "warning_controls": tuple(
+                finding for finding in findings if finding.state is GateState.warn
+            ),
         }
     )
+
+
+def _summary_state(findings: tuple[Finding, ...]) -> GateState:
+    states = {finding.state for finding in findings}
+    for state in (GateState.fail, GateState.warn, GateState.not_evaluated):
+        if state in states:
+            return state
+    return GateState.pass_
+
+
+def _case_outcome_state(findings: tuple[Finding, ...]) -> GateState:
+    if any(
+        finding.control_id == "valid_record_required"
+        and finding.reason_code is ReasonCode.VALID_RECORD_MISSING
+        and finding.target in {"missing", "duplicate-suite-case", "observation_status"}
+        for finding in findings
+    ):
+        return GateState.not_evaluated
+    if any(finding.state is GateState.fail for finding in findings):
+        return GateState.fail
+    if any(finding.state in (GateState.warn, GateState.not_evaluated) for finding in findings):
+        return GateState.warn
+    return GateState.pass_
 
 
 def _finding(

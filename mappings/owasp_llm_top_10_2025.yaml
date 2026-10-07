@@ -1,13 +1,14 @@
 framework: owasp-llm-top-10-2025
 framework_version: "2025"
-mapping_version: "0.1.0"
+mapping_version: "0.2.0"
 source_review:
-  reviewed_on: "2026-07-10"
+  reviewed_on: "2026-09-30"
   source_refs:
     - docs/governance_crosswalk_owasp_llm.md
     - docs/threat_coverage_matrix.yaml
   notes:
     - Uses OWASP LLM Top 10 2025 risk IDs and short internal labels.
+    - Agent Assure tool-integrity safeguards are excluded from system-under-test risk evidence.
 limitations:
   - Evidence mapping only; not an assessment of compliance.
   - Risk tags indicate related review areas, not complete mitigation.
@@ -87,28 +88,11 @@ controls:
     limitations:
       - Tool evidence is conditional on configured allowed tools.
   - id: LLM07
-    title: System prompt and configuration boundary
-    evidence_rules:
-      - rule_id: config-path-contradiction
-        requires:
-          - signal: control_failure_observed
-            condition: live_config_path_confinement
-        coverage_state_when_true: contradictory_evidence_observed
-        coverage_state_when_false: not_observed
-      - rule_id: endpoint-boundary-contradiction
-        requires:
-          - signal: control_failure_observed
-            condition: live_openai_endpoint_allowlist
-        coverage_state_when_true: contradictory_evidence_observed
-        coverage_state_when_false: not_observed
-      - rule_id: config-path-evaluated
-        requires:
-          - signal: control_evaluated
-            condition: live_config_path_confinement
-        coverage_state_when_true: partially_observed
-        coverage_state_when_false: not_evaluated
+    title: System prompt boundary
+    evidence_rules: []
     limitations:
-      - Configuration evidence is limited to local live-adapter guardrails.
+      - No system-under-test evidence is currently mapped to this risk.
+      - Local config-path and endpoint controls are Agent Assure tool-integrity safeguards, not evidence of system-under-test LLM07 behavior.
       - The packet does not inspect prompts or provider-side hidden instructions.
   - id: LLM08
     title: Retrieval and embedding boundary

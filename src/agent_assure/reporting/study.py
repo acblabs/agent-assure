@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -31,10 +32,12 @@ from agent_assure.schema.stochastic_sensitivity import (
 from agent_assure.schema.study import (
     RealModelStudyManifest,
     RealModelStudyReport,
+    StudyConditionResult,
     StudyExecutionReviewReceipt,
     StudyFixedFrameDescriptiveRule,
     StudyHypothesisDecisionRule,
     StudyObservedExecutionProvenance,
+    StudyOneSidedInterval,
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
 )
@@ -371,9 +374,78 @@ def _preflight_study_artifact_sizes(
         budget.add_model("study-execution-review.json", execution_review_receipt)
 
 
+def _classification_witness(report: RealModelStudyReport) -> str:
+    """Explain the frozen directional decision without implying a two-sided interval."""
+
+    rule = report.manifest.hypothesis_decision_rule
+    if not isinstance(rule, StudyHypothesisDecisionRule):
+        return "not measured because the inferential decision rule is inactive"
+    targets = tuple(
+        result
+        for result in report.conditions
+        if result.analysis_role.value == "inertia_estimand"
+        and result.decision_inertia_interval is not None
+    )
+    if report.hypothesis_classification.value == "not_measured":
+        return "not measured because inferential prerequisites were not satisfied"
+    threshold = Decimal(rule.materiality_threshold)
+
+    def interval_for(result: StudyConditionResult) -> StudyOneSidedInterval:
+        interval = result.decision_inertia_interval
+        assert interval is not None
+        return interval
+
+    def describe(result: StudyConditionResult, *, side: str) -> str:
+        interval = interval_for(result)
+        bound = interval.lower_bound if side == "lower" else interval.upper_bound
+        comparator = ">" if side == "lower" else "<="
+        return (
+            f"{markdown_code_span(result.condition_id)}: "
+            f"{interval.successes}/{interval.trials} inertia clusters, adjusted "
+            f"one-sided {side} bound {markdown_code_span(bound)} {comparator} "
+            f"threshold {markdown_code_span(rule.materiality_threshold)}, "
+            f"adjusted alpha {markdown_code_span(interval.adjusted_alpha)}"
+        )
+
+    if report.hypothesis_classification.value == "supported":
+        witnesses = tuple(
+            describe(result, side="lower")
+            for result in targets
+            if Decimal(interval_for(result).lower_bound) > threshold
+        )
+        return f"supported_when={markdown_code_span(rule.supported_when)} fired for " + "; ".join(
+            witnesses
+        )
+    if report.hypothesis_classification.value == "contradicted":
+        return (
+            f"contradicted_when={markdown_code_span(rule.contradicted_when)} "
+            "fired for all targets: "
+            + "; ".join(describe(result, side="upper") for result in targets)
+        )
+    return (
+        f"inconclusive because neither "
+        f"supported_when={markdown_code_span(rule.supported_when)} nor "
+        f"contradicted_when={markdown_code_span(rule.contradicted_when)} fired: "
+        + "; ".join(
+            (
+                f"{markdown_code_span(result.condition_id)}: "
+                f"{interval_for(result).successes}/"
+                f"{interval_for(result).trials} inertia clusters, "
+                "adjusted one-sided lower/upper bounds "
+                f"{markdown_code_span(interval_for(result).lower_bound)} / "
+                f"{markdown_code_span(interval_for(result).upper_bound)}, "
+                f"adjusted alpha "
+                f"{markdown_code_span(interval_for(result).adjusted_alpha)}"
+            )
+            for result in targets
+        )
+    )
+
+
 def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
     """Render the bounded structured result without exposing raw model content."""
 
+    report = RealModelStudyReport.model_validate(report.model_dump(mode="json", warnings="error"))
     registration = report.manifest.registration
     rule = report.manifest.hypothesis_decision_rule
     confirmatory_rule = rule if isinstance(rule, StudyHypothesisDecisionRule) else None
@@ -404,7 +476,8 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
         ),
         (
             "- Hypothesis classification: "
-            f"{markdown_code_span(report.hypothesis_classification.value)}"
+            f"{markdown_code_span(report.hypothesis_classification.value)}; "
+            f"Classification witness: {_classification_witness(report)}"
         ),
         (f"- Inference scope: {markdown_code_span(rule.inference_scope.value)}"),
         (f"- Inferential statistics applicable: {str(inferential_statistics_applicable).lower()}"),
@@ -769,9 +842,15 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                     ),
                     *(
                         (
-                            "- Adjusted one-sided inertia interval: "
-                            f"[{markdown_code_span(interval.lower_bound)}, "
-                            f"{markdown_code_span(interval.upper_bound)}]",
+                            "- Adjusted one-sided inertia lower bound: "
+                            f"{markdown_code_span(interval.lower_bound)}",
+                            "- Adjusted one-sided inertia upper bound: "
+                            f"{markdown_code_span(interval.upper_bound)}",
+                            "- Directional-bound adjusted alpha / familywise alpha / "
+                            "Bonferroni family size: "
+                            f"{markdown_code_span(interval.adjusted_alpha)} / "
+                            f"{markdown_code_span(interval.familywise_alpha)} / "
+                            f"{interval.family_size}",
                         )
                         if interval is not None
                         else ()
@@ -794,9 +873,15 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                     ),
                     *(
                         (
-                            "- Adjusted one-sided unexpected-change interval: "
-                            f"[{markdown_code_span(interval.lower_bound)}, "
-                            f"{markdown_code_span(interval.upper_bound)}]",
+                            "- Adjusted one-sided unexpected-change lower bound: "
+                            f"{markdown_code_span(interval.lower_bound)}",
+                            "- Adjusted one-sided unexpected-change upper bound: "
+                            f"{markdown_code_span(interval.upper_bound)}",
+                            "- Directional-bound adjusted alpha / familywise alpha / "
+                            "Bonferroni family size: "
+                            f"{markdown_code_span(interval.adjusted_alpha)} / "
+                            f"{markdown_code_span(interval.familywise_alpha)} / "
+                            f"{interval.family_size}",
                         )
                         if interval is not None
                         else ()

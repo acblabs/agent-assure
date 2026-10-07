@@ -9,6 +9,7 @@ import pytest
 import rfc8785
 
 import agent_assure.privacy.detectors as privacy_detectors
+import agent_assure.privacy.redaction as privacy_redaction
 from agent_assure.adapters.base import validate_privacy_filtered_mapping
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.policies.privacy import evaluate_redaction
@@ -19,6 +20,7 @@ from agent_assure.privacy.detectors import (
     PRIVACY_PROFILE_ID,
     contains_sensitive_value,
     privacy_profile_manifest,
+    url_query_secret_spans,
 )
 from agent_assure.privacy.persistence import (
     UnsafePersistedTextError,
@@ -28,6 +30,7 @@ from agent_assure.privacy.persistence import (
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
     assert_stream_payload_safe_for_persistence,
+    mask_sensitive_text_preserving_length,
     redact_artifact_payload,
     redact_packet_payload,
     redact_runset_payload,
@@ -42,9 +45,40 @@ from agent_assure.schema.sensitivity import (
 )
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.sensitivity_contract import MAX_SENSITIVITY_FIXTURE_BYTES
+from agent_assure.telemetry.privacy_filter import safe_attribute
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key-32-bytes"
 TEST_HMAC_CONTEXT = "agent-assure/tests/member-token/v1"
+MAX_PRIVACY_SCAN_REGRESSION_SECONDS = 0.25
+MAX_PRIVACY_SCAN_CONTROL_MULTIPLIER = 25.0
+
+
+def _minimum_privacy_scan_seconds(raw: str, *, expected: bool) -> float:
+    """Return a warmed best-of-three time while checking every scan result."""
+
+    assert contains_sensitive_value(raw) is expected
+    elapsed_samples: list[float] = []
+    for _ in range(3):
+        started = time.perf_counter()
+        observed = contains_sensitive_value(raw)
+        elapsed_samples.append(time.perf_counter() - started)
+        assert observed is expected
+    return min(elapsed_samples)
+
+
+def _assert_privacy_scan_tracks_ordinary_control(
+    raw: str,
+    *,
+    expected: bool,
+) -> None:
+    ordinary = ("ordinary-value-" * ((len(raw) // 15) + 1))[: len(raw)]
+    control_elapsed = _minimum_privacy_scan_seconds(ordinary, expected=False)
+    adversarial_elapsed = _minimum_privacy_scan_seconds(raw, expected=expected)
+    ceiling = max(
+        MAX_PRIVACY_SCAN_REGRESSION_SECONDS,
+        control_elapsed * MAX_PRIVACY_SCAN_CONTROL_MULTIPLIER,
+    )
+    assert adversarial_elapsed < ceiling
 
 
 def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
@@ -53,12 +87,14 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     assert manifest["profile_id"] == PRIVACY_PROFILE_ID
     assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
     assert PRIVACY_PROFILE_DIGEST == (
-        "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6"
+        "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d"
     )
     assert manifest["unicode_scan_normalization"] == "NFKC"
     assert manifest["unicode_category_c_action"].startswith("remove-with-")
     assert manifest["unicode_dash_action"] == "map-category-pd-and-u+2212-to-ascii-hyphen"
-    assert manifest["non_ascii_marker_policy"] == "run-all-detectors"
+    assert manifest["non_ascii_marker_policy"] == (
+        "run-all-python-regex-detectors-and-url-python-ignorecase-equivalent-fold"
+    )
     assert manifest["structured_mapping_action"] == (
         "treat-nonempty-value-under-sensitive-or-non-ascii-key-as-sensitive"
     )
@@ -76,6 +112,12 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
         "json-web-token",
         "aws-access-key-id",
         "github-token",
+        "github-fine-grained-token",
+        "gitlab-personal-access-token",
+        "hugging-face-token",
+        "google-oauth-access-token",
+        "npm-access-token",
+        "pypi-api-token",
         "openai-api-key",
         "anthropic-api-key",
         "slack-token",
@@ -83,6 +125,8 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
         "stripe-live-key",
         "http-basic-authorization",
         "aws-secret-access-key-assignment",
+        "azure-shared-key-assignment",
+        "sendgrid-api-key",
         "generic-secret-assignment",
         "generic-secret-prose",
         "url-query-secret",
@@ -96,6 +140,53 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     }
     assert markers_by_detector["email-address"] == ["@"]
     assert markers_by_detector["payment-card-like-number"] == []
+    assert manifest["payment_card_engine"] == "bounded-forward-scanner-with-luhn-filter"
+    assert manifest["payment_card_digit_bounds"] == [13, 19]
+    assert manifest["payment_card_digit_alphabet"] == "ascii-0-9-with-nfkc-secondary-view"
+    assert manifest["payment_card_boundary_policy"] == ("not-immediately-adjacent-to-ascii-digit")
+    assert manifest["payment_card_separator_policy"] == (
+        "zero-or-one-ascii-space-or-hyphen-between-digits"
+    )
+    assert manifest["payment_card_candidate_selection"] == (
+        "per-start-longest-to-shortest-first-valid-luhn"
+    )
+    assert manifest["email_syntax_bounds"] == {
+        "local_characters": 64,
+        "domain_prefix_characters": 250,
+        "top_level_domain_characters": 63,
+    }
+    assert manifest["url_query_secret_engine"] == (
+        "bounded-forward-scanner-with-original-span-map-and-all-secret-components"
+    )
+    assert manifest["url_query_secret_component_action"] == (
+        "redact-first-url-prefix-and-every-later-secret-key-value"
+    )
+    assert manifest["url_query_secret_preflight"] == [
+        "question-mark",
+        "http-or-https-scheme",
+        "configured-secret-marker-or-percent-escape",
+    ]
+    assert manifest["url_query_secret_percent_decode_depth"] == 2
+    assert manifest["url_query_secret_percent_decode"].startswith("credential-syntax-")
+    assert "dotless-i" in manifest["url_query_secret_casefold"]
+    assert "transformed-over-limit" in manifest["redaction_algorithm"]
+    assert markers_by_detector["url-query-secret"]
+    assert (
+        next(
+            item["engine"]
+            for item in manifest["detectors"]
+            if item["pattern_id"] == "url-query-secret"
+        )
+        == "bounded-forward-scanner"
+    )
+    assert (
+        next(
+            item["engine"]
+            for item in manifest["detectors"]
+            if item["pattern_id"] == "payment-card-like-number"
+        )
+        == "bounded-forward-scanner-with-luhn-filter"
+    )
 
 
 @pytest.mark.parametrize(
@@ -110,6 +201,126 @@ def test_generic_secret_assignment_detects_underscore_prefixed_names(
     assignment: str,
 ) -> None:
     assert contains_sensitive_value(assignment)
+
+
+def test_payment_card_detector_requires_a_valid_luhn_checksum() -> None:
+    assert contains_sensitive_value("card 4111 1111 1111 1111")
+    assert redact_text("card 4111 1111 1111 1111") == "card [REDACTED]"
+    assert not contains_sensitive_value("req-1727712000000")
+    assert redact_text("req-1727712000000") == "req-1727712000000"
+
+
+@pytest.mark.parametrize(
+    "pan",
+    (
+        "4000000000006",
+        "40000000000002",
+        "400000000000006",
+        "4000000000000002",
+        "40000000000000006",
+        "400000000000000002",
+        "4000000000000000006",
+    ),
+)
+@pytest.mark.parametrize("separator", ("", " ", "-"))
+def test_payment_card_detector_covers_luhn_valid_13_through_19_digit_pans(
+    pan: str,
+    separator: str,
+) -> None:
+    candidate = separator.join(pan) if separator else pan
+
+    assert contains_sensitive_value(candidate)
+    assert redact_text(candidate) == "[REDACTED]"
+    with pytest.raises(UnsafePersistedTextError, match="credential material"):
+        assert_persisted_payload_safe({"content": candidate}, owner="test report")
+
+
+@pytest.mark.parametrize(
+    "invalid_pan",
+    (
+        "4000000000007",
+        "40000000000003",
+        "400000000000007",
+        "4000000000000003",
+        "40000000000000007",
+        "400000000000000003",
+        "4000000000000000007",
+    ),
+)
+def test_payment_card_detector_rejects_invalid_checksums_across_supported_lengths(
+    invalid_pan: str,
+) -> None:
+    assert not contains_sensitive_value(invalid_pan)
+    assert redact_text(invalid_pan) == invalid_pan
+
+
+@pytest.mark.parametrize(
+    ("prefix", "suffix"),
+    (
+        ("x", "y"),
+        ("_", "_"),
+        ("\u6f22", "\u5b57"),
+    ),
+)
+def test_payment_card_detector_uses_digit_boundaries_not_unicode_word_boundaries(
+    prefix: str,
+    suffix: str,
+) -> None:
+    pan = "4111111111111111"
+    raw = f"{prefix}{pan}{suffix}"
+
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == f"{prefix}[REDACTED]{suffix}"
+
+
+@pytest.mark.parametrize("separator", (" ", "-"))
+@pytest.mark.parametrize("numeric_suffix", ("1", "12", "123"))
+def test_payment_card_detector_retries_shorter_luhn_valid_pan_before_numeric_field(
+    separator: str,
+    numeric_suffix: str,
+) -> None:
+    pan = "4111111111111111"
+    raw = f"{pan}{separator}{numeric_suffix}"
+
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == f"[REDACTED]{separator}{numeric_suffix}"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        "41111111111111111234",
+        "12344111111111111111",
+    ),
+)
+def test_payment_card_detector_does_not_match_inside_longer_contiguous_digit_run(
+    raw: str,
+) -> None:
+    assert not contains_sensitive_value(raw)
+    assert redact_text(raw) == raw
+
+
+_AZURE_ASSIGNMENT_MARKER = "AccountKey="
+_SYNTHETIC_ENTROPY_FRAGMENT = "11AA22BB33CC44DD55EE66FF"
+
+
+@pytest.mark.parametrize(
+    "credential",
+    (
+        "github_pat_11AA22BB33CC44DD55EE66FF77GG88HH",
+        "gl" + "pat-11AA22BB33CC44DD55EE66FF",
+        "hf_11AA22BB33CC44DD55EE66FF",
+        "ya29.11AA22BB33CC44DD55EE66FF",
+        "npm_11AA22BB33CC44DD55EE66FF",
+        "pypi-11AA22BB33CC44DD55EE66FF",
+        "sig=11AA22BB33CC44DD55EE66FF",
+        _AZURE_ASSIGNMENT_MARKER + _SYNTHETIC_ENTROPY_FRAGMENT,
+        "SG.11AA22BB33CC44DD.11AA22BB33CC44DD55EE66FF77GG88HH99II00JJ",
+    ),
+)
+def test_reported_provider_credentials_are_detected_and_redacted(credential: str) -> None:
+    assert contains_sensitive_value(credential)
+    assert redact_text(f"credential {credential}") == "credential [REDACTED]"
 
 
 def test_privacy_profile_manifest_identity_changes_with_required_markers(
@@ -349,27 +560,283 @@ def test_redaction_removes_url_secret_when_path_contains_ampersand() -> None:
     assert "[REDACTED]" in redacted
 
 
-def test_url_secret_redaction_rejects_long_nonsecret_url_quickly() -> None:
+def test_url_query_scanner_redacts_short_values_not_matched_by_assignment_detector() -> None:
+    raw = "see https://example.test/path?token=x now"
+
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == "see [REDACTED] now"
+
+
+@pytest.mark.parametrize("scheme", ("http", "https"))
+@pytest.mark.parametrize(
+    "key",
+    (
+        "api_key",
+        "api-key",
+        "apikey",
+        "access_token",
+        "access-token",
+        "accesstoken",
+        "token",
+        "secret",
+        "password",
+    ),
+)
+@pytest.mark.parametrize("hex_case", ("upper", "lower"))
+def test_url_query_scanner_redacts_percent_encoded_secret_key_characters(
+    scheme: str,
+    key: str,
+    hex_case: str,
+) -> None:
+    escape = f"%{ord(key[0]):02X}"
+    if hex_case == "lower":
+        escape = escape.lower()
+    encoded_key = escape + key[1:]
+    raw = f"{scheme}://example.test/path?ordinary=1&{encoded_key}=x"
+
+    assert url_query_secret_spans(raw) == ((0, len(raw)),)
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == "[REDACTED]"
+    assert safe_attribute(raw) == "[REDACTED]"
+    with pytest.raises(UnsafePersistedTextError, match="credential material"):
+        assert_persisted_payload_safe({"content": raw}, owner="test telemetry payload")
+
+
+@pytest.mark.parametrize(
+    "encoded_query",
+    (
+        "api%5Fkey=x",
+        "api%2Dkey=x",
+        "access%5Ftoken=x",
+        "access%2Dtoken=x",
+        "token%3Dx",
+        "api%255Fkey%253Dx",
+        "%2574oken%253dx",
+    ),
+)
+def test_url_query_scanner_redacts_encoded_separators_operators_and_two_layers(
+    encoded_query: str,
+) -> None:
+    prefix = "before "
+    url = f"https://example.test/path?{encoded_query}"
+    suffix = " after"
+    raw = prefix + url + suffix
+
+    assert url_query_secret_spans(raw) == ((len(prefix), len(prefix) + len(url)),)
+    assert redact_text(raw) == f"{prefix}[REDACTED]{suffix}"
+
+
+@pytest.mark.parametrize(
+    "encoded_query",
+    (
+        "ap%C4%B1_key=x",
+        "ap%C4%B0_key=x",
+        "%C5%BFecret=x",
+        "to%E2%84%AAen=x",
+        "%EF%BD%94oken=x",
+        "to%E2%80%8Bken=x",
+        "ap%25C4%25B1_key=x",
+    ),
+)
+def test_url_query_scanner_normalizes_utf8_percent_encoded_secret_keys(
+    encoded_query: str,
+) -> None:
+    prefix = "before "
+    url = f"https://example.test/path?{encoded_query}"
+    suffix = " after"
+    raw = prefix + url + suffix
+
+    assert url_query_secret_spans(raw) == ((len(prefix), len(prefix) + len(url)),)
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == f"{prefix}[REDACTED]{suffix}"
+
+
+@pytest.mark.parametrize(
+    ("query", "second_key"),
+    (
+        ("token=x&ordinary=ok&password=y", "password=y"),
+        ("%74oken=x&ordinary=ok&%73ecret=y", "%73ecret=y"),
+    ),
+)
+def test_url_query_scanner_redacts_every_secret_component_in_one_url(
+    query: str,
+    second_key: str,
+) -> None:
+    prefix = "before "
+    url = f"https://example.test/path?{query}"
+    suffix = " after"
+    raw = prefix + url + suffix
+    first_end = url.index("&ordinary")
+    second_start = url.index(second_key)
+    expected_spans = (
+        (len(prefix), len(prefix) + first_end),
+        (len(prefix) + second_start, len(prefix) + len(url)),
+    )
+    expected = f"{prefix}[REDACTED]&ordinary=ok&[REDACTED]{suffix}"
+
+    assert url_query_secret_spans(raw) == expected_spans
+    redacted = redact_text(raw)
+    assert redacted == expected
+    assert not contains_sensitive_value(redacted)
+
+
+@pytest.mark.parametrize(
+    ("query", "second_key"),
+    (
+        ("token=x&ordinary=ok&password=y", "password=y"),
+        ("%74oken=x&ordinary=ok&%73ecret=y", "%73ecret=y"),
+    ),
+)
+def test_url_query_scanner_masks_every_secret_component_without_moving_text(
+    query: str,
+    second_key: str,
+) -> None:
+    prefix = "before "
+    url = f"https://example.test/path?{query}"
+    suffix = " after"
+    raw = prefix + url + suffix
+    first_end = url.index("&ordinary")
+    second_start = url.index(second_key)
+    expected = (
+        prefix
+        + ("\u2588" * first_end)
+        + "&ordinary=ok&"
+        + ("\u2588" * (len(url) - second_start))
+        + suffix
+    )
+
+    masked = mask_sensitive_text_preserving_length(raw)
+
+    assert masked == expected
+    assert len(masked) == len(raw)
+    assert not contains_sensitive_value(masked)
+
+
+@pytest.mark.parametrize(
+    "query",
+    (
+        "ap\u0131_key=x",
+        "ap\u0130_key=x",
+        "\u017fecret=x",
+        "to\u212aen=x",
+    ),
+)
+def test_url_query_scanner_matches_python_ignorecase_unicode_equivalents(query: str) -> None:
+    raw = f"https://example.test/path?{query}"
+
+    assert url_query_secret_spans(raw) == ((0, len(raw)),)
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == "[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        "https://example.test/path?api%5Gkey=x",
+        "https://example.test/path?ap%C4_key=x",
+        "https://example.test/path?%FFoken=x",
+        "https://example.test/path?ordinary%3Dx",
+        "https://example.test/path/api%5Fkey=x",
+        "https://example.test/path#api%5Fkey=x",
+    ),
+)
+def test_url_query_scanner_preserves_malformed_or_nonquery_percent_near_misses(raw: str) -> None:
+    assert url_query_secret_spans(raw) == ()
+    assert not contains_sensitive_value(raw)
+    assert redact_text(raw) == raw
+
+
+def test_redaction_fails_closed_when_earlier_replacements_expand_past_scan_limit() -> None:
+    card = "4111 1111 1111 1111"
+    url_secret = "https://example.test/path?token=SUPERSECRETVALUE123"
+    suffix = f" card={card} url={url_secret}"
+    emails = "a@b.co " * 2_000
+    padding = "x" * (MAX_PRIVACY_SCAN_CHARS - len(emails) - len(suffix))
+    raw = emails + padding + suffix
+
+    assert len(raw) == MAX_PRIVACY_SCAN_CHARS
+    assert redact_text(raw) == "[REDACTED]"
+
+
+def test_redaction_fails_closed_when_final_url_replacements_expand_past_scan_limit() -> None:
+    url_secrets = "https://a.co/?token=x" + ("&token=x" * 10)
+    padding = "x" * (MAX_PRIVACY_SCAN_CHARS - len(url_secrets))
+    raw = padding + url_secrets
+
+    assert len(raw) == MAX_PRIVACY_SCAN_CHARS
+    assert redact_text(raw) == "[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    ("raw_length", "expected_length"),
+    (
+        (MAX_PRIVACY_SCAN_CHARS - 19, MAX_PRIVACY_SCAN_CHARS),
+        (MAX_PRIVACY_SCAN_CHARS - 18, None),
+    ),
+)
+def test_redaction_enforces_the_exact_post_url_transformation_boundary(
+    raw_length: int,
+    expected_length: int | None,
+) -> None:
+    url_secrets = "https://a.co/?token=x" + ("&token=x" * 10)
+    raw = ("x" * (raw_length - len(url_secrets))) + url_secrets
+
+    redacted = redact_text(raw)
+
+    assert len(raw) == raw_length
+    if expected_length is None:
+        assert redacted == "[REDACTED]"
+    else:
+        assert len(redacted) == expected_length
+        assert "token=x" not in redacted
+
+
+def test_redaction_fails_closed_if_card_replacement_expands_past_scan_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def expand_past_limit(_value: str, *, preserve_length: bool) -> str:
+        assert preserve_length is False
+        return "x" * (MAX_PRIVACY_SCAN_CHARS + 1)
+
+    monkeypatch.setattr(privacy_redaction, "_replace_payment_cards", expand_past_limit)
+
+    assert redact_text("bounded input") == "[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        "ordinary prose without a URL",
+        "https://example.test/path-without-a-query",
+        "https://example.test/path?ordinary=value",
+        "not-a-url?token=secret-value",
+    ),
+)
+def test_url_query_scanner_cheap_preflight_preserves_nonmatch_semantics(raw: str) -> None:
+    assert url_query_secret_spans(raw) == ()
+
+
+def test_url_query_scanner_bounds_repeated_scheme_adversary() -> None:
+    raw = (("http://a?" * 2_000)[: MAX_PRIVACY_SCAN_CHARS - 8]) + "token=x"
+
+    _assert_privacy_scan_tracks_ordinary_control(raw, expected=True)
+
+
+def test_url_secret_redaction_fails_closed_on_overlimit_url() -> None:
     raw = "https://" + ("a" * 64_000)
 
-    started = time.perf_counter()
     redacted = redact_text(raw)
-    elapsed = time.perf_counter() - started
 
     assert redacted == "[REDACTED]"
-    assert elapsed < 0.5
 
 
 def test_privacy_scan_fails_closed_on_adversarial_overlong_email_shape() -> None:
     raw = ("a." * MAX_PRIVACY_SCAN_CHARS) + "@"
 
-    started = time.perf_counter()
     sensitive = contains_sensitive_value(raw)
-    elapsed = time.perf_counter() - started
 
     assert sensitive is True
     assert redact_text(raw) == "[REDACTED]"
-    assert elapsed < 0.1
 
 
 @pytest.mark.parametrize(
@@ -380,12 +847,7 @@ def test_privacy_scan_fails_closed_on_adversarial_overlong_email_shape() -> None
     ),
 )
 def test_privacy_scan_handles_bounded_near_misses_linearly(raw: str) -> None:
-    started = time.perf_counter()
-    sensitive = contains_sensitive_value(raw)
-    elapsed = time.perf_counter() - started
-
-    assert sensitive is False
-    assert elapsed < 0.5
+    _assert_privacy_scan_tracks_ordinary_control(raw, expected=False)
 
 
 def test_redaction_scans_mapping_keys_without_silent_collision() -> None:
@@ -553,6 +1015,23 @@ def test_persisted_document_scan_detects_secret_across_window_boundary() -> None
 
 
 @pytest.mark.parametrize(
+    "window_boundary",
+    (MAX_PRIVACY_SCAN_CHARS, MAX_PRIVACY_SCAN_CHARS + 4_096, MAX_PRIVACY_SCAN_CHARS + 8_192),
+)
+def test_persisted_document_scan_detects_rfc_bounded_email_across_windows(
+    window_boundary: int,
+) -> None:
+    email = ("a" * 64) + "@" + ("b" * 63) + "." + ("c" * 61) + ".com"
+    assert len(email) <= 254
+    prefix = ("x" * (window_boundary - 101)) + " "
+    document = prefix + email + " " + ("z" * 256)
+    assert len(document) > MAX_PRIVACY_SCAN_CHARS
+
+    with pytest.raises(UnsafePersistedTextError, match="credential material"):
+        assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+
+@pytest.mark.parametrize(
     ("field_value", "rejected"),
     (
         ("1234567", False),
@@ -691,17 +1170,38 @@ def test_runset_design_commitment_digest_fails_closed_on_raw_secret() -> None:
         assert_runset_payload_safe_for_persistence(payload)
 
 
-def test_sha256_suffix_uses_the_same_digest_contract_at_both_privacy_boundaries() -> None:
-    digest = "a" * 64
-    payload = {"registration_record_sha256": digest}
+@pytest.mark.parametrize("field_name", ("registration_record_sha256", "sha256"))
+def test_sha256_field_uses_the_same_digest_contract_at_both_privacy_boundaries(
+    field_name: str,
+) -> None:
+    # This value contains a Luhn-valid 13-digit run. A canonical digest remains
+    # structural only under an explicitly recognized digest field.
+    digest = "c646deba739b87a9e0497482330808d2e500e84dfab7b893a75224e2bca4957a"
+    payload = {field_name: digest}
 
     assert redact_packet_payload(payload) == payload
     assert_persisted_payload_safe(payload, owner="registration record")
 
-    unsafe = {"registration_record_sha256": "api_key=abcdef1234567890"}
-    assert redact_packet_payload(unsafe) == {"registration_record_sha256": "[REDACTED]"}
+    synthetic_marker = "api_key="
+    synthetic_value = "abcdef1234567890"
+    synthetic_assignment = synthetic_marker + synthetic_value
+    unsafe = {field_name: synthetic_assignment}
+    assert redact_packet_payload(unsafe) == {field_name: "[REDACTED]"}
     with pytest.raises(UnsafePersistedTextError, match="sensitive or credential material"):
         assert_persisted_payload_safe(unsafe, owner="registration record")
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ("source_revision", "remediation_source_revision", "git_commit"),
+)
+def test_generic_privacy_boundary_does_not_exempt_git_shaped_fields(field_name: str) -> None:
+    revision = "f8b553e1722d1f4789092253776fc22044e6fce7"
+    payload = {field_name: revision}
+
+    assert redact_packet_payload(payload) != payload
+    with pytest.raises(UnsafePersistedTextError, match="sensitive or credential material"):
+        assert_persisted_payload_safe(payload, owner="untyped Git-shaped record")
 
 
 def test_redaction_recurses_nested_values_under_preserved_keys() -> None:

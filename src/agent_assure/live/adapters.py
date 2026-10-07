@@ -3,18 +3,21 @@ from __future__ import annotations
 import hashlib
 import http.client
 import importlib
+import ipaddress
 import json
+import math
 import os
 import socket
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, DecimalException
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal, Protocol, Self, cast
 
@@ -22,6 +25,7 @@ from pydantic import Field
 from pydantic.functional_validators import model_validator
 
 from agent_assure.canonical.normalize import normalize_decimal
+from agent_assure.fixed_point import picousd_from_usd_six, usd_six_from_picousd
 from agent_assure.io_limits import (
     MAX_STATIC_JSONL_BYTES,
     MAX_STATIC_JSONL_LINE_BYTES,
@@ -31,11 +35,11 @@ from agent_assure.io_limits import (
     read_file_bounded_at,
     read_text_bounded_at,
 )
+from agent_assure.json_lines import iter_jsonl_records
+from agent_assure.live._dns_worker import MAX_RESOLVED_ENDPOINT_ADDRESSES
 from agent_assure.live.config import (
     LiveAdapterConfig,
-    is_disallowed_endpoint_host,
     live_sdk_identifier,
-    normalize_endpoint_host,
     resolve_endpoint_host,
 )
 from agent_assure.live.output_contract import (
@@ -46,6 +50,10 @@ from agent_assure.live.output_contract import (
     validate_live_structured_content,
 )
 from agent_assure.live.paths import resolve_live_config_path
+from agent_assure.network_authority import (
+    is_disallowed_endpoint_host,
+    normalize_endpoint_host,
+)
 from agent_assure.rooted_io import BoundedFileDescriptor
 from agent_assure.runner.subprocess_harness import (
     ExternalScriptError,
@@ -54,7 +62,13 @@ from agent_assure.runner.subprocess_harness import (
     run_external_script,
 )
 from agent_assure.schema.base import SCHEMA_VERSION, StrictModel
-from agent_assure.schema.common import DigestHex, ProviderResponsePayloadScope
+from agent_assure.schema.common import (
+    DigestHex,
+    MachineIdentifier,
+    NonnegativeDecimal6String,
+    ProviderModelIdentifier,
+    ProviderResponsePayloadScope,
+)
 from agent_assure.sensitivity_contract import MAX_SENSITIVITY_CORPUS_BYTES
 
 EstimatedCostSource = Literal[
@@ -82,6 +96,8 @@ class TrustedLiveExecution:
     allow_network: bool = False
     allow_external_script: bool = False
     allow_script_env: bool = False
+    authorized_endpoint_hosts: tuple[str, ...] = ()
+    authorized_api_key_envs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,7 +124,7 @@ class LiveProviderRequest(StrictModel):
     repetition_index: int = Field(ge=0)
     prompt: str = Field(min_length=1)
     provider: str = Field(min_length=1)
-    model: str = Field(min_length=1)
+    model: ProviderModelIdentifier
     governing_evidence: str | None = None
     governing_evidence_digest: DigestHex | None = None
     rendered_governing_evidence_message: str | None = None
@@ -176,13 +192,13 @@ class LiveProviderRequest(StrictModel):
 
 class LiveProviderResponse(StrictModel):
     content: str = Field(min_length=1)
-    provider: str = Field(min_length=1)
-    model: str = Field(min_length=1)
-    resolved_model: str | None = None
-    provider_api_version: str | None = None
-    provider_sdk: str | None = None
-    provider_region: str | None = None
-    provider_response_id: str | None = None
+    provider: MachineIdentifier
+    model: ProviderModelIdentifier
+    resolved_model: ProviderModelIdentifier | None = None
+    provider_api_version: MachineIdentifier | None = None
+    provider_sdk: MachineIdentifier | None = None
+    provider_region: MachineIdentifier | None = None
+    provider_response_id: MachineIdentifier | None = None
     provider_response_payload_sha256: DigestHex
     provider_response_payload_scope: ProviderResponsePayloadScope
     provider_finish_reason: str | None = Field(
@@ -207,7 +223,8 @@ class LiveProviderResponse(StrictModel):
     prompt_tokens: int | None = Field(default=None, ge=0)
     completion_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
-    estimated_cost_usd: str = Field(default="0.000000", pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
+    estimated_cost_usd: NonnegativeDecimal6String = "0.000000"
+    estimated_cost_picousd: int | None = Field(default=None, ge=0)
     estimated_cost_source: EstimatedCostSource = "not_reported"
 
     @model_validator(mode="after")
@@ -224,6 +241,17 @@ class LiveProviderResponse(StrictModel):
             and self.total_tokens != self.prompt_tokens + self.completion_tokens
         ):
             raise ValueError("total_tokens must equal prompt_tokens + completion_tokens")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_exact_cost_projection(self) -> Self:
+        if self.estimated_cost_picousd is None:
+            return self
+        if usd_six_from_picousd(self.estimated_cost_picousd) != self.estimated_cost_usd:
+            raise ValueError(
+                "estimated_cost_usd must be the half-even six-decimal projection of "
+                "estimated_cost_picousd"
+            )
         return self
 
 
@@ -247,6 +275,12 @@ class LiveProviderRequestError(RuntimeError):
         self.status_code = status_code
         self.retry_after_seconds = retry_after_seconds
         self.retryable = retryable
+
+
+def _validated_live_provider_request(request: LiveProviderRequest) -> LiveProviderRequest:
+    """Revalidate every serialized field and cross-field invariant at dispatch boundaries."""
+
+    return LiveProviderRequest.model_validate(request.model_dump(mode="json", warnings="error"))
 
 
 def _governing_evidence_message(request: LiveProviderRequest) -> str:
@@ -301,6 +335,7 @@ def render_governing_evidence_message(
 
 def live_provider_input_text(request: LiveProviderRequest) -> str:
     """Return all provider-bound text used for conservative token accounting."""
+    request = _validated_live_provider_request(request)
     response_contract = (
         ""
         if request.provider_response_format_json is None
@@ -336,6 +371,199 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         )
 
 
+class _TransportDeadline:
+    """Close active transport sockets when one monotonic deadline expires."""
+
+    def __init__(
+        self,
+        timeout_seconds: int,
+        *,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._clock = clock
+        self._deadline_monotonic = clock() + timeout_seconds
+        self._lock = threading.Lock()
+        self._sockets: set[Any] = set()
+        self._expired = False
+        self._timer: threading.Timer | None = None
+
+    def __enter__(self) -> _TransportDeadline:
+        delay = max(0.0, self._deadline_monotonic - self._clock())
+        timer = threading.Timer(delay, self._expire)
+        timer.daemon = True
+        self._timer = timer
+        timer.start()
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        timer = self._timer
+        if timer is not None:
+            timer.cancel()
+        with self._lock:
+            self._sockets.clear()
+
+    def remaining_seconds(self) -> float:
+        remaining = self._deadline_monotonic - self._clock()
+        if remaining <= 0:
+            self._expire()
+            raise TimeoutError("provider request exceeded its total transport deadline")
+        return remaining
+
+    @property
+    def expires_monotonic(self) -> float:
+        """Return the immutable deadline used to cap screened-address reuse."""
+
+        return self._deadline_monotonic
+
+    def register(self, transport_socket: Any) -> None:
+        with self._lock:
+            if self._expired:
+                expired = True
+            else:
+                self._sockets.add(transport_socket)
+                expired = False
+        if expired:
+            _close_deadline_socket(transport_socket)
+            raise TimeoutError("provider request exceeded its total transport deadline")
+
+    def unregister(self, transport_socket: Any) -> None:
+        with self._lock:
+            self._sockets.discard(transport_socket)
+
+    def _expire(self) -> None:
+        with self._lock:
+            self._expired = True
+            sockets = tuple(self._sockets)
+            self._sockets.clear()
+        for transport_socket in sockets:
+            _close_deadline_socket(transport_socket)
+
+
+def _close_deadline_socket(transport_socket: Any) -> None:
+    # On POSIX, close() in one thread does not reliably interrupt a blocking
+    # recv/send in another thread that already holds the file description.
+    # shutdown() tears down both directions first and gives the total-deadline
+    # watchdog cross-platform wake-up semantics; close() still runs to release
+    # the descriptor even when shutdown is unsupported or races peer closure.
+    try:
+        transport_socket.shutdown(socket.SHUT_RDWR)
+    except (AttributeError, OSError):
+        pass
+    try:
+        transport_socket.close()
+    except (AttributeError, OSError):
+        pass
+
+
+@dataclass(frozen=True)
+class _ScreenedEndpointCacheEntry:
+    addresses: tuple[str, ...]
+    expires_monotonic: float
+
+
+class _ScreenedEndpointAddressCache:
+    """Bounded single-flight cache for already-screened HTTPS authorities.
+
+    Entries are keyed by the complete network authority and never have their
+    lifetime extended by a hit. Resolution and screening run while holding
+    the lock so concurrent first callers cannot launch duplicate resolver
+    subprocesses or observe a partially populated entry. Failures are never
+    cached.
+    """
+
+    def __init__(
+        self,
+        *,
+        max_entries: int,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if max_entries < 1:
+            raise ValueError("screened endpoint cache must allow at least one entry")
+        self._max_entries = max_entries
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._entries: dict[tuple[str, str, int], _ScreenedEndpointCacheEntry] = {}
+
+    def get_or_resolve(
+        self,
+        *,
+        scheme: str,
+        host: str,
+        port: int,
+        expires_monotonic: float,
+        resolve_and_screen: Callable[[], tuple[str, ...]],
+    ) -> tuple[str, ...]:
+        normalized_scheme = scheme.casefold()
+        normalized_host = normalize_endpoint_host(host)
+        if normalized_scheme != "https" or port != 443:
+            raise ValueError("screened endpoint cache only accepts HTTPS port 443")
+        key = (normalized_scheme, normalized_host, port)
+        now = self._clock()
+        if not math.isfinite(expires_monotonic) or expires_monotonic <= now:
+            raise TimeoutError("provider request exceeded its total transport deadline")
+        if not self._lock.acquire(timeout=expires_monotonic - now):
+            raise TimeoutError("provider request exceeded its total transport deadline")
+        try:
+            return self._get_or_resolve_locked(
+                key=key,
+                expires_monotonic=expires_monotonic,
+                resolve_and_screen=resolve_and_screen,
+            )
+        finally:
+            self._lock.release()
+
+    def _get_or_resolve_locked(
+        self,
+        *,
+        key: tuple[str, str, int],
+        expires_monotonic: float,
+        resolve_and_screen: Callable[[], tuple[str, ...]],
+    ) -> tuple[str, ...]:
+        now = self._clock()
+        if expires_monotonic <= now:
+            raise TimeoutError("provider request exceeded its total transport deadline")
+        expired_keys = tuple(
+            existing_key
+            for existing_key, entry in self._entries.items()
+            if entry.expires_monotonic <= now
+        )
+        for expired_key in expired_keys:
+            self._entries.pop(expired_key, None)
+        cached = self._entries.get(key)
+        if cached is not None:
+            return cached.addresses
+
+        addresses = resolve_and_screen()
+        if not addresses:
+            raise ValueError("screened endpoint resolver returned no addresses")
+        if len(addresses) > MAX_RESOLVED_ENDPOINT_ADDRESSES:
+            raise ValueError("screened endpoint resolver exceeded its address limit")
+        try:
+            canonical_addresses = tuple(
+                sorted({str(ipaddress.ip_address(address)) for address in addresses})
+            )
+        except ValueError as exc:
+            raise ValueError("screened endpoint resolver returned an invalid address") from exc
+        if any(is_disallowed_endpoint_host(address) for address in canonical_addresses):
+            raise ValueError("screened endpoint resolver returned a disallowed address")
+        if expires_monotonic <= self._clock():
+            raise TimeoutError("provider request exceeded its total transport deadline")
+        if len(self._entries) >= self._max_entries:
+            eviction_key = min(
+                self._entries,
+                key=lambda existing_key: (
+                    self._entries[existing_key].expires_monotonic,
+                    existing_key,
+                ),
+            )
+            self._entries.pop(eviction_key)
+        self._entries[key] = _ScreenedEndpointCacheEntry(
+            addresses=canonical_addresses,
+            expires_monotonic=expires_monotonic,
+        )
+        return canonical_addresses
+
+
 class _PinnedHTTPSConnection(http.client.HTTPSConnection):
     """TLS connection that dials only addresses screened for this request."""
 
@@ -345,26 +573,54 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
         *,
         pinned_addresses: tuple[str, ...],
         network_dispatch_guard: Callable[[], None] | None = None,
+        transport_deadline: _TransportDeadline | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(host, **kwargs)
         self._pinned_addresses = pinned_addresses
         self._network_dispatch_guard = network_dispatch_guard
+        self._transport_deadline = transport_deadline
 
     def connect(self) -> None:
         if getattr(self, "_tunnel_host", None) is not None:
             raise OSError("pinned HTTPS transport does not support tunnels")
         last_error: OSError | None = None
-        for address in self._pinned_addresses:
+        for address_text in self._pinned_addresses:
+            timeout = self.timeout
+            if self._transport_deadline is not None:
+                timeout = self._transport_deadline.remaining_seconds()
             if self._network_dispatch_guard is not None:
                 self._network_dispatch_guard()
             raw_socket: socket.socket | None = None
             try:
-                raw_socket = socket.create_connection(
-                    (address, self.port),
-                    self.timeout,
-                    getattr(self, "source_address", None),
-                )
+                address = ipaddress.ip_address(address_text)
+                family = socket.AF_INET6 if address.version == 6 else socket.AF_INET
+                destination: tuple[Any, ...]
+                if family == socket.AF_INET6:
+                    destination = (str(address), self.port, 0, 0)
+                else:
+                    destination = (str(address), self.port)
+                raw_socket = socket.socket(family, socket.SOCK_STREAM)
+                raw_socket.settimeout(timeout)
+                if self._transport_deadline is not None:
+                    self._transport_deadline.register(raw_socket)
+                source_address = getattr(self, "source_address", None)
+                if source_address is not None:
+                    source_host, source_port = source_address
+                    normalized_source = ipaddress.ip_address(
+                        source_host or ("::" if family == socket.AF_INET6 else "0.0.0.0")
+                    )
+                    if normalized_source.version != address.version:
+                        raise OSError(
+                            "pinned HTTPS source address family does not match destination"
+                        )
+                    source: tuple[Any, ...]
+                    if family == socket.AF_INET6:
+                        source = (str(normalized_source), source_port, 0, 0)
+                    else:
+                        source = (str(normalized_source), source_port)
+                    raw_socket.bind(source)
+                raw_socket.connect(destination)
                 tls_context = getattr(self, "_context", None)
                 if tls_context is None:
                     raise OSError("pinned HTTPS transport has no TLS context")
@@ -372,16 +628,23 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
                     raw_socket,
                     server_hostname=self.host,
                 )
-            except OSError as exc:
-                last_error = exc
+                if self._transport_deadline is not None:
+                    self._transport_deadline.register(tls_socket)
+                    self._transport_deadline.unregister(raw_socket)
+            except (OSError, ValueError) as exc:
+                last_error = exc if isinstance(exc, OSError) else OSError(str(exc))
                 if raw_socket is not None:
-                    raw_socket.close()
+                    if self._transport_deadline is not None:
+                        self._transport_deadline.unregister(raw_socket)
+                    _close_deadline_socket(raw_socket)
                 continue
             try:
                 if self._network_dispatch_guard is not None:
                     self._network_dispatch_guard()
             except BaseException:
-                tls_socket.close()
+                if self._transport_deadline is not None:
+                    self._transport_deadline.unregister(tls_socket)
+                _close_deadline_socket(tls_socket)
                 raise
             self.sock = tls_socket
             return
@@ -395,10 +658,12 @@ class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
         self,
         pinned_addresses: tuple[str, ...],
         network_dispatch_guard: Callable[[], None] | None = None,
+        transport_deadline: _TransportDeadline | None = None,
     ) -> None:
         super().__init__()
         self._pinned_addresses = pinned_addresses
         self._network_dispatch_guard = network_dispatch_guard
+        self._transport_deadline = transport_deadline
 
     def https_open(self, request: urllib.request.Request) -> Any:
         def connection(host: str, **kwargs: Any) -> _PinnedHTTPSConnection:
@@ -406,6 +671,7 @@ class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
                 host,
                 pinned_addresses=self._pinned_addresses,
                 network_dispatch_guard=self._network_dispatch_guard,
+                transport_deadline=self._transport_deadline,
                 **kwargs,
             )
 
@@ -426,6 +692,7 @@ class StaticJsonlAdapter:
         base_dir: Path,
         resource_snapshot: LiveAdapterResourceSnapshot | None = None,
     ) -> None:
+        config = _validated_live_adapter_config(config)
         if config.response_jsonl_path is None:
             raise ValueError("static-jsonl adapter requires response_jsonl_path")
         self._config = config
@@ -443,6 +710,7 @@ class StaticJsonlAdapter:
         )
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
+        request = _validated_live_provider_request(request)
         entry = self._responses.get((request.case_id, request.repetition_index))
         if entry is None and request.allow_case_only_static_response:
             entry = self._responses.get((request.case_id, None))
@@ -492,6 +760,7 @@ class StaticJsonlAdapter:
             completion_tokens=_optional_int(payload.get("completion_tokens")),
             total_tokens=_optional_int(payload.get("total_tokens")),
             estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
+            estimated_cost_picousd=_reported_cost_picousd(payload),
             estimated_cost_source=_cost_source(
                 payload.get("estimated_cost_source"),
                 cost_was_reported="estimated_cost_usd" in payload,
@@ -510,6 +779,7 @@ class OpenAIChatCompletionsAdapter:
         trust: TrustedLiveExecution | None = None,
         network_dispatch_guard: Callable[[], None] | None = None,
     ) -> None:
+        config = _validated_live_adapter_config(config)
         del base_dir
         require_live_adapter_trust(config, trust)
         if not config.allow_network:
@@ -518,16 +788,38 @@ class OpenAIChatCompletionsAdapter:
             raise ValueError("openai-chat-completions requires endpoint_url")
         if not config.api_key_env:
             raise ValueError("openai-chat-completions requires api_key_env")
-        _validate_openai_endpoint(config)
+        _validate_openai_endpoint_configuration(config)
         api_key = os.environ.get(config.api_key_env)
         if not api_key:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
         self._config = config
         self._api_key = api_key
         self._network_dispatch_guard = network_dispatch_guard
+        # One adapter has one immutable HTTPS endpoint authority. A bound of
+        # one prevents unbounded retention even if future refactors introduce
+        # per-request endpoint selection.
+        self._screened_endpoint_cache = _ScreenedEndpointAddressCache(max_entries=1)
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
-        pinned_addresses = _validate_openai_endpoint(self._config)
+        request = _validated_live_provider_request(request)
+        transport_deadline = _TransportDeadline(self._config.timeout_seconds)
+        try:
+            endpoint_host = _validate_openai_endpoint_configuration(self._config)
+            pinned_addresses = self._screened_endpoint_cache.get_or_resolve(
+                scheme="https",
+                host=endpoint_host,
+                port=443,
+                expires_monotonic=transport_deadline.expires_monotonic,
+                resolve_and_screen=lambda: _validate_openai_endpoint(
+                    self._config,
+                    timeout_seconds=transport_deadline.remaining_seconds(),
+                ),
+            )
+        except TimeoutError as exc:
+            raise LiveProviderRequestError(
+                "provider request exceeded its total transport deadline",
+                retryable=True,
+            ) from exc
         messages: list[dict[str, str]] = []
         if request.governing_evidence is not None:
             messages.append(
@@ -569,31 +861,50 @@ class OpenAIChatCompletionsAdapter:
         # DNS pinning and request construction can be slow. Recheck the
         # caller's authorization boundary after both and immediately before
         # opening the outbound request.
-        if self._network_dispatch_guard is not None:
-            self._network_dispatch_guard()
-        try:
-            with _open_no_redirects(
-                http_request,
-                timeout_seconds=self._config.timeout_seconds,
-                pinned_addresses=pinned_addresses,
-                network_dispatch_guard=self._network_dispatch_guard,
-            ) as response:
-                response_body = _read_provider_response(response)
-        except urllib.error.HTTPError as exc:
-            retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
-            raise LiveProviderRequestError(
-                f"provider request failed: HTTP {exc.code}",
-                status_code=exc.code,
-                retry_after_seconds=retry_after,
-            ) from exc
-        except urllib.error.URLError as exc:
-            raise LiveProviderRequestError(
-                f"provider request failed: {exc.__class__.__name__}",
-                retryable=isinstance(
-                    exc.reason,
-                    (TimeoutError, ConnectionError, socket.gaierror),
-                ),
-            ) from exc
+        with transport_deadline:
+            if self._network_dispatch_guard is not None:
+                self._network_dispatch_guard()
+            try:
+                with _open_no_redirects(
+                    http_request,
+                    timeout_seconds=self._config.timeout_seconds,
+                    pinned_addresses=pinned_addresses,
+                    network_dispatch_guard=self._network_dispatch_guard,
+                    transport_deadline=transport_deadline,
+                ) as response:
+                    response_body = _read_provider_response(
+                        response,
+                        transport_deadline=transport_deadline,
+                    )
+            except urllib.error.HTTPError as exc:
+                retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
+                try:
+                    exc.close()
+                except (AttributeError, OSError):
+                    pass
+                raise LiveProviderRequestError(
+                    f"provider request failed: HTTP {exc.code}",
+                    status_code=exc.code,
+                    retry_after_seconds=retry_after,
+                ) from exc
+            except TimeoutError as exc:
+                raise LiveProviderRequestError(
+                    "provider request exceeded its total transport deadline",
+                    retryable=True,
+                ) from exc
+            except urllib.error.URLError as exc:
+                raise LiveProviderRequestError(
+                    f"provider request failed: {exc.__class__.__name__}",
+                    retryable=isinstance(
+                        exc.reason,
+                        (TimeoutError, ConnectionError, socket.gaierror),
+                    ),
+                ) from exc
+            except OSError as exc:
+                raise LiveProviderRequestError(
+                    "provider request failed: transport socket closed",
+                    retryable=True,
+                ) from exc
         return _openai_response(response_body, self._config)
 
 
@@ -609,6 +920,7 @@ class ExternalScriptAdapter:
         resource_snapshot: LiveAdapterResourceSnapshot | None = None,
         provider_dispatch_guard: Callable[[], None] | None = None,
     ) -> None:
+        config = _validated_live_adapter_config(config)
         require_live_adapter_trust(config, trust)
         if config.script_path is None:
             raise ValueError("external-script adapter requires script_path")
@@ -654,6 +966,7 @@ class ExternalScriptAdapter:
         self._provider_dispatch_guard = provider_dispatch_guard
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
+        request = _validated_live_provider_request(request)
         payload: dict[str, object] = {
             "artifact_kind": "external-script-request",
             "schema_version": SCHEMA_VERSION,
@@ -768,7 +1081,7 @@ def snapshot_live_adapter_resource(
     base_dir: Path,
 ) -> LiveAdapterResourceSnapshot | None:
     """Read and bind a file-backed adapter resource without executing it."""
-    config = LiveAdapterConfig.model_validate(config.model_dump(mode="json"))
+    config = _validated_live_adapter_config(config)
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
         relative_path = config.response_jsonl_path
         expected_digest = config.response_jsonl_sha256
@@ -809,6 +1122,7 @@ def build_adapter(
     resource_snapshot: LiveAdapterResourceSnapshot | None = None,
     network_dispatch_guard: Callable[[], None] | None = None,
 ) -> LiveProviderAdapter:
+    config = _validated_live_adapter_config(config)
     known_ids = adapter_ids()
     if config.adapter_id not in known_ids:
         known = ", ".join(known_ids)
@@ -840,6 +1154,10 @@ def build_adapter(
     raise AssertionError("live adapter registry and builder are inconsistent")
 
 
+def _validated_live_adapter_config(config: LiveAdapterConfig) -> LiveAdapterConfig:
+    return LiveAdapterConfig.model_validate(config.model_dump(mode="json", warnings="error"))
+
+
 def adapter_ids() -> tuple[str, ...]:
     return (
         StaticJsonlAdapter.adapter_id,
@@ -864,6 +1182,30 @@ def require_live_adapter_trust(
         raise ValueError(
             "live adapter requires explicit trusted execution capability: " + ", ".join(missing)
         )
+    if config.allow_network and config.adapter_id == OpenAIChatCompletionsAdapter.adapter_id:
+        _require_operator_network_authority(config, trust)
+
+
+def _require_operator_network_authority(
+    config: LiveAdapterConfig,
+    trust: TrustedLiveExecution | None,
+) -> None:
+    endpoint_host = normalize_endpoint_host(
+        urllib.parse.urlparse(config.endpoint_url or "").hostname or ""
+    )
+    api_key_env = config.api_key_env or ""
+    authorized_hosts = set(trust.authorized_endpoint_hosts if trust is not None else ())
+    authorized_key_envs = set(trust.authorized_api_key_envs if trust is not None else ())
+    missing: list[str] = []
+    if not endpoint_host or endpoint_host not in authorized_hosts:
+        missing.append("authorized_endpoint_hosts")
+    if not api_key_env or api_key_env not in authorized_key_envs:
+        missing.append("authorized_api_key_envs")
+    if missing:
+        raise ValueError(
+            "network adapter requires operator-authorized credential and destination "
+            "bindings: " + ", ".join(missing)
+        )
 
 
 def _trust_allows(trust: TrustedLiveExecution | None, requirement: str) -> bool:
@@ -884,6 +1226,7 @@ def _open_no_redirects(
     timeout_seconds: int,
     pinned_addresses: tuple[str, ...] = (),
     network_dispatch_guard: Callable[[], None] | None = None,
+    transport_deadline: _TransportDeadline | None = None,
 ) -> Any:
     handlers: list[Any] = [
         urllib.request.ProxyHandler({}),
@@ -894,19 +1237,31 @@ def _open_no_redirects(
             _PinnedHTTPSHandler(
                 pinned_addresses,
                 network_dispatch_guard=network_dispatch_guard,
+                transport_deadline=transport_deadline,
             )
         )
     opener = urllib.request.build_opener(*handlers)
-    return opener.open(request, timeout=timeout_seconds)
+    timeout = (
+        timeout_seconds if transport_deadline is None else transport_deadline.remaining_seconds()
+    )
+    return opener.open(request, timeout=timeout)
 
 
-def _read_provider_response(response: Any) -> bytes:
+def _read_provider_response(
+    response: Any,
+    *,
+    transport_deadline: _TransportDeadline | None = None,
+) -> bytes:
     payload = bytearray()
     while True:
+        if transport_deadline is not None:
+            transport_deadline.remaining_seconds()
         # A blocking stream may return fewer bytes than requested without
         # having reached EOF. Read through the explicit empty sentinel so the
         # payload commitment cannot omit a trailing response fragment.
         chunk = response.read(MAX_PROVIDER_RESPONSE_BYTES - len(payload) + 1)
+        if transport_deadline is not None:
+            transport_deadline.remaining_seconds()
         if isinstance(chunk, str):
             chunk = chunk.encode("utf-8")
         elif not isinstance(chunk, bytes):
@@ -953,6 +1308,11 @@ def _openai_response(response_body: bytes, config: LiveAdapterConfig) -> LivePro
         _optional_int(usage.get("completion_tokens")) if isinstance(usage, dict) else None
     )
     total_tokens = _optional_int(usage.get("total_tokens")) if isinstance(usage, dict) else None
+    estimated_cost_picousd = _estimate_cost_picousd(
+        config,
+        prompt_tokens,
+        completion_tokens,
+    )
     return LiveProviderResponse(
         content=message["content"],
         provider=config.provider,
@@ -983,7 +1343,12 @@ def _openai_response(response_body: bytes, config: LiveAdapterConfig) -> LivePro
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
-        estimated_cost_usd=_estimate_cost(config, prompt_tokens, completion_tokens),
+        estimated_cost_usd=(
+            usd_six_from_picousd(estimated_cost_picousd)
+            if estimated_cost_picousd is not None
+            else "0.000000"
+        ),
+        estimated_cost_picousd=estimated_cost_picousd,
         estimated_cost_source=_openai_cost_source(
             config,
             prompt_tokens,
@@ -1024,23 +1389,28 @@ def _optional_nonnegative_int(value: object, *, field_name: str) -> int | None:
     return value
 
 
-def _estimate_cost(
+def _estimate_cost_picousd(
     config: LiveAdapterConfig,
     prompt_tokens: int | None,
     completion_tokens: int | None,
-) -> str:
-    prompt_rate = _optional_decimal(config.cost_per_1k_prompt_tokens_usd)
-    completion_rate = _optional_decimal(config.cost_per_1k_completion_tokens_usd)
+) -> int | None:
+    prompt_rate = config.cost_per_million_prompt_tokens_usd
+    completion_rate = config.cost_per_million_completion_tokens_usd
     if (
         prompt_rate is None
         or completion_rate is None
         or prompt_tokens is None
         or completion_tokens is None
     ):
-        return "0.000000"
-    prompt_cost = Decimal(prompt_tokens) * prompt_rate / Decimal("1000")
-    completion_cost = Decimal(completion_tokens) * completion_rate / Decimal("1000")
-    return normalize_decimal(prompt_cost + completion_cost)
+        return None
+    return prompt_tokens * _six_decimal_units(prompt_rate) + completion_tokens * _six_decimal_units(
+        completion_rate
+    )
+
+
+def _six_decimal_units(value: str) -> int:
+    whole, fractional = value.split(".", maxsplit=1)
+    return int(whole) * 1_000_000 + int(fractional)
 
 
 def _load_jsonl_responses(
@@ -1065,10 +1435,8 @@ def _parse_jsonl_responses(
 ) -> dict[tuple[str, int | None], _StaticJsonlResponse]:
     responses: dict[tuple[str, int | None], _StaticJsonlResponse] = {}
     path = display_path
-    lines = text.splitlines()
-    source_records = text.splitlines(keepends=True)
     for line_number, (line, source_record) in enumerate(
-        zip(lines, source_records, strict=True),
+        iter_jsonl_records(text),
         start=1,
     ):
         if not line.strip():
@@ -1185,6 +1553,7 @@ def _script_response(
         completion_tokens=_optional_int(payload.get("completion_tokens")),
         total_tokens=_optional_int(payload.get("total_tokens")),
         estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
+        estimated_cost_picousd=_reported_cost_picousd(payload),
         estimated_cost_source=_cost_source(
             payload.get("estimated_cost_source"),
             cost_was_reported="estimated_cost_usd" in payload,
@@ -1201,13 +1570,17 @@ def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
     return (str(script), *args)
 
 
-def _validate_openai_endpoint(
-    config: LiveAdapterConfig,
-) -> tuple[str, ...]:
+def _validate_openai_endpoint_configuration(config: LiveAdapterConfig) -> str:
     endpoint = config.endpoint_url or ""
     parsed = urllib.parse.urlparse(endpoint)
     if parsed.scheme.lower() != "https":
         raise ValueError("openai-chat-completions endpoint_url must use https")
+    try:
+        endpoint_port = parsed.port
+    except ValueError as exc:
+        raise ValueError("openai-chat-completions endpoint_url is not safely parseable") from exc
+    if endpoint_port not in {None, 443}:
+        raise ValueError("openai-chat-completions endpoint_url must use HTTPS port 443")
     if not parsed.hostname:
         raise ValueError("openai-chat-completions endpoint_url must include a host")
     if parsed.username is not None or parsed.password is not None:
@@ -1224,7 +1597,16 @@ def _validate_openai_endpoint(
     }
     if host not in allowed_hosts:
         raise ValueError("openai-chat-completions endpoint host must be in allowed_endpoint_hosts")
-    status = resolve_endpoint_host(host)
+    return host
+
+
+def _validate_openai_endpoint(
+    config: LiveAdapterConfig,
+    *,
+    timeout_seconds: float,
+) -> tuple[str, ...]:
+    host = _validate_openai_endpoint_configuration(config)
+    status = resolve_endpoint_host(host, timeout_seconds=timeout_seconds)
     if status.resolution_failed:
         raise ValueError(
             "openai-chat-completions endpoint host could not be resolved for safety screening"
@@ -1263,7 +1645,12 @@ def _optional_decimal(value: str | None) -> Decimal | None:
 
 def _normal_cost(value: object) -> str:
     if isinstance(value, int | str):
-        return normalize_decimal(Decimal(str(value)))
+        try:
+            return normalize_decimal(Decimal(str(value)))
+        except (DecimalException, ValueError) as exc:
+            raise ValueError(
+                "estimated_cost_usd must be a finite decimal within the supported precision bound"
+            ) from exc
     return "0.000000"
 
 
@@ -1285,14 +1672,20 @@ def _cost_source(
     return "adapter_reported"
 
 
+def _reported_cost_picousd(payload: Mapping[str, Any]) -> int | None:
+    if "estimated_cost_usd" not in payload:
+        return None
+    return picousd_from_usd_six(_normal_cost(payload["estimated_cost_usd"]))
+
+
 def _openai_cost_source(
     config: LiveAdapterConfig,
     prompt_tokens: int | None,
     completion_tokens: int | None,
 ) -> EstimatedCostSource:
     if (
-        config.cost_per_1k_prompt_tokens_usd is None
-        or config.cost_per_1k_completion_tokens_usd is None
+        config.cost_per_million_prompt_tokens_usd is None
+        or config.cost_per_million_completion_tokens_usd is None
         or prompt_tokens is None
         or completion_tokens is None
     ):

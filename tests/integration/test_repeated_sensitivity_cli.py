@@ -38,6 +38,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     LiveExecutionAttemptEvent,
     LiveExecutionAttemptJournal,
+    LiveNetworkAuthorityReceipt,
     RunSet,
 )
 from agent_assure.schema.sensitivity import (
@@ -245,6 +246,10 @@ def _runset(
         evidence_sensitivity_design_digest=protocol.design_commitment_digest,
         completion_status=completion_status,
         stop_reasons=("provider-budget-stop",) if completion_status == "incomplete" else (),
+        network_authority_receipt=LiveNetworkAuthorityReceipt(
+            endpoint_host="api.openai.com",
+            api_key_env="OPENAI_API_KEY",
+        ),
         runs=runs,
     )
 
@@ -353,6 +358,7 @@ def _fixture_runset(
 ) -> RunSet:
     payload = _runset(protocol, arm_id).model_dump(mode="python")
     payload["execution_mode"] = ExecutionMode.fixture
+    payload.pop("network_authority_receipt", None)
     payload["runs"] = [{**run, "execution_mode": ExecutionMode.fixture} for run in payload["runs"]]
     return RunSet.model_validate(payload)
 
@@ -376,8 +382,8 @@ def _uncommitted_live_config(variant_id: str) -> LiveRunConfig:
             allowed_endpoint_hosts=("api.example.test",),
             max_output_tokens=64,
             allow_network=True,
-            cost_per_1k_prompt_tokens_usd="0.001000",
-            cost_per_1k_completion_tokens_usd="0.002000",
+            cost_per_million_prompt_tokens_usd="1.000000",
+            cost_per_million_completion_tokens_usd="2.000000",
             sdk_name="openai",
             sdk_version="1.2.3",
         ),
@@ -1188,7 +1194,16 @@ def test_repeated_sensitivity_run_requires_network_opt_in_before_dispatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     protocol = _protocol()
-    inputs = tuple(tmp_path / name for name in ("protocol", "suite", "base", "counter", "live"))
+    inputs = tuple(
+        tmp_path / name
+        for name in (
+            "protocol.json",
+            "suite.json",
+            "base.json",
+            "counter.json",
+            "live.json",
+        )
+    )
     inputs[0].write_text(
         json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

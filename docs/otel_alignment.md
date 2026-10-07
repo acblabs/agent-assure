@@ -14,6 +14,15 @@ fails as unavailable instead of silently falling back to ambient exporter
 configuration. A dedicated hash-locked CI job runs this contract against the
 real SDK and OTLP HTTP exporter.
 
+Immediately before exporter construction, the OTLP HTTP transport re-resolves
+the configured hostname, rejects every disallowed A/AAAA result, and pins its
+Requests/urllib3 connections to the exact screened address set. The original
+hostname remains the HTTPS authority and is used for TLS SNI and certificate
+verification. Redirects, proxies, ambient CA overrides, netrc credentials, and
+client certificates remain disabled. This is address pinning; it is not
+certificate or SPKI pinning, and it does not protect against compromise of an
+otherwise valid endpoint or trusted certificate authority.
+
 The implemented trace path is intentionally narrow and auditable:
 
 - live runs create or accept W3C `traceparent` context;

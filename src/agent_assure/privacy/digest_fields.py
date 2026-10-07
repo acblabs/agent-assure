@@ -12,7 +12,7 @@ _SHA256_HEX_PATTERN: Final = re.compile(r"^[a-f0-9]{64}$")
 def is_digest_field_name(value: object) -> bool:
     """Return whether a field uses the shared digest vocabulary."""
 
-    return isinstance(value, str) and value.endswith(DIGEST_FIELD_SUFFIXES)
+    return isinstance(value, str) and (value == "sha256" or value.endswith(DIGEST_FIELD_SUFFIXES))
 
 
 def is_sha256_hex_digest(value: object) -> bool:

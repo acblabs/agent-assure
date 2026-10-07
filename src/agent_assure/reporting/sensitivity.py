@@ -34,6 +34,7 @@ from agent_assure.reporting.graph import evidence_graph_json_text
 from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
+    _render_validated_evidence_packet_markdown,
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
     packet_summary_snapshots_binding_error,
@@ -63,7 +64,7 @@ from agent_assure.schema.sensitivity import (
     RAGSensitivityReport,
     validate_exact_sensitivity_arm_runset_projection,
 )
-from agent_assure.schema.validation import validate_loaded_artifact_payload
+from agent_assure.schema.validation import validate_loaded_artifact_model
 from agent_assure.sensitivity_comparison import (
     derive_sensitivity_comparison,
     sensitivity_comparison_binding_error,
@@ -101,6 +102,10 @@ _STAGING_NAME_PREFIX = ".agent-assure-sensitivity-"
 _PUBLICATION_LOCK_PREFIX = ".agent-assure-sensitivity-lock-"
 _BEST_EFFORT_LOCK_TIMEOUT_SECONDS = 0.001
 _CONCURRENT_GENERATION_RETRY_TIMEOUT_SECONDS = 0.25
+_HTML_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; base-uri 'none'; form-action 'none'; "
+    "object-src 'none'; frame-src 'none'; img-src data:; style-src 'unsafe-inline'"
+)
 _SENSITIVITY_MANIFEST_BOUND_FILES = (
     ("compiled-suite", "compiled-suite.json"),
     ("fixture-manifest", "fixture-manifest.json"),
@@ -174,6 +179,13 @@ class _PinnedExistingSensitivityGeneration:
                 opened.close()
         finally:
             self.lease.close()
+
+
+@dataclass(frozen=True)
+class _ValidatedSensitivityGeneration:
+    """Immutable bytes whose graph, packet, manifest, and bindings were replayed."""
+
+    payloads: tuple[tuple[str, bytes], ...]
 
 
 def ensure_sensitivity_output_namespace(out_dir: Path) -> None:
@@ -297,9 +309,15 @@ def _evidence_packet_json_text(packet: EvidencePacket) -> str:
         raise SensitivityPrivacyError(
             "evidence sensitivity packet contains sensitive-looking content"
         )
-    EvidencePacket.model_validate(payload)
-    validate_loaded_artifact_payload(payload, "evidence-packet")
-    return _bounded_json_text(payload, label="evidence sensitivity packet")
+    validated = validate_loaded_artifact_model(
+        payload,
+        EvidencePacket,
+        kind="evidence-packet",
+    )
+    return _bounded_json_text(
+        validated.model_dump(mode="json"),
+        label="evidence sensitivity packet",
+    )
 
 
 def _publish_sensitivity_generation(
@@ -366,7 +384,7 @@ def _publish_sensitivity_generation(
                     for created in created_outputs
                 }
                 _require_exact_staged_inventory(claim)
-                _validate_finished_publication(
+                validated_generation = _validate_finished_publication(
                     expected_texts=texts,
                     expected_graph=expected_graph,
                     expected_manifest=expected_manifest,
@@ -462,12 +480,9 @@ def _publish_sensitivity_generation(
                                 "post-commit verification"
                             )
                         try:
-                            _validate_existing_sensitivity_generation(
+                            _require_exact_validated_sensitivity_generation(
                                 installed,
-                                texts=texts,
-                                expected_graph=expected_graph,
-                                expected_manifest=expected_manifest,
-                                expected_packet=expected_packet,
+                                validated_generation,
                             )
                             installed.revalidate()
                         finally:
@@ -539,12 +554,9 @@ def _publish_sensitivity_generation(
                             "committed evidence sensitivity target name no longer resolves "
                             "to the installed generation"
                         )
-                    _validate_existing_sensitivity_generation(
+                    _require_exact_validated_sensitivity_generation(
                         installed,
-                        texts=texts,
-                        expected_graph=expected_graph,
-                        expected_manifest=expected_manifest,
-                        expected_packet=expected_packet,
+                        validated_generation,
                     )
                     installed.revalidate()
                 finally:
@@ -695,6 +707,26 @@ def _validate_existing_sensitivity_generation(
         raise SensitivityOutputConflictError(
             "existing sensitivity output does not form a valid deterministic generation"
         ) from exc
+
+
+def _require_exact_validated_sensitivity_generation(
+    existing: _PinnedExistingSensitivityGeneration,
+    validated: _ValidatedSensitivityGeneration,
+) -> None:
+    """Carry semantic proof only across byte-identical pinned snapshots.
+
+    The staging snapshot behind ``validated`` completed writer-schema,
+    semantic-model, privacy, derived-rendering, and cross-artifact binding
+    checks.  A post-commit snapshot inherits that result only when every byte
+    is identical; directory and child-pin identity are revalidated separately
+    by the caller after this comparison.
+    """
+
+    observed = tuple((name, existing.snapshots[name].data) for name in SENSITIVITY_OUTPUT_FILENAMES)
+    if observed != validated.payloads:
+        raise SensitivityOutputConflictError(
+            "committed sensitivity output changed after semantic validation"
+        )
 
 
 def _claim_private_sensitivity_staging_directory(
@@ -1082,7 +1114,7 @@ def _validate_finished_publication(
     expected_manifest: ReleaseArtifactManifest,
     expected_packet: EvidencePacket,
     observed_snapshots: dict[str, BoundedFileContents],
-) -> None:
+) -> _ValidatedSensitivityGeneration:
     snapshots = observed_snapshots
     if set(snapshots) != set(SENSITIVITY_OUTPUT_FILENAMES):
         raise ValueError("persisted sensitivity artifact inventory changed during publication")
@@ -1101,8 +1133,11 @@ def _validate_finished_publication(
         max_bytes=MAX_ARTIFACT_JSON_BYTES,
         label="sensitivity assurance evidence graph",
     )
-    validate_loaded_artifact_payload(graph_payload, "assurance-evidence-graph")
-    persisted_graph = AssuranceEvidenceGraph.model_validate(graph_payload)
+    persisted_graph = validate_loaded_artifact_model(
+        graph_payload,
+        AssuranceEvidenceGraph,
+        kind="assurance-evidence-graph",
+    )
     if persisted_graph != expected_graph:
         raise ValueError("persisted sensitivity evidence graph changed during publication")
     packet_payload = load_json_bytes_bounded(
@@ -1110,8 +1145,11 @@ def _validate_finished_publication(
         max_bytes=MAX_ARTIFACT_JSON_BYTES,
         label="sensitivity evidence packet",
     )
-    validate_loaded_artifact_payload(packet_payload, "evidence-packet")
-    persisted_packet = EvidencePacket.model_validate(packet_payload)
+    persisted_packet = validate_loaded_artifact_model(
+        packet_payload,
+        EvidencePacket,
+        kind="evidence-packet",
+    )
     if persisted_packet != expected_packet:
         raise ValueError("persisted sensitivity evidence packet changed during publication")
     manifest_payload = load_json_bytes_bounded(
@@ -1119,14 +1157,17 @@ def _validate_finished_publication(
         max_bytes=MAX_ARTIFACT_JSON_BYTES,
         label="sensitivity release artifact manifest",
     )
-    validate_loaded_artifact_payload(manifest_payload, "release-artifact-manifest")
-    persisted_manifest = ReleaseArtifactManifest.model_validate(manifest_payload)
+    persisted_manifest = validate_loaded_artifact_model(
+        manifest_payload,
+        ReleaseArtifactManifest,
+        kind="release-artifact-manifest",
+    )
     if (
         persisted_manifest != expected_manifest
         or persisted_packet.release_manifest != persisted_manifest
     ):
         raise ValueError("persisted sensitivity release manifest changed during publication")
-    if observed["evidence-packet.md"].decode("utf-8") != render_evidence_packet_markdown(
+    if observed["evidence-packet.md"].decode("utf-8") != _render_validated_evidence_packet_markdown(
         persisted_packet
     ):
         raise ValueError("persisted evidence packet Markdown changed during publication")
@@ -1138,6 +1179,9 @@ def _validate_finished_publication(
     )
     if binding_error is not None:
         raise ValueError(binding_error)
+    return _ValidatedSensitivityGeneration(
+        payloads=tuple((name, observed[name]) for name in SENSITIVITY_OUTPUT_FILENAMES)
+    )
 
 
 def _validate_execution_artifacts(
@@ -1285,6 +1329,7 @@ def _validate_execution_artifacts(
 
 
 def sensitivity_report_json_text(report: RAGSensitivityReport) -> str:
+    report = _validated_sensitivity_report_for_reporting(report)
     payload = report.model_dump(mode="json")
     if redact_packet_payload(payload) != payload:
         raise SensitivityPrivacyError(
@@ -1294,6 +1339,7 @@ def sensitivity_report_json_text(report: RAGSensitivityReport) -> str:
 
 
 def render_sensitivity_markdown(report: RAGSensitivityReport) -> str:
+    report = _validated_sensitivity_report_for_reporting(report)
     lines = [
         "# Controlled Evidence Sensitivity",
         "",
@@ -1381,6 +1427,7 @@ def render_sensitivity_markdown(report: RAGSensitivityReport) -> str:
 
 
 def render_sensitivity_html(report: RAGSensitivityReport) -> str:
+    report = _validated_sensitivity_report_for_reporting(report)
     status_class = {
         EvidenceSensitivityState.responsive: "pass",
         EvidenceSensitivityState.evidence_insensitive: "fail",
@@ -1414,6 +1461,8 @@ def render_sensitivity_html(report: RAGSensitivityReport) -> str:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="{_HTML_CONTENT_SECURITY_POLICY}">
+  <meta name="referrer" content="no-referrer">
   <title>Controlled Evidence Sensitivity</title>
   <style>
     :root {{ --ink:#172033; --muted:#5c667a; --line:#d9deea; --panel:#f7f8fb;
@@ -1487,6 +1536,21 @@ def render_sensitivity_html(report: RAGSensitivityReport) -> str:
     if len(rendered.encode("utf-8")) > MAX_ARTIFACT_JSON_BYTES:
         raise ValueError("evidence sensitivity HTML exceeds the artifact byte limit")
     return rendered
+
+
+def _validated_sensitivity_report_for_reporting(
+    report: RAGSensitivityReport,
+) -> RAGSensitivityReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    digest_payload = dict(payload)
+    supplied_digest = digest_payload.pop("report_digest", None)
+    if supplied_digest != sha256_hexdigest(digest_payload):
+        raise ValueError("report_digest does not match the canonical artifact projection")
+    return validate_loaded_artifact_model(
+        payload,
+        RAGSensitivityReport,
+        kind="evidence-sensitivity-report",
+    )
 
 
 def _html_arm_card(label: str, arm: RAGSensitivityArmResult) -> str:

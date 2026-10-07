@@ -91,6 +91,7 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert usage_delta["comparison_state"] == "observed"
     assert usage_delta["total_retries_delta"] == 7
     assert usage_delta["estimated_cost_microusd_delta"] == 500
+    assert usage_delta["estimated_cost_picousd_delta"] == 500_000_000
 
     command_exits = {
         command["name"]: command["actual_exit_code"]

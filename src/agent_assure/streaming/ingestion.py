@@ -14,6 +14,7 @@ from agent_assure.io_limits import (
     loads_json_bounded,
     read_text_bounded,
 )
+from agent_assure.json_lines import iter_jsonl_records
 from agent_assure.schema.stream import (
     StreamDuplicateSummary,
     StreamEventRecord,
@@ -24,6 +25,7 @@ from agent_assure.schema.stream import (
     parse_stream_timestamp_utc,
 )
 from agent_assure.schema.usage import UsageSegment, UsageSummary
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.usage.aggregation import aggregate_usage_segments
 
 _SequenceScopeInput = Literal["global", "producer_local", "producer-local"]
@@ -90,9 +92,12 @@ def ingest_jsonl_events(
     return StreamIngestionResult(stream_run=stream_run, diagnostics=diagnostics)
 
 
-def validate_stream_run_integrity(stream_run: StreamRunRecord) -> None:
+def validate_stream_run_integrity(stream_run: StreamRunRecord) -> StreamRunRecord:
     """Re-check ingest-time guarantees on a persisted stream-run artifact."""
 
+    payload = stream_run.model_dump(mode="json", warnings="error")
+    stream_run = StreamRunRecord.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "stream-run")
     expected_duplicate_count = stream_run.source_event_count - stream_run.accepted_event_count
     if expected_duplicate_count < 0:
         raise ValueError("stream run source_event_count must be >= accepted_event_count")
@@ -122,6 +127,7 @@ def validate_stream_run_integrity(stream_run: StreamRunRecord) -> None:
     expected_stream_id = _stream_id(stream_run.events, stream_run.sequence_contract)
     if stream_run.stream_id != expected_stream_id:
         raise ValueError("stream run stream_id does not match events and sequence contract")
+    return stream_run
 
 
 def incremental_usage_summaries(
@@ -164,7 +170,10 @@ def _deduplicated_events(
     by_key: dict[tuple[str, ...], StreamEventRecord] = {}
     duplicate_event_ids: dict[tuple[str, ...], list[str]] = {}
     source_event_count = 0
-    for line_number, line in enumerate(text.splitlines(), start=1):
+    for line_number, (line, _source_record) in enumerate(
+        iter_jsonl_records(text),
+        start=1,
+    ):
         if not line.strip():
             continue
         if len(line.encode("utf-8")) > MAX_STATIC_JSONL_LINE_BYTES:

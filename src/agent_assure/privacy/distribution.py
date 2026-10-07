@@ -31,6 +31,7 @@ from agent_assure.privacy.detectors import MAX_PRIVACY_SCAN_CHARS
 DISTRIBUTION_UTF8_SUFFIXES = frozenset(
     {
         ".cfg",
+        ".cff",
         ".env",
         ".html",
         ".ini",
@@ -55,6 +56,7 @@ DISTRIBUTION_TEXT_BASENAMES = frozenset(
         "makefile",
         "metadata",
         "pkg-info",
+        "py.typed",
         "record",
         "wheel",
         ".gitignore",
@@ -62,7 +64,7 @@ DISTRIBUTION_TEXT_BASENAMES = frozenset(
     }
 )
 _STRUCTURED_TEXT_SUFFIXES = frozenset(
-    {".cfg", ".env", ".ini", ".json", ".jsonl", ".toml", ".yaml", ".yml"}
+    {".cfg", ".cff", ".env", ".ini", ".json", ".jsonl", ".toml", ".yaml", ".yml"}
 )
 _FORBIDDEN_MEMBER_BASENAMES = frozenset(
     {

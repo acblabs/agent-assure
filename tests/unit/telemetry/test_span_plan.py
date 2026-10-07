@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from agent_assure.schema.run import AgentRunRecord
 from agent_assure.schema.telemetry import MAX_OTEL_EVENTS
@@ -65,3 +66,10 @@ def test_span_plan_rejects_run_with_too_many_tool_events() -> None:
 
     with pytest.raises(ValueError, match="event limit"):
         run_record_to_span_plan(record)
+
+
+def test_span_plan_mapping_rejects_unsafe_typed_run_before_projection() -> None:
+    forged = _record().model_copy(update={"artifact_kind": "forged-run"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        run_record_to_span_plan(forged)

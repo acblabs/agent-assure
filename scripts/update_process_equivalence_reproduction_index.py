@@ -19,6 +19,7 @@ from agent_assure.io_limits import (  # noqa: E402
     read_file_bounded,
     read_text_bounded,
 )
+from agent_assure.onboarding.diagnostics import bounded_error  # noqa: E402
 from agent_assure.schema.reproduction_index import (  # noqa: E402
     ProcessEquivalenceReproductionIndex,
     ProcessEquivalenceReproductionIndexSourceArtifact,
@@ -51,7 +52,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         rendered = render_updated_reproduction_index(PUBLIC_REPRODUCTION_INDEX)
     except (OSError, TypeError, ValueError) as exc:
-        print(f"process-equivalence-reproduction-index: {exc}", file=sys.stderr)
+        print(
+            f"process-equivalence-reproduction-index: {bounded_error(exc)}",
+            file=sys.stderr,
+        )
         return 1
     if args.write:
         write_text_atomic(PUBLIC_REPRODUCTION_INDEX, rendered)

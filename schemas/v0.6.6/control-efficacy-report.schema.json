@@ -34,7 +34,7 @@
         "stratum": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Stratum",
           "type": "string"
         }
@@ -215,7 +215,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -228,7 +228,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -241,14 +241,14 @@
         "invariant_family": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Invariant Family",
           "type": "string"
         },
         "operator_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Operator Id",
           "type": "string"
         },
@@ -257,7 +257,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -275,7 +275,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -288,7 +288,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -300,7 +300,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -341,7 +341,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -357,7 +357,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -367,7 +367,7 @@
         "threat_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Threat Id",
           "type": "string"
         }
@@ -417,7 +417,7 @@
       "type": "string"
     },
     "campaign_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Campaign Digest",
       "type": "string"
     },
@@ -425,7 +425,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -437,7 +437,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -446,14 +446,14 @@
       "type": "array"
     },
     "catalog_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Catalog Digest",
       "type": "string"
     },
     "catalog_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Catalog Id",
       "type": "string"
     },
@@ -495,7 +495,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -513,7 +513,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 4096,
@@ -552,7 +552,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -608,7 +608,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -616,7 +616,7 @@
       "type": "array"
     },
     "report_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Report Digest",
       "type": "string"
     },
@@ -625,7 +625,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -637,7 +637,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -655,7 +655,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -678,7 +678,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 256,
@@ -690,7 +690,7 @@
       "$ref": "#/$defs/ControlEfficacySemanticState"
     },
     "source_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Source Digest",
       "type": "string"
     },
@@ -698,7 +698,7 @@
       "$ref": "#/$defs/MutationStateCounts"
     },
     "suite_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Suite Digest",
       "type": "string"
     },
@@ -721,7 +721,7 @@
       "type": "array"
     },
     "threat_manifest_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Threat Manifest Digest",
       "type": "string"
     },
@@ -739,7 +739,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 4096,
@@ -757,7 +757,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 8192,

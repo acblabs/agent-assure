@@ -9,13 +9,24 @@ from pydantic import ValidationError as PydanticValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.schema.controls import (
+    CLAIM_BOUNDARY,
+    ControlConditionEvaluation,
     ControlCoverageItem,
     ControlCoverageReport,
     ControlCoverageState,
+    ControlEvidenceRef,
+    ControlFramework,
+    _control_coverage_semantic_items,
+    _derive_control_coverage_report_id,
 )
 from agent_assure.schema.export import SCHEMA_MODELS
-from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
-from agent_assure.schema.validation import validate_artifact
+from agent_assure.schema.usage import (
+    UsagePricingModel,
+    UsagePricingSnapshot,
+    UsageSegment,
+    UsageSummaryDelta,
+)
+from agent_assure.schema.validation import ArchivalOnlyArtifactError, validate_artifact
 from agent_assure.usage.pricing import DECLARED_PRICING_LIMITATION
 
 
@@ -30,7 +41,7 @@ def test_valid_artifacts_match_pydantic_and_jsonschema(tmp_path) -> None:  # typ
     assert validate_artifact(path, "compiled-suite") == "pydantic+jsonschema"
 
 
-def test_validate_artifact_accepts_v010_frozen_schema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+def test_validate_artifact_rejects_v010_archival_only_schema(tmp_path) -> None:  # type: ignore[no-untyped-def]
     payload = {
         "artifact_kind": "compiled-suite",
         "schema_version": "0.1.0",
@@ -67,7 +78,8 @@ def test_validate_artifact_accepts_v010_frozen_schema(tmp_path) -> None:  # type
     path = tmp_path / "legacy-compiled.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
 
-    assert validate_artifact(path, "compiled-suite") == "frozen-jsonschema"
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        validate_artifact(path, "compiled-suite")
 
 
 def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -99,7 +111,7 @@ def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "usage-segment.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "usage-segment") == "frozen-jsonschema"
+    assert validate_artifact(path, "usage-segment") == "pydantic+jsonschema"
 
 
 def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -110,8 +122,8 @@ def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> Non
             UsagePricingModel(
                 provider="demo",
                 model="fixture-model-small",
-                input_token_microusd=1,
-                output_token_microusd=3,
+                input_million_tokens_usd="1.000000",
+                output_million_tokens_usd="3.000000",
             ),
         ),
         limitations=("Demo fixture pricing only; not live provider pricing.",),
@@ -121,21 +133,21 @@ def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "usage-pricing-snapshot.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "usage-pricing-snapshot") == "frozen-jsonschema"
+    assert validate_artifact(path, "usage-pricing-snapshot") == "frozen-jsonschema+semantic-replay"
 
 
 def test_usage_pricing_snapshot_jsonschema_rejects_non_usd_currency() -> None:
     payload = {
         "artifact_kind": "usage-pricing-snapshot",
-        "schema_version": "0.4.3",
+        "schema_version": "0.6.6",
         "pricing_snapshot_id": "non-usd-pricing",
         "currency": "EUR",
         "models": [
             {
                 "provider": "demo",
                 "model": "fixture-model-small",
-                "input_token_microusd": 1,
-                "output_token_microusd": 3,
+                "input_million_tokens_usd": "1.000000",
+                "output_million_tokens_usd": "3.000000",
             }
         ],
         "limitations": ["Demo fixture pricing only; not live provider pricing."],
@@ -146,24 +158,91 @@ def test_usage_pricing_snapshot_jsonschema_rejects_non_usd_currency() -> None:
         Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
 
 
+@pytest.mark.parametrize(
+    "pricing_model",
+    (
+        {
+            "provider": "demo",
+            "model": "missing-rates",
+        },
+        {
+            "provider": "demo",
+            "model": "mixed-rates",
+            "input_token_microusd": 1,
+            "output_token_microusd": 2,
+            "input_million_tokens_usd": "1.000000",
+            "output_million_tokens_usd": "2.000000",
+        },
+        {
+            "provider": "demo",
+            "model": "legacy-rates-under-v066",
+            "input_token_microusd": 1,
+            "output_token_microusd": 2,
+        },
+    ),
+)
+def test_usage_pricing_snapshot_jsonschema_rejects_invalid_rate_contracts(
+    pricing_model: dict[str, object],
+) -> None:
+    payload = {
+        "artifact_kind": "usage-pricing-snapshot",
+        "schema_version": "0.6.6",
+        "pricing_snapshot_id": "invalid-pricing",
+        "currency": "USD",
+        "models": [pricing_model],
+        "limitations": ["Invalid pricing regression fixture."],
+    }
+    model = SCHEMA_MODELS["usage-pricing-snapshot"]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
 def test_control_coverage_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    evidence_ref = ControlEvidenceRef(
+        evidence_kind="evaluation-summary",
+        evidence_id="candidate-runset",
+        field_path="$.state",
+        evidence_digest="3" * 64,
+        description="Persisted condition evidence.",
+    )
+    item = ControlCoverageItem(
+        control_id="MEASURE-2.x",
+        title="Deterministic process-control measurement",
+        coverage_state=ControlCoverageState.observed,
+        condition_evaluations=(
+            ControlConditionEvaluation(
+                rule_id="deterministic-measurement-observed",
+                signal="control_evaluated",
+                observed=True,
+                coverage_state=ControlCoverageState.observed,
+                evidence_refs=(evidence_ref,),
+                rationale="The persisted condition supports the aggregate state.",
+            ),
+        ),
+        evidence_refs=(evidence_ref,),
+    )
     payload = ControlCoverageReport(
-        report_id="control-map-schema-parity",
-        framework="nist-ai-rmf",
+        report_id=_derive_control_coverage_report_id(
+            framework=ControlFramework.nist_ai_rmf,
+            framework_version="1.0",
+            mapping_version="0.1.0",
+            mapping_digest="1" * 64,
+            evidence_packet_id="packet-001",
+            evidence_packet_digest="2" * 64,
+            item_states=((item.control_id, item.coverage_state),),
+            item_semantics=_control_coverage_semantic_items((item,)),
+            limitations=(CLAIM_BOUNDARY, "Evidence mapping only."),
+        ),
+        framework=ControlFramework.nist_ai_rmf,
         framework_version="1.0",
         mapping_version="0.1.0",
         mapping_digest="1" * 64,
         evidence_packet_id="packet-001",
         evidence_packet_digest="2" * 64,
         coverage_state_counts={"observed": 1},
-        items=(
-            ControlCoverageItem(
-                control_id="MEASURE-2.x",
-                title="Deterministic process-control measurement",
-                coverage_state=ControlCoverageState.observed,
-            ),
-        ),
-        limitations=("Evidence mapping only.",),
+        items=(item,),
+        limitations=(CLAIM_BOUNDARY, "Evidence mapping only."),
     ).model_dump(mode="json")
     model = SCHEMA_MODELS["control-coverage-report"]
     model.model_validate(payload)
@@ -241,6 +320,174 @@ def test_usage_segment_jsonschema_rejects_cost_without_limitations() -> None:
 
     with pytest.raises(JsonSchemaValidationError):
         Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_usage_ledger_jsonschema_binds_complete_only_aggregation_to_v066() -> None:
+    model = SCHEMA_MODELS["usage-ledger"]
+    payload = {
+        "artifact_kind": "usage-ledger",
+        "schema_version": "0.4.3",
+        "segments": [],
+        "aggregation_method": "sum_complete_fields_v2",
+        "missingness": {},
+    }
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+    current_downgrade = {
+        "artifact_kind": "usage-ledger",
+        "schema_version": "0.6.6",
+        "segments": [],
+        "aggregation_method": "sum_known_fields_v1",
+        "missingness": {},
+    }
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(current_downgrade)
+
+
+def test_usage_summary_jsonschema_rejects_value_with_zero_sources() -> None:
+    payload = {
+        "artifact_kind": "usage-summary",
+        "schema_version": "0.6.6",
+        "aggregation_method": "sum_complete_fields_v2",
+        "coverage_basis": "usage_segment",
+        "source_count": 0,
+        "coverage_counts": {"total_tokens": 0},
+        "total_tokens": 0,
+        "currency": "USD",
+        "limitations": [],
+    }
+    model = SCHEMA_MODELS["usage-summary"]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("schema_version", "cost_fields"),
+    (
+        (
+            "0.6.6",
+            {
+                "estimated_cost_microusd_delta": 0,
+                "estimated_cost_microusd_delta_bps": 0,
+                "estimated_cost_picousd_delta": 300_000,
+                "estimated_cost_picousd_delta_bps": 30_000,
+            },
+        ),
+        (
+            "0.4.3",
+            {
+                "estimated_cost_microusd_delta": -3,
+                "estimated_cost_microusd_delta_bps": -750,
+            },
+        ),
+    ),
+)
+def test_usage_summary_delta_cost_versions_match_pydantic_and_jsonschema(
+    schema_version: str,
+    cost_fields: dict[str, int],
+) -> None:
+    payload: dict[str, object] = {
+        "artifact_kind": "usage-summary-delta",
+        "schema_version": schema_version,
+        "comparison_state": "observed",
+        "baseline_observed": True,
+        "candidate_observed": True,
+        "currency": "USD",
+        "limitations": [],
+        **cost_fields,
+    }
+    model = SCHEMA_MODELS["usage-summary-delta"]
+
+    UsageSummaryDelta.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+@pytest.mark.parametrize("schema_version", ("0.3.1", "0.4.3"))
+def test_usage_summary_delta_exact_cost_rejects_legacy_schema_labels(
+    schema_version: str,
+) -> None:
+    payload = {
+        "artifact_kind": "usage-summary-delta",
+        "schema_version": schema_version,
+        "comparison_state": "observed",
+        "baseline_observed": True,
+        "candidate_observed": True,
+        "estimated_cost_picousd_delta": 1,
+        "currency": "USD",
+        "limitations": [],
+    }
+    model = SCHEMA_MODELS["usage-summary-delta"]
+
+    with pytest.raises(PydanticValidationError):
+        UsageSummaryDelta.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+@pytest.mark.parametrize(
+    "cost_fields",
+    (
+        {"estimated_cost_microusd_delta": 1},
+        {"estimated_cost_picousd_delta": 1},
+        {"estimated_cost_picousd_delta_bps": 1},
+    ),
+)
+@pytest.mark.parametrize("schema_version", ("0.6.6", None))
+def test_usage_summary_delta_current_cost_pair_requirements_match_schema(
+    schema_version: str | None,
+    cost_fields: dict[str, int],
+) -> None:
+    payload: dict[str, object] = {
+        "artifact_kind": "usage-summary-delta",
+        "comparison_state": "observed",
+        "baseline_observed": True,
+        "candidate_observed": True,
+        "currency": "USD",
+        "limitations": [],
+        **cost_fields,
+    }
+    if schema_version is not None:
+        payload["schema_version"] = schema_version
+    model = SCHEMA_MODELS["usage-summary-delta"]
+    schema = model.model_json_schema(mode="validation")
+    if schema_version is None:
+        # Exported writer schemas require an explicit version. Relax only that
+        # root requirement to exercise the importable model's default-current
+        # conditional branch independently.
+        schema["required"] = [
+            field_name for field_name in schema["required"] if field_name != "schema_version"
+        ]
+
+    with pytest.raises(PydanticValidationError):
+        UsageSummaryDelta.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(schema).validate(payload)
+
+
+def test_usage_summary_delta_omitted_version_accepts_complete_current_cost_pair() -> None:
+    payload = {
+        "artifact_kind": "usage-summary-delta",
+        "comparison_state": "observed",
+        "baseline_observed": True,
+        "candidate_observed": True,
+        "estimated_cost_microusd_delta": 0,
+        "estimated_cost_picousd_delta": 300_000,
+        "currency": "USD",
+        "limitations": [],
+    }
+    model = SCHEMA_MODELS["usage-summary-delta"]
+    schema = model.model_json_schema(mode="validation")
+    schema["required"] = [
+        field_name for field_name in schema["required"] if field_name != "schema_version"
+    ]
+
+    validated = UsageSummaryDelta.model_validate(payload)
+    Draft202012Validator(schema).validate(payload)
+
+    assert validated.schema_version == "0.6.6"
 
 
 @pytest.mark.parametrize(
@@ -377,6 +624,7 @@ def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
                     "reason_codes": ["RAW_SENSITIVE_CONTENT"],
                     "minimum_clusters": 1,
                     "minimum_observations": 1,
+                    "exposure_unit": "independence_cluster",
                 },
             ],
         },
@@ -417,7 +665,11 @@ def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-protocol.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-protocol-record") == "frozen-jsonschema"
+    # The frozen schema remains an immutable structural interoperability
+    # resource. Public assurance validation cannot certify its cross-field
+    # design arithmetic, so this historical decision input is archival-only.
+    with pytest.raises(ValueError, match="archival-only"):
+        validate_artifact(path, "live-protocol-record")
 
 
 def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -545,11 +797,17 @@ def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  #
         ],
     }
     model = SCHEMA_MODELS["live-drift-report"]
-    model.model_validate(payload)
+    with pytest.raises(
+        PydanticValidationError, match="not supported by the live artifact contract"
+    ):
+        model.model_validate(payload)
+    # The immutable historical schema remains useful for archival shape
+    # inspection even though current semantic/assurance validation rejects it.
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-drift.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-drift-report") == "frozen-jsonschema"
+    with pytest.raises(ValueError, match="archival-only"):
+        validate_artifact(path, "live-drift-report")
 
 
 def test_live_trajectory_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -658,11 +916,17 @@ def test_live_trajectory_report_matches_pydantic_and_jsonschema(tmp_path) -> Non
         ],
     }
     model = SCHEMA_MODELS["live-trajectory-report"]
-    model.model_validate(payload)
+    with pytest.raises(
+        PydanticValidationError, match="not supported by the live artifact contract"
+    ):
+        model.model_validate(payload)
+    # The immutable historical schema remains useful for archival shape
+    # inspection even though current semantic/assurance validation rejects it.
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-trajectory.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-trajectory-report") == "frozen-jsonschema"
+    with pytest.raises(ValueError, match="archival-only"):
+        validate_artifact(path, "live-trajectory-report")
 
 
 def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -696,7 +960,9 @@ def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> N
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "emergency.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "emergency-process-record") == "frozen-jsonschema"
+    assert (
+        validate_artifact(path, "emergency-process-record") == "frozen-jsonschema+semantic-replay"
+    )
 
 
 def test_invalid_artifact_rejected_by_both_validators() -> None:

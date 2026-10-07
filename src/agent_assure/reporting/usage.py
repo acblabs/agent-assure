@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.schema.usage import UsageSummary
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 
 def prefixed_usage_summary_lines(
@@ -16,6 +17,9 @@ def prefixed_usage_summary_lines(
 def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
     if summary is None:
         return ["- measured usage: `not_observed`"]
+    payload = summary.model_dump(mode="json", warnings="error")
+    summary = UsageSummary.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "usage-summary")
     lines = [
         f"- total tokens: `{observed_int(summary.total_tokens)}`",
         f"- tool calls: `{observed_int(summary.total_tool_calls)}`",

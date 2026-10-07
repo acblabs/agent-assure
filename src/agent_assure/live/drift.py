@@ -13,9 +13,12 @@ from agent_assure.live.primitives import (
     parse_timestamp,
     rate_decimal,
     signed_unit_decimal_string,
+    with_live_decimal_context,
 )
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
+    LIVE_DRIFT_SOURCE_LINKAGE_LIMITATION,
     DriftAnalysisMethod,
     DriftComparabilityResult,
     DriftComparabilityStatus,
@@ -47,13 +50,28 @@ _BASE_LIMITATIONS = (
     "cross-window monitoring is a review signal and is not a release-verdict gate",
     "stationarity or drift signals do not establish safety, compliance, clinical "
     "validity, provider quality, or model intent",
-    "latent-state summaries describe governance health, control reliability, or drift "
-    "state from observable records only",
-    "dependence review thresholds are policy heuristics and are not calibrated "
-    "null false-positive rates",
 )
+_STATE_SPACE_LIMITATION = (
+    "latent-state summaries describe governance health, control reliability, or drift "
+    "state from observable records only"
+)
+_DEPENDENCE_LIMITATION = (
+    "dependence review thresholds are policy heuristics and are not calibrated "
+    "null false-positive rates"
+)
+_SOURCE_EVALUATION_INCOMPLETE_LIMITATION = (
+    "one or more source evaluations are incomplete; confirmatory drift inference is disqualified"
+)
+_SOURCE_RUNSET_INCOMPLETE_LIMITATION = (
+    "one or more source RunSets are incomplete; confirmatory drift inference is disqualified"
+)
+_SOURCE_EVALUATION_EXPLORATORY_LIMITATION = (
+    "one or more source evaluations are exploratory; confirmatory drift inference is disqualified"
+)
+_SUPPORTED_ORDERING_VARIABLES = frozenset({"window_index", "window_start_utc"})
 
 
+@with_live_decimal_context
 def build_live_drift_report(
     reports: Sequence[LiveEvaluationReport],
     *,
@@ -61,8 +79,18 @@ def build_live_drift_report(
 ) -> LiveDriftReport:
     if not reports:
         raise ValueError("drift monitoring requires at least one live evaluation report")
+    protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json", warnings="error"))
+    _require_current_input(protocol, owner="drift protocol")
     plan = protocol.drift_monitoring_plan or _default_monitoring_plan()
+    _require_supported_ordering(plan)
+    reports = tuple(
+        LiveEvaluationReport.model_validate(report.model_dump(mode="json", warnings="error"))
+        for report in reports
+    )
+    for report in reports:
+        _require_current_input(report, owner="drift source evaluation")
     protocol_digest = sha256_hexdigest(protocol)
+    source_evaluation_digests = tuple(sha256_hexdigest(report) for report in reports)
     for report in reports:
         if report.suite_digest != protocol.suite_digest:
             raise ValueError("drift evaluation report suite_digest does not match protocol")
@@ -89,30 +117,23 @@ def build_live_drift_report(
         if window.observation_window_end_utc is not None
     )
     first = reports[0]
-    report_id = (
-        "live-drift-"
-        + sha256_hexdigest(
-            {
-                "protocol_digest": protocol_digest,
-                "drift_plan": plan,
-                "runset_ids": [report.runset_id for report in reports],
-            }
-        )[:16]
+    report_id = _drift_report_id(
+        protocol_digest=protocol_digest,
+        plan=plan,
+        source_evaluation_digests=source_evaluation_digests,
+        windows=windows,
     )
-    limitations = list(_BASE_LIMITATIONS)
-    limitations.extend(comparability.limitations)
-    if any(window.provider_version_unknown for window in windows):
-        limitations.append(
-            "one or more windows have unknown resolved provider-version metadata; "
-            "version-specific drift interpretation is limited"
-        )
-    limitations.extend(plan.known_provider_version_unknowns)
+    limitations = _drift_limitations(plan, comparability, windows)
     return LiveDriftReport(
         artifact_kind="live-drift-report",
+        derivation_contract="agent-assure/live-drift/v1",
         report_id=report_id,
+        source_evaluation_digests=source_evaluation_digests,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
+        protocol=protocol,
         drift_plan_id=plan.plan_id,
+        drift_plan=plan,
         suite_id=first.suite_id,
         suite_version=first.suite_version,
         ordering_variable=plan.ordering_variable,
@@ -124,8 +145,150 @@ def build_live_drift_report(
         comparability=comparability,
         windows=windows,
         diagnostics=diagnostics,
-        limitations=tuple(dict.fromkeys(limitations)),
+        limitations=limitations,
     )
+
+
+def verify_live_drift_report_derivation(report: LiveDriftReport) -> None:
+    """Replay every persisted drift conclusion from its bound projection."""
+
+    protocol = report.protocol
+    plan = report.drift_plan
+    if protocol is None or plan is None:
+        raise ValueError("live drift derivation requires a bound protocol and plan")
+    protocol_digest = sha256_hexdigest(protocol)
+    if report.protocol_id != protocol.protocol_id or report.protocol_digest != protocol_digest:
+        raise ValueError("live drift protocol identity does not match its bound protocol")
+    effective_plan = protocol.drift_monitoring_plan or _default_monitoring_plan()
+    _require_supported_ordering(effective_plan)
+    if plan != effective_plan or report.drift_plan_id != effective_plan.plan_id:
+        raise ValueError("live drift effective plan does not match its bound protocol")
+    if report.ordering_variable != plan.ordering_variable:
+        raise ValueError("live drift ordering variable does not match its plan")
+    if report.interpretation != plan.interpretation:
+        raise ValueError("live drift interpretation does not match its plan")
+    if len(report.source_evaluation_digests) != len(report.windows):
+        raise ValueError("live drift source digest count does not match its ordered windows")
+    if len(report.source_evaluation_digests) != len(set(report.source_evaluation_digests)):
+        raise ValueError("live drift source evaluation digests must be unique")
+    runset_ids = tuple(window.runset_id for window in report.windows)
+    if len(runset_ids) != len(set(runset_ids)):
+        raise ValueError("live drift source windows must reference unique RunSets")
+    if report.suite_id != protocol.suite_id or report.suite_version != protocol.suite_version:
+        raise ValueError("live drift suite identity does not match its bound protocol")
+
+    expected_comparability = _comparability(
+        report.windows,
+        protocol=protocol,
+        protocol_digest=protocol_digest,
+    )
+    if report.comparability != expected_comparability:
+        raise ValueError("live drift comparability does not match replayed source windows")
+    expected_diagnostics = tuple(
+        _diagnostic(metric_plan, report.windows, comparability=expected_comparability)
+        for metric_plan in plan.metrics
+    )
+    if report.diagnostics != expected_diagnostics:
+        raise ValueError("live drift diagnostics do not match replayed plan and windows")
+    expected_status = _monitoring_status(plan, expected_comparability, expected_diagnostics)
+    if report.monitoring_status != expected_status:
+        raise ValueError("live drift monitoring status does not match replayed diagnostics")
+    starts = tuple(
+        window.observation_window_start_utc
+        for window in report.windows
+        if window.observation_window_start_utc is not None
+    )
+    ends = tuple(
+        window.observation_window_end_utc
+        for window in report.windows
+        if window.observation_window_end_utc is not None
+    )
+    if report.observation_window_start_utc != _timestamp_bound(starts, pick="min"):
+        raise ValueError("live drift start timestamp does not match source windows")
+    if report.observation_window_end_utc != _timestamp_bound(ends, pick="max"):
+        raise ValueError("live drift end timestamp does not match source windows")
+    if report.limitations != _drift_limitations(plan, expected_comparability, report.windows):
+        raise ValueError("live drift limitations do not match replayed derivation")
+    expected_report_id = _drift_report_id(
+        protocol_digest=protocol_digest,
+        plan=plan,
+        source_evaluation_digests=report.source_evaluation_digests,
+        windows=report.windows,
+    )
+    if report.report_id != expected_report_id:
+        raise ValueError("live drift report_id does not match its bound derivation inputs")
+
+
+def verify_live_drift_report_sources(
+    report: LiveDriftReport,
+    source_reports: Sequence[LiveEvaluationReport],
+    *,
+    protocol: LiveProtocolRecord,
+) -> None:
+    """Resolve external digests and require an exact rebuild from trusted sources."""
+
+    report = LiveDriftReport.model_validate(report.model_dump(mode="json", warnings="error"))
+    _require_current_input(report, owner="drift report")
+    protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json", warnings="error"))
+    _require_current_input(protocol, owner="drift protocol")
+    source_reports = tuple(
+        LiveEvaluationReport.model_validate(source.model_dump(mode="json", warnings="error"))
+        for source in source_reports
+    )
+    for source in source_reports:
+        _require_current_input(source, owner="drift source evaluation")
+    source_digests = tuple(sha256_hexdigest(source) for source in source_reports)
+    if source_digests != report.source_evaluation_digests:
+        raise ValueError(
+            "live drift ordered source evaluation digests do not match trusted sources"
+        )
+    expected = build_live_drift_report(source_reports, protocol=protocol)
+    if report != expected:
+        raise ValueError("live drift report does not exactly match trusted-source rebuild")
+
+
+def _drift_report_id(
+    *,
+    protocol_digest: str,
+    plan: DriftMonitoringPlan,
+    source_evaluation_digests: tuple[str, ...],
+    windows: tuple[DriftWindowSummary, ...],
+) -> str:
+    return (
+        "live-drift-"
+        + sha256_hexdigest(
+            {
+                "protocol_digest": protocol_digest,
+                "drift_plan": plan,
+                "source_evaluation_digests": source_evaluation_digests,
+                "windows": windows,
+            }
+        )[:16]
+    )
+
+
+def _drift_limitations(
+    plan: DriftMonitoringPlan,
+    comparability: DriftComparabilityResult,
+    windows: tuple[DriftWindowSummary, ...],
+) -> tuple[str, ...]:
+    limitations = list(_BASE_LIMITATIONS)
+    methods = {method for metric in plan.metrics for method in metric.analysis_methods}
+    if "state_space_ewma" in methods:
+        limitations.append(_STATE_SPACE_LIMITATION)
+    if {"lag1_autocorrelation", "ar1_summary"}.intersection(methods):
+        limitations.append(_DEPENDENCE_LIMITATION)
+    limitations.append(LIVE_DRIFT_SOURCE_LINKAGE_LIMITATION)
+    limitations.extend(comparability.limitations)
+    if any(window.provider_version_unknown for window in windows):
+        limitations.append(
+            "one or more windows have unknown resolved provider-version metadata; "
+            "version-specific drift interpretation is limited"
+        )
+    _, qualification_limitations = _source_evaluation_qualification(windows)
+    limitations.extend(qualification_limitations)
+    limitations.extend(plan.known_provider_version_unknowns)
+    return tuple(dict.fromkeys(limitations))
 
 
 def _default_monitoring_plan() -> DriftMonitoringPlan:
@@ -225,6 +388,9 @@ def _window_summary(
         suite_id=report.suite_id,
         suite_version=report.suite_version,
         configuration_digest=report.configuration_digest,
+        source_runset_completion_status=report.source_completion_status,
+        source_evaluation_completion_status=report.completion_status,
+        source_evaluation_exploratory=report.exploratory,
         protocol_id=report.protocol_id,
         protocol_digest=report.protocol_digest,
         baseline_mode=report.baseline_mode,
@@ -493,6 +659,8 @@ def _ordering_findings(
     protocol: LiveProtocolRecord,
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     plan = protocol.drift_monitoring_plan
+    if plan is not None:
+        _require_supported_ordering(plan)
     ordering_variable = plan.ordering_variable if plan is not None else "window_index"
     failures: list[str] = []
     limitations: list[str] = []
@@ -527,7 +695,12 @@ def _ordering_findings(
             + ", ".join(invalid_windows)
         )
     for left, right in pairwise(parsed_rows):
-        if right[1] < left[1]:
+        if ordering_variable == "window_start_utc" and right[1] <= left[1]:
+            failures.append(
+                "observation windows are not strictly increasing by start timestamp between "
+                f"{left[0]} and {right[0]}"
+            )
+        elif right[1] < left[1]:
             failures.append(
                 "observation windows are not nondecreasing by start timestamp between "
                 f"{left[0]} and {right[0]}"
@@ -540,6 +713,7 @@ def _ordering_findings(
     return tuple(dict.fromkeys(failures)), tuple(dict.fromkeys(limitations))
 
 
+@with_live_decimal_context
 def _diagnostic(
     metric_plan: DriftMetricPlan,
     windows: tuple[DriftWindowSummary, ...],
@@ -552,47 +726,75 @@ def _diagnostic(
     prerequisite_status, prerequisite_limitations = _prerequisite_status(
         metric_plan,
         values,
+        windows=windows,
+        total_windows=len(windows),
         comparability=comparability,
     )
     limitations = list(prerequisite_limitations)
     series_values = tuple(value for _, value, _ in values)
+    complete_ordered_series = len(values) == len(windows)
     slope = _slope(values) if len(values) >= 2 else None
-    max_step = _max_step(series_values) if len(series_values) >= 2 else None
+    max_step = (
+        _max_step(series_values) if complete_ordered_series and len(series_values) >= 2 else None
+    )
     lag1 = None
     ar1_phi = None
     ar1_intercept = None
     ar1_variance = None
+    ar1_stationary_fit_invalid = False
     state_estimate = None
     if "lag1_autocorrelation" in metric_plan.analysis_methods:
-        if len(series_values) >= metric_plan.minimum_dependence_windows:
+        if complete_ordered_series and len(series_values) >= metric_plan.minimum_dependence_windows:
             lag1 = _lag1_autocorrelation(series_values)
-        else:
+        elif complete_ordered_series:
             limitations.append(
                 "lag-1 autocorrelation requires at least "
                 f"{metric_plan.minimum_dependence_windows} ordered windows; observed "
                 f"{len(series_values)}"
             )
-        if len(series_values) >= metric_plan.minimum_dependence_windows and lag1 is None:
+        if (
+            complete_ordered_series
+            and len(series_values) >= metric_plan.minimum_dependence_windows
+            and lag1 is None
+        ):
             limitations.append("lag-1 autocorrelation was not evaluated for this series")
     if "ar1_summary" in metric_plan.analysis_methods:
-        if len(series_values) >= metric_plan.minimum_dependence_windows:
-            ar1_phi, ar1_intercept, ar1_variance = _ar1_summary(series_values)
-        else:
+        if complete_ordered_series and len(series_values) >= metric_plan.minimum_dependence_windows:
+            (
+                ar1_phi,
+                ar1_intercept,
+                ar1_variance,
+                ar1_stationary_fit_invalid,
+            ) = _ar1_summary(series_values)
+        elif complete_ordered_series:
             limitations.append(
                 "AR(1) summary requires at least "
                 f"{metric_plan.minimum_dependence_windows} ordered windows; observed "
                 f"{len(series_values)}"
             )
-        if len(series_values) >= metric_plan.minimum_dependence_windows and ar1_phi is None:
+        if ar1_stationary_fit_invalid:
+            limitations.append(
+                "raw AR(1) coefficient magnitude was at least one; stationary AR(1) "
+                "fitted statistics were suppressed"
+            )
+        if (
+            complete_ordered_series
+            and len(series_values) >= metric_plan.minimum_dependence_windows
+            and ar1_phi is None
+            and not ar1_stationary_fit_invalid
+        ):
             limitations.append("AR(1) summary was not evaluated for this series")
     if "state_space_ewma" in metric_plan.analysis_methods:
-        if len(series_values) >= metric_plan.minimum_state_space_windows:
+        if (
+            complete_ordered_series
+            and len(series_values) >= metric_plan.minimum_state_space_windows
+        ):
             state_estimate = _state_estimate(
                 metric_plan,
                 series_values,
                 prerequisite_status=prerequisite_status,
             )
-        else:
+        elif complete_ordered_series:
             limitations.append(
                 "EWMA state summary requires at least "
                 f"{metric_plan.minimum_state_space_windows} ordered windows; observed "
@@ -605,14 +807,26 @@ def _diagnostic(
         slope=slope,
         max_step=max_step,
     )
-    dependence_reasons = _dependence_review_reasons(
-        metric_plan,
-        lag1=lag1,
-        ar1_phi=ar1_phi,
+    dependence_declared = bool(
+        {"lag1_autocorrelation", "ar1_summary"}.intersection(metric_plan.analysis_methods)
+    )
+    dependence_reasons = (
+        _dependence_review_reasons(
+            metric_plan,
+            lag1=lag1,
+            ar1_phi=ar1_phi,
+            ar1_stationary_fit_invalid=ar1_stationary_fit_invalid,
+        )
+        if dependence_declared
+        else ()
     )
     review_reasons = (*stationarity_reasons, *dependence_reasons)
     stationarity_signal = _signal_from_reasons(prerequisite_status, stationarity_reasons)
-    dependence_signal = _signal_from_reasons(prerequisite_status, dependence_reasons)
+    dependence_signal = (
+        _signal_from_reasons(prerequisite_status, dependence_reasons)
+        if dependence_declared
+        else "not_evaluated"
+    )
     return DriftMetricDiagnostic(
         artifact_kind="drift-metric-diagnostic",
         metric=metric_plan.metric,
@@ -668,13 +882,30 @@ def _prerequisite_status(
     metric_plan: DriftMetricPlan,
     values: tuple[tuple[int, Decimal, int], ...],
     *,
+    windows: tuple[DriftWindowSummary, ...],
+    total_windows: int,
     comparability: DriftComparabilityResult,
 ) -> tuple[EndpointPrerequisiteStatus, tuple[str, ...]]:
     limitations: list[str] = []
     if comparability.status == "invalid":
         return "invalid", ("comparability gate failed, so drift inference is invalid",)
+    invalid = False
+    if len(values) != total_windows:
+        limitations.append(
+            "one or more declared metric windows are missing; adjacency, dependence, and "
+            "state-space diagnostics were not evaluated across the gap"
+        )
+        if metric_plan.interpretation == "confirmatory":
+            invalid = True
     if len(values) < 2:
-        return "invalid", ("fewer than two ordered windows were available",)
+        limitations.append("fewer than two ordered windows were available")
+        invalid = True
+    source_qualified, qualification_limitations = _source_evaluation_qualification(windows)
+    limitations.extend(qualification_limitations)
+    if not source_qualified and metric_plan.interpretation == "confirmatory":
+        invalid = True
+    if invalid:
+        return "invalid", tuple(dict.fromkeys(limitations))
     if any(
         denominator < metric_plan.minimum_observations_per_window for _, _, denominator in values
     ):
@@ -707,8 +938,11 @@ def _dependence_review_reasons(
     *,
     lag1: Decimal | None,
     ar1_phi: Decimal | None,
+    ar1_stationary_fit_invalid: bool,
 ) -> tuple[str, ...]:
     reasons: list[str] = []
+    if ar1_stationary_fit_invalid:
+        reasons.append("raw AR(1) coefficient magnitude is outside the stationary range")
     if lag1 is not None and abs(lag1) >= Decimal(metric_plan.autocorrelation_review_threshold):
         reasons.append("absolute lag-1 autocorrelation exceeds the metric review threshold")
     if ar1_phi is not None and abs(ar1_phi) >= Decimal(metric_plan.ar1_review_threshold):
@@ -727,26 +961,40 @@ def _signal_from_reasons(
     return "none"
 
 
+@with_live_decimal_context
 def _slope(values: tuple[tuple[int, Decimal, int], ...]) -> Decimal | None:
     if len(values) < 2:
         return None
-    xs = tuple(Decimal(index) for index, _, _ in values)
-    ys = tuple(value for _, value, _ in values)
-    mean_x = mean_decimal(xs)
-    mean_y = mean_decimal(ys)
-    denominator = sum((x - mean_x) ** 2 for x in xs)
+    if any(observation_count <= 0 for _, _, observation_count in values):
+        return None
+    weighted = tuple(
+        (Decimal(index), value, Decimal(observation_count))
+        for index, value, observation_count in values
+    )
+    total_weight = sum((weight for _, _, weight in weighted), Decimal("0"))
+    mean_x = sum((weight * x for x, _, weight in weighted), Decimal("0")) / total_weight
+    mean_y = sum((weight * y for _, y, weight in weighted), Decimal("0")) / total_weight
+    denominator = sum(
+        (weight * (x - mean_x) ** 2 for x, _, weight in weighted),
+        Decimal("0"),
+    )
     if denominator == 0:
         return None
-    numerator = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys, strict=True))
+    numerator = sum(
+        (weight * (x - mean_x) * (y - mean_y) for x, y, weight in weighted),
+        Decimal("0"),
+    )
     return numerator / denominator
 
 
+@with_live_decimal_context
 def _max_step(values: tuple[Decimal, ...]) -> Decimal | None:
     if len(values) < 2:
         return None
     return max(abs(right - left) for left, right in pairwise(values))
 
 
+@with_live_decimal_context
 def _lag1_autocorrelation(values: tuple[Decimal, ...]) -> Decimal | None:
     if len(values) < 3:
         return None
@@ -758,11 +1006,12 @@ def _lag1_autocorrelation(values: tuple[Decimal, ...]) -> Decimal | None:
     return numerator / denominator
 
 
+@with_live_decimal_context
 def _ar1_summary(
     values: tuple[Decimal, ...],
-) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
+) -> tuple[Decimal | None, Decimal | None, Decimal | None, bool]:
     if len(values) < 4:
-        return None, None, None
+        return None, None, None, False
     # Descriptive AR(1) screen only: lag and lead means are estimated separately,
     # and residual variance is a simple mean-square diagnostic rather than a
     # formal small-sample time-series estimator.
@@ -772,7 +1021,7 @@ def _ar1_summary(
     mean_current = mean_decimal(current)
     denominator = sum((value - mean_previous) ** 2 for value in previous)
     if denominator == 0:
-        return None, None, None
+        return None, None, None, False
     phi = (
         sum(
             (prev - mean_previous) * (curr - mean_current)
@@ -780,15 +1029,17 @@ def _ar1_summary(
         )
         / denominator
     )
-    phi = max(Decimal("-1"), min(Decimal("1"), phi))
+    if abs(phi) >= Decimal("1"):
+        return None, None, None, True
     intercept = mean_current - phi * mean_previous
     residuals = tuple(
         curr - (intercept + phi * prev) for prev, curr in zip(previous, current, strict=True)
     )
     variance = mean_decimal(tuple(residual * residual for residual in residuals))
-    return phi, intercept, variance
+    return phi, intercept, variance, False
 
 
+@with_live_decimal_context
 def _state_estimate(
     metric_plan: DriftMetricPlan,
     values: tuple[Decimal, ...],
@@ -841,11 +1092,48 @@ def _monitoring_status(
 ) -> DriftMonitoringStatus:
     if comparability.status == "invalid":
         return "invalid"
+    authoritative = (
+        diagnostics
+        if plan.interpretation == "exploratory"
+        else tuple(
+            diagnostic for diagnostic in diagnostics if diagnostic.interpretation == "confirmatory"
+        )
+    )
+    if not authoritative:
+        return "invalid"
+    if any(diagnostic.prerequisite_status == "invalid" for diagnostic in authoritative):
+        return "invalid"
     if plan.interpretation == "exploratory" or comparability.status == "exploratory":
         return "exploratory"
-    if any(diagnostic.prerequisite_status != "met" for diagnostic in diagnostics):
+    if any(diagnostic.prerequisite_status != "met" for diagnostic in authoritative):
         return "exploratory"
     return "valid"
+
+
+def _source_evaluation_qualification(
+    windows: tuple[DriftWindowSummary, ...],
+) -> tuple[bool, tuple[str, ...]]:
+    limitations: list[str] = []
+    if any(window.source_runset_completion_status != "complete" for window in windows):
+        limitations.append(_SOURCE_RUNSET_INCOMPLETE_LIMITATION)
+    if any(window.source_evaluation_completion_status != "complete" for window in windows):
+        limitations.append(_SOURCE_EVALUATION_INCOMPLETE_LIMITATION)
+    if any(window.source_evaluation_exploratory is not False for window in windows):
+        limitations.append(_SOURCE_EVALUATION_EXPLORATORY_LIMITATION)
+    return not limitations, tuple(limitations)
+
+
+def _require_supported_ordering(plan: DriftMonitoringPlan) -> None:
+    if plan.ordering_variable not in _SUPPORTED_ORDERING_VARIABLES:
+        raise ValueError(
+            "drift ordering_variable must be window_index or window_start_utc; "
+            f"{plan.ordering_variable!r} has no authenticated ordering-key implementation"
+        )
+
+
+def _require_current_input(value: PersistedArtifact, *, owner: str) -> None:
+    if value.schema_version != SCHEMA_VERSION:
+        raise ValueError(f"{owner} must use current schema_version {SCHEMA_VERSION}")
 
 
 def _timestamp_bound(values: tuple[str, ...], *, pick: Literal["min", "max"]) -> str | None:

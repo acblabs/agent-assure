@@ -9,7 +9,7 @@ from rich.console import Console
 from agent_assure.schema.export import export_json_schemas
 
 app = typer.Typer(help="JSON Schema utilities.")
-console = Console()
+console = Console(markup=False)
 
 
 @app.command("export")

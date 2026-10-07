@@ -25,6 +25,7 @@ from agent_assure.schema.common import (
     ExecutionMode,
 )
 from agent_assure.schema.evaluation import Finding
+from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.export import writer_json_schema
 from agent_assure.schema.live import (
     DriftComparabilityResult,
@@ -38,11 +39,46 @@ from agent_assure.schema.run import (
     EvidenceItem,
     EvidenceRef,
     LiveExecutionAttemptEvent,
+    LiveNetworkAuthorityReceipt,
     RunSet,
 )
 from agent_assure.schema.validation import validate_artifact_payload
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_current_expectation_requires_a_verdict_bearing_constraint() -> None:
+    payload = {
+        "artifact_kind": "expectation",
+        "schema_version": "0.6.6",
+        "expectation_id": "expectation-001",
+        "case_id": "case-001",
+    }
+
+    with pytest.raises(ValidationError, match="verdict-bearing constraint"):
+        Expectation.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(writer_json_schema(Expectation)).validate(payload)
+
+    legacy_payload = payload | {"schema_version": "0.6.5"}
+    legacy = Expectation.model_validate(legacy_payload)
+    Draft202012Validator(Expectation.model_json_schema(mode="validation")).validate(legacy_payload)
+    assert legacy.schema_version == "0.6.5"
+
+    omitted_version_payload = {
+        key: value for key, value in payload.items() if key != "schema_version"
+    }
+    with pytest.raises(ValidationError, match="verdict-bearing constraint"):
+        Expectation.model_validate(omitted_version_payload)
+    importable_schema = writer_json_schema(Expectation)
+    importable_schema["required"] = [
+        field_name for field_name in importable_schema["required"] if field_name != "schema_version"
+    ]
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(importable_schema).validate(omitted_version_payload)
+
+    current = Expectation.model_validate(payload | {"required_human_review": True})
+    Draft202012Validator(writer_json_schema(Expectation)).validate(current.model_dump(mode="json"))
 
 
 def test_finding_message_is_bounded_in_model_and_writer_schema() -> None:
@@ -488,7 +524,7 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
         elif isinstance(value, list):
             pending.extend(value)
 
-    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
+    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema+semantic-replay"
 
 
 @pytest.mark.parametrize(
@@ -709,7 +745,7 @@ def test_legacy_runset_retains_historical_empty_graph_source_identity() -> None:
         elif isinstance(value, list):
             pending.extend(value)
 
-    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
+    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema+semantic-replay"
 
 
 @pytest.mark.parametrize("value", (1 << 53, -(1 << 53)))
@@ -795,6 +831,153 @@ def test_live_runset_rejects_fixture_run_records() -> None:
             protocol_digest="2" * 64,
             runs=(_record(),),
         )
+
+
+def test_current_openai_live_runset_requires_network_authority_receipt() -> None:
+    origins = StructuredFieldOrigins.uniform(StructuredFieldOrigin.model_self_report)
+    current_record = _record(
+        execution_mode="live",
+        observation_id="obs-network-authority",
+        repetition_index=0,
+        schedule_index=0,
+        cluster_id="case-001",
+        adapter_id="openai-chat-completions",
+        cost_budget_committed_usd="0.000000",
+        generated_token_budget_committed=0,
+        total_token_budget_committed=0,
+        structured_field_origins=origins,
+    )
+    common: dict[str, object] = {
+        "runset_id": "runset-network-authority",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "execution_mode": "live",
+        "protocol_id": "protocol-001",
+        "protocol_digest": "2" * 64,
+        "runs": (current_record,),
+    }
+    valid = RunSet.model_validate(
+        common
+        | {
+            "network_authority_receipt": LiveNetworkAuthorityReceipt(
+                endpoint_host="api.openai.com",
+                api_key_env="OPENAI_TEST_KEY",
+            )
+        }
+    )
+    missing_receipt = valid.model_dump(mode="json")
+    missing_receipt.pop("network_authority_receipt")
+
+    with pytest.raises(ValidationError, match="require network_authority_receipt"):
+        RunSet.model_validate(missing_receipt)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(missing_receipt)
+
+    legacy_record_payload = current_record.model_dump(mode="json")
+    legacy_record_payload["schema_version"] = "0.6.5"
+    legacy_record = AgentRunRecord.model_validate(legacy_record_payload)
+    legacy = RunSet.model_validate(common | {"schema_version": "0.6.5", "runs": (legacy_record,)})
+
+    assert legacy.network_authority_receipt is None
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "provider",
+        "model",
+        "resolved_model",
+        "provider_api_version",
+        "provider_sdk",
+        "provider_region",
+        "provider_response_id",
+    ),
+)
+@pytest.mark.parametrize(
+    "invalid_value",
+    ("legacy vendor", "legacy-vendor\n"),
+)
+def test_current_runset_revalidates_legacy_child_provider_metadata(
+    field_name: str,
+    invalid_value: str,
+) -> None:
+    legacy_record = _record(schema_version="0.6.5", **{field_name: invalid_value})
+    payload: dict[str, object] = {
+        "artifact_kind": "run-set",
+        "schema_version": "0.6.6",
+        "runset_id": "runset-nested-metadata",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "runs": [legacy_record.model_dump(mode="json")],
+    }
+
+    with pytest.raises(ValidationError, match="machine-identifier"):
+        RunSet.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(payload)
+
+    legacy_payload = payload | {"schema_version": "0.6.5"}
+    assert RunSet.model_validate(legacy_payload).runs[0].schema_version == "0.6.5"
+    Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(legacy_payload)
+
+
+@pytest.mark.parametrize(
+    "missing_field",
+    (
+        "cost_budget_committed_usd",
+        "generated_token_budget_committed",
+        "total_token_budget_committed",
+    ),
+)
+def test_current_live_runset_reapplies_budget_contract_to_legacy_children(
+    missing_field: str,
+) -> None:
+    legacy_record = _record(
+        schema_version="0.5.0",
+        execution_mode="live",
+        observation_id="obs-legacy-budget",
+        repetition_index=0,
+        schedule_index=0,
+        cluster_id="case-001",
+        adapter_id="static-jsonl",
+        cost_budget_committed_usd="0.000000",
+        generated_token_budget_committed=0,
+        total_token_budget_committed=0,
+    )
+    legacy_record_payload = legacy_record.model_dump(mode="json")
+    legacy_record_payload.pop(missing_field)
+    payload: dict[str, object] = {
+        "artifact_kind": "run-set",
+        "schema_version": "0.6.6",
+        "runset_id": "runset-nested-budget",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "execution_mode": "live",
+        "protocol_id": "protocol-001",
+        "protocol_digest": "2" * 64,
+        "runs": [legacy_record_payload],
+    }
+
+    with pytest.raises(ValidationError, match="nested budget commitments"):
+        RunSet.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(payload)
+
+    legacy_payload = payload | {"schema_version": "0.5.0"}
+    RunSet.model_validate(legacy_payload)
+    Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(legacy_payload)
 
 
 def test_current_live_runset_accepts_atomic_design_commitment() -> None:

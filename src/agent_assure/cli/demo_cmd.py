@@ -26,7 +26,7 @@ from agent_assure.demo.rag import render_rag_text, run_rag_demo
 from agent_assure.onboarding.diagnostics import bounded_error
 
 app = typer.Typer(help="One-command deterministic demos.")
-console = Console()
+console = Console(markup=False)
 
 
 @app.callback()
@@ -66,7 +66,7 @@ def assure_the_assurance(
         if output_format == "json":
             typer.echo(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            console.print(f"agent-assure assurance demo failed: {exc}")
+            console.print(f"agent-assure assurance demo failed: {bounded_error(exc)}")
         raise typer.Exit(1) from exc
 
     if output_format == "json":
@@ -108,7 +108,7 @@ def flagship(
         if output_format == "json":
             typer.echo(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            console.print(f"agent-assure flagship demo failed: {exc}")
+            console.print(f"agent-assure flagship demo failed: {bounded_error(exc)}")
         raise typer.Exit(1) from exc
 
     if output_format == "json":
@@ -151,7 +151,7 @@ def evidence_sensitivity(
         if output_format == "json":
             typer.echo(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            console.print(f"agent-assure evidence-sensitivity demo failed: {exc}")
+            console.print(f"agent-assure evidence-sensitivity demo failed: {bounded_error(exc)}")
         raise typer.Exit(1) from exc
 
     if output_format == "json":
@@ -193,7 +193,7 @@ def rag(
         if output_format == "json":
             typer.echo(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            console.print(f"agent-assure RAG demo failed: {exc}")
+            console.print(f"agent-assure RAG demo failed: {bounded_error(exc)}")
         raise typer.Exit(1) from exc
 
     if output_format == "json":
@@ -235,7 +235,7 @@ def measurement_cases(
         if output_format == "json":
             typer.echo(json.dumps(failure, indent=2, sort_keys=True))
         else:
-            console.print(f"agent-assure measurement cases demo failed: {exc}")
+            console.print(f"agent-assure measurement cases demo failed: {bounded_error(exc)}")
         raise typer.Exit(1) from exc
 
     if output_format == "json":

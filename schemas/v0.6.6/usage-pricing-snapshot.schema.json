@@ -2,7 +2,98 @@
   "$defs": {
     "UsagePricingModel": {
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "input_million_tokens_usd"
+                ]
+              },
+              {
+                "required": [
+                  "output_million_tokens_usd"
+                ]
+              },
+              {
+                "required": [
+                  "cached_input_million_tokens_usd"
+                ]
+              },
+              {
+                "required": [
+                  "reasoning_million_tokens_usd"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "input_token_microusd": {
+              "type": "integer"
+            },
+            "output_token_microusd": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "input_token_microusd",
+            "output_token_microusd"
+          ]
+        },
+        {
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "input_token_microusd"
+                ]
+              },
+              {
+                "required": [
+                  "output_token_microusd"
+                ]
+              },
+              {
+                "required": [
+                  "cached_input_token_microusd"
+                ]
+              },
+              {
+                "required": [
+                  "reasoning_token_microusd"
+                ]
+              }
+            ]
+          },
+          "properties": {
+            "input_million_tokens_usd": {
+              "type": "string"
+            },
+            "output_million_tokens_usd": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "input_million_tokens_usd",
+            "output_million_tokens_usd"
+          ]
+        }
+      ],
       "properties": {
+        "cached_input_million_tokens_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cached Input Million Tokens Usd"
+        },
         "cached_input_token_microusd": {
           "anyOf": [
             {
@@ -16,25 +107,80 @@
           "default": null,
           "title": "Cached Input Token Microusd"
         },
+        "input_million_tokens_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Million Tokens Usd"
+        },
         "input_token_microusd": {
-          "minimum": 0,
-          "title": "Input Token Microusd",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Input Token Microusd"
         },
         "model": {
           "minLength": 1,
           "title": "Model",
           "type": "string"
         },
+        "output_million_tokens_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Million Tokens Usd"
+        },
         "output_token_microusd": {
-          "minimum": 0,
-          "title": "Output Token Microusd",
-          "type": "integer"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Output Token Microusd"
         },
         "provider": {
           "minLength": 1,
           "title": "Provider",
           "type": "string"
+        },
+        "reasoning_million_tokens_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Million Tokens Usd"
         },
         "reasoning_token_microusd": {
           "anyOf": [
@@ -52,9 +198,7 @@
       },
       "required": [
         "provider",
-        "model",
-        "input_token_microusd",
-        "output_token_microusd"
+        "model"
       ],
       "title": "UsagePricingModel",
       "type": "object"
@@ -63,6 +207,65 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/usage-pricing-snapshot.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.4.3"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "models": {
+            "items": {
+              "required": [
+                "input_token_microusd",
+                "output_token_microusd"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "models": {
+            "items": {
+              "properties": {
+                "model": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                },
+                "provider": {
+                  "maxLength": 256,
+                  "minLength": 1,
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                }
+              },
+              "required": [
+                "input_million_tokens_usd",
+                "output_million_tokens_usd"
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "artifact_kind": {
       "const": "usage-pricing-snapshot",
@@ -73,7 +276,7 @@
     "currency": {
       "const": "USD",
       "default": "USD",
-      "pattern": "^[A-Z]{3}$",
+      "pattern": "^[A-Z]{3}(?![\\s\\S])",
       "title": "Currency",
       "type": "string"
     },
@@ -99,8 +302,8 @@
       "type": "string"
     },
     "schema_version": {
-      "const": "0.4.3",
-      "default": "0.4.3",
+      "const": "0.6.6",
+      "default": "0.6.6",
       "title": "Schema Version",
       "type": "string"
     }

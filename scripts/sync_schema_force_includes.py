@@ -17,7 +17,11 @@ from scripts.schema_versions import (  # noqa: E402
 
 _HEADER = "[tool.hatch.build.targets.wheel.force-include]"
 _STATIC_FORCE_INCLUDES = {
+    "THIRD_PARTY_NOTICES.md": "agent_assure/THIRD_PARTY_NOTICES.md",
     "mappings": "agent_assure/mappings",
+    "third_party/mitre-atlas-atlas-data/LICENSE": (
+        "agent_assure/third_party/mitre-atlas-atlas-data/LICENSE"
+    ),
 }
 
 

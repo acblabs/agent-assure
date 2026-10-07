@@ -5,6 +5,7 @@ import os
 import stat
 import subprocess
 import sys
+import time
 import zipfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,6 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import scripts.smoke_install_wheel as smoke_install
+from agent_assure.demo.common import DEMO_COMMAND_TIMEOUT_SECONDS
 from agent_assure.demo.evidence_sensitivity import run_evidence_sensitivity_demo
 from agent_assure.rag.sensitivity import (
     execute_sensitivity_experiment,
@@ -495,6 +497,7 @@ def test_packaged_example_assertion_includes_evidence_sensitivity_resources(
 def test_installed_evidence_sensitivity_demo_assertion_validates_demo(
     tmp_path: Path,
 ) -> None:
+    started = time.monotonic()
     out = tmp_path / "evidence-sensitivity"
     summary = run_evidence_sensitivity_demo(out, clean=True)
     assert summary["status"] == "success"
@@ -514,6 +517,7 @@ def test_installed_evidence_sensitivity_demo_assertion_validates_demo(
     )
 
     assert result.returncode == 0, result.stderr + result.stdout
+    assert time.monotonic() - started < DEMO_COMMAND_TIMEOUT_SECONDS
 
 
 def test_installed_evidence_reversed_assertion_validates_wrong_flip(

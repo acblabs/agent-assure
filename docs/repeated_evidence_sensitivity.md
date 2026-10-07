@@ -414,6 +414,8 @@ agent-assure rag sensitivity run \
   --counterfactual-config counterfactual-live.final.json \
   --live-protocol operational-live-protocol.json \
   --network-opt-in --trust-config \
+  --authorized-endpoint-host "$REVIEWED_ENDPOINT_HOST" \
+  --authorized-api-key-env "$REVIEWED_API_KEY_ENV" \
   --out .tmp/repeated-runs
 
 agent-assure rag sensitivity analyze \
@@ -424,7 +426,10 @@ agent-assure rag sensitivity analyze \
 
 The repeated `run` command always requires `--network-opt-in`, including for an
 offline rehearsal; a configuration that disallows networking still cannot
-perform network I/O. Static JSONL and external-script adapters are accepted only
+perform network I/O. For each OpenAI-compatible arm, the operator must also
+supply the exact reviewed destination host and credential environment-variable
+name independently of the finalized config; repeat either authorization option
+when the arms use different bindings. Static JSONL and external-script adapters are accepted only
 for exploratory rehearsal and can never source a confirmatory population
 claim. Static JSONL case-only fallback is permitted only when
 `repetitions_per_arm=1`; a repeated study must provide an exact

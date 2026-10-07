@@ -1,24 +1,36 @@
 from __future__ import annotations
 
 from datetime import datetime
-from decimal import Decimal
 from enum import StrEnum
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
+from agent_assure.fixed_point import picousd_from_usd_six, usd_six_from_picousd
 from agent_assure.io_limits import MAX_PERSISTED_OBSERVATIONS
+from agent_assure.network_authority import (
+    CANONICAL_ENDPOINT_HOST_PATTERN,
+    MAX_ENDPOINT_HOST_CHARS,
+    MAX_HOST_ENV_NAME_CHARS,
+    PROVIDER_SECRET_ENV_NAME_PATTERN,
+    validate_api_key_environment_name,
+    validate_canonical_public_endpoint_host,
+)
 from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_MAX_CHARS,
+    MACHINE_IDENTIFIER_PATTERN,
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
+    PROVIDER_MODEL_IDENTIFIER_PATTERN,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     ExecutionMode,
     GateState,
+    NonnegativeDecimal6String,
     ProviderResponsePayloadScope,
     ReasonCode,
     Severity,
@@ -27,6 +39,7 @@ from agent_assure.schema.common import (
     current_machine_identifier_json_schema_extra,
     current_non_empty_fields_json_schema_extra,
     validate_machine_identifier,
+    validate_provider_model_identifier,
 )
 from agent_assure.schema.privacy import (
     PrivacyProfileDigest,
@@ -60,10 +73,54 @@ _BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset(
 _EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS = frozenset({"0.6.5", "0.6.6"})
 _STUDY_MANIFEST_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.6"})
 _PROVIDER_RESPONSE_PAYLOAD_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_EXACT_LIVE_COST_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_NETWORK_AUTHORITY_RECEIPT_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_EVIDENCE_GRAPH_PARENT_DEFENSE_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_EXACT_LIVE_COMPLETION_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_PROVIDER_METADATA_FIELDS = (
+    "provider",
+    "model",
+    "resolved_model",
+    "provider_api_version",
+    "provider_sdk",
+    "provider_region",
+    "provider_response_id",
+)
+_PROVIDER_MODEL_METADATA_FIELDS = frozenset({"model", "resolved_model"})
+_MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
+    MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"
+)
+_PROVIDER_MODEL_IDENTIFIER_JSON_SCHEMA_PATTERN = (
+    PROVIDER_MODEL_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"
+)
+_LIVE_BUDGET_COMMITMENT_FIELDS = (
+    "cost_budget_committed_usd",
+    "generated_token_budget_committed",
+    "total_token_budget_committed",
+)
 # max_requests counts every adapter attempt, including retries. A paired study
 # therefore emits at most two events per attempt in each of two arms, plus two
 # arm start/end pairs and one attempt terminal event.
 MAX_LIVE_EXECUTION_ATTEMPT_EVENTS = (2 * 2 * MAX_PERSISTED_OBSERVATIONS) + 5
+
+
+def _machine_identifier_json_schema() -> dict[str, Any]:
+    return {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": MACHINE_IDENTIFIER_MAX_CHARS,
+        "pattern": _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN,
+    }
+
+
+def _provider_metadata_identifier_json_schema(field_name: str) -> dict[str, Any]:
+    schema = _machine_identifier_json_schema()
+    if field_name in _PROVIDER_MODEL_METADATA_FIELDS:
+        schema["pattern"] = _PROVIDER_MODEL_IDENTIFIER_JSON_SCHEMA_PATTERN
+    return schema
+
+
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
@@ -90,6 +147,40 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS),
+                }
+            },
+        },
+        "then": {
+            "properties": {
+                **{
+                    field_name: {
+                        "anyOf": [
+                            _provider_metadata_identifier_json_schema(field_name),
+                            {"type": "null"},
+                        ]
+                    }
+                    for field_name in _PROVIDER_METADATA_FIELDS
+                },
+                "provenance": {
+                    "properties": {
+                        "model_identifier": {
+                            "anyOf": [
+                                _provider_metadata_identifier_json_schema("model"),
+                                {"type": "null"},
+                            ]
+                        }
+                    }
+                },
+            }
+        },
+    }
+)
 _RUN_SET_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
@@ -100,11 +191,190 @@ _RUN_SET_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_SET_USAGE_F
 _RUN_SET_JSON_SCHEMA_EXTRA["allOf"].extend(
     current_non_empty_fields_json_schema_extra("runset_id")["allOf"]
 )
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["execution_mode"],
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_EXACT_LIVE_COMPLETION_SCHEMA_VERSIONS),
+                },
+                "execution_mode": {"const": "live"},
+            },
+        },
+        "then": {
+            "oneOf": [
+                {
+                    "properties": {
+                        "completion_status": {"const": "complete"},
+                        "stop_reasons": {"maxItems": 0},
+                    },
+                },
+                {
+                    "required": ["completion_status", "stop_reasons"],
+                    "properties": {
+                        "completion_status": {"const": "incomplete"},
+                        "stop_reasons": {"minItems": 1},
+                    },
+                },
+            ],
+        },
+    }
+)
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version", "execution_mode", "runs"],
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_NETWORK_AUTHORITY_RECEIPT_SCHEMA_VERSIONS),
+                },
+                "execution_mode": {"const": "live"},
+                "runs": {
+                    "contains": {
+                        "required": ["adapter_id"],
+                        "properties": {
+                            "adapter_id": {"const": "openai-chat-completions"},
+                        },
+                    }
+                },
+            },
+        },
+        "then": {"required": ["network_authority_receipt"]},
+    }
+)
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS),
+                }
+            }
+        },
+        "then": {
+            "properties": {
+                "runs": {
+                    "items": {
+                        "properties": {
+                            **{
+                                field_name: {
+                                    "anyOf": [
+                                        _provider_metadata_identifier_json_schema(field_name),
+                                        {"type": "null"},
+                                    ]
+                                }
+                                for field_name in _PROVIDER_METADATA_FIELDS
+                            },
+                            "provenance": {
+                                "properties": {
+                                    "model_identifier": {
+                                        "anyOf": [
+                                            _provider_metadata_identifier_json_schema("model"),
+                                            {"type": "null"},
+                                        ]
+                                    }
+                                }
+                            },
+                        }
+                    }
+                }
+            }
+        },
+    }
+)
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["execution_mode"],
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS),
+                },
+                "execution_mode": {"const": "live"},
+            },
+        },
+        "then": {
+            "properties": {
+                "runs": {
+                    "items": {
+                        "required": list(_LIVE_BUDGET_COMMITMENT_FIELDS),
+                        "properties": {
+                            "cost_budget_committed_usd": {"type": "string"},
+                            "generated_token_budget_committed": {"type": "integer"},
+                            "total_token_budget_committed": {"type": "integer"},
+                        },
+                    }
+                }
+            }
+        },
+    }
+)
 _EVIDENCE_GRAPH_MEMBER_FIELDS = (
     "evidence_refs",
     "evidence_items",
     "claims",
     "claim_evidence_links",
+)
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_EVIDENCE_GRAPH_PARENT_DEFENSE_SCHEMA_VERSIONS),
+                }
+            }
+        },
+        "then": {
+            "$comment": (
+                "Runtime validation also enforces one content_digest for each "
+                "(ref_id, source_id) evidence-item identity; Draft 2020-12 cannot "
+                "express compound-key functional dependencies."
+            ),
+            "properties": {
+                "runs": {
+                    "items": {
+                        "properties": {
+                            "evidence_refs": {
+                                "items": {
+                                    "properties": {
+                                        "ref_id": _machine_identifier_json_schema(),
+                                        "source_id": _machine_identifier_json_schema(),
+                                        "claim_ids": {
+                                            "items": _machine_identifier_json_schema(),
+                                        },
+                                    }
+                                }
+                            },
+                            "evidence_items": {
+                                "items": {
+                                    "properties": {
+                                        "ref_id": _machine_identifier_json_schema(),
+                                        "source_id": _machine_identifier_json_schema(),
+                                    }
+                                }
+                            },
+                            "claims": {
+                                "items": {
+                                    "properties": {
+                                        "claim_id": _machine_identifier_json_schema(),
+                                    }
+                                }
+                            },
+                            "claim_evidence_links": {
+                                "items": {
+                                    "properties": {
+                                        "claim_id": _machine_identifier_json_schema(),
+                                        "evidence_ref_id": _machine_identifier_json_schema(),
+                                    }
+                                }
+                            },
+                        }
+                    }
+                }
+            },
+        },
+    }
 )
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].extend(
     {
@@ -130,6 +400,21 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].extend(
         },
     }
     for schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS
+)
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["estimated_cost_picousd"],
+            "properties": {"estimated_cost_picousd": {"type": "integer"}},
+        },
+        "then": {
+            "required": ["schema_version", "estimated_cost_usd"],
+            "properties": {
+                "schema_version": {"enum": sorted(_EXACT_LIVE_COST_SCHEMA_VERSIONS)},
+                "estimated_cost_usd": {"type": "string"},
+            },
+        },
+    }
 )
 
 
@@ -712,9 +997,13 @@ class AgentRunRecord(PersistedArtifact):
     prompt_tokens: int | None = Field(default=None, ge=0)
     completion_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
-    estimated_cost_usd: str | None = Field(
+    estimated_cost_usd: NonnegativeDecimal6String | None = Field(
         default=None,
-        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    estimated_cost_picousd: int | None = Field(
+        default=None,
+        ge=0,
+        exclude_if=lambda value: value is None,
     )
     estimated_cost_source: (
         Literal[
@@ -725,9 +1014,8 @@ class AgentRunRecord(PersistedArtifact):
         ]
         | None
     ) = None
-    cost_budget_committed_usd: str | None = Field(
+    cost_budget_committed_usd: NonnegativeDecimal6String | None = Field(
         default=None,
-        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
         exclude_if=lambda value: value is None,
     )
     generated_token_budget_committed: int | None = Field(
@@ -818,17 +1106,7 @@ class AgentRunRecord(PersistedArtifact):
     def _validate_evidence_item_content_identity(self) -> AgentRunRecord:
         if self.schema_version not in V063_CONTRACT_SCHEMA_VERSIONS:
             return self
-        content_by_identity: dict[tuple[str, str], set[str]] = {}
-        for item in self.evidence_items:
-            identity = (
-                item.ref_id,
-                item.source_id,
-            )
-            content_by_identity.setdefault(identity, set()).add(item.content_digest)
-        if any(len(content_digests) != 1 for content_digests in content_by_identity.values()):
-            raise ValueError(
-                "evidence items with the same ref_id and source_id must have one content_digest"
-            )
+        _validate_record_evidence_item_content_identity(self)
         return self
 
     @model_validator(mode="after")
@@ -926,6 +1204,8 @@ class AgentRunRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:
+        if self.schema_version in _BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS:
+            _validate_provider_metadata(self)
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="run record",
@@ -937,6 +1217,16 @@ class AgentRunRecord(PersistedArtifact):
             self.usage_summary,
             owner="run record",
         )
+        if self.estimated_cost_picousd is not None:
+            if self.schema_version not in _EXACT_LIVE_COST_SCHEMA_VERSIONS:
+                raise ValueError("exact live cost requires schema_version 0.6.6")
+            if self.estimated_cost_usd is None:
+                raise ValueError("estimated_cost_picousd requires estimated_cost_usd")
+            if usd_six_from_picousd(self.estimated_cost_picousd) != self.estimated_cost_usd:
+                raise ValueError(
+                    "estimated_cost_usd must be the half-even six-decimal projection of "
+                    "estimated_cost_picousd"
+                )
         if self.total_tokens is not None:
             component_total = (self.prompt_tokens or 0) + (self.completion_tokens or 0)
             both_components_observed = (
@@ -979,7 +1269,12 @@ class AgentRunRecord(PersistedArtifact):
         if (
             self.estimated_cost_usd is not None
             and self.cost_budget_committed_usd is not None
-            and Decimal(self.cost_budget_committed_usd) < Decimal(self.estimated_cost_usd)
+            and (
+                self.estimated_cost_picousd
+                if self.estimated_cost_picousd is not None
+                else picousd_from_usd_six(self.estimated_cost_usd)
+            )
+            > picousd_from_usd_six(self.cost_budget_committed_usd)
         ):
             raise ValueError("cost budget commitment cannot be below estimated cost")
         if (
@@ -1005,6 +1300,70 @@ class AgentRunRecord(PersistedArtifact):
         if self.observation_status == "excluded" and not self.exclusion_reason:
             raise ValueError("excluded live run records require exclusion_reason")
         return self
+
+
+def _validate_provider_metadata(record: AgentRunRecord) -> None:
+    for field_name in _PROVIDER_METADATA_FIELDS:
+        value = getattr(record, field_name)
+        if value is not None:
+            if field_name in _PROVIDER_MODEL_METADATA_FIELDS:
+                validate_provider_model_identifier(value, field_name=field_name)
+            else:
+                validate_machine_identifier(value, field_name=field_name)
+    if record.provenance.model_identifier is not None:
+        validate_provider_model_identifier(
+            record.provenance.model_identifier,
+            field_name="provenance.model_identifier",
+        )
+
+
+def _validate_record_evidence_item_content_identity(
+    record: AgentRunRecord,
+    *,
+    owner: str | None = None,
+) -> None:
+    content_by_identity: dict[tuple[str, str], set[str]] = {}
+    for item in record.evidence_items:
+        identity = (item.ref_id, item.source_id)
+        content_by_identity.setdefault(identity, set()).add(item.content_digest)
+    if any(len(content_digests) != 1 for content_digests in content_by_identity.values()):
+        prefix = "" if owner is None else f"{owner}: "
+        raise ValueError(
+            prefix
+            + "evidence items with the same ref_id and source_id must have one content_digest"
+        )
+
+
+def _validate_record_evidence_graph_identifiers(
+    record: AgentRunRecord,
+    *,
+    owner: str,
+) -> None:
+    for member_index, evidence_ref in enumerate(record.evidence_refs):
+        member_path = f"{owner}.evidence_refs[{member_index}]"
+        validate_machine_identifier(evidence_ref.ref_id, field_name=f"{member_path}.ref_id")
+        validate_machine_identifier(evidence_ref.source_id, field_name=f"{member_path}.source_id")
+        for claim_index, claim_id in enumerate(evidence_ref.claim_ids):
+            validate_machine_identifier(
+                claim_id,
+                field_name=f"{member_path}.claim_ids[{claim_index}]",
+            )
+    for member_index, evidence_item in enumerate(record.evidence_items):
+        member_path = f"{owner}.evidence_items[{member_index}]"
+        validate_machine_identifier(evidence_item.ref_id, field_name=f"{member_path}.ref_id")
+        validate_machine_identifier(evidence_item.source_id, field_name=f"{member_path}.source_id")
+    for member_index, claim in enumerate(record.claims):
+        validate_machine_identifier(
+            claim.claim_id,
+            field_name=f"{owner}.claims[{member_index}].claim_id",
+        )
+    for member_index, link in enumerate(record.claim_evidence_links):
+        member_path = f"{owner}.claim_evidence_links[{member_index}]"
+        validate_machine_identifier(link.claim_id, field_name=f"{member_path}.claim_id")
+        validate_machine_identifier(
+            link.evidence_ref_id,
+            field_name=f"{member_path}.evidence_ref_id",
+        )
 
 
 def structured_field_origin(
@@ -1083,6 +1442,31 @@ def control_eligible_process_projection(run: AgentRunRecord) -> AgentRunRecord:
     return run.model_copy(update=updates)
 
 
+class LiveNetworkAuthorityReceipt(FrozenStrictModel):
+    """Non-secret record of the exact egress and credential-name authority used."""
+
+    endpoint_host: str = Field(
+        min_length=1,
+        max_length=MAX_ENDPOINT_HOST_CHARS,
+        pattern=CANONICAL_ENDPOINT_HOST_PATTERN,
+    )
+    api_key_env: str = Field(
+        min_length=1,
+        max_length=MAX_HOST_ENV_NAME_CHARS,
+        pattern=PROVIDER_SECRET_ENV_NAME_PATTERN,
+    )
+
+    @field_validator("endpoint_host")
+    @classmethod
+    def _validate_endpoint_host(cls, value: str) -> str:
+        return validate_canonical_public_endpoint_host(value)
+
+    @field_validator("api_key_env", mode="before")
+    @classmethod
+    def _validate_api_key_env(cls, value: object) -> object:
+        return validate_api_key_environment_name(value) if isinstance(value, str) else value
+
+
 class RunSet(PersistedArtifact):
     model_config = ConfigDict(
         json_schema_extra=privacy_profile_json_schema_extra(_RUN_SET_JSON_SCHEMA_EXTRA)
@@ -1124,6 +1508,14 @@ class RunSet(PersistedArtifact):
     execution_attempt_journal: LiveExecutionAttemptJournal | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
+    )
+    network_authority_receipt: LiveNetworkAuthorityReceipt | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Non-secret endpoint host and credential environment-variable name "
+            "independently authorized for first-party network execution."
+        ),
     )
     completion_status: Literal["complete", "incomplete"] = "complete"
     stop_reasons: tuple[str, ...] = ()
@@ -1179,6 +1571,39 @@ class RunSet(PersistedArtifact):
             self.usage_summary,
             owner="run set",
         )
+        mismatched_modes = tuple(
+            run.run_id for run in self.runs if run.execution_mode is not self.execution_mode
+        )
+        if mismatched_modes:
+            raise ValueError(
+                f"{self.execution_mode.value} run sets may contain only "
+                f"{self.execution_mode.value} run records"
+            )
+        if self.schema_version in _BOUNDED_PROVIDER_METADATA_SCHEMA_VERSIONS:
+            for run in self.runs:
+                _validate_provider_metadata(run)
+            if self.execution_mode is ExecutionMode.live:
+                missing_budget_commitments = [
+                    f"runs[{run_index}].{field_name}"
+                    for run_index, run in enumerate(self.runs)
+                    for field_name in _LIVE_BUDGET_COMMITMENT_FIELDS
+                    if getattr(run, field_name) is None
+                ]
+                if missing_budget_commitments:
+                    raise ValueError(
+                        "current live run sets require nested budget commitments: "
+                        + ", ".join(missing_budget_commitments)
+                    )
+        if self.schema_version in _EVIDENCE_GRAPH_PARENT_DEFENSE_SCHEMA_VERSIONS:
+            for run_index, run in enumerate(self.runs):
+                _validate_record_evidence_item_content_identity(
+                    run,
+                    owner=f"runs[{run_index}]",
+                )
+                _validate_record_evidence_graph_identifiers(
+                    run,
+                    owner=f"runs[{run_index}]",
+                )
         journal_fields = (
             self.execution_attempt_id,
             self.execution_attempt_journal_digest,
@@ -1202,16 +1627,23 @@ class RunSet(PersistedArtifact):
                 }
             ):
                 raise ValueError("RunSet execution attempt journal binding does not match")
-        mismatched_modes = tuple(
-            run.run_id for run in self.runs if run.execution_mode is not self.execution_mode
-        )
-        if mismatched_modes:
-            raise ValueError(
-                f"{self.execution_mode.value} run sets may contain only "
-                f"{self.execution_mode.value} run records"
-            )
         if self.execution_mode is not ExecutionMode.live:
+            if self.network_authority_receipt is not None:
+                raise ValueError("network authority receipts are permitted only in live run sets")
             return self
+        has_first_party_network_adapter = any(
+            run.adapter_id == "openai-chat-completions" for run in self.runs
+        )
+        if (
+            self.schema_version in _NETWORK_AUTHORITY_RECEIPT_SCHEMA_VERSIONS
+            and has_first_party_network_adapter
+            and self.network_authority_receipt is None
+        ):
+            raise ValueError(
+                "current OpenAI-compatible live run sets require network_authority_receipt"
+            )
+        if self.network_authority_receipt is not None and not has_first_party_network_adapter:
+            raise ValueError("network authority receipt requires an OpenAI-compatible live adapter")
         if self.schema_version in _EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS:
             mismatched_commitments = tuple(
                 run.run_id
@@ -1247,4 +1679,10 @@ class RunSet(PersistedArtifact):
             raise ValueError("live run sets require: " + ", ".join(missing))
         if self.completion_status == "incomplete" and not self.stop_reasons:
             raise ValueError("incomplete live run sets require stop_reasons")
+        if (
+            self.schema_version in _EXACT_LIVE_COMPLETION_SCHEMA_VERSIONS
+            and self.completion_status == "complete"
+            and self.stop_reasons
+        ):
+            raise ValueError("complete live run sets require empty stop_reasons")
         return self

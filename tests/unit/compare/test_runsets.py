@@ -12,7 +12,12 @@ from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import gate_comparison_summary
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
-from agent_assure.compare.runsets import ComparisonReport, InvalidComparisonError, compare_runsets
+from agent_assure.compare.runsets import (
+    ComparisonReport,
+    InvalidComparisonError,
+    compare_runsets,
+    verify_fixture_equivalence,
+)
 from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.policies.base import GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
@@ -51,6 +56,16 @@ def test_compare_classifies_new_candidate_failure() -> None:
         change.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         for change in report.control_changes
     )
+
+
+def test_compare_rejects_unsafe_typed_suite_before_derivation() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    candidate = _runset(compiled, EVIDENCE_CANDIDATE)
+    forged = compiled.model_copy(update={"artifact_kind": "forged-suite"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        compare_runsets(forged, baseline, candidate)
 
 
 @pytest.mark.parametrize("role", ("baseline", "candidate"))
@@ -222,7 +237,10 @@ def test_persistent_failure_with_waived_candidate_remains_reviewable() -> None:
     assert decision.outcome.value == "review"
     assert "classification=persistent_failure" in decision.message
     assert "disposition=nonblocking-candidate-evaluation" in decision.message
-    assert gate_comparison_summary(report.comparison_summary, fail_on_warn=True).exit_code == 1
+    strict_decision = gate_comparison_summary(report.comparison_summary, fail_on_warn=True)
+    assert strict_decision.exit_code == 1
+    assert strict_decision.outcome.value == "fail"
+    assert "disposition=blocking-candidate-warning" in strict_decision.message
 
 
 def test_provenance_only_changes_do_not_create_verdict_findings() -> None:
@@ -355,6 +373,16 @@ def test_fixture_mismatch_is_invalid_comparison() -> None:
     assert report is not None
     assert report.comparison_summary.classification is ComparisonClassification.invalid_comparison
     assert report.fixture_equivalence.state is GateState.fail
+
+
+def test_fixture_equivalence_rejects_unsafe_typed_runset_before_derivation() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    first_run = baseline.runs[0].model_copy(update={"artifact_kind": "evidence-ref"})
+    forged = baseline.model_copy(update={"runs": (first_run, *baseline.runs[1:])})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        verify_fixture_equivalence(forged, forged)
 
 
 def test_control_diff_uses_stable_finding_identity_not_message_text() -> None:

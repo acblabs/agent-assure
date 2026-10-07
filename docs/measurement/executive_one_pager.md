@@ -84,7 +84,7 @@ The repository includes:
 - explicit live-adapter commands for protocol-bound repeated observations,
   cluster-aware expectation-pass rates, provider/model group summaries,
   protocol-declared comparisons, and cost/latency distributions.
-- optional advanced live endpoints for rare-event Poisson upper bounds,
+- optional advanced live endpoints for bounded-work one-sided binomial rare-event bounds,
   observed intraclass-correlation summaries, Bonferroni-controlled endpoint
   families, and paired exact or Monte Carlo randomization tests when design
   prerequisites are met;

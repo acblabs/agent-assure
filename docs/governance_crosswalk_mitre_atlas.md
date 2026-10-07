@@ -6,22 +6,38 @@ It is not an ATLAS coverage claim, endorsement, or validation result.
 
 The current mapping is pinned to:
 
-- Source: `https://atlas.mitre.org/atlas-data/dist/v6/ATLAS-2026.06.yaml`
+- Source: `https://github.com/mitre-atlas/atlas-data/releases/download/v2026.06/ATLAS-2026.06.yaml`
+- Release tag: `v2026.06`
+- Release commit: `651dad90d3c007e797c89356fa1f4d8732f90c8d`
+- Release asset SHA-256: `b771de8b1489564b2838a709c7429849a9575dbd94073928817fe1a21661e70a`
 - ATLAS release: `2026.06`
 - Release date: `2026-06-30`
 - Artifact modified date: `2026-05-27`
 - Format version: `6.0.0`
+- Release announcement inventory: 16 tactics, 104 techniques, 69
+  sub-techniques
+- Authenticated asset inventory: 16 tactics, 103 base techniques, 70
+  sub-techniques (173 technique IDs)
 
 The release date comes from the ATLAS manifest entry for release `2026.06`.
 The artifact modified date comes from the pinned YAML collection metadata.
+The upstream announcement's 104/69 technique split differs by one from the
+authenticated asset. The asset contains 103 undotted base IDs and 70 dotted
+sub-technique IDs; those 103/70 counts are the runtime validation pin.
 
 The machine-readable mapping lives in `docs/threat_coverage_matrix.yaml`.
 ATLAS uses richer strength, tactic, and technique fields than the OWASP, NIST,
 and ISO tags because ATLAS is an adversary technique catalog.
 
-The offline ATLAS ID catalog is a deterministic test fixture. Default tests do
-not fetch the upstream URL; refresh the catalog from the pinned source whenever
-the matrix pins a new ATLAS release.
+The offline ATLAS ID catalog at
+`mappings/mitre_atlas_2026_06_catalog.yaml` is a production-packaged validation
+input, not a test-only fixture. Runtime validation authenticates its pinned
+digest and rejects tactic, technique, and MITRE control identifiers absent from
+the catalog. It also requires the catalog's official name for each control ID,
+self-anchors every row to that ID, and applies the subject-only
+`not_applicable` contract. Default validation does not fetch the upstream URL;
+update the catalog, release metadata, upstream asset pin, and runtime catalog
+digest together when the matrix adopts a new ATLAS release.
 
 ## Mapping Strength
 
@@ -31,7 +47,7 @@ the matrix pins a new ATLAS release.
 | `partial` | The local control evaluates a deterministic artifact or report subset of a broader ATLAS technique. |
 | `adjacent` | The local control supports review of a related failure mode but does not emulate the ATLAS technique. |
 | `gap` | The ATLAS-relevant behavior is explicitly not evaluated by the current project scope. |
-| `not_applicable` | No meaningful ATLAS adversary-technique mapping is declared; used for non-adversarial controls or governance-facing unsupported items. |
+| `not_applicable` | No meaningful ATLAS adversary-technique crosswalk is declared. A MITRE report row retains exactly its own `control_id` as the sole technique subject, with no tactic IDs; that self-ID identifies the row and is not an asserted crosswalk. |
 
 Tactics and techniques are listed as control-level unions. A row does not imply
 that every listed technique maps to every listed tactic. The same ATLAS

@@ -1012,6 +1012,26 @@ def repeated_sensitivity_run(
             help="Authorize allowlisted host environment values for an external script.",
         ),
     ] = False,
+    authorized_endpoint_hosts: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--authorized-endpoint-host",
+            help=(
+                "Operator-owned endpoint hostname authorization shared by both arms. "
+                "Repeat for each permitted configured destination."
+            ),
+        ),
+    ] = None,
+    authorized_api_key_envs: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--authorized-api-key-env",
+            help=(
+                "Operator-owned credential environment-variable authorization shared "
+                "by both arms. Repeat for each permitted credential reference."
+            ),
+        ),
+    ] = None,
 ) -> None:
     """Execute exact pre-bound arms through the existing live adapters."""
     try:
@@ -1224,6 +1244,8 @@ def repeated_sensitivity_run(
             allow_network=network_opt_in,
             allow_external_script=allow_external_script,
             allow_script_env=allow_script_env,
+            authorized_endpoint_hosts=tuple(authorized_endpoint_hosts or ()),
+            authorized_api_key_envs=tuple(authorized_api_key_envs or ()),
         )
         counterfactual_trust = _confirm_trusted_live_config(
             counterfactual_config,
@@ -1232,6 +1254,8 @@ def repeated_sensitivity_run(
             allow_network=network_opt_in,
             allow_external_script=allow_external_script,
             allow_script_env=allow_script_env,
+            authorized_endpoint_hosts=tuple(authorized_endpoint_hosts or ()),
+            authorized_api_key_envs=tuple(authorized_api_key_envs or ()),
         )
         attempt_journal = execution_attempt_journal_path(registered_protocol_path, protocol)
         baseline, counterfactual = run_repeated_live_study(

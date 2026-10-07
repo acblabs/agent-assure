@@ -10,8 +10,11 @@ from pydantic import ValidationError
 
 import agent_assure.ci as ci_module
 from agent_assure.ci import (
+    EfficacyEvidenceState,
     GateDecision,
+    GateDecisionComponent,
     GateOutcome,
+    WaiverAuthorizationState,
     gate_artifact,
     gate_control_efficacy_decision,
     load_gate_artifact,
@@ -32,6 +35,7 @@ from agent_assure.reporting.packet import (
     packet_artifact_digest,
     render_evidence_packet_markdown,
     write_evidence_packet,
+    write_evidence_packet_markdown,
 )
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
@@ -49,6 +53,10 @@ from agent_assure.schema.mutation import GateEffect, MutationResultState
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.usage import UsageSummary
+from agent_assure.schema.validation import (
+    ArchivalOnlyArtifactError,
+    validate_historical_artifact_payload_for_release_replay,
+)
 from tests.unit.controls.test_control_efficacy import (
     _DROP_OPERATOR,
     _campaign,
@@ -351,6 +359,21 @@ def test_direct_efficacy_report_gate_revalidates_model_copy_tampering(
     assert "failed trusted model revalidation" in gate.message
 
 
+def test_direct_efficacy_report_gate_rejects_historical_typed_copy(
+    required_survivor_report: ControlEfficacyReport,
+) -> None:
+    historical = required_survivor_report.model_copy(update={"schema_version": "0.6.5"})
+
+    gate = ci_module.gate_control_efficacy_report(
+        historical,
+        strict_efficacy=False,
+    )
+
+    assert gate.exit_code == 2
+    assert gate.outcome is GateOutcome.invalid
+    assert "failed trusted model revalidation" in gate.message
+
+
 def test_advisory_not_evaluated_opt_out_applies_to_standalone_and_packet_efficacy(
     tmp_path: Path,
 ) -> None:
@@ -608,6 +631,37 @@ def test_comparison_gate_revalidates_an_existing_model_instance() -> None:
     assert "require authenticated baseline and candidate RunSet digests" in decision.message
 
 
+def test_typed_ci_gates_reject_historical_summary_and_packet_copies() -> None:
+    evaluation = _passing_evaluation()
+    comparison = _passing_comparison(evaluation)
+    packet = _build_packet(evaluation, comparison=comparison)
+    decisions = (
+        ci_module.gate_evaluation_summary(
+            evaluation.model_copy(update={"schema_version": "0.6.5"})
+        ),
+        ci_module.gate_comparison_summary(
+            comparison.model_copy(update={"schema_version": "0.6.5"})
+        ),
+        ci_module.gate_evidence_packet(packet.model_copy(update={"schema_version": "0.6.5"})),
+    )
+
+    for decision in decisions:
+        assert decision.exit_code == 2
+        assert decision.outcome is GateOutcome.invalid
+        assert "failed trusted model revalidation" in decision.message
+
+
+def test_evidence_packet_gate_revalidates_unsafe_model_copy() -> None:
+    packet = _build_packet(_passing_evaluation())
+    forged = packet.model_copy(update={"artifact_kind": "forged-evidence-packet"})
+
+    decision = ci_module.gate_evidence_packet(forged)
+
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert "failed trusted model revalidation" in decision.message
+
+
 def test_evaluation_summary_rejects_pass_finding_even_with_failure() -> None:
     fail_finding = Finding(
         finding_id="fail-finding",
@@ -854,7 +908,7 @@ def test_v063_raw_packet_and_ci_reject_cross_array_digest_mismatch() -> None:
     assert "evaluation-summary digest must match release manifest" in decision.message
 
 
-def test_legacy_comparison_packet_requires_explicit_unbound_compatibility() -> None:
+def test_historical_comparison_packet_is_archival_even_with_unbound_compatibility() -> None:
     evaluation = EvaluationSummary(
         schema_version="0.6.3",
         runset_id="same-display-id",
@@ -932,19 +986,18 @@ def test_legacy_comparison_packet_requires_explicit_unbound_compatibility() -> N
         allow_legacy_unbound_comparison=True,
     )
 
-    for decision in (default_direct, default_routed, standalone_default):
-        assert decision.exit_code == 2
-        assert decision.outcome is GateOutcome.invalid
-        assert "without authenticated baseline and candidate RunSet digests" in decision.message
     for decision in (
+        default_direct,
+        default_routed,
+        standalone_default,
         allowed_direct,
         allowed_routed,
         standalone_allowed,
         standalone_allowed_routed,
     ):
-        assert decision.exit_code == 0
-        assert decision.outcome is GateOutcome.pass_
-        assert "legacy_unbound_comparison=allowed" in decision.message
+        assert decision.exit_code == 2
+        assert decision.outcome is GateOutcome.invalid
+        assert "failed trusted model revalidation" in decision.message
 
 
 def test_legacy_unbound_override_must_be_consumed_by_the_target() -> None:
@@ -1069,6 +1122,129 @@ def test_packet_aggregation_routes_explicit_outcomes_without_parsing_messages(
         assert packet.packet_id in decision.message
 
 
+def test_missing_efficacy_preserves_underlying_component_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _build_packet(_passing_evaluation())
+    component = GateDecision(
+        exit_code=1,
+        outcome=GateOutcome.fail,
+        message="opaque evaluation control failure",
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind="evaluation-summary",
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_evaluation_summary",
+        lambda *_args, **_kwargs: component,
+    )
+
+    decision = ci_module.gate_evidence_packet(packet)
+
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.exit_code == 2
+    assert decision.reason_code is ReasonCode.POLICY_FAILED
+    assert decision.efficacy_evidence is EfficacyEvidenceState.absent
+    assert "underlying packet component decision preserved" in decision.message
+    assert "artifact_kind=evaluation-summary outcome=fail" in decision.message
+    assert "opaque evaluation control failure" in decision.message
+    payload = decision.model_dump()
+    assert payload["control_decision"] == {
+        "artifact_kind": "evaluation-summary",
+        "exit_code": 1,
+        "message": "opaque evaluation control failure",
+        "outcome": "fail",
+        "reason_code": "POLICY_FAILED",
+        "waiver_authorization": "not_applicable",
+    }
+    assert payload["efficacy_decision"] == {
+        "artifact_kind": "evidence-packet",
+        "exit_code": 2,
+        "message": decision.efficacy_decision.message,
+        "outcome": "invalid",
+        "reason_code": None,
+        "waiver_authorization": "not_applicable",
+    }
+    assert "no control-efficacy evidence" in payload["efficacy_decision"]["message"]
+
+
+def test_missing_efficacy_preserves_exact_waiver_authorization_component(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _build_packet(_passing_evaluation())
+    component = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="exactly authorized evaluation warning",
+        artifact_kind="evaluation-summary",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_evaluation_summary",
+        lambda *_args, **_kwargs: component,
+    )
+
+    decision = ci_module.gate_evidence_packet(packet)
+
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.exit_code == 2
+    payload = decision.model_dump()
+    assert payload["waiver_authorization"] == "not_applicable"
+    assert payload["control_decision"]["artifact_kind"] == "evaluation-summary"
+    assert payload["control_decision"]["outcome"] == "review"
+    assert payload["control_decision"]["waiver_authorization"] == "authorized_exact"
+    assert payload["efficacy_decision"]["outcome"] == "invalid"
+
+
+def test_missing_efficacy_preserves_every_underlying_nonpass_component(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = _passing_authenticated_evaluation()
+    comparison = _passing_comparison(evaluation)
+    packet = _build_packet(evaluation, comparison=comparison)
+    evaluation_review = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="evaluation review requiring attention",
+        artifact_kind="evaluation-summary",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+    )
+    comparison_review = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="comparison review requiring attention",
+        artifact_kind="comparison-summary",
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_evaluation_summary",
+        lambda *_args, **_kwargs: evaluation_review,
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_comparison_summary",
+        lambda *_args, **_kwargs: comparison_review,
+    )
+
+    decision = ci_module.gate_evidence_packet(packet)
+
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.waiver_authorization is WaiverAuthorizationState.not_applicable
+    assert [component.artifact_kind for component in decision.component_decisions] == [
+        "evaluation-summary",
+        "comparison-summary",
+        "evidence-packet",
+    ]
+    assert [component.outcome for component in decision.component_decisions] == [
+        GateOutcome.review,
+        GateOutcome.review,
+        GateOutcome.invalid,
+    ]
+    assert "evaluation review requiring attention" in decision.message
+    assert "comparison review requiring attention" in decision.message
+
+
 def test_packet_aggregation_preserves_review_over_not_evaluated_precedence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1104,6 +1280,80 @@ def test_packet_aggregation_preserves_review_over_not_evaluated_precedence(
     assert decision.outcome is GateOutcome.review
     assert decision.exit_code == 0
     assert "opaque comparison outcome" in decision.message
+    assert "opaque evaluation outcome" in decision.message
+    assert [component.outcome for component in decision.component_decisions] == [
+        GateOutcome.not_evaluated,
+        GateOutcome.review,
+    ]
+
+
+def test_packet_exact_waiver_authorization_requires_every_nonpass_component(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = _passing_authenticated_evaluation()
+    comparison = _passing_comparison(evaluation)
+    packet = _build_packet(evaluation, comparison=comparison)
+    authorized_review = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="exactly authorized evaluation warning",
+        artifact_kind="evaluation-summary",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+    )
+    unrelated_review = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="unrelated comparison warning",
+        artifact_kind="comparison-summary",
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_evaluation_summary",
+        lambda *_args, **_kwargs: authorized_review,
+    )
+    monkeypatch.setattr(
+        ci_module,
+        "gate_comparison_summary",
+        lambda *_args, **_kwargs: unrelated_review,
+    )
+
+    decision = ci_module.gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    assert decision.outcome is GateOutcome.review
+    assert decision.waiver_authorization is WaiverAuthorizationState.not_applicable
+    assert [component.artifact_kind for component in decision.component_decisions] == [
+        "evaluation-summary",
+        "comparison-summary",
+    ]
+    assert [component.waiver_authorization for component in decision.component_decisions] == [
+        WaiverAuthorizationState.authorized_exact,
+        WaiverAuthorizationState.not_applicable,
+    ]
+    assert "unrelated comparison warning" in decision.message
+
+
+def test_packet_preserves_sole_exactly_authorized_review() -> None:
+    component = GateDecisionComponent(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="exactly authorized evaluation warning",
+        artifact_kind="evaluation-summary",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+    )
+
+    decision = GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="packet review",
+        artifact_kind="evidence-packet",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+        component_decisions=(component,),
+    )
+
+    assert decision.model_dump()["component_decisions"] == [component.model_dump()]
 
 
 def test_gate_decision_rejects_outcome_exit_code_mismatch() -> None:
@@ -1112,6 +1362,55 @@ def test_gate_decision_rejects_outcome_exit_code_mismatch() -> None:
             exit_code=0,
             outcome=GateOutcome.fail,
             message="inconsistent",
+        )
+
+
+def test_gate_decision_rejects_exact_waiver_authorization_without_review() -> None:
+    with pytest.raises(ValueError, match="exact waiver authorization requires a review"):
+        GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.pass_,
+            message="forged waiver authorization",
+            waiver_authorization=WaiverAuthorizationState.authorized_exact,
+        )
+
+
+def test_gate_decision_rejects_partial_packet_waiver_authorization() -> None:
+    authorized = GateDecisionComponent(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="authorized review",
+        waiver_authorization=WaiverAuthorizationState.authorized_exact,
+    )
+    unrelated = GateDecisionComponent(
+        exit_code=0,
+        outcome=GateOutcome.review,
+        message="unrelated review",
+    )
+
+    with pytest.raises(ValueError, match="every non-pass component"):
+        GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.review,
+            message="overstated packet authorization",
+            waiver_authorization=WaiverAuthorizationState.authorized_exact,
+            component_decisions=(authorized, unrelated),
+        )
+
+
+def test_gate_decision_rejects_component_outcome_precedence_mismatch() -> None:
+    failed_component = GateDecisionComponent(
+        exit_code=1,
+        outcome=GateOutcome.fail,
+        message="component failed",
+    )
+
+    with pytest.raises(ValueError, match="highest-precedence component"):
+        GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.review,
+            message="forged weaker aggregate",
+            component_decisions=(failed_component,),
         )
 
 
@@ -1286,8 +1585,8 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
     legacy_evaluation = _passing_evaluation().model_copy(update={"schema_version": "0.6.1"})
 
     with pytest.raises(
-        ValidationError,
-        match="evaluation.schema_version '0.6.6'; received '0.6.1'",
+        ArchivalOnlyArtifactError,
+        match="evaluation-summary schema_version '0.6.1' is archival-only",
     ):
         _build_packet(legacy_evaluation)
 
@@ -1304,7 +1603,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
     assert not output.parent.exists()
 
 
-def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
+def test_coherent_v061_packet_is_archival_only_but_release_replay_valid(
     tmp_path: Path,
 ) -> None:
     evaluation = _passing_evaluation().model_copy(
@@ -1320,28 +1619,35 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
     assert isinstance(evaluation_payload, dict)
     evaluation_payload["schema_version"] = "0.6.1"
     evaluation_payload.pop("runset_digest")
+    usage_payloads = (payload["usage_summary"], evaluation_payload["usage_summary"])
+    for usage_payload in usage_payloads:
+        assert isinstance(usage_payload, dict)
+        usage_payload["schema_version"] = "0.4.3"
+        for current_field in (
+            "aggregation_method",
+            "coverage_basis",
+            "source_count",
+            "coverage_counts",
+            "estimated_cost_picousd",
+        ):
+            usage_payload.pop(current_field, None)
     source = tmp_path / "legacy-evidence-packet.json"
     source.write_text(json.dumps(payload), encoding="utf-8", newline="\n")
 
-    legacy_packet = load_evidence_packet(source)
-    output = tmp_path / "round-tripped-evidence-packet.json"
-    write_evidence_packet(legacy_packet, output)
-    reloaded = load_evidence_packet(output)
-    gate = gate_artifact(
-        load_gate_artifact(output),
-        allow_missing_efficacy_for_migration=True,
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        load_evidence_packet(source)
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        load_gate_artifact(source)
+    assert (
+        validate_historical_artifact_payload_for_release_replay(
+            payload,
+            "evidence-packet",
+        )
+        == "frozen-jsonschema+release-integrity-only"
     )
 
-    assert legacy_packet.schema_version == "0.6.1"
-    assert legacy_packet.evaluation.schema_version == "0.6.1"
-    assert legacy_packet.usage_summary is not None
-    assert legacy_packet.usage_summary.schema_version == "0.4.3"
-    assert reloaded == legacy_packet
-    assert gate.exit_code == 0
-    assert gate.outcome is GateOutcome.pass_
 
-
-def test_v061_packet_writer_omits_only_efficacy_fields(tmp_path: Path) -> None:
+def test_v061_packet_writer_rejects_archival_only_input_before_output(tmp_path: Path) -> None:
     packet = _build_packet(_passing_evaluation())
     legacy_evaluation = packet.evaluation.model_copy(
         update={
@@ -1357,20 +1663,17 @@ def test_v061_packet_writer_omits_only_efficacy_fields(tmp_path: Path) -> None:
         }
     )
     output = tmp_path / "legacy-evidence-packet.json"
+    markdown_output = tmp_path / "legacy-evidence-packet.md"
 
-    write_evidence_packet(legacy_packet, output)
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        write_evidence_packet(legacy_packet, output)
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        render_evidence_packet_markdown(legacy_packet)
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        write_evidence_packet_markdown(legacy_packet, markdown_output)
 
-    payload = json.loads(output.read_text(encoding="utf-8"))
-    efficacy_fields = {
-        "control_efficacy",
-        "control_efficacy_gate_profile",
-        "control_efficacy_gate",
-    }
-    assert not efficacy_fields.intersection(payload)
-    evaluation_payload = payload["evaluation"]
-    assert isinstance(evaluation_payload, dict)
-    assert "environment" in evaluation_payload
-    assert evaluation_payload["environment"] is None
+    assert not output.exists()
+    assert not markdown_output.exists()
 
 
 def test_packet_schema_version_coherence_covers_deep_persisted_children() -> None:
