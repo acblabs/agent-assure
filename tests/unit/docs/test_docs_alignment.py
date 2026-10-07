@@ -888,12 +888,8 @@ def test_security_support_language_does_not_promise_an_unavailable_patch_path() 
 
 def test_default_branch_governance_uses_sha_bound_human_owner_authorization() -> None:
     security = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
-    runbook = " ".join(
-        (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8").split()
-    )
-    owners = " ".join(
-        (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8").split()
-    )
+    runbook = " ".join((ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8").split())
+    owners = " ".join((ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8").split())
 
     assert "The default branch may remain unprotected" in security
     assert "candidate's full 40-hex commit SHA" in security
