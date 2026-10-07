@@ -122,8 +122,26 @@ jobs:
           set -euo pipefail
           agent-assure init controls-mutation \
             --out-dir .tmp/composite-strict-efficacy
+          # Build the efficacy campaign from the exact deterministic subject that
+          # the composite action will evaluate. The evidence graph deliberately
+          # rejects efficacy evidence bound to any other RunSet digest.
+          agent-assure suite compile examples/prior_auth_synthetic/suite.yaml \
+            --out .tmp/composite-strict-efficacy/suite.compiled.json \
+            --manifest .tmp/composite-strict-efficacy/fixtures.json
+          agent-assure suite run \
+            .tmp/composite-strict-efficacy/suite.compiled.json \
+            --variant examples/prior_auth_synthetic/variants/baseline.yaml \
+            --manifest .tmp/composite-strict-efficacy/fixtures.json \
+            --out .tmp/composite-strict-efficacy/runset.json
+          config=.tmp/composite-strict-efficacy/controls-mutation.yaml
+          test "$(grep -Fxc 'suite_path: suite.yaml' "${config}")" -eq 1
+          sed -i \
+            's/^suite_path: suite.yaml$/suite_path: suite.compiled.json/' \
+            "${config}"
+          test "$(grep -Fxc 'suite_path: suite.compiled.json' "${config}")" -eq 1
+          agent-assure doctor controls-mutate --config "${config}"
           agent-assure controls mutate \
-            --suite .tmp/composite-strict-efficacy/suite.yaml \
+            --suite .tmp/composite-strict-efficacy/suite.compiled.json \
             --runset .tmp/composite-strict-efficacy/runset.json \
             --catalog core/v1 \
             --operator drop-material-evidence-link \

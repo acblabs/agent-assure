@@ -162,6 +162,21 @@ def test_ci_runs_local_composite_action_strict_profile_on_a_real_runner() -> Non
     assert "allow-missing-efficacy-for-migration" not in action_step["with"]
     assert "runner.temp" not in action_step["with"]["out-dir"]
 
+    strict_input_step = next(
+        step for step in steps if step.get("name") == "Build deterministic strict-efficacy inputs"
+    )
+    strict_input_commands = str(strict_input_step["run"])
+    assert (
+        "agent-assure suite compile examples/prior_auth_synthetic/suite.yaml"
+        in strict_input_commands
+    )
+    assert "--variant examples/prior_auth_synthetic/variants/baseline.yaml" in strict_input_commands
+    assert "--out .tmp/composite-strict-efficacy/runset.json" in strict_input_commands
+    assert "suite_path: suite.compiled.json" in strict_input_commands
+    assert "agent-assure doctor controls-mutate" in strict_input_commands
+    assert "--suite .tmp/composite-strict-efficacy/suite.compiled.json" in strict_input_commands
+    assert "--suite .tmp/composite-strict-efficacy/suite.yaml" not in strict_input_commands
+
     commands = "\n".join(str(step.get("run", "")) for step in steps)
     assert "agent-assure init controls-mutation" in commands
     assert "agent-assure controls mutate" in commands
