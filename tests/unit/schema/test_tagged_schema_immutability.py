@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -197,6 +198,35 @@ def test_ci_uses_full_history_and_strict_tag_enforcement() -> None:
 
     assert "fetch-depth: 0" in job
     assert "python scripts/check_tagged_schema_immutability.py --require-release-tags" in job
+
+
+def test_checker_entrypoint_runs_without_site_packages(tmp_path: Path) -> None:
+    repo, schema_root = _init_repo(tmp_path, version="v0.5.0")
+    _write_active_schema_version(repo, "0.5.0")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "-m", "add active schema metadata")
+    _git(repo, "tag", "v0.5.0")
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-S",
+            str(ROOT / "scripts" / "check_tagged_schema_immutability.py"),
+            "--repo-root",
+            str(repo),
+            "--schema-root",
+            str(schema_root),
+            "--require-release-tags",
+        ],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "schema-immutability: ok" in completed.stdout
 
 
 def _init_repo(tmp_path: Path, *, version: str) -> tuple[Path, Path]:
