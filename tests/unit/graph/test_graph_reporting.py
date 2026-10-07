@@ -14,7 +14,14 @@ from agent_assure.reporting.graph import (
 )
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
-from agent_assure.schema.graph import AssuranceEvidenceGraph, EvidenceGraphSubjectPayload
+from agent_assure.schema.graph import (
+    AssuranceEvidenceGraph,
+    EvidenceGraphEvidencePayload,
+    EvidenceGraphNode,
+    EvidenceGraphReference,
+    EvidenceGraphReferenceRole,
+    EvidenceGraphSubjectPayload,
+)
 
 
 def _subject_only_graph() -> AssuranceEvidenceGraph:
@@ -24,6 +31,58 @@ def _subject_only_graph() -> AssuranceEvidenceGraph:
             subject_id="graph-reporting-runset",
             subject_digest="a" * 64,
         )
+    )
+
+
+def _evaluation_graph_with_reference(
+    value: str,
+    *,
+    role: EvidenceGraphReferenceRole = EvidenceGraphReferenceRole.source_digest,
+) -> AssuranceEvidenceGraph:
+    evaluation = EvaluationSummary(
+        runset_id="graph-reporting-runset",
+        runset_digest="a" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=evaluation.runset_id,
+            subject_digest=evaluation.runset_digest,
+        ),
+        evaluation=evaluation,
+    )
+    evidence_node = next(
+        node for node in graph.nodes if isinstance(node.payload, EvidenceGraphEvidencePayload)
+    )
+    evidence_payload = evidence_node.payload
+    assert isinstance(evidence_payload, EvidenceGraphEvidencePayload)
+    payload = evidence_payload.model_copy(
+        update={
+            "references": (
+                *evidence_payload.references,
+                EvidenceGraphReference(
+                    role=role,
+                    value=value,
+                ),
+            )
+        }
+    )
+    updated_node = EvidenceGraphNode.build(
+        kind=evidence_node.kind,
+        payload=payload,
+        subject_node_id=graph.primary_subject_node_id,
+    )
+    return AssuranceEvidenceGraph.from_parts(
+        primary_subject_node_id=graph.primary_subject_node_id,
+        nodes=tuple(
+            updated_node if node.node_id == evidence_node.node_id else node for node in graph.nodes
+        ),
+        edges=graph.edges,
+        compatibility=graph.compatibility,
+        limitations=graph.limitations,
     )
 
 
@@ -88,6 +147,31 @@ def test_graph_persistence_accepts_card_like_digits_in_validated_node_ids() -> N
 
     assert card_like_node_id in {node.node_id for node in graph.nodes}
     assert card_like_node_id in evidence_graph_json_text(graph)
+
+
+def test_graph_persistence_accepts_card_like_digits_in_validated_source_references() -> None:
+    card_like_digest = "cd18620ee20204105499754aa35d7ff45d9c37483cfb06df8ab3b461571d7993"
+    graph = _evaluation_graph_with_reference(card_like_digest)
+
+    assert card_like_digest in evidence_graph_json_text(graph)
+
+
+def test_graph_persistence_scans_card_like_digests_in_non_digest_references() -> None:
+    card_like_digest = "cd18620ee20204105499754aa35d7ff45d9c37483cfb06df8ab3b461571d7993"
+    graph = _evaluation_graph_with_reference(
+        card_like_digest,
+        role=EvidenceGraphReferenceRole.diagnostic,
+    )
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
+
+
+def test_graph_persistence_rejects_card_numbers_disguised_as_source_references() -> None:
+    graph = _evaluation_graph_with_reference("4111111111111111")
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
 
 
 def test_graph_persistence_still_rejects_card_numbers_in_human_identifiers() -> None:

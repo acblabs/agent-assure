@@ -5,6 +5,7 @@ from pathlib import Path
 
 from agent_assure.artifact_io import write_text_atomic
 from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES
+from agent_assure.privacy.digest_fields import is_sha256_hex_digest
 from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.schema.graph import AssuranceEvidenceGraph
 from agent_assure.schema.validation import (
@@ -25,9 +26,10 @@ def _privacy_review_projection(
     """Exclude schema-validated cryptographic material from content detection.
 
     Hex digests and graph node IDs can contain chance digit sequences that look
-    like payment-card numbers.  The graph schema validates those fields before
-    this projection runs, so they cannot carry arbitrary text.  All other graph
-    strings remain subject to the normal packet privacy detectors.
+    like payment-card numbers.  The graph schema validates named digest fields
+    and node IDs before this projection runs.  Source-digest reference values
+    are exempted only when they independently match the SHA-256 grammar.  All
+    other graph strings remain subject to the normal packet privacy detectors.
     """
 
     if field_name is not None and field_name.endswith("_digest"):
@@ -35,6 +37,12 @@ def _privacy_review_projection(
     if field_name == "node_id" or (field_name is not None and field_name.endswith("_node_id")):
         return _VALIDATED_GRAPH_NODE_ID
     if isinstance(value, dict):
+        if (
+            set(value) == {"role", "value"}
+            and value.get("role") == "source_digest"
+            and is_sha256_hex_digest(value.get("value"))
+        ):
+            return {"role": "source_digest", "value": _VALIDATED_DIGEST}
         projected: dict[str, object] = {}
         for key, item in value.items():
             if not isinstance(key, str):
