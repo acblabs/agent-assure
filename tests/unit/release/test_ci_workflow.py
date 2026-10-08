@@ -270,7 +270,7 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
     workflow = (ROOT / ".github" / "workflows" / "publish-testpypi.yml").read_text(encoding="utf-8")
     parsed_workflow = yaml.safe_load(workflow)
 
-    assert workflow.count("fetch-depth: 0") == 3
+    assert workflow.count("fetch-depth: 0") == 4
     assert (
         workflow.count("python scripts/check_tagged_schema_immutability.py --require-release-tags")
         == 2
@@ -290,6 +290,18 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
     }
     commands = "\n".join(str(step.get("run", "")) for step in reproduce["steps"])
     assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in commands
+
+    lower_bounds = parsed_workflow["jobs"]["candidate-lower-bounds"]
+    lower_bounds_checkout = next(
+        step
+        for step in lower_bounds["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert lower_bounds_checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ needs.build.outputs.source_sha }}",
+    }
 
 
 def test_testpypi_checks_committed_version_bound_goldens_before_release_checks() -> None:
@@ -1571,6 +1583,7 @@ def test_publication_candidate_qualification_is_sha_bound_and_cross_platform() -
             if str(step.get("uses", "")).startswith("actions/checkout@")
         )
         assert lower_checkout["with"] == {
+            "fetch-depth": 0,
             "persist-credentials": False,
             "ref": "${{ needs.build.outputs.source_sha }}",
         }
