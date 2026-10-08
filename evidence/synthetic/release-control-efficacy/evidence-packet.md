@@ -48,27 +48,27 @@
 
 - Platform: `Windows-11-10.0.26300-SP0`
 - Python: `3.12.13`
-- Git commit: `a2bdf8528b4c027a5f0bfc947dc247f15fb5ae1e`
+- Git commit: `022db8d08d478f6f1c963e978863925367229867`
 - Git dirty: `True`
 - Lockfile: `requirements.lock`
 - Lockfile digest: `9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4`
 - Dependency inventory: `evidence/synthetic/release-control-efficacy/dependency-inventory.json`
-- Dependency inventory digest: `e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3`
+- Dependency inventory digest: `37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702`
 - Installed packages: `81`
 
 ## Release Artifact Manifest
 
-- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `abd69480e0bd33ca413eccb7ea14d99197e895401c1b9b2895ece588b2687294`
-- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `b2833e9c6bce84e150e7001ee0d1bf4ef98d13b32d9c7a4ba827e3cdf984539c`
-- `dependency-inventory` `evidence/synthetic/release-control-efficacy/dependency-inventory.json` `e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3`
+- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `ba76d7b83c3640249fa5bed0a366da22ae6e3dbe5a5559a18aacc2d307c6a26d`
+- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `1ebdc0a3f891bb8c884931599a9be77838a9cf2d5f4f4986ad1fcc8f0a49bb5a`
+- `dependency-inventory` `evidence/synthetic/release-control-efficacy/dependency-inventory.json` `37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702`
 - `control-efficacy-report` `evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json` `39343772a2cb010558ea2220b08ab2be4abb065605f779449a5da08880853a63`
 - `control-efficacy-onboarding-config` `evidence/synthetic/release-control-efficacy/controls-mutation.yaml` `d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42`
 
 ## Evidence Graph
 
 - Contract: `AssuranceEvidenceGraph/v1`
-- Semantic digest: `71953a1b78162fff3143334e3e96fe518a1f4592ea2f1cbb0c97c1aac41dcd4b`
-- Exact-file digest: `b2833e9c6bce84e150e7001ee0d1bf4ef98d13b32d9c7a4ba827e3cdf984539c`
+- Semantic digest: `54bd43af39700981541e844724f69bcaab3ddcd42675a8c044e6cbef2b7af160`
+- Exact-file digest: `1ebdc0a3f891bb8c884931599a9be77838a9cf2d5f4f4986ad1fcc8f0a49bb5a`
 
 ## Measured Usage
 

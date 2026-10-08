@@ -6,21 +6,21 @@
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "abd69480e0bd33ca413eccb7ea14d99197e895401c1b9b2895ece588b2687294"
+      "sha256": "ba76d7b83c3640249fa5bed0a366da22ae6e3dbe5a5559a18aacc2d307c6a26d"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json",
       "role": "assurance-evidence-graph",
       "schema_version": "0.6.6",
-      "sha256": "b2833e9c6bce84e150e7001ee0d1bf4ef98d13b32d9c7a4ba827e3cdf984539c"
+      "sha256": "1ebdc0a3f891bb8c884931599a9be77838a9cf2d5f4f4986ad1fcc8f0a49bb5a"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
       "role": "dependency-inventory",
       "schema_version": "0.6.6",
-      "sha256": "e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3"
+      "sha256": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702"
     },
     {
       "artifact_kind": "release-artifact",
@@ -39,16 +39,16 @@
   ],
   "environment": {
     "artifact_kind": "environment-info",
-    "dependency_inventory_digest": "e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3",
+    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-    "git_commit": "a2bdf8528b4c027a5f0bfc947dc247f15fb5ae1e",
+    "git_commit": "022db8d08d478f6f1c963e978863925367229867",
     "git_dirty": true,
     "installed_packages": [
       {
         "artifact_kind": "installed-package",
         "name": "agent-assure",
         "schema_version": "0.6.6",
-        "version": "0.6.2"
+        "version": "0.7.0"
       },
       {
         "artifact_kind": "installed-package",
@@ -540,6 +540,6 @@
   "limitations": [
     "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
   ],
-  "manifest_id": "manifest-h0315e80b0aa1e3e1",
+  "manifest_id": "manifest-hf4a837b434cc6bd6",
   "schema_version": "0.6.6"
 }

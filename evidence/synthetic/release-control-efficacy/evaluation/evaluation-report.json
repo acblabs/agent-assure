@@ -15,18 +15,18 @@
       "artifact_kind": "environment-info",
       "platform": "Windows-11-10.0.26300-SP0",
       "python_version": "3.12.13",
-      "git_commit": "a2bdf8528b4c027a5f0bfc947dc247f15fb5ae1e",
+      "git_commit": "022db8d08d478f6f1c963e978863925367229867",
       "git_dirty": true,
       "lockfile_path": "requirements.lock",
       "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
       "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-      "dependency_inventory_digest": "e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3",
+      "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
       "installed_packages": [
         {
           "schema_version": "0.6.6",
           "artifact_kind": "installed-package",
           "name": "agent-assure",
-          "version": "0.6.2"
+          "version": "0.7.0"
         },
         {
           "schema_version": "0.6.6",
@@ -655,18 +655,18 @@
     "artifact_kind": "environment-info",
     "platform": "Windows-11-10.0.26300-SP0",
     "python_version": "3.12.13",
-    "git_commit": "a2bdf8528b4c027a5f0bfc947dc247f15fb5ae1e",
+    "git_commit": "022db8d08d478f6f1c963e978863925367229867",
     "git_dirty": true,
     "lockfile_path": "requirements.lock",
     "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-    "dependency_inventory_digest": "e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3",
+    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
     "installed_packages": [
       {
         "schema_version": "0.6.6",
         "artifact_kind": "installed-package",
         "name": "agent-assure",
-        "version": "0.6.2"
+        "version": "0.7.0"
       },
       {
         "schema_version": "0.6.6",

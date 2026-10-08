@@ -784,7 +784,7 @@
       "target_node_id": "requirement:f202ad2d2b29416b0d30541e3939ab6c620c72a115cb2422e42a997f8eea6877"
     }
   ],
-  "graph_digest": "71953a1b78162fff3143334e3e96fe518a1f4592ea2f1cbb0c97c1aac41dcd4b",
+  "graph_digest": "54bd43af39700981541e844724f69bcaab3ddcd42675a8c044e6cbef2b7af160",
   "limitations": [
     "The graph is a deterministic projection of the supplied privacy-filtered artifacts; its digest establishes canonical identity, not authenticity or evidence adequacy.",
     "The graph uses only the AssuranceEvidenceGraph/v1 four-node and six-edge vocabulary; it is not an assurance case, broad ontology, inference engine, or graph database."
@@ -816,12 +816,12 @@
           }
         ],
         "source_artifact_kind": "evaluation-summary",
-        "source_digest": "f10654bb5bf32c8007188cb006673860a12ecf0d95e45871ca80e0429ae9d501",
+        "source_digest": "05ccd6a7fae612dd8e39c2c940e5b9bfbd7bff59c00fd646a2da29d3b1d58006",
         "source_id": "runset-69e59deb-4cf5-500e-bb17-405262e32611",
         "state": "supported",
         "verdict_bearing": true
       },
-      "payload_digest": "0cbaf0fb2c01b60388f50bb4e48424487ba842d964d9b0823369341fd8a13b00"
+      "payload_digest": "469b304b389b2c3862a1a3a793ae3206555b1d67ef2e1e1fa222b0041bb8c0af"
     },
     {
       "identity": {
