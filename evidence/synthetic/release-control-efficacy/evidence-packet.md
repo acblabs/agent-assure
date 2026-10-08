@@ -48,7 +48,7 @@
 
 - Platform: `Windows-11-10.0.26300-SP0`
 - Python: `3.12.13`
-- Git commit: `3cb390d1c3498f384579969cd27d805743065566`
+- Git commit: `42b8b1f289ef57b4b3c83d21f637b4b91278fc72`
 - Git dirty: `True`
 - Lockfile: `requirements.lock`
 - Lockfile digest: `9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4`
@@ -58,17 +58,17 @@
 
 ## Release Artifact Manifest
 
-- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801`
-- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a`
+- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `84a3d8a48a3f46a843572106616fc1103f4b99efa2881abd9570dee9e008fb72`
+- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `02625cd9b566de93fd67ebe39aea9dfa4c44dfeee2be3d209b2154b1ac575f41`
 - `dependency-inventory` `evidence/synthetic/release-control-efficacy/dependency-inventory.json` `0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01`
-- `control-efficacy-report` `evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json` `65d9c85d469106102f39bf71e0788118daffe829e6acc57aa178186c725c6474`
+- `control-efficacy-report` `evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json` `73d6a517f8ded12d11e5a631274e2c36f3538d2257b1d716f36e16a22340a182`
 - `control-efficacy-onboarding-config` `evidence/synthetic/release-control-efficacy/controls-mutation.yaml` `a2faaf29e25ceb98270747c7f78de815ace998d1496f3c8a438215dea0b67d5a`
 
 ## Evidence Graph
 
 - Contract: `AssuranceEvidenceGraph/v1`
-- Semantic digest: `a838d377da76d60f8a2ab5113763bdd741d6bf7829cf8ee80d5159d96ff3390f`
-- Exact-file digest: `c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a`
+- Semantic digest: `3f94627937da4e3a284cabe3080a0f62a86685f407b7abcab7f7dec00025cd09`
+- Exact-file digest: `02625cd9b566de93fd67ebe39aea9dfa4c44dfeee2be3d209b2154b1ac575f41`
 
 ## Measured Usage
 

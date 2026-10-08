@@ -8,10 +8,10 @@
 
 ## Evidence Identity
 
-- Report digest: `c98bff5b51d7d3f6d74ea9f5d790de5a95c06f8097907d95b64f123c4549135d`
-- Campaign digest: `16523c0a69aabd87f10d95c5de67c0286b01c1906e8b50ae011c8236d4b0fadf`
+- Report digest: `fba1c219c8ed3fd4421af17cdff0a9f13ad2bd6542826167223f0d0cc3bd45b9`
+- Campaign digest: `eae4e9fe1f5f272bfe04542a31832c9fca0fcf3da0a5e6f974c19bf2e965d036`
 - Catalog: `core/v1`
-- Catalog digest: `51da58c7b61d87085f830507c36070d3cd1add85f1a75bad90c2fd980fd6ccc5`
+- Catalog digest: `0ac5eac866c49408d3a44a2e92341aab916eb245b0dea2bbd1fc4bfe96a63df8`
 - Threat manifest digest: `edaab6b88665c403e72c100bfb9c9bf8c17376ba47e791a4c88e5d8ce2e2ab4e`
 
 ## Semantic Evidence State

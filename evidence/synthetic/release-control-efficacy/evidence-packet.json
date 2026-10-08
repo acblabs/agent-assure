@@ -4,19 +4,19 @@
       "artifact_kind": "packet-artifact-digest",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801"
+      "sha256": "84a3d8a48a3f46a843572106616fc1103f4b99efa2881abd9570dee9e008fb72"
     },
     {
       "artifact_kind": "packet-artifact-digest",
       "role": "assurance-evidence-graph",
       "schema_version": "0.6.6",
-      "sha256": "c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a"
+      "sha256": "02625cd9b566de93fd67ebe39aea9dfa4c44dfeee2be3d209b2154b1ac575f41"
     },
     {
       "artifact_kind": "packet-artifact-digest",
       "role": "control-efficacy-report",
       "schema_version": "0.6.6",
-      "sha256": "65d9c85d469106102f39bf71e0788118daffe829e6acc57aa178186c725c6474"
+      "sha256": "73d6a517f8ded12d11e5a631274e2c36f3538d2257b1d716f36e16a22340a182"
     },
     {
       "artifact_kind": "packet-artifact-digest",
@@ -31,7 +31,7 @@
     "applicable_operator_count": 7,
     "applicable_threat_category_count": 15,
     "artifact_kind": "control-efficacy-report",
-    "campaign_digest": "16523c0a69aabd87f10d95c5de67c0286b01c1906e8b50ae011c8236d4b0fadf",
+    "campaign_digest": "eae4e9fe1f5f272bfe04542a31832c9fca0fcf3da0a5e6f974c19bf2e965d036",
     "canonical_invariant_families": [
       "human-review-routing",
       "material-evidence-linkage",
@@ -50,7 +50,7 @@
       "replay-duplicate-case-observation",
       "skew-evidence-source-identity"
     ],
-    "catalog_digest": "51da58c7b61d87085f830507c36070d3cd1add85f1a75bad90c2fd980fd6ccc5",
+    "catalog_digest": "0ac5eac866c49408d3a44a2e92341aab916eb245b0dea2bbd1fc4bfe96a63df8",
     "catalog_id": "core/v1",
     "catalog_kill_rate": {
       "denominator": 7,
@@ -480,7 +480,7 @@
       }
     ],
     "pending_operator_ids": [],
-    "report_digest": "c98bff5b51d7d3f6d74ea9f5d790de5a95c06f8097907d95b64f123c4549135d",
+    "report_digest": "fba1c219c8ed3fd4421af17cdff0a9f13ad2bd6542826167223f0d0cc3bd45b9",
     "required_not_evaluated_operator_ids": [],
     "required_operator_ids": [
       "bypass-required-human-review",
@@ -670,7 +670,7 @@
   "control_efficacy_gate": {
     "findings": [],
     "profile_id": "control-efficacy/default",
-    "report_digest": "c98bff5b51d7d3f6d74ea9f5d790de5a95c06f8097907d95b64f123c4549135d",
+    "report_digest": "fba1c219c8ed3fd4421af17cdff0a9f13ad2bd6542826167223f0d0cc3bd45b9",
     "state": "pass"
   },
   "control_efficacy_gate_profile": {
@@ -699,7 +699,7 @@
     "artifact_kind": "environment-info",
     "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-    "git_commit": "3cb390d1c3498f384579969cd27d805743065566",
+    "git_commit": "42b8b1f289ef57b4b3c83d21f637b4b91278fc72",
     "git_dirty": true,
     "installed_packages": [
       {
@@ -1201,7 +1201,7 @@
       "artifact_kind": "environment-info",
       "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
       "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-      "git_commit": "3cb390d1c3498f384579969cd27d805743065566",
+      "git_commit": "42b8b1f289ef57b4b3c83d21f637b4b91278fc72",
       "git_dirty": true,
       "installed_packages": [
         {
@@ -1723,7 +1723,7 @@
     "schema_version": "0.6.6",
     "state": "pass"
   },
-  "evidence_graph_digest": "a838d377da76d60f8a2ab5113763bdd741d6bf7829cf8ee80d5159d96ff3390f",
+  "evidence_graph_digest": "3f94627937da4e3a284cabe3080a0f62a86685f407b7abcab7f7dec00025cd09",
   "interpretation": [
     "Start with candidate_vs_expectations: pass means no blocking deterministic finding under the selected gate profile; fail means at least one expectation, policy, invariant, or configured gate failed.",
     "If a comparison summary is present, fixture_equivalence_state must be pass before interpreting candidate-to-baseline changes.",
@@ -1735,7 +1735,7 @@
   "limitations": [
     "evidence packets summarize deterministic fixture-mode results; they are not signatures, attestations, safety certifications, compliance certifications, or live model-quality evidence"
   ],
-  "packet_id": "packet-d109b657c228b85e",
+  "packet_id": "packet-df998399d959302e",
   "release_manifest": {
     "artifact_kind": "release-artifact-manifest",
     "artifacts": [
@@ -1744,14 +1744,14 @@
         "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
         "role": "evaluation-summary",
         "schema_version": "0.6.6",
-        "sha256": "ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801"
+        "sha256": "84a3d8a48a3f46a843572106616fc1103f4b99efa2881abd9570dee9e008fb72"
       },
       {
         "artifact_kind": "release-artifact",
         "path": "evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json",
         "role": "assurance-evidence-graph",
         "schema_version": "0.6.6",
-        "sha256": "c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a"
+        "sha256": "02625cd9b566de93fd67ebe39aea9dfa4c44dfeee2be3d209b2154b1ac575f41"
       },
       {
         "artifact_kind": "release-artifact",
@@ -1765,7 +1765,7 @@
         "path": "evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json",
         "role": "control-efficacy-report",
         "schema_version": "0.6.6",
-        "sha256": "65d9c85d469106102f39bf71e0788118daffe829e6acc57aa178186c725c6474"
+        "sha256": "73d6a517f8ded12d11e5a631274e2c36f3538d2257b1d716f36e16a22340a182"
       },
       {
         "artifact_kind": "release-artifact",
@@ -1779,7 +1779,7 @@
       "artifact_kind": "environment-info",
       "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
       "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-      "git_commit": "3cb390d1c3498f384579969cd27d805743065566",
+      "git_commit": "42b8b1f289ef57b4b3c83d21f637b4b91278fc72",
       "git_dirty": true,
       "installed_packages": [
         {
@@ -2278,7 +2278,7 @@
     "limitations": [
       "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
     ],
-    "manifest_id": "manifest-h7f154c70b451db90",
+    "manifest_id": "manifest-h79f8_c52b_e15f_1de7",
     "schema_version": "0.6.6"
   },
   "schema_version": "0.6.6"

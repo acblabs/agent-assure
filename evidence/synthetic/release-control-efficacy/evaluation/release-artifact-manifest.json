@@ -20,14 +20,14 @@
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-report.json",
       "role": "evaluation-report",
       "schema_version": "0.6.6",
-      "sha256": "c9d7560dcbc3cc8c5a4f5ef2fd90f9316441786e46a8d0fdd5b9d73b0a72a668"
+      "sha256": "12f5e9fe9384d3f67b131e0a120e890605f190813ec9e74db26aa1fc6e421ecb"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801"
+      "sha256": "84a3d8a48a3f46a843572106616fc1103f4b99efa2881abd9570dee9e008fb72"
     },
     {
       "artifact_kind": "release-artifact",
@@ -41,7 +41,7 @@
     "artifact_kind": "environment-info",
     "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-    "git_commit": "3cb390d1c3498f384579969cd27d805743065566",
+    "git_commit": "42b8b1f289ef57b4b3c83d21f637b4b91278fc72",
     "git_dirty": true,
     "installed_packages": [
       {
@@ -540,6 +540,6 @@
   "limitations": [
     "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
   ],
-  "manifest_id": "manifest-he331704a6256f6f9",
+  "manifest_id": "manifest-hcc5a_a1a2_8fe0_0397",
   "schema_version": "0.6.6"
 }

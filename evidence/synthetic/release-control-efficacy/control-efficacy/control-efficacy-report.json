@@ -2,7 +2,7 @@
   "applicable_operator_count": 7,
   "applicable_threat_category_count": 15,
   "artifact_kind": "control-efficacy-report",
-  "campaign_digest": "16523c0a69aabd87f10d95c5de67c0286b01c1906e8b50ae011c8236d4b0fadf",
+  "campaign_digest": "eae4e9fe1f5f272bfe04542a31832c9fca0fcf3da0a5e6f974c19bf2e965d036",
   "canonical_invariant_families": [
     "human-review-routing",
     "material-evidence-linkage",
@@ -21,7 +21,7 @@
     "replay-duplicate-case-observation",
     "skew-evidence-source-identity"
   ],
-  "catalog_digest": "51da58c7b61d87085f830507c36070d3cd1add85f1a75bad90c2fd980fd6ccc5",
+  "catalog_digest": "0ac5eac866c49408d3a44a2e92341aab916eb245b0dea2bbd1fc4bfe96a63df8",
   "catalog_id": "core/v1",
   "catalog_kill_rate": {
     "denominator": 7,
@@ -451,7 +451,7 @@
     }
   ],
   "pending_operator_ids": [],
-  "report_digest": "c98bff5b51d7d3f6d74ea9f5d790de5a95c06f8097907d95b64f123c4549135d",
+  "report_digest": "fba1c219c8ed3fd4421af17cdff0a9f13ad2bd6542826167223f0d0cc3bd45b9",
   "required_not_evaluated_operator_ids": [],
   "required_operator_ids": [
     "bypass-required-human-review",
