@@ -77,7 +77,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
     assert controls_mutation_doctor.DoctorCode is controls_mutation.DoctorCode
 
     scaffold_files = expected_scaffold_files()
-    config_version_line = f'package_version: "{__version__}"\n'.encode("utf-8")
+    config_version_line = f'package_version: "{__version__}"\n'.encode()
     config_bytes = scaffold_files["controls-mutation.yaml"]
     assert config_bytes.count(config_version_line) == 1
 
