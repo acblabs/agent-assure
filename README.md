@@ -31,7 +31,7 @@ hosted control plane required**
   <a href="https://pypi.org/project/agent-assure/"><img src="https://img.shields.io/pypi/pyversions/agent-assure?style=flat-square&color=536171" alt="Supported Python versions"></a>
   <a href="https://github.com/acblabs/agent-assure/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/acblabs/agent-assure/ci.yml?branch=main&style=flat-square&label=ci" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-166534?style=flat-square" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/status-RC-8a5a00?style=flat-square" alt="Project status: Release candidate">
+  <img src="https://img.shields.io/badge/status-beta-8a5a00?style=flat-square" alt="Project status: Beta">
 </p>
 
 <img src="docs/assets/flagship-evidence.svg"
@@ -77,7 +77,7 @@ release expectation regresses:
   the exact candidate RunSet, while both source execution configurations remain
   anchored to their predeclared arms. Conclusions remain conditional on
   statistical sufficiency, exact subject binding, and declared cluster
-  assumptions. The untagged development surface also provides a
+  assumptions. The experimental research surface also provides a
   [preregistered real-model study workflow](docs/real_model_study.md), but this
   repository contains no real-provider study result.
 - **Human review:** a required route or performed-review record is missing.
@@ -106,7 +106,7 @@ sets exercised for release; the broader ranges in `pyproject.toml` express
 compatibility intent, not exhaustive version-combination qualification.
 
 ```bash
-pip install agent-assure==0.6.5
+pip install agent-assure==0.7.0
 agent-assure demo flagship --out .tmp/demo/flagship --clean
 ```
 
@@ -293,10 +293,15 @@ For an efficacy-bearing release claim, `ci gate --release-profile` additionally
 requires an evidence packet, a verifier-owned `--efficacy-policy`, present
 efficacy evidence, and blocking warning/not-evaluated handling. It rejects the
 advisory and compatibility weakening flags. This is a CI efficacy profile, not
-publication authorization. `make release-publish-check` runs that strict
-profile against the separately staged release efficacy packet and verifier
-policy before the empirical-readiness and engineering release checks; all are
-necessary, and none alone authorizes publication.
+publication authorization. For v0.7.0, `make release-publish-check` checks the
+committed bounded claim profile, replays the separately staged seven-operator
+synthetic fixture packet under its verifier policy, and then runs the complete
+engineering release checks. `make empirical-readiness` remains a separate
+claim-qualification target and cannot add empirical claims when its evidence is
+absent. This validates the committed packet's internal bindings and policy
+projection; it does not rerun the operators or attest fresh campaign execution.
+
+The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release.
 
 The packaged offline demonstration exercises both a strong and deliberately
 weakened assurance control, then verifies that an unrelated failure cannot
@@ -362,10 +367,8 @@ links for the material claims they intend to satisfy.
 ### GitHub Actions example using the bundled fixture
 
 Pin the runner image, GitHub-owned actions, package, and composite action in
-release workflows. This runnable example stays on v0.6.5, the latest published
-release. The stricter v0.7.0 action contract described below remains unavailable
-until v0.7.0 is published. Replace the example suite and variant paths with your
-own controlled materials.
+release workflows. This runnable example targets v0.7.0. Replace the example
+suite and variant paths with your own controlled materials.
 
 ```yaml
 name: agent-assure
@@ -386,9 +389,9 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.5
-      # agent-assure v0.6.5
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@18bef8be4117c75268c67ede8cf781daaf75b893
+      - run: python -m pip install agent-assure==0.7.0
+      # agent-assure v0.7.0
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@45d5855d31e30e616fa497aaf07ccc51472034f0
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -398,10 +401,9 @@ jobs:
 ```
 
 `full` produces the complete review artifacts; `fail-fast` gives shorter
-blocking feedback. The pinned v0.6.5 example uses only inputs available in that
-published action. Its bundled fixture invocation is explicitly a non-assurance
-smoke example, not evidence of control efficacy. The unreleased v0.7.0
-candidate composite action has two mutually exclusive paths. Its strict path
+blocking feedback. The bundled fixture invocation is explicitly a non-assurance
+smoke example, not evidence of control efficacy. The v0.7.0 composite action has
+two mutually exclusive paths. Its strict path
 requires both `control-efficacy-report` and `efficacy-policy`, rebuilds the
 current evaluation packet with that report, and strictly re-verifies it against
 the separately trusted policy. Repository CI qualifies that strict path on a
@@ -421,9 +423,8 @@ v0.7.0 action accepts `out-dir` only as a strict descendant of
 `GITHUB_WORKSPACE` or `RUNNER_TEMP` and rejects traversal, roots, and
 linked/reparse-point ancestors. Strict efficacy mode further requires the
 output beneath `GITHUB_WORKSPACE`, matching the packet verification root.
-In the unreleased v0.7.0 action, reports remain local to the runner by default.
-Published v0.6.5 uploads reports by default, so the example states that choice
-explicitly. For v0.7.0, set `upload-reports: "true"` only after approving GitHub
+In the v0.7.0 action, reports remain local to the runner by default. Set
+`upload-reports: "true"` only after approving GitHub
 artifact retention; that opt-in uploads the packet, its privacy-filtered
 assurance evidence graph, manifest, summaries, and CI diagnostics. Set
 `upload-full-artifacts: "true"` only when the workflow is also approved to
@@ -447,16 +448,17 @@ also hide dependency lockfiles and unrelated project state.
 
 ## Integrations and maturity
 
-**Current published release: `v0.6.5` on GitHub and PyPI. This checkout is the
-unreleased `0.7.0` candidate and must not be described or installed as a
-published release until the empirical publish gate passes.**
+**Release line: `v0.7.0` (Beta).** The package and primary CLI contracts are
+qualified under the bounded engineering profile described above. Publication
+of the package is not publication of a real-model study, external pilot, or
+production-effectiveness result.
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.
 Framework adapters, streaming, and live execution remain experimental.
-The RC label applies only to the primary surface; development-RFC contracts
+The Beta label applies only to the primary surface; development-RFC contracts
 remain non-stable. PyPI's `Development Status :: 4 - Beta` is the closest
-standardized classifier to an RC and does not widen that surface.
+standardized classifier and does not widen that surface.
 
 | If you have… | Start with… | Maturity |
 | --- | --- | --- |
@@ -467,11 +469,11 @@ standardized classifier to an RC and does not widen that surface.
 | JSONL or multi-agent events | [Streaming example](examples/streaming_process_regression/README.md) | Experimental |
 | LangGraph or Google ADK events | [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) | Experimental |
 | Live provider or external-script subjects | [Adapter contract](docs/adapters/adapter_contract.md) | Experimental, time-bound evidence |
-| Preregistered real-model measurement | [Real-model study](docs/real_model_study.md) | Untagged development contract; no study result published |
-| Independently controlled CI learning pilot | [External pilot evidence](docs/external_pilot.md) | Untagged development contract; no qualifying pilot recorded |
+| Preregistered real-model measurement | [Real-model study](docs/real_model_study.md) | Experimental contract included; no study result published |
+| Independently controlled CI learning pilot | [External pilot evidence](docs/external_pilot.md) | Archived optional-research contract; no qualifying pilot recorded |
 | OpenTelemetry context or export | [OpenTelemetry alignment](docs/otel_alignment.md) | Optional alignment only |
 
-Want to help with the still-unmet external evidence checkpoint? The
+Want to help with optional empirical-claim research? The
 [short external pilot quickstart](docs/external_pilot_quickstart.md) targets
 10–15 minutes of participant effort in a non-maintainer-controlled fork; CI
 runtime may be longer. It needs no participant-supplied model key, proprietary

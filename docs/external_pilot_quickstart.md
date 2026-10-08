@@ -1,6 +1,6 @@
 # External Pilot Quickstart
 
-> **Maintainer deployment status:** these workflow bytes pin the immutable
+> **Archived optional-research protocol:** these workflow bytes pin the immutable
 > `EXECUTION_SOURCE_REVISION` to
 > `c742546f80c7bae998f5dc648b54e89f3ec556ab`. Recruit only from a separately
 > supplied immutable `TRUSTED_WORKFLOW_REVISION` that contains these exact
@@ -14,10 +14,11 @@ workflow. No participant-supplied model/provider API key, proprietary data,
 repository secret, or maintainer access is needed. GitHub supplies its normal
 short-lived, read-only workflow token.
 
-The public PyPI/GitHub release remains `0.6.5`. This workflow evaluates an
-unreleased `0.7.0` pre-candidate built from the exact execution-source revision
-named below; it must not be described as a published release or release
-candidate.
+The bounded v0.7.0 package line is not asserted published by these bytes. This
+archived workflow evaluates
+historical pre-candidate bytes from the exact execution-source revision named
+below; it is not required for v0.7.0 package distribution and must not be
+represented as evidence about the final release bytes.
 
 The result is privacy-filtered onboarding-learning evidence. It is not an
 endorsement, adoption claim, customer testimonial, third-party audit, safety or
@@ -233,7 +234,7 @@ The second run uploads a mechanically verified, closed pre-review candidate
 named `external-pilot-candidate-<capture-run-id>-<attempt>`. Its descriptor may
 truthfully mark the execution as an external attempt, but without the review
 receipt it is not yet a verified, publish-ready empirical-checkpoint bundle
-and does not satisfy the repository publish gate.
+and does not satisfy the repository empirical-claim qualification gate.
 
 Reply `interested` on the recruitment issue without posting run or fork URLs.
 The maintainer will arrange a non-public coordination channel for the two run
@@ -244,5 +245,8 @@ identities, raw input content, or private handoff details into the public issue.
 
 The reviewer follows the [external pilot review guide](external_pilot_review.md),
 checks the exact bytes and manual trust facts, and creates the sole missing
-review receipt. Even a verified external pilot does not by itself authorize a
-release: the separately preregistered real-model study is still mandatory.
+review receipt. Even a verified external pilot does not by itself authorize an
+empirical or external-validity claim: the separately preregistered real-model
+study and the rest of the empirical evidence contract are still mandatory for
+that claim. These artifacts are not prerequisites for distributing the bounded
+v0.7.0 Python package.

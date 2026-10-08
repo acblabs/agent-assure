@@ -1,12 +1,13 @@
 # API Surface
 
-The public surface is intentionally narrow and status-qualified. v0.6.5 is the
-latest published package and its `schemas/v0.6.5` snapshot is immutable. The
-published v0.6.5 RC surface consists of:
+The public surface is intentionally narrow and status-qualified. The v0.7.0
+package line is prepared as Beta and emits `schemas/v0.6.6`; its matching
+stable tag freezes that writer snapshot and makes the line current. Its primary
+surface consists of:
 
 - the `agent-assure` CLI;
-- package v0.6.5, which uses the released writer snapshot under
-  `schemas/v0.6.5`, with the published `schemas/v0.6.4` and
+- package v0.7.0, which uses the version-bound writer snapshot under
+  `schemas/v0.6.6`, with the published `schemas/v0.6.5`, `schemas/v0.6.4`, and
   `schemas/v0.6.3` snapshots and
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
@@ -16,11 +17,11 @@ published v0.6.5 RC surface consists of:
 - fixture-mode helpers used by the bundled examples; and
 - framework evidence mapping through `agent-assure controls map`.
 
-> The release-candidate label applies only to this primary surface. It does
+> The Beta label applies only to this primary surface. It does
 > not promote the experimental or development-RFC surfaces below into stable
 > compatibility commitments.
 
-The development package additionally exposes non-stable surfaces:
+The package additionally exposes non-stable surfaces:
 
 - experimental live-adapter configuration and reporting commands under
   `agent-assure live`;
@@ -43,7 +44,7 @@ The development package additionally exposes non-stable surfaces:
   `RAGSensitivityProtocol/v1`, `RAGSensitivityReport/v1`, and
   `ProcessEquivalenceReproductionIndex/v1`, plus the deterministic
   `rag sensitivity` and `demo evidence-sensitivity` commands;
-- untagged development `ProcessEquivalenceBenchmark/v1`,
+- experimental `ProcessEquivalenceBenchmark/v1`,
   `RealModelStudyManifest/v1`, `StudyRegistrationReviewReceipt/v1`,
   `StudyStatisticalMethodReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
   and `RealModelStudyReport/v1` contracts
@@ -51,7 +52,7 @@ The development package additionally exposes non-stable surfaces:
   `review-registration`, `review-statistics`, `review-execution`, and
   `bind-config` commands and the replay-only `study analyze` command; the
   historical `rag study` route is retained as a compatibility alias; and
-- untagged development `ExternalPilotEvidence/v1` and
+- experimental `ExternalPilotEvidence/v1` and
   `ExternalPilotIndependenceReviewReceipt/v1`: a pre-candidate,
   learning/remediation-only bundle descriptor plus explicit operator-attested
   review boundary that cannot satisfy a later exact-candidate gate, with
@@ -59,9 +60,9 @@ The development package additionally exposes non-stable surfaces:
   `agent-assure release pilot review` authoring commands and
   factory-only validated review-input/bundle wrappers.
 
-The unreleased v0.7.0 package writer emits `schema_version: 0.6.6`, but no
-v0.7.0 release exists. The repository contains no real-provider study result
-and no qualifying external CI pilot record.
+The v0.7.0 package writer emits `schema_version: 0.6.6`. The repository contains
+no real-provider study result and no qualifying external CI pilot record; those
+experimental contracts do not widen the bounded release claim.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
 not make an RFC surface a stable compatibility commitment. Promotion requires

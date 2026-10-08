@@ -1,10 +1,10 @@
 # Preregistered Real-Model Study
 
-Status: development contract. No real-provider study result is included in this
-repository, and no provider execution is authorized by this documentation. The
-latest published package remains `v0.6.5`; the `0.7.0` package candidate,
-its `0.6.6` schemas, and its commands described here are an untagged
-development surface.
+Status: experimental contract included with v0.7.0. No real-provider study
+result is included in this release, and no provider execution is authorized by
+this documentation. Study-publication readiness means eligibility to publish
+the corresponding study result; it is not a prerequisite for distributing the
+v0.7.0 Python package.
 
 The real-model study workflow measures one narrow behavior: whether a model's
 structured decision follows a frozen, authoritative context substitution under
@@ -91,8 +91,8 @@ The shipped v0.2 template writes the descriptive scope explicitly:
 
 | Scope | Required design disposition | Report behavior | Bundle/readiness eligibility |
 | --- | --- | --- | --- |
-| `confirmatory_independent_clusters` | A resolved independent-cluster design basis, digest-bound independence audit, and explicit semantic-near-duplicate disposition accepted by the qualified reviewer. | `inferential_statistics_applicable=true`; the preregistered multiplicity, interval, and decision rules may classify only after every validity gate passes. | May satisfy `ValidatedStudyBundle.is_publication_ready` and Sprint 7, but only with all other real-provider, review, benchmark, and pilot requirements. |
-| `fixed_frame_descriptive_conformance` | Shared-template dependence is acknowledged and the method reviewer approves the downscope. | `inferential_statistics_applicable=false`; classification is always `not_measured`; release-facing Markdown reports frame completeness plus counts/rates and omits inferential units, alpha, materiality thresholds, minimum-independent-cluster claims, and adjusted intervals. | May satisfy only scoped descriptive publication readiness. It can never satisfy the Sprint 7 empirical checkpoint. |
+| `confirmatory_independent_clusters` | A resolved independent-cluster design basis, digest-bound independence audit, and explicit semantic-near-duplicate disposition accepted by the qualified reviewer. | `inferential_statistics_applicable=true`; the preregistered multiplicity, interval, and decision rules may classify only after every validity gate passes. | May satisfy `ValidatedStudyBundle.is_publication_ready` and the empirical-claim checkpoint, but only with all other real-provider, review, benchmark, and pilot requirements. |
+| `fixed_frame_descriptive_conformance` | Shared-template dependence is acknowledged and the method reviewer approves the downscope. | `inferential_statistics_applicable=false`; classification is always `not_measured`; release-facing Markdown reports frame completeness plus counts/rates and omits inferential units, alpha, materiality thresholds, minimum-independent-cluster claims, and adjusted intervals. | May satisfy only scoped descriptive publication readiness. It can never satisfy the confirmatory empirical-claim checkpoint. |
 
 Distinct IDs and digests prove identity, not independence. The software binds
 the structured design basis, exact privacy-checked audit bytes, near-duplicate
@@ -353,7 +353,8 @@ conditions, expected response is an inverse signal for direct same-decision
 inertia. For invariant controls, the inertia estimand is inapplicable and
 expected stability aligns with the control role; the exact zero-change gate,
 not the nested source state, decides whether the control passes. All nested
-source states remain non-verdict diagnostics for the Sprint 7 classification. Pair counts, failure
+source states remain non-verdict diagnostics for the Sprint 7 empirical
+classification. Pair counts, failure
 summaries, identities, execution timing, and operational accounting remain
 available for audit.
 
@@ -433,13 +434,14 @@ agent-assure rag study finalize \
   --out study/real-model-study-manifest.json
 ```
 
-The benchmark path above is also the fixed source-tree release trust-anchor
-location. Before any confirmatory provider call, a newly constructed non-grid
+The benchmark path above is also the fixed source-tree empirical-claim
+trust-anchor location. Before any confirmatory provider call, a newly constructed non-grid
 frame must be frozen there and mirrored byte-for-byte at
 `src/agent_assure/release_trust/v0_7_0/frozen-non-grid-benchmark.json`. The
 qualified statistical-method review receipt must likewise be frozen as
 `study/registration/frozen-non-grid-benchmark-statistical-method-review.json`
-and mirrored under `src/agent_assure/release_trust/v0_7_0/`. The release checker
+and mirrored under `src/agent_assure/release_trust/v0_7_0/`. The empirical
+readiness checker
 validates both pairs, rejects registered ineligible structures, and requires
 the mirrored receipt's explicit `approved_confirmatory_independent_clusters`
 decision to bind the exact raw and semantic benchmark digests and to equal the

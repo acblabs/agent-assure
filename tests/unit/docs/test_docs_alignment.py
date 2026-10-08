@@ -125,31 +125,76 @@ def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None
     rc_version_text = f'project.version = "{stable_version}rc1"'
     candidate_start = runbook.index("## TestPyPI Candidate")
     rc_version = runbook.index(rc_version_text, candidate_start)
-    rc_regeneration = runbook.index(
-        "python scripts/update_golden.py --update-golden",
+    rc_reinstall = runbook.index(
+        "python -m pip install --no-deps --no-build-isolation -e .",
         rc_version,
     )
+    rc_regeneration = runbook.index(
+        "python scripts/update_golden.py --update-golden",
+        rc_reinstall,
+    )
     rc_commit = runbook.index("commit\n   the regenerated RC goldens", rc_regeneration)
-    rc_release_check = runbook.index("make release-publish-check", rc_commit)
+    rc_efficacy_regeneration = runbook.index(
+        "Regenerate and commit the deterministic synthetic release-control-efficacy",
+        rc_commit,
+    )
+    rc_efficacy_command = runbook.index(
+        f"make release-control-efficacy-regenerate EXPECTED_RELEASE={stable_version}rc1",
+        rc_efficacy_regeneration,
+    )
+    rc_release_check = runbook.index("make release-publish-check", rc_efficacy_command)
     stable_restore = runbook.index(f"restore the final package\nversion to `{stable_version}`")
     stable_regeneration = runbook.index(
         "python scripts/update_golden.py --update-golden",
         stable_restore,
     )
-    stable_commit = runbook.index(
-        "commit the stable-version golden regeneration",
+    stable_golden_commit = runbook.index(
+        "Review and commit the stable version and regenerated goldens",
         stable_regeneration,
     )
-    stable_release_check = runbook.index("make release-publish-check", stable_commit)
+    stable_reinstall = runbook.index(
+        "python -m pip install --no-deps --no-build-isolation -e .",
+        stable_golden_commit,
+    )
+    stable_efficacy_regeneration = runbook.index(
+        "regenerate the deterministic synthetic release-control-efficacy bundle",
+        stable_reinstall,
+    )
+    stable_efficacy_command = runbook.index(
+        f"make release-control-efficacy-regenerate EXPECTED_RELEASE={stable_version}",
+        stable_efficacy_regeneration,
+    )
+    stable_efficacy_commit = runbook.index(
+        "Review and\ncommit the regenerated bundle",
+        stable_efficacy_command,
+    )
+    stable_release_check = runbook.index("make release-publish-check", stable_efficacy_commit)
 
-    assert rc_version < rc_regeneration < rc_commit < rc_release_check
-    assert stable_restore < stable_regeneration < stable_commit < stable_release_check
+    assert (
+        rc_version
+        < rc_reinstall
+        < rc_regeneration
+        < rc_commit
+        < rc_efficacy_regeneration
+        < rc_efficacy_command
+        < rc_release_check
+    )
+    assert (
+        stable_restore
+        < stable_regeneration
+        < stable_golden_commit
+        < stable_reinstall
+        < stable_efficacy_regeneration
+        < stable_efficacy_command
+        < stable_efficacy_commit
+        < stable_release_check
+    )
     assert "RC-generated sensitivity goldens must not remain on the final tag" in " ".join(
         runbook.split()
     )
-    assert f"v{stable_version} is currently untagged and unpublished" in runbook
-    assert "conditional on all empirical and release gates passing" in runbook
-    assert f"This runbook does not imply that v{stable_version} has shipped." in runbook
+    assert "`bounded-non-empirical/v1` software-distribution profile" in runbook
+    assert "It is intentionally disconnected from v0.7.0 package publication" in runbook
+    assert "no dispatch-selectable or maintenance publication profile" in runbook
     schema_evolution = (ROOT / "docs" / "schema_evolution.md").read_text(encoding="utf-8")
     assert "`*.v0.6.3.*.json` goldens are byte-pinned" in schema_evolution
     assert "including `producer_version` and all derived self-digests" in schema_evolution
@@ -878,12 +923,13 @@ def test_public_docs_state_the_qualified_platform_and_dependency_matrix() -> Non
 
 
 def test_security_support_language_does_not_promise_an_unavailable_patch_path() -> None:
-    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+    security = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
 
     assert "Active maintenance means" in security
     assert "may wait for the next standard release" in security
-    assert "There is no maintenance publication bypass" in security
-    assert "emergency path is rooted outside" in security
+    assert "no maintenance publication bypass" in security
+    assert "no workflow-dispatch profile selector" in security
+    assert "not a software-distribution gate for this bounded release" in security
 
 
 def test_default_branch_governance_uses_sha_bound_human_owner_authorization() -> None:
@@ -910,6 +956,10 @@ def test_codeowners_has_broad_source_test_and_governance_coverage() -> None:
     assert "/docs/** @acblabs" in owners
     assert "/requirements-min.constraints.txt @acblabs" in owners
     assert "/.gitleaksignore @acblabs" in owners
+    assert "/.gitleaks.toml @acblabs" in owners
+    assert "/evidence/synthetic/** @acblabs" in owners
+    assert "/*.md @acblabs" in owners
+    assert "/CITATION.cff @acblabs" in owners
 
 
 def test_release_security_authority_inputs_are_documented_for_review() -> None:
@@ -917,7 +967,10 @@ def test_release_security_authority_inputs_are_documented_for_review() -> None:
 
     assert "`requirements-min.constraints.txt`" in security
     assert "`.gitleaksignore`" in security
+    assert "`.gitleaks.toml`" in security
     assert "exact reviewed historical fingerprints" in security
+    assert "anchored whole-match expression and exact artifact paths" in security
+    assert "path-only, line-wide, secret-only, or `OR` exception is prohibited" in security
 
 
 def test_public_docs_fail_closed_for_historical_decision_roots() -> None:

@@ -1,0 +1,47 @@
+{
+  "artifact_kind": "publication-claim-profile",
+  "schema_version": "1.0.0",
+  "profile_id": "bounded-non-empirical/v1",
+  "release_line": "0.7.0",
+  "maturity": "beta",
+  "qualification_scope": [
+    "packaged-implementation",
+    "versioned-schemas",
+    "committed-deterministic-fixture-artifact-validation",
+    "cross-platform-ci",
+    "dependency-audits",
+    "same-toolchain-fresh-job-byte-matching",
+    "provenance",
+    "signing",
+    "trusted-publishing"
+  ],
+  "control_efficacy_basis": "committed-deterministic-synthetic-artifacts-only",
+  "control_efficacy_evidence": {
+    "verification_scope": "committed-artifact-internal-binding-only",
+    "packet_path": "evidence/synthetic/release-control-efficacy/evidence-packet.json",
+    "packet_sha256": "5e82ade1570226773ee464af855e522a8a749e02868dca01a3b29dc9a86daad4",
+    "policy_path": "evidence/synthetic/release-control-efficacy/controls-mutation.yaml",
+    "policy_sha256": "d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42"
+  },
+  "evidence_status": {
+    "real_model_study_result": "not_provided",
+    "qualifying_external_pilot": "not_provided",
+    "independent_empirical_review": "not_provided",
+    "frozen_confirmatory_benchmark": "not_provided"
+  },
+  "authorized_claims": [
+    "bounded-engineering-qualification",
+    "committed-deterministic-fixture-artifact-validation"
+  ],
+  "prohibited_claims": [
+    "empirical-effectiveness",
+    "external-validity",
+    "population-generalization",
+    "production-control-effectiveness",
+    "provider-quality",
+    "safety",
+    "compliance",
+    "deployment-fitness"
+  ],
+  "canonical_disclosure": "The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release."
+}

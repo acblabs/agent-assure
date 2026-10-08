@@ -1,13 +1,8 @@
 # Schema Evolution
 
-Current released schema snapshot: `schemas/v0.6.5/`. It is immutable because
-the matching `v0.6.5` tag exists.
-
-Current released persisted artifact `schema_version`: `0.6.5`. Current
-development models and evidence-carrying roots emit `0.6.6`. The unreleased
-package candidate is v0.7.0; no v0.7.0 tag or release exists. Its versioned
-schema directory remains a mutable candidate until an explicitly authorized
-package release freezes it.
+Release-candidate schema snapshot: `schemas/v0.6.6/`. Package line v0.7.0 emits
+persisted artifact `schema_version: 0.6.6`; its matching stable tag freezes the
+snapshot. Earlier released snapshots remain immutable.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -29,9 +24,8 @@ Use these directories as the release lifecycle:
 - `schemas/v0.6.3/` contains the released v0.6.3 snapshot and is immutable.
 - `schemas/v0.6.4/` contains the released v0.6.4 snapshot and is immutable.
 - `schemas/v0.6.5/` contains the released v0.6.5 snapshot and is immutable.
-- `schemas/v0.6.6/` contains the current development-writer candidate emitted
-  by package candidate v0.7.0 and remains mutable until that mapped package
-  release is created.
+- `schemas/v0.6.6/` contains the version-bound writer snapshot emitted by
+  package line v0.7.0; the matching stable tag makes it immutable.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a package release mapped to it exists, an active versioned directory is
@@ -110,7 +104,7 @@ document whether cross-profile comparison is supported. The current comparator
 supports only identical profiles implemented by the running package; it fails
 closed rather than treating cross-profile results as equivalent.
 
-The v0.6.5 package writer emitted profile v3. The v0.7.0 development package
+The v0.6.5 package writer emitted profile v3. The v0.7.0 package
 emits schema version 0.6.6 with privacy profile v9.
 Profile v9 additionally binds UTF-8 percent-encoded confusable normalization,
 complete multi-secret URL redaction, and ASCII-digit PAN boundary and
@@ -134,7 +128,7 @@ release adds the `control-coverage-report` persisted root and therefore emits
 `schema_version: 0.4.3`. The v0.4.4 package release keeps the persisted schema
 at `0.4.3` because its release surface is process-positioning documentation,
 fixture demos, report rendering, and control-map behavior hardening rather than
-a new persisted JSON artifact shape. The v0.7.0 package candidate is explicitly
+a new persisted JSON artifact shape. The v0.7.0 package is explicitly
 mapped to schema version `0.6.6`: it advances the package release line without
 renaming the current persisted JSON shape.
 
@@ -150,8 +144,9 @@ the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
 `schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`,
 `schemas/v0.6.2/`, `schemas/v0.6.3/`, `schemas/v0.6.4/`, and
-`schemas/v0.6.5/`. v0.6.5 is the latest published package and writer surface.
-The untagged v0.7.0 package emits schema version 0.6.6 and accepts those frozen
+`schemas/v0.6.5/`. The v0.7.0 package line is the candidate writer surface
+before publication and the current surface only after its matching stable tag.
+It emits schema version 0.6.6 and accepts those frozen
 versions only where the artifact-specific compatibility contract permits it,
 while historical replay remains bounded to tagged snapshots; current-schema
 checks target `schemas/v0.6.6/`. Frozen-schema availability does not imply
@@ -310,8 +305,7 @@ pair closes authenticated comparison-to-RunSet binding while allowing
 producer-local environment metadata to remain outside the controlled
 sensitivity semantic projection.
 
-The untagged schema v0.6.6 development writer emitted by package candidate
-v0.7.0 adds eight persisted roots:
+The schema v0.6.6 writer emitted by package v0.7.0 adds eight persisted roots:
 `ProcessEquivalenceBenchmark/v1`, `RealModelStudyManifest/v1`,
 `StudyRegistrationReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
 `RealModelStudyReport/v1`, `ExternalPilotEvidence/v1`,
@@ -338,8 +332,8 @@ The pilot root records pseudonymous environment, input, command, artifact,
 friction, remediation, consent, and privacy evidence. Its schema fixes
 pre-candidate pilot evidence to learning/remediation-only and makes every
 later exact-candidate gate-eligibility field false. These additions are
-development contracts; they do not imply that a real-model study or external
-pilot ran, and they do not create a v0.7.0 release.
+experimental contracts; they do not imply that a real-model study or external
+pilot ran, and they do not authorize an empirical claim for v0.7.0.
 The typed pilot input manifest maps every input-bearing workflow argv value to
 a privacy-safe content digest and derives separate configuration/data aggregate
 digests. Each recorded command binds that manifest, the exact tested wheel

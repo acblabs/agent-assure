@@ -1,0 +1,105 @@
+threat_source:
+  name: mitre-atlas
+  version: "2026.06"
+present_control_ids:
+  - evidence_provenance_identity
+  - human_review_required
+  - material_claims_have_evidence
+  - redaction_required
+  - runset_completion_required
+  - tool_allowlist
+  - valid_record_required
+items:
+  - threat_id: AML.T0024
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic privacy challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0051
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic human-review challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0053
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic review and tool challenges are in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0054
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic human-review challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0057
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic privacy challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0067.000
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic evidence-link challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0085.001
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic tool-boundary challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: AML.T0086
+    applicability: applicable
+    critical: true
+    rationale: The deterministic synthetic tool and privacy challenges are in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: evidence-provenance-mismatch
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic provenance challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: fixture-runtime-failure
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic completion challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: invalid-structured-record
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic replay challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: material-claim-link-regression
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic evidence-link challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: missing-review-route
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic review challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: persisted-sensitive-content
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic privacy challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+  - threat_id: unexpected-tool-use
+    applicability: applicable
+    critical: false
+    rationale: The project-local deterministic tool-boundary challenge is in release scope.
+    owner: acblabs-release-owner
+    reviewed_at: "2026-10-07"
+limitations:
+  - This first-party synthetic scope covers only the seven stable core/v1 operators and the bundled prior-auth fixture.
+  - It is not real-model, external-pilot, production-control, safety, compliance, or deployment evidence.

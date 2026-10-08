@@ -7,11 +7,15 @@ credential-based upload is prohibited. If Trusted Publishing is unavailable,
 publication is blocked until the protected publisher can be restored or an
 applicable repository-declared recovery workflow succeeds.
 
-> **Release status:** v0.7.0 is currently untagged and unpublished. Every
-> release, including a security correction, remains conditional on all empirical and release gates passing,
-> including efficacy, empirical-readiness, engineering, and publication checks. The workflow
-> exposes no alternate maintenance publication profile.
-> This runbook does not imply that v0.7.0 has shipped.
+> **Release profile:** v0.7.0 uses the committed
+> `bounded-non-empirical/v1` software-distribution profile. Every release,
+> including a security correction, remains conditional on the bounded-claim,
+> deterministic synthetic efficacy, engineering, exact-candidate,
+> same-toolchain fresh-job byte matching, provenance, signing, and Trusted
+> Publishing checks. The
+> workflow exposes no dispatch-selectable or maintenance publication profile.
+
+The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release.
 
 ## Release Shape
 
@@ -192,32 +196,36 @@ If the schema review diff is intentional, run `make schemas`, review
 `git diff -- schemas/v0.6.6`, run `make schema-force-includes`, then rerun
 `make schema-check` before continuing.
 
-`make release-check` is the repeatable engineering gate used by ordinary CI;
-it intentionally remains runnable while empirical work is incomplete. It does
-not authorize publication. Every TestPyPI or tagged-release path must instead
-run the ordered publish gate:
+`make release-check` is the repeatable engineering gate used by ordinary CI.
+It does not authorize publication. Every TestPyPI or tagged-release path must
+instead run the one version-bound ordered publish gate:
 
 ```bash
 make release-publish-check \
-  EXPECTED_RELEASE=0.7.0rc1 \
-  RELEASE_EFFICACY_PACKET=evidence/empirical/release-control-efficacy/evidence-packet.json \
-  RELEASE_EFFICACY_POLICY=evidence/empirical/release-control-efficacy/controls-mutation.yaml \
-  RELEASE_EFFICACY_ARTIFACT_ROOT=. \
-  EMPIRICAL_STUDY_BUNDLE_ROOT=evidence/empirical/real-model-study \
-  EXTERNAL_PILOT_BUNDLE_ROOT=evidence/empirical/external-pilot \
-  EXTERNAL_PILOT_EVIDENCE=external-pilot-evidence.json \
-  EXTERNAL_PILOT_REVIEW_RECEIPT=external-pilot-independence-review.json
+  EXPECTED_RELEASE=0.7.0rc1
 ```
 
-The target first gates the separately staged release control-efficacy packet
-with `--release-profile` and the verifier-owned controls-mutation policy.
-Both paths are mandatory and absence fails closed. Regenerate the campaign and
-packet in trusted CI from pinned inputs before staging them: schema and digest
-verification does not independently prove that the recorded mutations ran.
-This bounded detector check is necessary for an efficacy-bearing release claim,
-but is not publication authorization.
+The target first validates the packaged, version-bound publication claim
+profile. It then gates the checked-in seven-operator deterministic synthetic
+control-efficacy packet with `--release-profile` and the verifier-owned
+controls-mutation policy before running `release-check`. All three stages are
+mandatory, and no stage alone authorizes publication. The campaign is bound to
+the bundled prior-auth fixture and `core/v1` catalog; it is not a production
+control-efficacy result. The packaged profile binds the committed packet and
+policy paths and SHA-256 digests. This gate validates their internal bindings
+and policy projection; it does not rerun operators or attest fresh campaign
+execution.
 
-The target then validates the exact self-digested study report, the pilot evidence
+### Optional empirical-claim qualification
+
+`make empirical-readiness EXPECTED_RELEASE=0.7.0` remains available for a
+separate future publication of real-model, external-pilot, or confirmatory
+results. It is intentionally disconnected from v0.7.0 package publication.
+Run it only when the corresponding artifacts exist; a failure means those
+claims remain unauthorized, not that the bounded software cannot be
+distributed.
+
+That optional target validates the exact self-digested study report, the pilot evidence
 descriptor, a separately persisted human independence-review receipt, every
 referenced pilot artifact byte, and the fixed confirmatory benchmark trust
 anchor. The Make target does not expose a benchmark override: the checker loads
@@ -279,7 +287,7 @@ process and retain that commit identity in the study's registration evidence.
 The independently hosted commit time provides external ordering evidence; this
 checker does not query or authenticate repository-host timestamps.
 
-The checker pins one closed, link-free pilot bundle, enforces per-file and
+The optional checker pins one closed, link-free pilot bundle, enforces per-file and
 aggregate bounds, verifies every byte digest, validates the wheel
 name/version/metadata/RECORD and supported declared JSON contracts, privacy
 scans a closed inventory of wheel members, rejects credential-shaped names and
@@ -296,10 +304,10 @@ The receipt explicitly records `human_operator_attestation` and
 from names or authenticate provider dispatch, repository control, reviewer
 identity, or human provenance. Repository review and release-environment
 approval remain the manual trust root. The checker emits the canonical
-benchmark, study, pilot, receipt, and artifact-manifest digests and only then
-invokes `release-check`. The pilot's exact `source_revision` and
+benchmark, study, pilot, receipt, and artifact-manifest digests. The pilot's exact `source_revision` and
 distribution binding continue to identify the tested pre-candidate rather
-than release HEAD. The empirical checkpoint is necessary but not sufficient;
+than release HEAD. The empirical checkpoint is necessary but not sufficient for
+the corresponding empirical claim;
 it does not turn that record into exact-candidate, clean-reproduction, or
 CI-integration evidence, and all three later eligibility flags remain false.
 
@@ -403,27 +411,46 @@ will fail, so each release candidate needs a unique version such as
 
 1. Create a candidate ref whose package metadata already contains the unique
    candidate version, for example `project.version = "0.7.0rc1"` and
-   `agent_assure.__version__ = "0.7.0rc1"`.
+   `agent_assure.__version__ = "0.7.0rc1"`. Commit that version change, then
+   reinstall it with
+   `python -m pip install --no-deps --no-build-isolation -e .`; the regenerator
+   requires installed distribution metadata to match the exact candidate.
 2. Regenerate the version-bound deterministic goldens with
    `python scripts/update_golden.py --update-golden`. The evidence-sensitivity
    reports carry `producer_version`, so changing to an RC intentionally changes
    their bytes and self-digests. Review the complete golden diff, then commit
    the regenerated RC goldens on the candidate ref; do not leave them as
    uncommitted local changes.
-3. From the committed candidate ref, run `python scripts/update_golden.py` in
+3. Regenerate and commit the deterministic synthetic release-control-efficacy
+   bundle and profile digest bindings with
+   `make release-control-efficacy-regenerate EXPECTED_RELEASE=0.7.0rc1`. The
+   fixed-path command requires the project, source, and installed editable
+   package versions to match; rejects links and unknown bundle entries; replaces
+   only its explicit generated-output allowlist; runs the seven operators and
+   strict packet gate; and refreshes `packet_sha256` and `policy_sha256`. Review
+   and commit the complete result. An RC must not reuse the stable-version
+   bundle.
+4. From the committed candidate ref, run `python scripts/update_golden.py` in
    check mode and then build and verify with `make release-publish-check`.
-   The TestPyPI workflow repeats the empirical gate, version-bound golden check,
-   and release checks and rejects stale or uncommitted candidate evidence.
-4. Run the `Publish to TestPyPI` workflow manually from that ref and set
+   The TestPyPI workflow repeats the bounded-claim check, strict deterministic
+   synthetic efficacy gate, version-bound golden check, and release checks. It
+   rejects stale or uncommitted candidate artifacts.
+5. Run the `Publish to TestPyPI` workflow manually from that ref and set
    `expected-version` explicitly to the same value, for example `0.7.0rc1`.
    The workflow intentionally has no default version because the selected ref
    must already contain matching package metadata. Dispatch it from the
    candidate branch or commit; do not create or push a `v0.7.0rcN` tag.
-5. Install the release candidate from a clean environment.
+6. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.7.0`, run `python scripts/update_golden.py --update-golden` again,
-review and commit the stable-version golden regeneration, then run
+version to `0.7.0` and run `python scripts/update_golden.py --update-golden`
+again. Review and commit the stable version and regenerated goldens, then
+reinstall with `python -m pip install --no-deps --no-build-isolation -e .`.
+From that clean commit,
+regenerate the deterministic synthetic release-control-efficacy bundle with
+`make release-control-efficacy-regenerate EXPECTED_RELEASE=0.7.0`. Review and
+commit the regenerated bundle and the profile's refreshed
+`packet_sha256` and `policy_sha256`, then run
 `python scripts/update_golden.py` and `make release-publish-check` from the
 clean final commit before dispatching the protected `prepare-tag` operation.
 RC-generated sensitivity goldens must not remain on the final tag.
@@ -492,12 +519,13 @@ agent-assure demo expense --out $ExpenseOut --clean
 ### One fail-closed release profile
 
 The protected release workflow has no security-maintenance selector, no
-maintenance base-tag input, and no Make target that can omit empirical
-checkpoints. Every standard, tag-preparation, tag-resume, and tag-bound
+maintenance base-tag input, and no dispatch input that can select or weaken the
+committed claim profile. Every standard, tag-preparation, tag-resume, and tag-bound
 publication run executes `make release-publish-check`, including releases whose
 only product change is a security correction. That ordered gate requires
-control-efficacy verification and empirical readiness before the engineering,
-schema, provenance, build, wheel-inspection, and smoke-install checks.
+the bounded-claim check and deterministic synthetic control-efficacy
+verification before the engineering, schema, provenance, build,
+wheel-inspection, and smoke-install checks.
 
 A historical maintenance-diff checker may be used as a non-authorizing review
 diagnostic. It is not connected to Make or GitHub publication automation, and a
@@ -563,7 +591,7 @@ protected pre-tag operation from the default-branch workflow definition:
 git checkout main
 git pull
 make schema-check
-make release-publish-check
+make release-publish-check EXPECTED_RELEASE=0.7.0
 python scripts/check_version_matches_tag.py v0.7.0 --require-stable
 release_sha="$(git rev-parse HEAD)"
 test "${release_sha}" = "$(git rev-parse origin/main)"
@@ -575,8 +603,8 @@ gh workflow run release.yml --ref main \
 
 Do not create or push `v0.7.0` manually. The pre-tag run checks that the SHA is
 a full commit ID on the default branch, the stable version and collateral match,
-the tag does not already exist, the worktree is clean, the strict release
-efficacy and empirical checkpoints pass, and a fresh job reproduces every
+the tag does not already exist, the worktree is clean, the bounded claim profile
+and strict deterministic synthetic efficacy checkpoint pass, and a fresh job reproduces every
 future signing input. Only then does
 the separately protected `release-tag` job create one annotated tag bound to
 that SHA. Because tag creation with `GITHUB_TOKEN` does not recursively trigger

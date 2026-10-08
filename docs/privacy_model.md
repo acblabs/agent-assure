@@ -153,7 +153,7 @@ content from surviving solely because a field is structurally preserved.
 Run `started_at_utc` and `completed_at_utc` values are also bounded,
 calendar-valid RFC 3339 strings and remain subject to fail-closed sensitive
 content scanning even though clean timestamp structure is preserved.
-The v0.7.0 development package's schema 0.6.6 writer applies the structural
+The v0.7.0 package line's schema 0.6.6 writer applies the structural
 credential/URI detector to every non-exempt RunSet string, including
 `stop_reasons`; inputs accepted by
 older writers can therefore be rejected when they contain credential-shaped

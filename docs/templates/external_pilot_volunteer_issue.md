@@ -1,4 +1,4 @@
-## Help wanted: short, no-user-secret external CI pilot for unreleased Agent Assure 0.7.0
+## Optional research: short, no-user-secret external CI pilot protocol
 
 > Maintainer posting checklist: do not post this issue until every
 > `TRUSTED_WORKFLOW_REVISION` placeholder below has been replaced with the full
@@ -17,8 +17,9 @@ its execution and friction evidence is complete. If Stage 1 exits before its
 capture artifact is uploaded, however, it cannot be finalized into qualifying
 pilot evidence and must be rerun after troubleshooting.
 
-The published GitHub/PyPI release is still `0.6.5`; this exercise targets exact
-bytes from an unreleased `0.7.0` pre-candidate, not a published release or RC.
+The bounded v0.7.0 package line is not asserted published by this template;
+this archived exercise targets historical pre-candidate bytes, not the final
+release. It is not a package publication prerequisite.
 
 This is privacy-filtered onboarding-learning evidence only—not endorsement,
 adoption, customer testimony, third-party validation, a safety/security

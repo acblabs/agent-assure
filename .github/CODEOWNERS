@@ -7,7 +7,10 @@
 /requirements*.lock @acblabs
 /requirements-min.constraints.txt @acblabs
 /.gitleaksignore @acblabs
+/.gitleaks.toml @acblabs
 /Makefile @acblabs
+/*.md @acblabs
+/CITATION.cff @acblabs
 /examples/** @acblabs
 /SECURITY.md @acblabs
 # Broad ownership prevents newly added package modules, tests, or governance
@@ -54,4 +57,5 @@
 /docs/claims_traceability_matrix.* @acblabs
 /docs/threat_coverage_matrix.yaml @acblabs
 /study/** @acblabs
+/evidence/synthetic/** @acblabs
 /evidence/empirical/** @acblabs

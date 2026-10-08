@@ -324,5 +324,5 @@ telemetry failures, or recurrence, each with an owner and due date.
    as applicable.
 10. Reevaluate on schedule and on every trigger; revoke on control or telemetry
    failure.
-11. Publish only after the unchanged standard release gates pass.
+11. Publish only after the active version-bound release gates pass.
 12. Close with deployment, communication, audit, and lessons-learned evidence.

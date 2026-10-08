@@ -53,13 +53,9 @@ env:
   PYTHON_VERSION: "3.14.6"
   COSIGN_VERSION: "v3.0.6"
   SOURCE_DATE_EPOCH: "1783036800"
-  # The publish gate replays both closed evidence bundles.
-  EMPIRICAL_STUDY_BUNDLE_ROOT: evidence/empirical/real-model-study
-  EXTERNAL_PILOT_BUNDLE_ROOT: evidence/empirical/external-pilot
-  EXTERNAL_PILOT_EVIDENCE: external-pilot-evidence.json
-  EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json
-  RELEASE_EFFICACY_PACKET: evidence/empirical/release-control-efficacy/evidence-packet.json
-  RELEASE_EFFICACY_POLICY: evidence/empirical/release-control-efficacy/controls-mutation.yaml
+  # The bounded publication profile replays its closed synthetic efficacy bundle.
+  RELEASE_EFFICACY_PACKET: evidence/synthetic/release-control-efficacy/evidence-packet.json
+  RELEASE_EFFICACY_POLICY: evidence/synthetic/release-control-efficacy/controls-mutation.yaml
   RELEASE_EFFICACY_ARTIFACT_ROOT: .
 
 jobs:
@@ -161,7 +157,7 @@ jobs:
           test -z "${dirty}"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
-      - name: Run standard fail-closed release checks
+      - name: Run bounded non-empirical release checks
         run: make release-publish-check EXPECTED_RELEASE="${{ steps.package-version.outputs.value }}"
       - run: python scripts/update_golden.py
       - name: Build release bundle
@@ -553,7 +549,7 @@ jobs:
               exit 1
               ;;
           esac
-          tag_message="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile standard; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
+          tag_message="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile bounded-non-empirical/v1; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
           tag_object_sha="$(
             gh api --method POST \
               -H "Accept: application/vnd.github+json" \
@@ -600,7 +596,7 @@ jobs:
           test "$(printf '%s' "${tag_payload}" | jq -er .object.type)" = "commit"
           test "$(printf '%s' "${tag_payload}" | jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"
           test "$(printf '%s' "${tag_payload}" | jq -er .message)" = \
-            "agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile standard; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
+            "agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile bounded-non-empirical/v1; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
       - name: Dispatch tag-bound publication from the immutable tag
         env:
           GH_TOKEN: ${{ github.token }}
@@ -682,7 +678,7 @@ jobs:
           tag_message="$(printf '%s' "${tag_payload}" | jq -er .message)"
           # Bind the attempt as well as the run: a later rerun must not replace
           # the job provenance of the attempt that actually created the tag.
-          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile standard; preflight run "
+          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile bounded-non-empirical/v1; preflight run "
           preflight_identity="${tag_message#"${annotation_prefix}"}"
           preflight_run_id="${preflight_identity%%;*}"
           preflight_run_attempt="${preflight_identity#*; attempt }"
@@ -894,7 +890,7 @@ jobs:
           test "$(printf '%s' "${tag_payload}" | jq -er .object.type)" = "commit"
           test "$(printf '%s' "${tag_payload}" | jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"
           tag_message="$(printf '%s' "${tag_payload}" | jq -er .message)"
-          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile standard; preflight run "
+          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; profile bounded-non-empirical/v1; preflight run "
           preflight_identity="${tag_message#"${annotation_prefix}"}"
           preflight_run_id="${preflight_identity%%;*}"
           preflight_run_attempt="${preflight_identity#*; attempt }"

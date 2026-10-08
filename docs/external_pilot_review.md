@@ -167,4 +167,5 @@ new, separately consented candidate and never replaces the prior planned
 candidate. After exact verification, the
 consented directory may be copied unchanged to
 `evidence/empirical/external-pilot/`. The real-model-study bundle remains a
-separate release prerequisite.
+separate prerequisite only for the corresponding confirmatory empirical claim;
+neither bundle is required to distribute bounded v0.7.0.

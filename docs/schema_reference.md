@@ -1,12 +1,10 @@
 # Schema Reference
 
-Current development writer schema version: `0.6.6`.
-Current development writer schema snapshot: `schemas/v0.6.6/`.
-Latest published release schema snapshot: `schemas/v0.6.5/`.
-
-The unreleased `0.7.0` package emits the `0.6.6` writer schema. Neither the
-package candidate nor the `schemas/v0.6.6/` candidate snapshot is published;
-the `schemas/v0.6.5/` snapshot remains immutable.
+Current writer schema version: `0.6.6`.
+Version-bound writer schema snapshot: `schemas/v0.6.6/`.
+The v0.7.0 package line emits this snapshot; its matching stable tag freezes
+it. Earlier released snapshots remain immutable and available for bounded
+compatibility reads.
 
 Exported JSON Schema is a structural interoperability contract, not a complete
 trust decision. Draft 2020-12 cannot express every cross-field arithmetic,
@@ -27,7 +25,7 @@ against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, v0.6.3,
 v0.6.4, and v0.6.5 snapshots remain immutable; current v0.6 relational checks
 continue to apply after validated legacy projection, including each
 evidence-carrying root's
-self-digest. The v0.6.6 schemas are current development writer contracts: every
+self-digest. The v0.6.6 schemas are current writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
 operators, expected-detection contracts, and results use `0.6.6`. The

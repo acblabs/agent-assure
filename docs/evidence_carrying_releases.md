@@ -33,9 +33,9 @@ The contract set has seven durable JSON objects:
   control-efficacy, gate, and limitation evidence into a closed, digest-bound
   graph without replacing the authoritative typed gate decision.
 
-Current development roots use persisted `schema_version: 0.6.6`, a
-`contract_id` ending in `/v1`, and `contract_version: 1.0.0`; v0.6.5 remains
-the latest published package, while the unreleased package candidate is v0.7.0.
+Current roots use persisted `schema_version: 0.6.6`, a `contract_id` ending in
+`/v1`, and `contract_version: 1.0.0`; v0.7.0 is the prepared Beta package line
+and becomes current only upon publication from its matching stable tag.
 Contracts introduced in v0.6.0 also accept their
 frozen historical representations through version-aware reads. The graph was
 introduced on the v0.6.3 writer surface and accepts that frozen wire form.
@@ -64,7 +64,7 @@ binding semantics.
 
 ## Empirical Measurement and Pilot Additions
 
-The untagged development writer adds a separate empirical contract family:
+The v0.7.0 writer includes a separate experimental empirical contract family:
 
 - `ProcessEquivalenceBenchmark/v1` binds the non-sensitive v0.2 benchmark
   case catalog without observations or scores.
@@ -96,9 +96,10 @@ The untagged development writer adds a separate empirical contract family:
 
 These roots are evidence-carrying, but they are not part of the mutation
 campaign's seven-object contract set above. No real-provider study or
-qualifying external pilot is included in this repository. A pilot record is
+qualifying external pilot is included in this release. A pilot record is
 always `pre_candidate` and `learning_and_remediation_only`; even a genuine
-external attempt cannot satisfy a later exact-candidate release gate. See
+external attempt cannot satisfy a later exact-candidate empirical evidence-
+qualification gate. See
 [Preregistered Real-Model Study](real_model_study.md) and
 [External CI Pilot Evidence](external_pilot.md).
 

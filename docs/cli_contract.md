@@ -283,8 +283,9 @@ The nested `rag study input-commitment`, `finalize`,
 `review-registration`, `review-statistics`, `bind-config`, `analyze`, and
 `review-execution` commands compose repeated conditions into a preregistered
 real-model study.
-This is an untagged development surface; no real-provider study result is
-included in the repository.
+This is an experimental research surface; no real-provider study result is
+included in the repository, and it is not required for distribution of the
+bounded v0.7.0 package line.
 
 `study input-commitment` snapshots a compiled suite and unbound live config
 without dispatch, renders the exact case-keyed provider inputs, and prints
@@ -816,9 +817,12 @@ findings blocking. It rejects `--allow-advisory-efficacy`,
 `--allow-legacy-unbound-comparison`. The profile is the only `ci gate` profile
 suitable for an efficacy-bearing release claim. It is not publication
 authorization. `make release-publish-check` applies the profile to the staged
-release-control-efficacy packet and verifier policy first, then separately runs
-empirical readiness and engineering release checks. Missing staged inputs fail
-closed; satisfying the efficacy profile alone does not authorize publication.
+deterministic synthetic release-control-efficacy packet and verifier policy,
+checks the committed `bounded-non-empirical/v1` claim profile, and runs the
+engineering release checks. Missing staged inputs fail closed; satisfying the
+efficacy profile alone does not authorize publication. `make
+empirical-readiness` remains a separate claim-qualification gate and is not a
+v0.7.0 package-distribution prerequisite.
 
 Evidence-sensitivity presence is independently verifier-owned.
 `--require-evidence-sensitivity` makes a packet without the report invalid

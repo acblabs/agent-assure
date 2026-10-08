@@ -12,7 +12,7 @@ claims:
       schemas: [agent-run-record, run-set, compiled-suite, fixture-manifest, span-plan]
       tests: [tests/unit/schema/test_strict_models.py]
       docs: [docs/schema_reference.md]
-    limitations: Schema stability is pre-release and versioned by exported schema directory.
+    limitations: Schema stability is versioned by exported schema directory; only tagged snapshots are immutable release contracts.
   - id: json-schema-parity
     claim: Runtime validation and exported JSON Schema agree on the parity corpus.
     evidence:
