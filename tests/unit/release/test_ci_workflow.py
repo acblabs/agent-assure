@@ -5,6 +5,7 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -1724,7 +1725,7 @@ def test_composite_action_binds_the_installed_cli_to_its_release_version() -> No
         encoding="utf-8"
     )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    expected_version = project["project"]["version"]
+    expected_version = Version(project["project"]["version"]).base_version
     verify = action.split(
         "    - name: Verify action and CLI version binding\n",
         maxsplit=1,
