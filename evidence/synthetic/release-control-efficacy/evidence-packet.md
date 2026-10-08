@@ -48,27 +48,27 @@
 
 - Platform: `Windows-11-10.0.26300-SP0`
 - Python: `3.12.13`
-- Git commit: `022db8d08d478f6f1c963e978863925367229867`
+- Git commit: `3cb390d1c3498f384579969cd27d805743065566`
 - Git dirty: `True`
 - Lockfile: `requirements.lock`
 - Lockfile digest: `9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4`
 - Dependency inventory: `evidence/synthetic/release-control-efficacy/dependency-inventory.json`
-- Dependency inventory digest: `37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702`
+- Dependency inventory digest: `0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01`
 - Installed packages: `81`
 
 ## Release Artifact Manifest
 
-- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `ba76d7b83c3640249fa5bed0a366da22ae6e3dbe5a5559a18aacc2d307c6a26d`
-- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `1ebdc0a3f891bb8c884931599a9be77838a9cf2d5f4f4986ad1fcc8f0a49bb5a`
-- `dependency-inventory` `evidence/synthetic/release-control-efficacy/dependency-inventory.json` `37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702`
-- `control-efficacy-report` `evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json` `39343772a2cb010558ea2220b08ab2be4abb065605f779449a5da08880853a63`
-- `control-efficacy-onboarding-config` `evidence/synthetic/release-control-efficacy/controls-mutation.yaml` `d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42`
+- `evaluation-summary` `evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json` `ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801`
+- `assurance-evidence-graph` `evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json` `c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a`
+- `dependency-inventory` `evidence/synthetic/release-control-efficacy/dependency-inventory.json` `0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01`
+- `control-efficacy-report` `evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json` `65d9c85d469106102f39bf71e0788118daffe829e6acc57aa178186c725c6474`
+- `control-efficacy-onboarding-config` `evidence/synthetic/release-control-efficacy/controls-mutation.yaml` `a2faaf29e25ceb98270747c7f78de815ace998d1496f3c8a438215dea0b67d5a`
 
 ## Evidence Graph
 
 - Contract: `AssuranceEvidenceGraph/v1`
-- Semantic digest: `54bd43af39700981541e844724f69bcaab3ddcd42675a8c044e6cbef2b7af160`
-- Exact-file digest: `1ebdc0a3f891bb8c884931599a9be77838a9cf2d5f4f4986ad1fcc8f0a49bb5a`
+- Semantic digest: `a838d377da76d60f8a2ab5113763bdd741d6bf7829cf8ee80d5159d96ff3390f`
+- Exact-file digest: `c6998b40a57cb6f8d02800dd921b64ad66d0969c6719ec40673bcdfae519708a`
 
 ## Measured Usage
 

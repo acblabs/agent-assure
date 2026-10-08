@@ -20,35 +20,35 @@
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-report.json",
       "role": "evaluation-report",
       "schema_version": "0.6.6",
-      "sha256": "5822f45806a00443c65c98867934a193d2b57bf9295d64421bd99283a0a4d14e"
+      "sha256": "c9d7560dcbc3cc8c5a4f5ef2fd90f9316441786e46a8d0fdd5b9d73b0a72a668"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "ba76d7b83c3640249fa5bed0a366da22ae6e3dbe5a5559a18aacc2d307c6a26d"
+      "sha256": "ba9ed59510e144a6789bcad9a3b69a29fab32e39c98418f3595b966295fe9801"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
       "role": "dependency-inventory",
       "schema_version": "0.6.6",
-      "sha256": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702"
+      "sha256": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01"
     }
   ],
   "environment": {
     "artifact_kind": "environment-info",
-    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
+    "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-    "git_commit": "022db8d08d478f6f1c963e978863925367229867",
+    "git_commit": "3cb390d1c3498f384579969cd27d805743065566",
     "git_dirty": true,
     "installed_packages": [
       {
         "artifact_kind": "installed-package",
         "name": "agent-assure",
         "schema_version": "0.6.6",
-        "version": "0.7.0"
+        "version": "0.7.0rc1"
       },
       {
         "artifact_kind": "installed-package",
@@ -540,6 +540,6 @@
   "limitations": [
     "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
   ],
-  "manifest_id": "manifest-h446aa1e0e904fe53",
+  "manifest_id": "manifest-he331704a6256f6f9",
   "schema_version": "0.6.6"
 }
