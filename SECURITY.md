@@ -174,11 +174,16 @@ controls.
   strict. First-party RunSets and their evaluation summaries record only that
   authorized host and environment-variable name, never the credential value.
 - Treat `requirements*.lock`, `requirements-min.constraints.txt`,
-  `.gitleaksignore`, release manifests, and generated evidence packets as part
-  of the reviewed release and security material. Keep Gitleaks suppressions
-  scoped to exact reviewed historical fingerprints. Do not remove the history
-  scan's merge-result-only canary detection, independent non-empty revision
-  check, or exact scanner/independently-enumerated patch-unit assertion: exit
-  status alone is not accepted as proof that Git history was scanned
-  completely, including merge resolutions. Keep its `main` push trigger
-  free of path exclusions so participant-input-only commits cannot bypass it.
+  `.gitleaksignore`, `.gitleaks.toml`, release manifests, and generated evidence
+  packets as part of the reviewed release and security material. Keep
+  `.gitleaksignore` suppressions scoped to exact reviewed historical fingerprints.
+  A semantic `.gitleaks.toml` exception must target one rule and
+  require both an anchored whole-match expression and exact artifact paths; a
+  path-only, line-wide, secret-only, or `OR` exception is prohibited. Keep the
+  history scan's merge-result canaries proving that the intended exception is
+  narrow and that same-file, sibling-path, and unrelated-rule credentials are
+  still detected. Do not remove its independent non-empty revision check or
+  exact scanner/independently-enumerated patch-unit assertion: exit status
+  alone is not accepted as proof that Git history was scanned completely,
+  including merge resolutions. Keep its `main` push trigger free of path
+  exclusions so participant-input-only commits cannot bypass it.

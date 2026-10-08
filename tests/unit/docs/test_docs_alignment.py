@@ -956,6 +956,7 @@ def test_codeowners_has_broad_source_test_and_governance_coverage() -> None:
     assert "/docs/** @acblabs" in owners
     assert "/requirements-min.constraints.txt @acblabs" in owners
     assert "/.gitleaksignore @acblabs" in owners
+    assert "/.gitleaks.toml @acblabs" in owners
     assert "/evidence/synthetic/** @acblabs" in owners
     assert "/*.md @acblabs" in owners
     assert "/CITATION.cff @acblabs" in owners
@@ -966,7 +967,10 @@ def test_release_security_authority_inputs_are_documented_for_review() -> None:
 
     assert "`requirements-min.constraints.txt`" in security
     assert "`.gitleaksignore`" in security
+    assert "`.gitleaks.toml`" in security
     assert "exact reviewed historical fingerprints" in security
+    assert "anchored whole-match expression and exact artifact paths" in security
+    assert "path-only, line-wide, secret-only, or `OR` exception is prohibited" in security
 
 
 def test_public_docs_fail_closed_for_historical_decision_roots() -> None:

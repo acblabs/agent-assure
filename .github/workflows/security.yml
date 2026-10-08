@@ -105,9 +105,11 @@ jobs:
           set -euo pipefail
           canary_repo="$(mktemp -d)"
           canary_log="$(mktemp)"
+          canary_output="$(mktemp -d)"
           cleanup() {
             rm -rf -- "${canary_repo}"
             rm -f -- "${canary_log}"
+            rm -rf -- "${canary_output}"
           }
           trap cleanup EXIT
 
@@ -116,8 +118,9 @@ jobs:
           git -C "${canary_repo}" config user.email "security-canary@example.invalid"
           git -C "${canary_repo}" config commit.gpgsign false
           git -C "${canary_repo}" config core.hooksPath /dev/null
+          cp -- "${GITHUB_WORKSPACE}/.gitleaks.toml" "${canary_repo}/.gitleaks.toml"
           printf '%s\n' 'benign base' > "${canary_repo}/canary.txt"
-          git -C "${canary_repo}" add canary.txt
+          git -C "${canary_repo}" add .gitleaks.toml canary.txt
           git -C "${canary_repo}" commit --quiet -m "gitleaks canary base"
           base_commit="$(git -C "${canary_repo}" rev-parse HEAD)"
           git -C "${canary_repo}" checkout --quiet -b canary-left
@@ -130,11 +133,37 @@ jobs:
           git -C "${canary_repo}" commit --quiet -m "gitleaks canary right parent"
           git -C "${canary_repo}" checkout --quiet canary-left
           git -C "${canary_repo}" merge --quiet --no-ff --no-commit canary-right
-          # Assemble the deterministic detector canary only in the merge result.
-          # Neither parent nor this workflow source contains the matching token.
-          printf '%s%s\n' 'ghp_' 'wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS' \
-            > "${canary_repo}/canary.txt"
-          git -C "${canary_repo}" add canary.txt
+
+          # Assemble all detector canaries only in the merge result. Splitting
+          # each keyword and value across source lines keeps this workflow from
+          # becoming the finding that it is intended to manufacture at runtime.
+          release_evidence_root="${canary_repo}/evidence/synthetic/release-control-efficacy"
+          mkdir -p -- "${release_evidence_root}/mutation-results"
+          subject_value='482b6495dde24a13'
+          subject_value+='af130b9669f1f300'
+          generic_value='Zf3D0LXCM3EIMbgJpUNn'
+          generic_value+='kRtOfOueHznB'
+          github_value='ghp_'
+          github_value+='wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS'
+
+          {
+            printf '%s' '{"input_summary":"case=allowed-path; subject_'
+            printf '%s' 'token='
+            printf '%s' "${subject_value}"
+            printf '%s' '; fixture=canary; api_'
+            printf '%s' 'key='
+            printf '%s' "${generic_value}"
+            printf '%s\n' '"}'
+          } > "${release_evidence_root}/runset.json"
+          {
+            printf '%s' '{"input_summary":"case=wrong-path; subject_'
+            printf '%s' 'token='
+            printf '%s' "${subject_value}"
+            printf '%s\n' '; fixture=canary"}'
+          } > "${release_evidence_root}/mutation-results/operator-007-mutated-runset.json"
+          printf '%s\n' "${github_value}" > "${canary_repo}/canary.txt"
+
+          git -C "${canary_repo}" add canary.txt evidence
           git -C "${canary_repo}" commit --quiet -m "gitleaks merge-result detection canary"
           if [[ "$(git -C "${canary_repo}" cat-file -p HEAD | grep -c '^parent ')" -ne 2 ]]; then
             echo "Gitleaks canary setup did not produce a merge commit" >&2
@@ -148,8 +177,11 @@ jobs:
             --security-opt no-new-privileges --env HOME=/tmp \
             --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             --mount "type=bind,source=${canary_repo},target=/repo,readonly" \
+            --mount "type=bind,source=${canary_output},target=/scan-output" \
             ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
             git --no-banner --redact --verbose --exit-code=23 \
+            --config=/repo/.gitleaks.toml \
+            --report-format=json --report-path=/scan-output/findings.json \
             --log-opts="--no-textconv --full-history --all --diff-merges=first-parent" \
             /repo > "${canary_log}" 2>&1
           canary_status=$?
@@ -159,6 +191,19 @@ jobs:
             echo "Gitleaks canary was not detected with the dedicated leak exit code" >&2
             exit 1
           fi
+          if [[ ! -s "${canary_output}/findings.json" ]]; then
+            echo "Gitleaks canary report was not created" >&2
+            exit 1
+          fi
+          jq -e '
+            (length == 3) and
+            (([.[] | [.RuleID, .File]] | sort) ==
+             ([
+                ["generic-api-key", "evidence/synthetic/release-control-efficacy/mutation-results/operator-007-mutated-runset.json"],
+                ["generic-api-key", "evidence/synthetic/release-control-efficacy/runset.json"],
+                ["github-pat", "canary.txt"]
+              ] | sort))
+          ' "${canary_output}/findings.json" > /dev/null
 
       - name: Scan every reachable commit with a digest-pinned Gitleaks image
         shell: bash
@@ -208,6 +253,7 @@ jobs:
             --mount "type=bind,source=${GITHUB_WORKSPACE},target=/repo,readonly" \
             ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
             git --no-banner --redact --verbose --exit-code=23 \
+            --config=/repo/.gitleaks.toml \
             --gitleaks-ignore-path=/repo/.gitleaksignore \
             --log-opts="--no-textconv --full-history --all --diff-merges=first-parent" \
             /repo 2>&1 | tee "${scan_log}"

@@ -1370,6 +1370,7 @@ def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() 
     ) in commands
     assert "--platform linux/amd64" in commands
     assert "target=/repo,readonly" in commands
+    assert commands.count("--config=/repo/.gitleaks.toml") == 2
     assert "--gitleaks-ignore-path=/repo/.gitleaksignore" in commands
     log_opts = '--log-opts="--no-textconv --full-history --all --diff-merges=first-parent"'
     assert commands.count(log_opts) == 2
@@ -1401,7 +1402,15 @@ def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() 
     canary_prefix = "ghp_"
     canary_body = "wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS"
     assert canary_prefix + canary_body not in commands
-    assert "printf '%s%s\\n' 'ghp_' 'wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS'" in commands
+    assert "github_value='ghp_'" in commands
+    assert "github_value+='wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS'" in commands
+    assert "--report-format=json --report-path=/scan-output/findings.json" in commands
+    assert "(length == 3)" in commands
+    assert '["generic-api-key", "evidence/synthetic/release-control-efficacy/runset.json"]' in (
+        commands
+    )
+    assert "operator-007-mutated-runset.json" in commands
+    assert '["github-pat", "canary.txt"]' in commands
     assert commands.count('--user "$(id -u):$(id -g)"') == 2
     assert commands.count("--network none --read-only --cap-drop ALL") == 2
     assert commands.count("--security-opt no-new-privileges") == 2
@@ -1415,6 +1424,65 @@ def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() 
     )
     assert len(ignored) == len(set(ignored))
     assert all(len(fingerprint.split(":")) >= 4 for fingerprint in ignored)
+
+    config = tomllib.loads((ROOT / ".gitleaks.toml").read_text(encoding="utf-8"))
+    assert config["minVersion"] == "v8.30.1"
+    assert config["extend"] == {"useDefault": True}
+    assert len(config["allowlists"]) == 1
+    allowlist = config["allowlists"][0]
+    assert allowlist["targetRules"] == ["generic-api-key"]
+    assert allowlist["condition"] == "AND"
+    assert allowlist["regexTarget"] == "match"
+    assert len(allowlist["regexes"]) == 1
+    subject_match = re.compile(allowlist["regexes"][0])
+    reviewed_pseudonyms = (
+        "2d2c91326b2be450a0ad68c91b839114",
+        "3340634875ca5bad1705a34dac2d9d6a",
+        "482b6495dde24a13af130b9669f1f300",
+        "48bfa9c1171c3e2af8ebf2781eb6b2d6",
+        "51613abdb9472b497d0e3e20a9515771",
+        "65d3933e144abc0e576cb4d829ca2f80",
+        "746e2acf6b5ba818798d28b77c5a1556",
+        "7892763db705f1a50c36adc699c89ed5",
+        "b6e14d19c8b8e2e68454eb29f9518234",
+        "c5bf9ffc9e6eede9e8330a6a722b217a",
+    )
+    assert all(subject_match.fullmatch(f"subject_token={value};") for value in reviewed_pseudonyms)
+    assert subject_match.fullmatch(f"subject_token={'a' * 32};") is None
+    assert subject_match.fullmatch(f"api_key={reviewed_pseudonyms[0]};") is None
+
+    allowed_paths = tuple(allowlist["paths"])
+    expected_paths = {
+        "evidence/synthetic/release-control-efficacy/runset.json",
+        *{
+            "evidence/synthetic/release-control-efficacy/mutation-results/"
+            f"operator-{index:03d}-mutated-runset.json"
+            for index in range(7)
+        },
+    }
+    assert len(allowed_paths) == len(expected_paths)
+    for path in expected_paths:
+        assert sum(bool(re.fullmatch(pattern, path)) for pattern in allowed_paths) == 1
+    assert not any(
+        re.fullmatch(
+            pattern,
+            "evidence/synthetic/release-control-efficacy/mutation-results/"
+            "operator-007-mutated-runset.json",
+        )
+        for pattern in allowed_paths
+    )
+
+    evidence_root = ROOT / "evidence" / "synthetic" / "release-control-efficacy"
+    observed_paths: set[str] = set()
+    observed_pseudonyms: set[str] = set()
+    for artifact_path in evidence_root.rglob("*.json"):
+        artifact_text = artifact_path.read_text(encoding="utf-8")
+        artifact_pseudonyms = set(re.findall(r"subject_token=([0-9a-f]{32});", artifact_text))
+        if artifact_pseudonyms:
+            observed_paths.add(artifact_path.relative_to(ROOT).as_posix())
+            observed_pseudonyms.update(artifact_pseudonyms)
+    assert observed_paths == expected_paths
+    assert observed_pseudonyms == set(reviewed_pseudonyms)
 
 
 def test_publication_security_jobs_bind_exact_source_artifacts_and_every_release_lock() -> None:
