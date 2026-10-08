@@ -192,13 +192,13 @@ def _stub_validated_evidence(
     return study_digest, pilot_digest
 
 
-def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_work() -> None:
+def test_publish_gate_orders_bounded_profile_and_efficacy_before_release_work() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert (
         "release-publish-check:\n"
+        '\t$(MAKE) release-claim-profile-check EXPECTED_RELEASE="$(EXPECTED_RELEASE)"\n'
         "\t$(MAKE) release-control-efficacy-check\n"
-        '\t$(MAKE) empirical-readiness EXPECTED_RELEASE="$(EXPECTED_RELEASE)"\n'
         '\t$(MAKE) release-check EXPECTED_RELEASE="$(EXPECTED_RELEASE)"'
     ) in makefile
     efficacy_command = (
@@ -207,10 +207,18 @@ def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_wor
         '--release-profile --efficacy-policy "$(RELEASE_EFFICACY_POLICY)"'
     )
     assert efficacy_command in makefile
-    assert makefile.index("$(MAKE) release-control-efficacy-check") < makefile.index(
-        "$(MAKE) empirical-readiness"
+    publish_target = makefile.split("release-publish-check:\n", maxsplit=1)[1].split(
+        "\n\ndemo:", maxsplit=1
+    )[0]
+    assert publish_target.index("release-claim-profile-check") < publish_target.index(
+        "release-control-efficacy-check"
     )
-    assert makefile.index("$(MAKE) empirical-readiness") < makefile.index("$(MAKE) release-check")
+    assert publish_target.index("release-control-efficacy-check") < publish_target.index(
+        "release-check"
+    )
+    assert "empirical-readiness" not in publish_target
+    assert "SKIP" not in publish_target
+    assert "ALLOW_MISSING" not in publish_target
     assert '--benchmark "study/registration/frozen-non-grid-benchmark.json"' in makefile
     assert '--study-bundle-root "$(EMPIRICAL_STUDY_BUNDLE_ROOT)"' in makefile
     assert '--external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)"' in makefile
@@ -220,24 +228,22 @@ def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_wor
     assert "check_security_maintenance_release.py" not in makefile
 
 
-def test_publish_workflows_pin_the_closed_empirical_bundle_layouts() -> None:
+def test_publish_workflows_pin_the_bounded_synthetic_bundle_without_empirical_inputs() -> None:
     for workflow_name in ("publish-testpypi.yml", "release.yml"):
         workflow = (ROOT / ".github" / "workflows" / workflow_name).read_text(encoding="utf-8")
-        assert "EMPIRICAL_STUDY_BUNDLE_ROOT: evidence/empirical/real-model-study" in workflow
-        assert "EXTERNAL_PILOT_BUNDLE_ROOT: evidence/empirical/external-pilot" in workflow
-        assert "EXTERNAL_PILOT_EVIDENCE: external-pilot-evidence.json" in workflow
-        assert (
-            "EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json"
-        ) in workflow
         assert (
             "RELEASE_EFFICACY_PACKET: "
-            "evidence/empirical/release-control-efficacy/evidence-packet.json"
+            "evidence/synthetic/release-control-efficacy/evidence-packet.json"
         ) in workflow
         assert (
             "RELEASE_EFFICACY_POLICY: "
-            "evidence/empirical/release-control-efficacy/controls-mutation.yaml"
+            "evidence/synthetic/release-control-efficacy/controls-mutation.yaml"
         ) in workflow
         assert "RELEASE_EFFICACY_ARTIFACT_ROOT: ." in workflow
+        assert "EMPIRICAL_STUDY_BUNDLE_ROOT" not in workflow
+        assert "EXTERNAL_PILOT_" not in workflow
+        assert "ALLOW_MISSING_EMPIRICAL" not in workflow
+        assert "SKIP_EMPIRICAL" not in workflow
 
 
 def test_release_gate_does_not_use_the_v02_example_as_its_trust_anchor() -> None:

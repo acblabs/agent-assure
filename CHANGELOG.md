@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.7.0 - 2026-10-07
+
+The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release.
+
+- Added a committed `bounded-non-empirical/v1` publication claim profile. The
+  package publication path now checks that profile, the complete deterministic
+  seven-operator `core/v1` synthetic efficacy campaign, engineering and schema
+  validation, exact-candidate qualification, same-toolchain fresh-job byte
+  matching, provenance,
+  signing, and Trusted Publishing. Empirical readiness remains available as a
+  separate fail-closed check for anyone seeking to publish an empirical claim;
+  it is not a prerequisite for distributing this bounded software release. The
+  profile binds the committed packet and policy digests; their strict gate
+  validates internal artifact bindings and policy projection but does not
+  attest fresh operator execution.
 - **Breaking evaluation-report integrity contract:** current evaluation
   reports now require a source projection that binds suite and RunSet digests,
   suite-case record coverage, unknown RunSet cases, and tool-policy
@@ -185,7 +200,7 @@
   `PYSEC-2026-4177` before release.
 - Added an independently authorized, time-bounded security-correction
   containment and operational risk-acceptance process for cases where a fix
-  cannot yet pass the unchanged publication gates. The checked template records
+  cannot yet pass the active version-bound publication gates. The checked template records
   accountable ownership, a distinct security approver, verified compensating
   controls, monitoring, customer/advisory coordination, expiry, reevaluation,
   escalation, and append-only audit evidence while explicitly denying merge,
@@ -203,8 +218,8 @@
   update requires explicit human-maintainer authorization bound to the
   candidate's full 40-hex commit SHA and passing check-run URLs or IDs. This is
   a procedural, bypassable owner control, not independent review; protected
-  release environments, publication gates, and independent evidence review are
-  unchanged.
+  release environments and publication gates remain mandatory. Human owner
+  authorization is not independent empirical review.
 - Added a full-history Gitleaks v8.30.1 scan pinned by container digest, with
   redacted CI output and exact suppressions only for known synthetic fixtures.
 - Release-bundle construction now reopens the exact persisted SBOM bytes and
@@ -271,7 +286,7 @@
   `fixed_frame_descriptive_conformance` scopes. Both manifest scope fields are
   now mandatory, must agree, and have no implicit confirmatory default.
   Fixed-frame output is always `not_measured`, renders no inferential interval
-  or population claim, and can never unlock the v0.7.0 empirical checkpoint.
+  or population claim, and can never unlock empirical-claim qualification.
   Qualified method review now replays the exact registration record and review,
   binds that registration-review receipt digest, requires a strictly later
   timestamp, and records explicit review of the combined directional-decision
@@ -280,14 +295,15 @@
   provider-not-exposed serving-fingerprint status. All-absent fingerprints
   remain analyzable, explicitly disclosed real-provider evidence, but only
   complete-and-stable coverage in every reviewed condition can satisfy
-  confirmatory publication and empirical release readiness; absence now emits a
+  confirmatory study publication and empirical readiness; absence now emits a
   distinct actionable blocker.
 - Registered the exact v0.2 shared-template score grid as structurally
   ineligible for confirmatory independent-cluster inference, made its shipped
   authoring template descriptive by construction, and moved the v0.7.0 release
   trust anchor to separately frozen source/package pairs for the non-grid
-  benchmark and its positive statistical-method approval. Publication now
-  requires the exact `approved_confirmatory_independent_clusters` receipt to
+  benchmark and its positive statistical-method approval. Confirmatory
+  empirical-claim qualification requires the exact
+  `approved_confirmatory_independent_clusters` receipt to
   bind the benchmark's raw and semantic digests and match the closed bundle's
   manifest, registration-review, and independence-audit commitments. Missing
   benchmark bytes, missing approval bytes, and invalid or mismatched approval
@@ -321,7 +337,7 @@
 - Made decimal canonicalization independent of ambient decimal precision,
   rounding, and traps. Adopted repository-wide Ruff formatting and a full-tree
   format gate in place of the previous single-file check.
-- Advanced the unreleased privacy producer contract to profile v9. Redaction
+- Advanced the v0.7.0 privacy producer contract to profile v9. Redaction
   now fails closed after expansion crosses the scalar limit, scans URL secrets
   with bounded UTF-8 percent-obfuscation handling and cheap preflights, redacts
   every secret query component, recognizes Luhn-valid 13--19 digit payment
@@ -467,8 +483,10 @@
 - Added a privacy-filtered external-pilot evidence contract that distinguishes
   independently controlled CI attempts from internal dogfood and synthetic
   harnesses, requires non-bundled inputs and friction/remediation provenance,
-  and is permanently ineligible for later exact-candidate release gates.
-- Hardened the publish checkpoint so bare pilot metadata cannot pass: it now
+  and is permanently ineligible for later exact-candidate evidence-
+  qualification gates.
+- Hardened the optional empirical-claim qualification checkpoint so bare pilot
+  metadata cannot pass: it now
   verifies a closed, bounded, link-free artifact bundle, the tested wheel's
   identity and RECORD, declared output schemas, textual privacy boundaries, and
   a separately persisted, digest-bound human independence-review receipt.
@@ -481,10 +499,11 @@
   privacy scanning, one shared `_digest`/`_digests`/`_sha256` field vocabulary,
   exact microsecond-bounded RFC 3339 timestamps, kind-aware 64 MiB RunSet
   validation, and protected-attempt provenance verification before tag signing.
-- Made `release pilot finalize --out` an explicit required publication target,
-  and preserved the readiness assessor's actionable blocking reasons when a
-  study or pilot bundle root has not yet been produced. Existing invalid or
-  inaccessible bundles still fail closed with a value-free exception category.
+- Made `release pilot finalize --out` an explicit required output target when
+  qualifying or publishing pilot evidence, and preserved the readiness
+  assessor's actionable blocking reasons when a study or pilot bundle root has
+  not yet been produced. Existing invalid or inaccessible bundles still fail
+  closed with a value-free exception category.
 - No provider study or external pilot evidence is bundled, and no empirical
   model-behavior or external-adoption claim is made.
 

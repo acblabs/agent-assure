@@ -225,11 +225,16 @@ and a verifier-owned controls-mutation YAML, makes warnings and not-evaluated
 findings blocking, and rejects advisory, non-verdict, and legacy-comparison
 weakening flags. It is the only `ci gate` profile suitable for an
 efficacy-bearing release claim. It does not authorize publication.
-`make release-publish-check` first applies this profile to the separately
-staged packet and verifier-owned policy under
-`evidence/empirical/release-control-efficacy/`, then runs empirical readiness
-and the engineering release checks. Absence of either staged input fails
-closed.
+For v0.7.0, `make release-publish-check` applies this profile to the checked-in
+seven-operator packet and verifier-owned policy under
+`evidence/synthetic/release-control-efficacy/`, then runs the bounded-claim and
+engineering release checks. Absence of either staged input fails closed. This
+validates only the named committed packet and policy artifacts; it is not a
+production control-efficacy result. Empirical readiness is a separate gate for
+publishing a corresponding empirical claim. For this
+bounded profile, the committed-artifact check establishes only internal binding
+and policy-projection validity; it does not establish that CI freshly executed
+the recorded campaign or independently attest the recorded detection events.
 
 Strict verification requires `--efficacy-policy` pointing to a separately
 trusted controls-mutation YAML and returns `0` only for

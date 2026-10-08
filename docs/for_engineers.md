@@ -15,9 +15,8 @@ make check
 ```
 
 Commands below that use
-`--allow-missing-efficacy-for-migration` or `--release-profile` describe the
-unreleased 0.7.0 source checkout. They are not options in the currently
-published v0.6.5 package; do not mix package and action versions.
+`--allow-missing-efficacy-for-migration` or `--release-profile` are part of the
+v0.7.0 CLI. Keep package and composite-action versions aligned.
 
 ## Run flagship demo
 
@@ -78,8 +77,9 @@ content.
 
 ## Schemas
 
-Schema changes are versioned. The released v0.6.5 snapshot is frozen under
-`schemas/v0.6.5/`; earlier released snapshots remain available for replay.
+Schema changes are versioned. The v0.7.0 package line emits the v0.6.6 writer
+snapshot under `schemas/v0.6.6/`; its matching stable tag freezes that snapshot.
+Earlier released snapshots remain available for replay.
 `schemas/unreleased/` is only a non-gating exporter smoke-test target. Future
 schema changes require a new versioned snapshot.
 
@@ -92,10 +92,11 @@ demos work from editable installs, wheels, and arbitrary current directories.
 ## Public vs experimental API
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
-`AgentRunRecord` producer contract are the primary surface. v0.6.5 is the
-latest published package and writer. The package-level PyPI
+`AgentRunRecord` producer contract are the primary surface. The v0.7.0 package
+line emits schema v0.6.6 and becomes current only upon publication from its
+matching stable tag. The package-level PyPI
 `Development Status :: 4 - Beta` classifier
-is the closest standardized classifier to an RC; framework adapters, live
+states the primary surface maturity; framework adapters, live
 execution, streaming, and mutation contracts remain experimental or
 development RFCs. Internal Python modules may change; use documented CLI
 commands and schema exports for integration points.

@@ -188,6 +188,7 @@ def test_maintenance_checker_is_non_authorizing_and_disconnected_from_publicatio
     checker = (root / "scripts" / "check_security_maintenance_release.py").read_text(
         encoding="utf-8"
     )
+    security = (root / "SECURITY.md").read_text(encoding="utf-8")
 
     assert "release-security-maintenance-check" not in makefile
     assert "check_security_maintenance_release.py" not in makefile
@@ -195,4 +196,6 @@ def test_maintenance_checker_is_non_authorizing_and_disconnected_from_publicatio
     assert "check_security_maintenance_release.py" not in workflow
     assert "make release-publish-check" in workflow
     assert "no publication authority granted" in checker
-    assert "cannot replace the standard efficacy" in checker
+    assert "cannot replace the active version-bound claim profile" in checker
+    assert "An unsatisfied active, version-bound release gate leaves the correction" in security
+    assert "it cannot be waived by changing the claim profile at dispatch" in security

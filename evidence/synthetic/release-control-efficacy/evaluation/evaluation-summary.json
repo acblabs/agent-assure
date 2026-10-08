@@ -1,0 +1,528 @@
+{
+  "artifact_kind": "evaluation-summary",
+  "environment": {
+    "artifact_kind": "environment-info",
+    "dependency_inventory_digest": "e9fc7d81788c3aeba4fe4a75f61d493dbebb6165d4cb4a343f1fb05c738e28d3",
+    "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
+    "git_commit": "a2bdf8528b4c027a5f0bfc947dc247f15fb5ae1e",
+    "git_dirty": true,
+    "installed_packages": [
+      {
+        "artifact_kind": "installed-package",
+        "name": "agent-assure",
+        "schema_version": "0.6.6",
+        "version": "0.6.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "annotated-doc",
+        "schema_version": "0.6.6",
+        "version": "0.0.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "annotated-types",
+        "schema_version": "0.6.6",
+        "version": "0.7.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "ast_serialize",
+        "schema_version": "0.6.6",
+        "version": "0.5.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "attrs",
+        "schema_version": "0.6.6",
+        "version": "26.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "build",
+        "schema_version": "0.6.6",
+        "version": "1.5.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "certifi",
+        "schema_version": "0.6.6",
+        "version": "2026.6.17"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "charset-normalizer",
+        "schema_version": "0.6.6",
+        "version": "3.4.7"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "click",
+        "schema_version": "0.6.6",
+        "version": "8.4.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "colorama",
+        "schema_version": "0.6.6",
+        "version": "0.4.6"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "coverage",
+        "schema_version": "0.6.6",
+        "version": "7.14.3"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "docutils",
+        "schema_version": "0.6.6",
+        "version": "0.23"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "editables",
+        "schema_version": "0.6.6",
+        "version": "0.6"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "ghp-import",
+        "schema_version": "0.6.6",
+        "version": "2.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "googleapis-common-protos",
+        "schema_version": "0.6.6",
+        "version": "1.75.5"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "hatchling",
+        "schema_version": "0.6.6",
+        "version": "1.30.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "hypothesis",
+        "schema_version": "0.6.6",
+        "version": "6.155.7"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "id",
+        "schema_version": "0.6.6",
+        "version": "1.6.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "idna",
+        "schema_version": "0.6.6",
+        "version": "3.18"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "iniconfig",
+        "schema_version": "0.6.6",
+        "version": "2.3.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "jaraco.classes",
+        "schema_version": "0.6.6",
+        "version": "3.4.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "jaraco.context",
+        "schema_version": "0.6.6",
+        "version": "6.1.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "jaraco.functools",
+        "schema_version": "0.6.6",
+        "version": "4.5.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "Jinja2",
+        "schema_version": "0.6.6",
+        "version": "3.1.6"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "jsonschema",
+        "schema_version": "0.6.6",
+        "version": "4.26.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "jsonschema-specifications",
+        "schema_version": "0.6.6",
+        "version": "2025.9.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "keyring",
+        "schema_version": "0.6.6",
+        "version": "25.7.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "librt",
+        "schema_version": "0.6.6",
+        "version": "0.11.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "Markdown",
+        "schema_version": "0.6.6",
+        "version": "3.10.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "markdown-it-py",
+        "schema_version": "0.6.6",
+        "version": "4.2.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "MarkupSafe",
+        "schema_version": "0.6.6",
+        "version": "3.0.3"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mdurl",
+        "schema_version": "0.6.6",
+        "version": "0.1.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mergedeep",
+        "schema_version": "0.6.6",
+        "version": "1.3.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mkdocs",
+        "schema_version": "0.6.6",
+        "version": "1.6.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mkdocs-get-deps",
+        "schema_version": "0.6.6",
+        "version": "0.2.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "more-itertools",
+        "schema_version": "0.6.6",
+        "version": "11.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mypy",
+        "schema_version": "0.6.6",
+        "version": "2.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "mypy_extensions",
+        "schema_version": "0.6.6",
+        "version": "1.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "nh3",
+        "schema_version": "0.6.6",
+        "version": "0.3.6"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-api",
+        "schema_version": "0.6.6",
+        "version": "1.44.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-exporter-otlp-proto-common",
+        "schema_version": "0.6.6",
+        "version": "1.44.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-exporter-otlp-proto-http",
+        "schema_version": "0.6.6",
+        "version": "1.44.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-proto",
+        "schema_version": "0.6.6",
+        "version": "1.44.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-sdk",
+        "schema_version": "0.6.6",
+        "version": "1.44.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "opentelemetry-semantic-conventions",
+        "schema_version": "0.6.6",
+        "version": "0.65b0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "packaging",
+        "schema_version": "0.6.6",
+        "version": "26.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pathspec",
+        "schema_version": "0.6.6",
+        "version": "1.1.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pip",
+        "schema_version": "0.6.6",
+        "version": "25.0.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "platformdirs",
+        "schema_version": "0.6.6",
+        "version": "4.10.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pluggy",
+        "schema_version": "0.6.6",
+        "version": "1.6.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "protobuf",
+        "schema_version": "0.6.6",
+        "version": "7.36.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pydantic",
+        "schema_version": "0.6.6",
+        "version": "2.13.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pydantic_core",
+        "schema_version": "0.6.6",
+        "version": "2.46.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "Pygments",
+        "schema_version": "0.6.6",
+        "version": "2.20.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pyproject_hooks",
+        "schema_version": "0.6.6",
+        "version": "1.2.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pytest",
+        "schema_version": "0.6.6",
+        "version": "9.1.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pytest-cov",
+        "schema_version": "0.6.6",
+        "version": "7.1.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pytest-socket",
+        "schema_version": "0.6.6",
+        "version": "0.8.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "python-dateutil",
+        "schema_version": "0.6.6",
+        "version": "2.9.0.post0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pywin32-ctypes",
+        "schema_version": "0.6.6",
+        "version": "0.2.3"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "PyYAML",
+        "schema_version": "0.6.6",
+        "version": "6.0.3"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "pyyaml_env_tag",
+        "schema_version": "0.6.6",
+        "version": "1.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "readme_renderer",
+        "schema_version": "0.6.6",
+        "version": "45.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "referencing",
+        "schema_version": "0.6.6",
+        "version": "0.37.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "requests",
+        "schema_version": "0.6.6",
+        "version": "2.34.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "requests-toolbelt",
+        "schema_version": "0.6.6",
+        "version": "1.0.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "rfc3986",
+        "schema_version": "0.6.6",
+        "version": "2.0.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "rfc8785",
+        "schema_version": "0.6.6",
+        "version": "0.1.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "rich",
+        "schema_version": "0.6.6",
+        "version": "14.3.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "rpds-py",
+        "schema_version": "0.6.6",
+        "version": "2026.5.1"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "ruff",
+        "schema_version": "0.6.6",
+        "version": "0.15.20"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "shellingham",
+        "schema_version": "0.6.6",
+        "version": "1.5.4"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "six",
+        "schema_version": "0.6.6",
+        "version": "1.17.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "sortedcontainers",
+        "schema_version": "0.6.6",
+        "version": "2.4.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "trove-classifiers",
+        "schema_version": "0.6.6",
+        "version": "2026.6.1.19"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "twine",
+        "schema_version": "0.6.6",
+        "version": "6.2.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "typer",
+        "schema_version": "0.6.6",
+        "version": "0.26.8"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "typing-inspection",
+        "schema_version": "0.6.6",
+        "version": "0.4.2"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "typing_extensions",
+        "schema_version": "0.6.6",
+        "version": "4.15.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "urllib3",
+        "schema_version": "0.6.6",
+        "version": "2.8.0"
+      },
+      {
+        "artifact_kind": "installed-package",
+        "name": "watchdog",
+        "schema_version": "0.6.6",
+        "version": "6.0.0"
+      }
+    ],
+    "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
+    "lockfile_path": "requirements.lock",
+    "platform": "Windows-11-10.0.26300-SP0",
+    "python_version": "3.12.13",
+    "schema_version": "0.6.6"
+  },
+  "findings": [],
+  "privacy_profile_digest": "c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d",
+  "privacy_profile_id": "agent-assure/privacy-detectors/v9",
+  "replay_context": {
+    "evaluation_date": "2026-07-20",
+    "gate_profile": {
+      "fail_on_not_evaluated": false,
+      "fail_on_warn": false,
+      "fail_reason_codes": [],
+      "fail_severities": [
+        "blocker",
+        "error",
+        "info",
+        "warning"
+      ],
+      "profile_id": "default"
+    },
+    "report_mode": "full",
+    "suite_digest": "f4c6e0b07ea9577ad1979fdb09100dcd5441a0fdf8ceb87461a6b87697389e24",
+    "waivers": []
+  },
+  "runset_digest": "d876a7950dedf45068c88907212e730e7f3456fb2ba322b2c28bd1bddd914e8e",
+  "runset_id": "runset-69e59deb-4cf5-500e-bb17-405262e32611",
+  "schema_version": "0.6.6",
+  "state": "pass"
+}

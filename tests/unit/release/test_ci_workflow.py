@@ -298,7 +298,7 @@ def test_testpypi_checks_committed_version_bound_goldens_before_release_checks()
 
     assert workflow.count("Verify committed version-bound deterministic goldens") == 2
     assert "include matching committed version-bound deterministic goldens" in workflow
-    assert "for example 0.6.4rc1" in workflow
+    assert "for example 0.7.0rc1" in workflow
     for job in (build_job, reproduce_job):
         assert job.index("python scripts/update_golden.py") < job.index(
             "make release-publish-check"
@@ -1074,7 +1074,7 @@ def test_prepare_and_resume_tag_dispatches_cannot_enter_signing_directly() -> No
     assert "inputs.operation == 'resume-tag'" not in sign
 
 
-def test_release_workflow_exposes_only_standard_fail_closed_publication() -> None:
+def test_release_workflow_exposes_only_bounded_non_empirical_publication() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
 
@@ -1084,9 +1084,9 @@ def test_release_workflow_exposes_only_standard_fail_closed_publication() -> Non
     assert "release-security-maintenance-check" not in workflow
     assert "RELEASE_PROFILE" not in workflow
     assert "SECURITY_MAINTENANCE_BASE_TAG" not in workflow
-    assert "Run standard fail-closed release checks" in build
+    assert "Run bounded non-empirical release checks" in build
     assert build.count("make release-publish-check") == 1
-    assert workflow.count("profile standard; preflight run ") == 4
+    assert workflow.count("profile bounded-non-empirical/v1; preflight run ") == 4
 
 
 def test_every_standard_tag_route_requires_protected_attempt_provenance_before_signing() -> None:

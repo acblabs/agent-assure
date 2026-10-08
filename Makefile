@@ -9,11 +9,11 @@ EMPIRICAL_STUDY_BUNDLE_ROOT ?= $(EMPIRICAL_EVIDENCE_DIR)/real-model-study
 EXTERNAL_PILOT_BUNDLE_ROOT ?= $(EMPIRICAL_EVIDENCE_DIR)/external-pilot
 EXTERNAL_PILOT_EVIDENCE ?= external-pilot-evidence.json
 EXTERNAL_PILOT_REVIEW_RECEIPT ?= external-pilot-independence-review.json
-RELEASE_EFFICACY_PACKET ?= $(EMPIRICAL_EVIDENCE_DIR)/release-control-efficacy/evidence-packet.json
-RELEASE_EFFICACY_POLICY ?= $(EMPIRICAL_EVIDENCE_DIR)/release-control-efficacy/controls-mutation.yaml
+RELEASE_EFFICACY_PACKET ?= evidence/synthetic/release-control-efficacy/evidence-packet.json
+RELEASE_EFFICACY_POLICY ?= evidence/synthetic/release-control-efficacy/controls-mutation.yaml
 RELEASE_EFFICACY_ARTIFACT_ROOT ?= .
 
-.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-control-efficacy-check empirical-readiness check release-check release-publish-check demo
+.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo
 
 test:
 	$(PYTHON) -m pytest
@@ -40,6 +40,12 @@ release-provenance:
 release-bundle: release-provenance
 	$(PYTHON) scripts/build_release_bundle.py --expected-release "$(EXPECTED_RELEASE)" --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 
+release-claim-profile-check:
+	$(PYTHON) scripts/check_release_claim_profile.py --expected-release "$(EXPECTED_RELEASE)"
+
+release-control-efficacy-regenerate:
+	$(PYTHON) scripts/regenerate_release_control_efficacy.py --expected-release "$(EXPECTED_RELEASE)" --replace-generated
+
 release-control-efficacy-check:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py ci gate "$(RELEASE_EFFICACY_PACKET)" --artifact-root "$(RELEASE_EFFICACY_ARTIFACT_ROOT)" --release-profile --efficacy-policy "$(RELEASE_EFFICACY_POLICY)"
 
@@ -65,11 +71,12 @@ release-check: check schema-check release-provenance
 	$(PYTHON) scripts/check_wheel_contents.py
 	$(PYTHON) scripts/smoke_install_wheel.py
 
-# Publishing paths use this ordered target. Routine development CI intentionally
-# keeps release-check usable before efficacy and empirical artifacts exist.
+# Publishing paths use this single ordered, version-bound target. Empirical
+# readiness remains an independent claim-qualification check and is not part of
+# the bounded v0.7.0 software-distribution profile.
 release-publish-check:
+	$(MAKE) release-claim-profile-check EXPECTED_RELEASE="$(EXPECTED_RELEASE)"
 	$(MAKE) release-control-efficacy-check
-	$(MAKE) empirical-readiness EXPECTED_RELEASE="$(EXPECTED_RELEASE)"
 	$(MAKE) release-check EXPECTED_RELEASE="$(EXPECTED_RELEASE)"
 
 demo:

@@ -50,6 +50,7 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
     assert "agent_assure/schema_resources/v0.3.0/agent-run-record.schema.json" in required
     assert "agent_assure/schema_resources/v0.3.0/evidence-packet.schema.json" in required
     assert "agent_assure/py.typed" in required
+    assert "agent_assure/release_trust/v0_7_0/publication-claim-profile.json" in required
     assert "agent_assure/mutation/introduction_snapshots.json" in required
     assert "agent_assure/mutation/campaign.py" in required
     assert "agent_assure/live/_dns_worker.py" in required
@@ -148,7 +149,9 @@ def test_release_trust_assets_become_required_in_both_distributions_when_frozen(
 
     unfrozen_wheel = required_archive_paths(release_trust_source_root=trust_source)
     unfrozen_sdist = required_sdist_paths(release_trust_source_root=trust_source)
-    assert not any("release_trust/v0_7_0" in path for path in unfrozen_wheel)
+    assert not any("frozen-non-grid-benchmark" in path for path in unfrozen_wheel)
+    assert "agent_assure/release_trust/v0_7_0/publication-claim-profile.json" in unfrozen_wheel
+    assert "src/agent_assure/release_trust/v0_7_0/publication-claim-profile.json" in unfrozen_sdist
     assert not any(path.startswith("study/registration/") for path in unfrozen_sdist)
 
     (trust_source / benchmark_name).write_text("{}\n", encoding="utf-8")

@@ -371,14 +371,15 @@ def test_stable_preflight_is_stdlib_only_without_site_packages(tmp_path: Path) -
     assert completed.stdout.strip() == "version-tag: ok (v1.2.3)"
 
 
-def test_repository_stable_preflight_rejects_unpublished_release_collateral(
+def test_repository_stable_preflight_accepts_final_v070_release_collateral(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     result = version_tag.main(["v0.7.0", "--require-stable"])
 
-    assert result == 1
-    stderr = capsys.readouterr().err
-    assert "latest dated release '0.6.5' does not match stable release '0.7.0'" in stderr
+    assert result == 0
+    captured = capsys.readouterr()
+    assert captured.out.strip() == "version-tag: ok (v0.7.0)"
+    assert captured.err == ""
 
 
 def test_stdlib_diagnostics_are_bounded_single_line_and_redacted() -> None:

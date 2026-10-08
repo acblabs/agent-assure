@@ -235,6 +235,7 @@ RELEASE_TRUST_WHEEL_ROOT = "agent_assure/release_trust/v0_7_0"
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/py.typed",
+    "agent_assure/release_trust/v0_7_0/publication-claim-profile.json",
     "agent_assure/THIRD_PARTY_NOTICES.md",
     "agent_assure/third_party/mitre-atlas-atlas-data/LICENSE",
     "agent_assure/cli/main.py",

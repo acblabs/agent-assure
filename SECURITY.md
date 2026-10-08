@@ -83,15 +83,19 @@ preceding rows to this conditional form. The production
 `check_version_matches_tag.py --require-stable` check rejects a missing, stale,
 duplicated, or non-conditional transition before a tag can be created.
 
-Every published release, including a security-only patch, uses the single
-standard fail-closed path and must pass control-efficacy, empirical-readiness,
-engineering, build, provenance, signing, and trusted-publishing gates.
-There is no maintenance publication bypass. If those gates are not satisfied,
-coordinate mitigations and disclosure privately while the correction remains
-unpublished. Until an emergency path is rooted outside the release candidate's
-control, operators must assume that a security fix can remain unpublished until
-the next standard release satisfies every gate.
+Every published release, including a security-only patch, uses one fail-closed
+path selected by a committed, version-bound claim profile. The v0.7.0 path must
+pass its bounded-claim check, strict deterministic synthetic control-efficacy,
+engineering, build, provenance, signing, and Trusted Publishing gates. It has
+no workflow-dispatch profile selector and no maintenance publication bypass.
+`make empirical-readiness` is a separate fail-closed qualification gate for
+publishing corresponding empirical results; it is not a software-distribution
+gate for this bounded release.
 
+The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release.
+
+An unsatisfied active, version-bound release gate leaves the correction
+unpublished; it cannot be waived by changing the claim profile at dispatch.
 When that delay leaves a supported deployment exposed, activate the
 [security correction containment and risk-acceptance
 process](docs/security_release_containment.md). The process requires verified
@@ -113,8 +117,9 @@ agent-authored work, the human owner may provide that authorization through the
 same `@acblabs` identity; describe it as human owner authorization, not
 independent review or an enforced branch control. Privileged release
 environments remain protected with required reviewers. Default-branch
-authorization does not waive a publication gate or an independent
-evidence-review requirement.
+authorization does not waive a publication gate. It is human owner
+authorization for the bounded software release, not independent empirical
+review and not authorization to make an empirical claim.
 
 ## Supported Surfaces
 

@@ -1,6 +1,6 @@
 # Minimal Assurance Evidence Graph
 
-Status: development RFC for the v0.6.5 writer surface.
+Status: development RFC for the v0.6.6 writer surface.
 
 AssuranceEvidenceGraph/v1 is a deterministic, digest-bound projection of
 existing Agent Assure artifacts. It gives evaluation, comparison, mutation,
@@ -58,7 +58,7 @@ The identity projections are closed and schema-owned:
 | evidence | scoped subject node ID, evidence type, source artifact kind, source ID |
 | finding | scoped subject node ID, parent evidence node ID, finding type, source artifact kind, source ID, source path |
 
-Source IDs are non-empty. Current v0.6.5 run sets, evaluation summaries,
+Source IDs are non-empty. Current v0.6.6 run sets, evaluation summaries,
 comparison summaries, and evaluation findings reject empty identifiers before
 first-party graph projection. Older artifacts retain their historical parsing
 contract, but an older artifact with an empty projected identifier cannot be
@@ -142,7 +142,7 @@ model:
 - every supplied limitation becomes a non-verdict-bearing finding as well as
   remaining attached to its source evidence.
 
-The current v0.6.5 `evaluation-summary` schema optionally carries the canonical
+The current v0.6.6 `evaluation-summary` schema optionally carries the canonical
 RunSet digest. The built-in evaluator always emits that digest, and the
 first-party packet projector preserves it as the primary run-set subject
 digest. When mutation or control-efficacy source digests match, their evidence,
@@ -151,7 +151,7 @@ primary subject without an inferred join. The builder rejects an authenticated
 evaluation digest that is omitted from or differs from the supplied primary
 subject, and it rejects conflicting source digests.
 
-Comparison summaries introduced in v0.6.4, including current v0.6.5 writers, require authenticated baseline and
+Comparison summaries introduced in v0.6.4, including current v0.6.6 writers, require authenticated baseline and
 candidate RunSet digests. The graph uses those fields directly for the
 comparison subjects. When paired with an evaluation, the evaluation must carry
 an authenticated RunSet digest and it must equal the comparison candidate

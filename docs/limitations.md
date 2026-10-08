@@ -675,10 +675,11 @@ installed execution environment.
 
 ## Real-Model Study and External-Pilot Boundary
 
-No real-provider study result or qualifying external CI pilot is present in
-this repository at the current development checkpoint. The implementation and
-templates do not make either event true, and no `not_executed` artifact can
-substitute for observed evidence.
+No real-provider study result or qualifying external CI pilot is included in
+v0.7.0. The implementation and templates do not make either event true, and no
+`not_executed` artifact can substitute for observed evidence. Their absence
+limits the claims of this bounded software release; it does not block package
+distribution.
 
 The real-model study estimates a decision-inertia rate only for its frozen
 benchmark cases, authored authority contracts, task/model conditions,
@@ -693,8 +694,8 @@ reruns, or publication bias.
 A provider may omit serving fingerprints entirely. Agent Assure preserves such
 runs as real-provider execution evidence when all other origin requirements are
 met, analyzes them, and discloses the absence rather than inventing an identity.
-All-absent coverage is insufficient for confirmatory publication and the
-empirical release checkpoint: those gates require complete-and-stable coverage
+All-absent coverage is insufficient for confirmatory publication and
+empirical-claim qualification: those gates require complete-and-stable coverage
 for every run and independently reviewed condition. Even complete stable
 provider-supplied metadata does not authenticate or prove an immutable serving
 backend.

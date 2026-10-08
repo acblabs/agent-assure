@@ -231,16 +231,18 @@ a network-isolation boundary against hostile Python or native code.
   bind both hashes, both run URLs, and every public dispatch input into the
   review receipt. A byte mismatch invalidates the pilot; workflow self-checks
   are usability controls, not a defense against a hostile fork owner.
-- The publish gate verifies every file in one closed, bounded, link-free pilot
-  bundle, validates the tested wheel identity and supported schema contracts,
-  and requires a later human independence-review receipt bound to the exact
-  evidence and artifact manifest. The receipt deliberately records
+- The optional empirical-claim qualification gate verifies every file in one
+  closed, bounded, link-free pilot bundle, validates the tested wheel identity
+  and supported schema contracts, and requires a later human independence-
+  review receipt bound to the exact evidence and artifact manifest. This is not
+  the v0.7.0 package-distribution gate. The receipt deliberately records
   out-of-band, non-machine-verified reviewer authentication; it is not a
   signature and does not resist a hostile producer without separate
   organizational signature/OIDC and approval controls.
 - A pre-candidate pilot is permanently marked learning/remediation-only and is
-  ineligible for clean-reproduction, exact-candidate, and CI-integration release
-  gates. Reusing its digest cannot upgrade that evidence class.
+  ineligible for clean-reproduction, exact-candidate, and CI-integration
+  evidence-qualification gates. Reusing its digest cannot upgrade that
+  evidence class.
 
 ## Assurance Mutation Boundary
 

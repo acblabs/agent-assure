@@ -1,0 +1,35 @@
+artifact_kind: controls-mutation-onboarding-config
+schema_version: "0.6.6"
+package_version: "0.7.0"
+catalog_id: core/v1
+suite_path: suite.compiled.json
+runset_path: runset.json
+output_dir: mutation-results
+threat_applicability_manifest: threat-applicability.yaml
+operator_ids:
+  - bypass-required-human-review
+  - drop-material-evidence-link
+  - inject-forbidden-tool
+  - inject-synthetic-sensitive-summary
+  - mark-incomplete-budget-stop
+  - replay-duplicate-case-observation
+  - skew-evidence-source-identity
+control_efficacy:
+  required_catalog: core/v1
+  required_operators:
+    - bypass-required-human-review
+    - drop-material-evidence-link
+    - inject-forbidden-tool
+    - inject-synthetic-sensitive-summary
+    - mark-incomplete-budget-stop
+    - replay-duplicate-case-observation
+    - skew-evidence-source-identity
+  surviving_required_operator: block
+  surviving_critical_operator: block
+  surviving_applicable_operator: block
+  critical_threat_uncovered: block
+  applicable_threat_uncovered: block
+  unevaluated_required_operator: block
+  invalid_or_error_operator: block
+  unknown_threat_applicability: block
+  unscoped_catalog_threat_reference: block

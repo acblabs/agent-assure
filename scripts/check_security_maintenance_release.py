@@ -2,7 +2,8 @@
 
 This module is deliberately disconnected from every Make and GitHub publication
 path. A successful result cannot authorize a tag, signing, or publication and
-cannot replace the standard efficacy, empirical-readiness, or release gates.
+cannot replace the active version-bound claim profile, deterministic efficacy,
+or release gates.
 """
 
 from __future__ import annotations

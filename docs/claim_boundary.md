@@ -31,7 +31,7 @@ human-review performance. For compatibility, an older fixture record without
 origins is interpreted as fixture input; an older live record without origins
 is `legacy_unspecified` and fails closed for process controls.
 
-The untagged development surface can also produce a preregistered real-model
+The experimental surface can also produce a preregistered real-model
 study report and a pre-candidate external-pilot evidence record. This
 repository currently contains neither a real-provider study result nor a
 qualifying external CI pilot. A future empirical result must stay attached to

@@ -41,7 +41,7 @@ nav:
   - Google ADK integration: integrations/google_adk.md
   - PyPI release: release_pypi.md
   - Release notes:
-      - v0.7.0 candidate: release_notes/v0.7.0.md
+      - v0.7.0: release_notes/v0.7.0.md
       - v0.6.5: release_notes/v0.6.5.md
       - v0.6.4: release_notes/v0.6.4.md
       - v0.6.3: release_notes/v0.6.3.md

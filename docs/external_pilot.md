@@ -1,16 +1,16 @@
 # External CI Pilot Evidence
 
-Status: development contract. This repository contains no qualifying external
-CI pilot record. The template in this documentation is deliberately
-`not_attempted` and does not establish adoption, independent use, or a release
-gate.
+Status: optional experimental contract included with v0.7.0. This release
+contains no qualifying external CI pilot record. The template in this
+documentation is deliberately `not_attempted` and does not establish adoption,
+independent use, or empirical-claim eligibility.
 
 Prospective participants can use the
 [two-stage, no-user-secret external pilot quickstart](external_pilot_quickstart.md).
 Release reviewers use the separate
 [external pilot reviewer guide](external_pilot_review.md). A descriptor may
 truthfully classify a run as an external attempt, but neither a workflow run
-nor an unreviewed candidate satisfies the repository publish gate.
+nor an unreviewed candidate authorizes an external-validation claim.
 
 `ExternalPilotEvidence/v1` records whether another team could attempt one
 signature workflow in a real CI environment, what friction they encountered,
@@ -219,13 +219,13 @@ IDs. `aggregate_summary` and `privacy_filtered_record` require granted consent
 anchored to an exact consent artifact and digest. A privacy-filtered publication
 must enumerate the exact published artifacts.
 
-The repository-backed public release gate is narrower than the general record
-schema. It requires `consent_status: granted`,
+The repository-backed empirical-claim qualification gate is narrower than the
+general record schema. It requires `consent_status: granted`,
 `publication_scope: privacy_filtered_record`, and
 `published_artifact_ids` equal to the complete canonically ordered
 `artifacts[].artifact_id` inventory. The checked-out bundle contains every
 declared artifact, so `private_record`, `aggregate_summary`, withheld
-consent, and partial publication authorization all block readiness with
+consent, and partial publication authorization all block empirical readiness with
 `external-pilot-publication-not-authorized`. They remain valid non-release
 records and should not be committed as public empirical evidence.
 
@@ -237,7 +237,8 @@ statement.
 
 ## Verified Bundle and Independence Review
 
-A bare `ExternalPilotEvidence/v1` JSON file cannot satisfy the publish gate.
+A bare `ExternalPilotEvidence/v1` JSON file cannot satisfy the empirical-claim
+qualification gate.
 Before review, the release operator must assemble a closed, flat directory
 containing only the finalized evidence and every declared artifact. Keep the
 human review template outside this directory. The review command adds the sole
@@ -326,7 +327,7 @@ model requires independence from a hostile evidence producer, require a
 separately verified signature/OIDC identity under organizational policy; this
 receipt alone is insufficient.
 
-The publish-gate invocation is:
+The optional empirical-readiness invocation is:
 
 ```bash
 python scripts/check_empirical_readiness.py \
@@ -356,7 +357,7 @@ validated before an assessment can be produced, the gate remains closed with
 `FileNotFoundError`, `ValueError`, or `TypeError`). Exception messages and
 validation values are never copied into the release log.
 
-## Release-Gate Boundary
+## Empirical-Claim Qualification Boundary
 
 Every `ExternalPilotEvidence/v1` record fixes:
 
@@ -369,7 +370,7 @@ ci_integration_gate_eligible: false
 ```
 
 Those values are invariant even for a qualifying, completed external pilot.
-For the Sprint 7 empirical checkpoint, the release checker additionally
+For the Sprint 7 empirical checkpoint, the empirical-readiness checker additionally
 requires `subject.implementation_id: agent-assure` and compares the base
 release of `subject.implementation_version` with the expected release line.
 Thus `0.7.0rc1` and `0.7.0` both bind to the `0.7.0` line, while another base
@@ -380,14 +381,17 @@ bindings; attempt-specific capture/finalization run URLs, positive attempts,
 and run-head SHAs; the immutable trusted workflow revision; matching hashes of
 the run-head and trusted workflow bytes; the execution-source SHA embedded in
 those bytes; and the complete public dispatch inputs with canonical checksums.
-The Make release path supplies its `EXPECTED_RELEASE` explicitly.
+The optional Make empirical-readiness path supplies its `EXPECTED_RELEASE`
+explicitly. It is not part of the bounded package-distribution path.
 
 `subject.source_revision`, `distribution_artifact_id`, and
 `distribution_digest` remain exact bindings to the pre-candidate code and
 artifact actually tested. They are intentionally not compared with a later RC
-or stable release HEAD: this checkpoint is necessary, not sufficient, and
-`exact_candidate_gate_eligible` remains false. The record cannot automatically
-promote a later release or satisfy a clean-reproduction or exact-candidate CI
-gate. A participant may re-engage, but a later gate requires a new evidence
-record against the exact frozen candidate and must re-establish the applicable
-independence conditions.
+or stable release HEAD: this empirical checkpoint is necessary, not sufficient,
+for the corresponding empirical claim, and `exact_candidate_gate_eligible`
+remains false. The record cannot automatically promote a later release or
+satisfy a clean-reproduction or exact-candidate CI evidence-qualification gate.
+A participant may re-engage, but a later evidence gate requires a new record
+against the exact frozen candidate and must re-establish the applicable
+independence conditions. None of these pilot artifacts is required to
+distribute bounded v0.7.0.
