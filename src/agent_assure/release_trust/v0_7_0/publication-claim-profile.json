@@ -19,7 +19,7 @@
   "control_efficacy_evidence": {
     "verification_scope": "committed-artifact-internal-binding-only",
     "packet_path": "evidence/synthetic/release-control-efficacy/evidence-packet.json",
-    "packet_sha256": "5e82ade1570226773ee464af855e522a8a749e02868dca01a3b29dc9a86daad4",
+    "packet_sha256": "1d263e0286a1433b9c40274ce6adcfd2c96740a4aafd50948c18dc523534328a",
     "policy_path": "evidence/synthetic/release-control-efficacy/controls-mutation.yaml",
     "policy_sha256": "d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42"
   },

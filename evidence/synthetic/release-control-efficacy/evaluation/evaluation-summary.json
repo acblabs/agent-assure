@@ -4,7 +4,7 @@
     "artifact_kind": "environment-info",
     "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-    "git_commit": "022db8d08d478f6f1c963e978863925367229867",
+    "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
     "git_dirty": true,
     "installed_packages": [
       {

@@ -13,6 +13,7 @@ import pytest
 
 import agent_assure.external_pilot_kit as pilot_kit
 import agent_assure.pilot_bundle as pilot_bundle
+from agent_assure import __version__ as PACKAGE_VERSION
 from agent_assure.external_pilot_kit import (
     CAPTURE_FILENAME,
     CONSENT_RECORD_FILENAME,
@@ -57,7 +58,7 @@ def built_wheel(tmp_path_factory: pytest.TempPathFactory) -> Path:
     )
     wheels = tuple(distribution_root.glob("agent_assure-*.whl"))
     assert len(wheels) == 1
-    assert wheels[0].name == "agent_assure-0.7.0-py3-none-any.whl"
+    assert wheels[0].name == f"agent_assure-{PACKAGE_VERSION}-py3-none-any.whl"
     return wheels[0]
 
 
@@ -634,8 +635,8 @@ def test_capture_fails_closed_without_temporary_storage_consent(
 def test_capture_rejects_a_valid_wheel_that_does_not_contain_the_running_code(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "agent_assure-0.7.0-py3-none-any.whl"
-    wheel.write_bytes(_wheel_bytes())
+    wheel = tmp_path / f"agent_assure-{PACKAGE_VERSION}-py3-none-any.whl"
+    wheel.write_bytes(_wheel_bytes(version=PACKAGE_VERSION))
 
     with pytest.raises(ValueError, match="code inventory does not match tested wheel"):
         _capture(tmp_path, wheel)
@@ -645,9 +646,12 @@ def test_capture_rejects_a_valid_wheel_that_does_not_contain_the_running_code(
 def test_capture_rejects_a_privacy_invalid_wheel_before_creating_a_handoff(
     tmp_path: Path,
 ) -> None:
-    wheel = tmp_path / "agent_assure-0.7.0-py3-none-any.whl"
+    wheel = tmp_path / f"agent_assure-{PACKAGE_VERSION}-py3-none-any.whl"
     wheel.write_bytes(
-        _wheel_bytes(extra_members={"agent_assure/leaked.py": b'api_key = "hunter2-value"\n'})
+        _wheel_bytes(
+            version=PACKAGE_VERSION,
+            extra_members={"agent_assure/leaked.py": b'api_key = "hunter2-value"\n'},
+        )
     )
 
     with pytest.raises(ValueError, match="privacy review"):

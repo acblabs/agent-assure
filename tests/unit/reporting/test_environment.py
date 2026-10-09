@@ -332,13 +332,19 @@ def test_release_manifest_default_id_is_privacy_safe(
     monkeypatch.setattr(
         environment,
         "sha256_hexdigest",
-        lambda _payload: "1234567890123456" + "a" * 48,
+        lambda _payload: "2f00861325967664" + "a" * 48,
     )
     environment_info = collect_environment(project_root=tmp_path)
 
     manifest = build_release_manifest((), environment=environment_info)
 
-    assert manifest.manifest_id == "manifest-h1234567890123456"
+    # The ungrouped digest prefix from the v0.7.0rc1 large-corpus packet ends
+    # in a Luhn-valid 14-digit run. Underscore-bounded groups retain all 64
+    # identity bits without presenting a payment-card-shaped scalar.
+    assert redact_packet_payload({"manifest_id": "manifest-h2f00861325967664"}) == {
+        "manifest_id": "[REDACTED]"
+    }
+    assert manifest.manifest_id == "manifest-h2f00_8613_2596_7664"
     payload = {"manifest_id": manifest.manifest_id}
     assert redact_packet_payload(payload) == payload
 

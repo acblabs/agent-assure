@@ -5,6 +5,7 @@ import tomllib
 from pathlib import Path
 
 import yaml
+from packaging.version import Version
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -269,7 +270,7 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
     workflow = (ROOT / ".github" / "workflows" / "publish-testpypi.yml").read_text(encoding="utf-8")
     parsed_workflow = yaml.safe_load(workflow)
 
-    assert workflow.count("fetch-depth: 0") == 3
+    assert workflow.count("fetch-depth: 0") == 4
     assert (
         workflow.count("python scripts/check_tagged_schema_immutability.py --require-release-tags")
         == 2
@@ -289,6 +290,18 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
     }
     commands = "\n".join(str(step.get("run", "")) for step in reproduce["steps"])
     assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in commands
+
+    lower_bounds = parsed_workflow["jobs"]["candidate-lower-bounds"]
+    lower_bounds_checkout = next(
+        step
+        for step in lower_bounds["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert lower_bounds_checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ needs.build.outputs.source_sha }}",
+    }
 
 
 def test_testpypi_checks_committed_version_bound_goldens_before_release_checks() -> None:
@@ -1570,6 +1583,7 @@ def test_publication_candidate_qualification_is_sha_bound_and_cross_platform() -
             if str(step.get("uses", "")).startswith("actions/checkout@")
         )
         assert lower_checkout["with"] == {
+            "fetch-depth": 0,
             "persist-credentials": False,
             "ref": "${{ needs.build.outputs.source_sha }}",
         }
@@ -1724,7 +1738,7 @@ def test_composite_action_binds_the_installed_cli_to_its_release_version() -> No
         encoding="utf-8"
     )
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    expected_version = project["project"]["version"]
+    expected_version = Version(project["project"]["version"]).base_version
     verify = action.split(
         "    - name: Verify action and CLI version binding\n",
         maxsplit=1,

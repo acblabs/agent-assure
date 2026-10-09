@@ -372,9 +372,32 @@ def test_stable_preflight_is_stdlib_only_without_site_packages(tmp_path: Path) -
 
 
 def test_repository_stable_preflight_accepts_final_v070_release_collateral(
+    tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    result = version_tag.main(["v0.7.0", "--require-stable"])
+    pyproject, package_init, schema_base, schema_root = _write_version_files(
+        tmp_path,
+        project_version="0.7.0",
+        package_version="0.7.0",
+        package_schema_version="0.6.6",
+        base_schema_version="0.6.6",
+        schema_dir_version="0.6.6",
+    )
+
+    result = version_tag.main(
+        [
+            "v0.7.0",
+            "--require-stable",
+            "--pyproject",
+            str(pyproject),
+            "--package-init",
+            str(package_init),
+            "--schema-base",
+            str(schema_base),
+            "--schema-root",
+            str(schema_root),
+        ]
+    )
 
     assert result == 0
     captured = capsys.readouterr()

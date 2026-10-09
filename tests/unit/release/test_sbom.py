@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_assure import __version__ as PROJECT_VERSION
 from agent_assure.artifact_io import file_sha256
 from agent_assure.reporting import sbom as sbom_module
 from agent_assure.reporting.sbom import (
@@ -69,7 +70,9 @@ def test_sbom_is_deterministic_and_hashes_distribution_files(tmp_path: Path) -> 
             "content": "9ceb18f15662bb87e54af2f5953c0484d2ef76f5444d87913360b9ef87d7296d",
         }
     ]
-    assert first["dependencies"] == [{"ref": "pkg:pypi/agent-assure@0.7.0", "dependsOn": []}]
+    assert first["dependencies"] == [
+        {"ref": f"pkg:pypi/agent-assure@{PROJECT_VERSION}", "dependsOn": []}
+    ]
     assert first["properties"] == [
         {
             "name": "agent-assure:vulnerability-analysis-status",

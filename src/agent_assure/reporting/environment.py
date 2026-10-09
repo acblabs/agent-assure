@@ -193,9 +193,14 @@ def build_release_manifest(
         "artifacts": [artifact.model_dump(mode="json") for artifact in artifacts],
         "environment": environment.model_dump(mode="json"),
     }
+    if not manifest_id:
+        digest_prefix = sha256_hexdigest(payload)[:16]
+        manifest_id = "manifest-h" + "_".join(
+            digest_prefix[offset : offset + 4] for offset in range(0, len(digest_prefix), 4)
+        )
     manifest = ReleaseArtifactManifest(
         artifact_kind="release-artifact-manifest",
-        manifest_id=manifest_id or f"manifest-h{sha256_hexdigest(payload)[:16]}",
+        manifest_id=manifest_id,
         artifacts=artifacts,
         environment=environment,
     )
