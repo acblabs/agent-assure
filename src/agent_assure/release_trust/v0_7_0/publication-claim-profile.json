@@ -19,9 +19,9 @@
   "control_efficacy_evidence": {
     "verification_scope": "committed-artifact-internal-binding-only",
     "packet_path": "evidence/synthetic/release-control-efficacy/evidence-packet.json",
-    "packet_sha256": "598927f268827357a8039fce901c13033a261c6c60371ddf6cba033f6537fe07",
+    "packet_sha256": "1d263e0286a1433b9c40274ce6adcfd2c96740a4aafd50948c18dc523534328a",
     "policy_path": "evidence/synthetic/release-control-efficacy/controls-mutation.yaml",
-    "policy_sha256": "a2faaf29e25ceb98270747c7f78de815ace998d1496f3c8a438215dea0b67d5a"
+    "policy_sha256": "d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42"
   },
   "evidence_status": {
     "real_model_study_result": "not_provided",

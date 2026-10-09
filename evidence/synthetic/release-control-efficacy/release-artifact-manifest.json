@@ -6,49 +6,49 @@
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "84a3d8a48a3f46a843572106616fc1103f4b99efa2881abd9570dee9e008fb72"
+      "sha256": "c329c62ca9191d16ad57accc483cc85fe602a0f48b0a4b99ade00a09a6b767c7"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json",
       "role": "assurance-evidence-graph",
       "schema_version": "0.6.6",
-      "sha256": "02625cd9b566de93fd67ebe39aea9dfa4c44dfeee2be3d209b2154b1ac575f41"
+      "sha256": "7de42d437d7978509f4221ebe38c8384be50d6e1a06b58037862ce421f156f1e"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
       "role": "dependency-inventory",
       "schema_version": "0.6.6",
-      "sha256": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01"
+      "sha256": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json",
       "role": "control-efficacy-report",
       "schema_version": "0.6.6",
-      "sha256": "73d6a517f8ded12d11e5a631274e2c36f3538d2257b1d716f36e16a22340a182"
+      "sha256": "1c5e1d34e020388600e882ac1836f83f5954566fa31bc8ca904f10cf8b965ec1"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/controls-mutation.yaml",
       "role": "control-efficacy-onboarding-config",
       "schema_version": "0.6.6",
-      "sha256": "a2faaf29e25ceb98270747c7f78de815ace998d1496f3c8a438215dea0b67d5a"
+      "sha256": "d34c25c55e15bdc8478c53bf479af3836e276ca67dc0247390dc32db49416f42"
     }
   ],
   "environment": {
     "artifact_kind": "environment-info",
-    "dependency_inventory_digest": "0e9c396198c7a066e41d71eb45d0a46a8e593c1e1f8e05f530627148664efc01",
+    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-    "git_commit": "42b8b1f289ef57b4b3c83d21f637b4b91278fc72",
+    "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
     "git_dirty": true,
     "installed_packages": [
       {
         "artifact_kind": "installed-package",
         "name": "agent-assure",
         "schema_version": "0.6.6",
-        "version": "0.7.0rc1"
+        "version": "0.7.0"
       },
       {
         "artifact_kind": "installed-package",
@@ -540,6 +540,6 @@
   "limitations": [
     "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
   ],
-  "manifest_id": "manifest-h79f8_c52b_e15f_1de7",
+  "manifest_id": "manifest-h6378_440f_7bcd_b9f2",
   "schema_version": "0.6.6"
 }
