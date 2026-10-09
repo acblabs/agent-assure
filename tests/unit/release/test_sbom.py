@@ -257,6 +257,274 @@ def test_sbom_local_validation_rederives_dependency_edges(tmp_path: Path) -> Non
         load_and_validate_sbom(path, artifact_root=tmp_path)
 
 
+def test_sbom_local_validation_allows_unselected_optional_and_inactive_marker_dependencies(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    sbom = build_sbom(
+        _environment(lock),
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+    component_names = {
+        component["name"] for component in sbom["components"] if component["type"] == "library"
+    }
+
+    assert {"inactive", "unselected"}.isdisjoint(component_names)
+    load_and_validate_sbom(
+        _write_json(tmp_path / "selected-environment-sbom.cdx.json", sbom),
+        artifact_root=tmp_path,
+    )
+
+
+def test_sbom_local_validation_rejects_missing_marker_applicable_dependency(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + "\n".join(
+            [
+                'active-marker==2.6 ; python_version >= "3.0" \\',
+                f"    --hash=sha256:{'8' * 64}",
+                "    # via runtime",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    sbom = build_sbom(
+        _environment(lock),
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+
+    with pytest.raises(ValueError, match="omits project dependency components"):
+        load_and_validate_sbom(
+            _write_json(tmp_path / "missing-active-marker-sbom.cdx.json", sbom),
+            artifact_root=tmp_path,
+        )
+
+
+def test_sbom_rejects_invalid_dependency_lock_marker(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8").replace(
+            'python_version < "3.0"',
+            'python_version ~~ "3.0"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="dependency lock marker is invalid"):
+        build_sbom(
+            _environment(lock),
+            project_version="0.1.0",
+            project_root=tmp_path,
+        )
+
+
+def test_sbom_rejects_volatile_dependency_lock_marker_variable(tmp_path: Path) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8").replace(
+            'python_version < "3.0"',
+            'platform_release == "untrusted-kernel"',
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unsupported or volatile variable"):
+        build_sbom(
+            _environment(lock),
+            project_version="0.1.0",
+            project_root=tmp_path,
+        )
+
+
+def test_sbom_local_validation_rejects_runtime_root_missing_from_lock(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    project = tmp_path / "pyproject.toml"
+    project.write_text(
+        project.read_text(encoding="utf-8").replace(
+            'dependencies = ["runtime>=1"]',
+            'dependencies = ["runtime>=1", "missing-runtime>=1"]',
+        ),
+        encoding="utf-8",
+    )
+    lock = _write_lock(tmp_path)
+    sbom = build_sbom(
+        _environment(lock),
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+
+    with pytest.raises(ValueError, match="lock omits declared project runtime dependencies"):
+        load_and_validate_sbom(
+            _write_json(tmp_path / "missing-runtime-lock-sbom.cdx.json", sbom),
+            artifact_root=tmp_path,
+        )
+
+
+def test_sbom_local_validation_rejects_marker_inapplicable_runtime_root(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8").replace(
+            "runtime==1.0 \\",
+            'runtime==1.0 ; python_version < "3.0" \\',
+        ),
+        encoding="utf-8",
+    )
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + "\n".join(
+            [
+                'runtime==2.0 ; python_version >= "3.0" \\',
+                f"    --hash=sha256:{'9' * 64}",
+                "    # via transitive-only-parent",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    environment = _environment(lock)
+    environment = environment.model_copy(
+        update={
+            "installed_packages": tuple(
+                package
+                for package in environment.installed_packages
+                if package.name not in {"runtime", "transitive"}
+            )
+        }
+    )
+    sbom = build_sbom(
+        environment,
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+
+    with pytest.raises(ValueError, match="lock omits declared project runtime dependencies"):
+        load_and_validate_sbom(
+            _write_json(tmp_path / "inactive-runtime-sbom.cdx.json", sbom),
+            artifact_root=tmp_path,
+        )
+
+
+def test_sbom_rejects_installed_marker_inapplicable_lock_coordinate(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8").replace(
+            "runtime==1.0 \\",
+            'runtime==1.0 ; python_version < "3.0" \\',
+        )
+        + "\n".join(
+            [
+                'runtime==2.0 ; python_version >= "3.0" \\',
+                f"    --hash=sha256:{'9' * 64}",
+                "    # via agent-assure (pyproject.toml)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    sbom = build_sbom(
+        _environment(lock),
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+
+    with pytest.raises(ValueError, match="component is inapplicable"):
+        load_and_validate_sbom(
+            _write_json(tmp_path / "wrong-marker-coordinate-sbom.cdx.json", sbom),
+            artifact_root=tmp_path,
+        )
+
+
+def test_sbom_trusted_validation_keeps_an_installed_marker_applicable_dependency(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    lock.write_text(
+        lock.read_text(encoding="utf-8")
+        + "\n".join(
+            [
+                'conditional==2.6 ; python_version >= "3.0" \\',
+                f"    --hash=sha256:{'8' * 64}",
+                "    # via runtime",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    environment = _environment(lock)
+    environment = environment.model_copy(
+        update={
+            "installed_packages": (
+                *environment.installed_packages,
+                InstalledPackage(
+                    artifact_kind="installed-package",
+                    name="conditional",
+                    version="2.6",
+                ),
+            )
+        }
+    )
+    sbom = build_sbom(
+        environment,
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+    conditional = _component(sbom, "conditional")
+
+    assert conditional["scope"] == "required"
+    assert conditional["hashes"] == [{"alg": "SHA-256", "content": "8" * 64}]
+    load_and_validate_sbom(
+        _write_json(tmp_path / "conditional-sbom.cdx.json", sbom),
+        artifact_root=tmp_path,
+        expected_environment=environment,
+        expected_distribution_paths=(),
+        expected_project_version="0.1.0",
+    )
+
+    forged = deepcopy(sbom)
+    conditional_ref = conditional["bom-ref"]
+    forged["components"] = [
+        component for component in forged["components"] if component["bom-ref"] != conditional_ref
+    ]
+    forged["dependencies"] = [
+        {
+            **entry,
+            "dependsOn": [ref for ref in entry["dependsOn"] if ref != conditional_ref],
+        }
+        for entry in forged["dependencies"]
+        if entry["ref"] != conditional_ref
+    ]
+    forged.pop("serialNumber")
+    forged["serialNumber"] = sbom_module._serial_number(forged)
+
+    with pytest.raises(ValueError, match="trusted build environment"):
+        validate_sbom(
+            forged,
+            artifact_root=tmp_path,
+            expected_environment=environment,
+            expected_distribution_paths=(),
+            expected_project_version="0.1.0",
+        )
+
+
 def test_sbom_local_validation_rejects_removed_direct_component(tmp_path: Path) -> None:
     _write_project(tmp_path)
     lock = _write_lock(tmp_path)
@@ -293,6 +561,40 @@ def test_sbom_local_validation_rejects_removed_direct_component(tmp_path: Path) 
             expected_environment=environment,
             expected_distribution_paths=(),
             expected_project_version="0.1.0",
+        )
+
+
+def test_sbom_local_validation_rejects_removed_unconditional_transitive_component(
+    tmp_path: Path,
+) -> None:
+    _write_project(tmp_path)
+    lock = _write_lock(tmp_path)
+    sbom = build_sbom(
+        _environment(lock),
+        project_version="0.1.0",
+        project_root=tmp_path,
+    )
+    forged = deepcopy(sbom)
+    transitive = _component(forged, "transitive")
+    transitive_ref = transitive["bom-ref"]
+    forged["components"] = [
+        component for component in forged["components"] if component["bom-ref"] != transitive_ref
+    ]
+    forged["dependencies"] = [
+        {
+            **entry,
+            "dependsOn": [ref for ref in entry["dependsOn"] if ref != transitive_ref],
+        }
+        for entry in forged["dependencies"]
+        if entry["ref"] != transitive_ref
+    ]
+    forged.pop("serialNumber")
+    forged["serialNumber"] = sbom_module._serial_number(forged)
+
+    with pytest.raises(ValueError, match="omits project dependency components"):
+        load_and_validate_sbom(
+            _write_json(tmp_path / "truncated-transitive-sbom.cdx.json", forged),
+            artifact_root=tmp_path,
         )
 
 
@@ -419,6 +721,7 @@ authors = [{ name = "ACB Labs" }]
 
 [project.optional-dependencies]
 adapter = ["optional>=1"]
+unselected = ["unselected>=1"]
 dev = ["devtool>=1"]
 """.lstrip(),
         encoding="utf-8",
@@ -436,6 +739,9 @@ def _write_lock(root: Path) -> Path:
                 "    # via agent-assure (pyproject.toml)",
                 "transitive==2.0 \\",
                 f"    --hash=sha256:{'3' * 64}",
+                "    # via runtime",
+                'inactive==2.5 ; python_version < "3.0" \\',
+                f"    --hash=sha256:{'7' * 64}",
                 "    # via runtime",
                 "optional==3.0 \\",
                 f"    --hash=sha256:{'4' * 64}",

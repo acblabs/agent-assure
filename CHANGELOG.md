@@ -17,6 +17,11 @@ The v0.7.0 release line is bounded to engineering qualification and committed de
   profile binds the committed packet and policy digests; their strict gate
   validates internal artifact bindings and policy projection but does not
   attest fresh operator execution.
+- Release SBOM completeness validation now follows the selected lock profile:
+  separately locked optional adapters and marker-inactive universal-lock pins
+  are not represented as installed components. The trusted release path still
+  requires exact reconstruction from the captured environment and rejects
+  omitted marker-applicable dependencies in the selected lock closure.
 - **Breaking evaluation-report integrity contract:** current evaluation
   reports now require a source projection that binds suite and RunSet digests,
   suite-case record coverage, unknown RunSet cases, and tool-policy
