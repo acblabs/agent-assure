@@ -20,28 +20,28 @@
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-report.json",
       "role": "evaluation-report",
       "schema_version": "0.6.6",
-      "sha256": "47769ce11d4d4a5cd26a29012cdc54af1d9e158c2350a91cb8bd2402442a4d65"
+      "sha256": "538e94105fa09c349dae939a0000af8633a2f4905c52fca5771ff28cdc49e3de"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "c329c62ca9191d16ad57accc483cc85fe602a0f48b0a4b99ade00a09a6b767c7"
+      "sha256": "f7f2b0da5d52200ffd2b5992041c87f69553a107ab0aa76884f030e989547621"
     },
     {
       "artifact_kind": "release-artifact",
       "path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
       "role": "dependency-inventory",
       "schema_version": "0.6.6",
-      "sha256": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702"
+      "sha256": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299"
     }
   ],
   "environment": {
     "artifact_kind": "environment-info",
-    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
+    "dependency_inventory_digest": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-    "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
+    "git_commit": "b12b76b67dac4f59c67472a1b7f9d7698eb04257",
     "git_dirty": true,
     "installed_packages": [
       {
@@ -127,12 +127,6 @@
         "name": "ghp-import",
         "schema_version": "0.6.6",
         "version": "2.1.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "googleapis-common-protos",
-        "schema_version": "0.6.6",
-        "version": "1.75.5"
       },
       {
         "artifact_kind": "installed-package",
@@ -280,42 +274,6 @@
       },
       {
         "artifact_kind": "installed-package",
-        "name": "opentelemetry-api",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-exporter-otlp-proto-common",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-exporter-otlp-proto-http",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-proto",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-sdk",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-semantic-conventions",
-        "schema_version": "0.6.6",
-        "version": "0.65b0"
-      },
-      {
-        "artifact_kind": "installed-package",
         "name": "packaging",
         "schema_version": "0.6.6",
         "version": "26.2"
@@ -330,7 +288,7 @@
         "artifact_kind": "installed-package",
         "name": "pip",
         "schema_version": "0.6.6",
-        "version": "25.0.1"
+        "version": "26.1.2"
       },
       {
         "artifact_kind": "installed-package",
@@ -343,12 +301,6 @@
         "name": "pluggy",
         "schema_version": "0.6.6",
         "version": "1.6.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "protobuf",
-        "schema_version": "0.6.6",
-        "version": "7.36.2"
       },
       {
         "artifact_kind": "installed-package",
@@ -534,12 +486,12 @@
     "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
     "lockfile_path": "requirements.lock",
     "platform": "Windows-11-10.0.26300-SP0",
-    "python_version": "3.12.13",
+    "python_version": "3.14.6",
     "schema_version": "0.6.6"
   },
   "limitations": [
     "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
   ],
-  "manifest_id": "manifest-hba50_1859_741b_0675",
+  "manifest_id": "manifest-h6407_37af_0e13_ab8e",
   "schema_version": "0.6.6"
 }

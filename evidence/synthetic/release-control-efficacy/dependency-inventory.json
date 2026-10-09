@@ -72,11 +72,6 @@
       "version": "2.1.0"
     },
     {
-      "name": "googleapis-common-protos",
-      "type": "library",
-      "version": "1.75.5"
-    },
-    {
       "name": "hatchling",
       "type": "library",
       "version": "1.30.1"
@@ -197,36 +192,6 @@
       "version": "0.3.6"
     },
     {
-      "name": "opentelemetry-api",
-      "type": "library",
-      "version": "1.44.0"
-    },
-    {
-      "name": "opentelemetry-exporter-otlp-proto-common",
-      "type": "library",
-      "version": "1.44.0"
-    },
-    {
-      "name": "opentelemetry-exporter-otlp-proto-http",
-      "type": "library",
-      "version": "1.44.0"
-    },
-    {
-      "name": "opentelemetry-proto",
-      "type": "library",
-      "version": "1.44.0"
-    },
-    {
-      "name": "opentelemetry-sdk",
-      "type": "library",
-      "version": "1.44.0"
-    },
-    {
-      "name": "opentelemetry-semantic-conventions",
-      "type": "library",
-      "version": "0.65b0"
-    },
-    {
       "name": "packaging",
       "type": "library",
       "version": "26.2"
@@ -239,7 +204,7 @@
     {
       "name": "pip",
       "type": "library",
-      "version": "25.0.1"
+      "version": "26.1.2"
     },
     {
       "name": "platformdirs",
@@ -250,11 +215,6 @@
       "name": "pluggy",
       "type": "library",
       "version": "1.6.0"
-    },
-    {
-      "name": "protobuf",
-      "type": "library",
-      "version": "7.36.2"
     },
     {
       "name": "pydantic",
@@ -410,7 +370,7 @@
   "format": "agent-assure-dependency-inventory-v0.1",
   "metadata": {
     "platform": "Windows-11-10.0.26300-SP0",
-    "python_version": "3.12.13",
+    "python_version": "3.14.6",
     "tool": "agent-assure"
   }
 }

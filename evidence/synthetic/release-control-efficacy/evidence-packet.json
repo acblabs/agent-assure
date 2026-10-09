@@ -4,19 +4,19 @@
       "artifact_kind": "packet-artifact-digest",
       "role": "evaluation-summary",
       "schema_version": "0.6.6",
-      "sha256": "c329c62ca9191d16ad57accc483cc85fe602a0f48b0a4b99ade00a09a6b767c7"
+      "sha256": "f7f2b0da5d52200ffd2b5992041c87f69553a107ab0aa76884f030e989547621"
     },
     {
       "artifact_kind": "packet-artifact-digest",
       "role": "assurance-evidence-graph",
       "schema_version": "0.6.6",
-      "sha256": "7de42d437d7978509f4221ebe38c8384be50d6e1a06b58037862ce421f156f1e"
+      "sha256": "0c955f5b6ef2a07d2a8a78abae7ae5386a70e5bdc9406d89d925c442660f8701"
     },
     {
       "artifact_kind": "packet-artifact-digest",
       "role": "control-efficacy-report",
       "schema_version": "0.6.6",
-      "sha256": "1c5e1d34e020388600e882ac1836f83f5954566fa31bc8ca904f10cf8b965ec1"
+      "sha256": "19eb1a8542712048fdaf971102c942e8fbb1ee6ff00d06fe809f33977eb6b483"
     },
     {
       "artifact_kind": "packet-artifact-digest",
@@ -31,7 +31,7 @@
     "applicable_operator_count": 7,
     "applicable_threat_category_count": 15,
     "artifact_kind": "control-efficacy-report",
-    "campaign_digest": "2b6f32afcd2329907b689220cde22847f923bc61ee8bdc7ae3c706091daadea3",
+    "campaign_digest": "f088d1944b2ce9cb23f84e24b38b68ab93e354632a34975409679328a1602f1b",
     "canonical_invariant_families": [
       "human-review-routing",
       "material-evidence-linkage",
@@ -50,7 +50,7 @@
       "replay-duplicate-case-observation",
       "skew-evidence-source-identity"
     ],
-    "catalog_digest": "6deb4e21542e678bcbf579dc91427d63bc981ade09595bf04705910b077c1bc4",
+    "catalog_digest": "b04aecb1fb613a46c8d52ca8e48648fd1e96d00a804ce47896be12bd6236697f",
     "catalog_id": "core/v1",
     "catalog_kill_rate": {
       "denominator": 7,
@@ -480,7 +480,7 @@
       }
     ],
     "pending_operator_ids": [],
-    "report_digest": "8585df94cf3f58c36d89a7f751ade6fb6b66cd0076eea237bdf37a23d9d2a1e7",
+    "report_digest": "416e5aac9d23c5c7d1d3b4bf0c2e2e97d0e198f8752c442a08d6df91a1d6ba22",
     "required_not_evaluated_operator_ids": [],
     "required_operator_ids": [
       "bypass-required-human-review",
@@ -670,7 +670,7 @@
   "control_efficacy_gate": {
     "findings": [],
     "profile_id": "control-efficacy/default",
-    "report_digest": "8585df94cf3f58c36d89a7f751ade6fb6b66cd0076eea237bdf37a23d9d2a1e7",
+    "report_digest": "416e5aac9d23c5c7d1d3b4bf0c2e2e97d0e198f8752c442a08d6df91a1d6ba22",
     "state": "pass"
   },
   "control_efficacy_gate_profile": {
@@ -697,9 +697,9 @@
   },
   "environment": {
     "artifact_kind": "environment-info",
-    "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
+    "dependency_inventory_digest": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299",
     "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-    "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
+    "git_commit": "b12b76b67dac4f59c67472a1b7f9d7698eb04257",
     "git_dirty": true,
     "installed_packages": [
       {
@@ -785,12 +785,6 @@
         "name": "ghp-import",
         "schema_version": "0.6.6",
         "version": "2.1.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "googleapis-common-protos",
-        "schema_version": "0.6.6",
-        "version": "1.75.5"
       },
       {
         "artifact_kind": "installed-package",
@@ -938,42 +932,6 @@
       },
       {
         "artifact_kind": "installed-package",
-        "name": "opentelemetry-api",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-exporter-otlp-proto-common",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-exporter-otlp-proto-http",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-proto",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-sdk",
-        "schema_version": "0.6.6",
-        "version": "1.44.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "opentelemetry-semantic-conventions",
-        "schema_version": "0.6.6",
-        "version": "0.65b0"
-      },
-      {
-        "artifact_kind": "installed-package",
         "name": "packaging",
         "schema_version": "0.6.6",
         "version": "26.2"
@@ -988,7 +946,7 @@
         "artifact_kind": "installed-package",
         "name": "pip",
         "schema_version": "0.6.6",
-        "version": "25.0.1"
+        "version": "26.1.2"
       },
       {
         "artifact_kind": "installed-package",
@@ -1001,12 +959,6 @@
         "name": "pluggy",
         "schema_version": "0.6.6",
         "version": "1.6.0"
-      },
-      {
-        "artifact_kind": "installed-package",
-        "name": "protobuf",
-        "schema_version": "0.6.6",
-        "version": "7.36.2"
       },
       {
         "artifact_kind": "installed-package",
@@ -1192,16 +1144,16 @@
     "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
     "lockfile_path": "requirements.lock",
     "platform": "Windows-11-10.0.26300-SP0",
-    "python_version": "3.12.13",
+    "python_version": "3.14.6",
     "schema_version": "0.6.6"
   },
   "evaluation": {
     "artifact_kind": "evaluation-summary",
     "environment": {
       "artifact_kind": "environment-info",
-      "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
+      "dependency_inventory_digest": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299",
       "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/evaluation/dependency-inventory.json",
-      "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
+      "git_commit": "b12b76b67dac4f59c67472a1b7f9d7698eb04257",
       "git_dirty": true,
       "installed_packages": [
         {
@@ -1287,12 +1239,6 @@
           "name": "ghp-import",
           "schema_version": "0.6.6",
           "version": "2.1.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "googleapis-common-protos",
-          "schema_version": "0.6.6",
-          "version": "1.75.5"
         },
         {
           "artifact_kind": "installed-package",
@@ -1440,42 +1386,6 @@
         },
         {
           "artifact_kind": "installed-package",
-          "name": "opentelemetry-api",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-exporter-otlp-proto-common",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-exporter-otlp-proto-http",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-proto",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-sdk",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-semantic-conventions",
-          "schema_version": "0.6.6",
-          "version": "0.65b0"
-        },
-        {
-          "artifact_kind": "installed-package",
           "name": "packaging",
           "schema_version": "0.6.6",
           "version": "26.2"
@@ -1490,7 +1400,7 @@
           "artifact_kind": "installed-package",
           "name": "pip",
           "schema_version": "0.6.6",
-          "version": "25.0.1"
+          "version": "26.1.2"
         },
         {
           "artifact_kind": "installed-package",
@@ -1503,12 +1413,6 @@
           "name": "pluggy",
           "schema_version": "0.6.6",
           "version": "1.6.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "protobuf",
-          "schema_version": "0.6.6",
-          "version": "7.36.2"
         },
         {
           "artifact_kind": "installed-package",
@@ -1694,7 +1598,7 @@
       "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
       "lockfile_path": "requirements.lock",
       "platform": "Windows-11-10.0.26300-SP0",
-      "python_version": "3.12.13",
+      "python_version": "3.14.6",
       "schema_version": "0.6.6"
     },
     "findings": [],
@@ -1723,7 +1627,7 @@
     "schema_version": "0.6.6",
     "state": "pass"
   },
-  "evidence_graph_digest": "05513153f32519c5552af446ee1ea0da1baa74acc032eb4f8823c48271f1695f",
+  "evidence_graph_digest": "f2ba55773d03432df86650d9134e82de81a810f584525fb44bae8398bef11baf",
   "interpretation": [
     "Start with candidate_vs_expectations: pass means no blocking deterministic finding under the selected gate profile; fail means at least one expectation, policy, invariant, or configured gate failed.",
     "If a comparison summary is present, fixture_equivalence_state must be pass before interpreting candidate-to-baseline changes.",
@@ -1735,7 +1639,7 @@
   "limitations": [
     "evidence packets summarize deterministic fixture-mode results; they are not signatures, attestations, safety certifications, compliance certifications, or live model-quality evidence"
   ],
-  "packet_id": "packet-4f068331016f0cc2",
+  "packet_id": "packet-a39893eb04852e3b",
   "release_manifest": {
     "artifact_kind": "release-artifact-manifest",
     "artifacts": [
@@ -1744,28 +1648,28 @@
         "path": "evidence/synthetic/release-control-efficacy/evaluation/evaluation-summary.json",
         "role": "evaluation-summary",
         "schema_version": "0.6.6",
-        "sha256": "c329c62ca9191d16ad57accc483cc85fe602a0f48b0a4b99ade00a09a6b767c7"
+        "sha256": "f7f2b0da5d52200ffd2b5992041c87f69553a107ab0aa76884f030e989547621"
       },
       {
         "artifact_kind": "release-artifact",
         "path": "evidence/synthetic/release-control-efficacy/assurance-evidence-graph.json",
         "role": "assurance-evidence-graph",
         "schema_version": "0.6.6",
-        "sha256": "7de42d437d7978509f4221ebe38c8384be50d6e1a06b58037862ce421f156f1e"
+        "sha256": "0c955f5b6ef2a07d2a8a78abae7ae5386a70e5bdc9406d89d925c442660f8701"
       },
       {
         "artifact_kind": "release-artifact",
         "path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
         "role": "dependency-inventory",
         "schema_version": "0.6.6",
-        "sha256": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702"
+        "sha256": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299"
       },
       {
         "artifact_kind": "release-artifact",
         "path": "evidence/synthetic/release-control-efficacy/control-efficacy/control-efficacy-report.json",
         "role": "control-efficacy-report",
         "schema_version": "0.6.6",
-        "sha256": "1c5e1d34e020388600e882ac1836f83f5954566fa31bc8ca904f10cf8b965ec1"
+        "sha256": "19eb1a8542712048fdaf971102c942e8fbb1ee6ff00d06fe809f33977eb6b483"
       },
       {
         "artifact_kind": "release-artifact",
@@ -1777,9 +1681,9 @@
     ],
     "environment": {
       "artifact_kind": "environment-info",
-      "dependency_inventory_digest": "37cbfe5555e32ea99e02bf67f3324f9f5d6556523fbbd8ac7f23c98a19b13702",
+      "dependency_inventory_digest": "38bfa671ae3bd435b494cb6041e126659d1d3991adbb6859fae6058db4779299",
       "dependency_inventory_path": "evidence/synthetic/release-control-efficacy/dependency-inventory.json",
-      "git_commit": "c39e3205625f39030237e4d8e5f38365b4d71dd5",
+      "git_commit": "b12b76b67dac4f59c67472a1b7f9d7698eb04257",
       "git_dirty": true,
       "installed_packages": [
         {
@@ -1865,12 +1769,6 @@
           "name": "ghp-import",
           "schema_version": "0.6.6",
           "version": "2.1.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "googleapis-common-protos",
-          "schema_version": "0.6.6",
-          "version": "1.75.5"
         },
         {
           "artifact_kind": "installed-package",
@@ -2018,42 +1916,6 @@
         },
         {
           "artifact_kind": "installed-package",
-          "name": "opentelemetry-api",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-exporter-otlp-proto-common",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-exporter-otlp-proto-http",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-proto",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-sdk",
-          "schema_version": "0.6.6",
-          "version": "1.44.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "opentelemetry-semantic-conventions",
-          "schema_version": "0.6.6",
-          "version": "0.65b0"
-        },
-        {
-          "artifact_kind": "installed-package",
           "name": "packaging",
           "schema_version": "0.6.6",
           "version": "26.2"
@@ -2068,7 +1930,7 @@
           "artifact_kind": "installed-package",
           "name": "pip",
           "schema_version": "0.6.6",
-          "version": "25.0.1"
+          "version": "26.1.2"
         },
         {
           "artifact_kind": "installed-package",
@@ -2081,12 +1943,6 @@
           "name": "pluggy",
           "schema_version": "0.6.6",
           "version": "1.6.0"
-        },
-        {
-          "artifact_kind": "installed-package",
-          "name": "protobuf",
-          "schema_version": "0.6.6",
-          "version": "7.36.2"
         },
         {
           "artifact_kind": "installed-package",
@@ -2272,13 +2128,13 @@
       "lockfile_digest": "9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
       "lockfile_path": "requirements.lock",
       "platform": "Windows-11-10.0.26300-SP0",
-      "python_version": "3.12.13",
+      "python_version": "3.14.6",
       "schema_version": "0.6.6"
     },
     "limitations": [
       "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
     ],
-    "manifest_id": "manifest-h6378_440f_7bcd_b9f2",
+    "manifest_id": "manifest-hec3b_a525_9024_2466",
     "schema_version": "0.6.6"
   },
   "schema_version": "0.6.6"
