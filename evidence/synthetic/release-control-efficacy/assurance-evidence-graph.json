@@ -140,108 +140,98 @@
   "edges": [
     {
       "kind": "derived_from",
-      "source_node_id": "finding:0678d5203cbbaee3526dbf0866a65fc9eb8249dff8939e5f6a096d763c40e6f5",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:0c5b329da2b097288a65400cdc0eccc9c8c214d94703b0c49501a7e70e778142",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:08158eb10e6caf965516d2b6dbe237e43d2fb20b49dfc6e78ca690a3d5fa83a0",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:105edbe302530fa1bebb7caa9bda05224cd43ac6bd424a28530615dd9ee6e7f9",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:0b3bdbc151a2f1a058735dc083a80ead502b4008cccf63344d575bd9c10456e2",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:306fea11d68d41ed1d25f4382ab60846872af4aa0fdfdd5c972bc398c6e8635d",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:188097fc9894b1ab519c385698307b3cf4ac694571994b0dca76d73fc32eda95",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:3ab731c663bc279cf0f620b69a52d5aef91d875621dd81aeebf4c66be4ba8118",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:2e0d49322200b443c04237a496d1e25948e8d813b1da5de21a12ea10b3ab337a",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:3edfaed375da31298967057e1ef6298740db3eb6dbe0f05e1ee6249f7d8cbfde",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:4de668327344687fe4aae2eb11aba28bafc457190cb572d6282a98c5e544811d",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:5613f3e3b51d1390d509392040ff9f55ca3fbfa19a2c6137bd9fe1b8f44976d1",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:5e41c337792c8082cfe6dcd032690b29a44eb135e77a667d48e63c3d0c5cf563",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:582448fe1e5cbdeffe59db41347e7d345eb4e8ed8d20acf31c1f8bdfc36795d9",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:6aab4d24ba84a2e375ba731aec7591c95d4c6fac843f979f27727a1ee27f6905",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:60045598e980ba4e1c556eac392054ad6b58f40f1b4bfcf9c2cf2f2d8cc93104",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:6edc1995b0087259968fbada9b800ee694d3c2ccf5072c4e1b4b260a32a7a19c",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:654ab8898b9b72c058852be388be59b1ac78f889d9a8d6883839b280d5344ae2",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:83bf4e6c59e3fa533464bb12f9e0d1315aa155c5c816978705215d796f528943",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:66c931d5d250d048807fbe395c64edc34009b88e2abfe3ca68d20d5c12d83dbb",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:8406eab2dc4a9c0db19768495a0cff66e67732898ef3bff9f05a8ebbb930199f",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:72bc7bf1d8286dc2a70b59a8b87aa77c38dad3f9244d8f896c2b0b7d0a335352",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:8521692b3e3d963dac4d14c1b8fb2f72cf4db8bdc6b555d50347564b00ec621b",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:7d80446328bad0c575d6142fcb77eec00ab8baa01d8dfd1eb9995f6cc3f87b23",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:91167a6c6de8444082e15a830575be42a5168a4cd93afcc5b9a0a300b1dd1e5b",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:81938c469db3b8addc3d5d8d717868921993d3a39f7fdd343461b6633ad73f72",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:993ddf1fdaa5c8cadd2bd2670dc0f0f6e24f1389138d9516796d233ed5e02d9c",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:8aa088dc3badaf8c83a46abaaca805ccf811ee9adf0179e26f63f76285a0fca0",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:ad18be30ddb94dbff93fe6ae49b350c6d000881af047a573b987983ab55d104e",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:8ad6572e4c6485fa28b0ef9b776352f35b169843ddf131f6059e33a7090990b3",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:b66154a618e9ade84b7f5368d1e66422a282dab9ba3b4a70c201909ecdba287c",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:944c9fd3c092313bb1bfd1709fc2665e1f186118204714e2e78d5965f4204065",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:b913b1f72a7ef1ff5f25ad788d61fc7186ca15c38050ed5e196f8e22f619fd0b",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:9a5ff6899ede450818c803c1cf8ca1578dc3be979918b35a2f4c0d94643f80b3",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:bd13eeaa14f4c22421dedbb4907cf2a528ec0e464d2ce982441b19d0adc4eab7",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:a20c147b3a72c2f73a97d95c2af568526e161698d92b5023f064d415f45c539f",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:becda9441d4c313c31a791904168803e6dfda7882690720439774b79f47192be",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
-    },
-    {
-      "kind": "derived_from",
-      "source_node_id": "finding:c1b4ab67f7281161c24cf53305d3bfd7489a372485cc7e27c8f0bb807efbde3e",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
-    },
-    {
-      "kind": "derived_from",
-      "source_node_id": "finding:c26cc59dbd7e0e716b9a2e6551b31dd612065adf173ec923e2c1e9df98c9c17d",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:c1f1fa170a5a8764ae007c50d594450764e7cfbcb627f3ee7c48387196229089",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
@@ -250,23 +240,33 @@
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:c7dd66cefac41c57ec9fdc6a7ffb4ec4451991ebe5a0329c084c953a9095ba02",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:c473244fa749197097c5349a73f4860d2814fa0afe963c7429975d71f87e834c",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:d25920f8ca7c3df2ac9df2ee0612f17146422ddc200d4ae9b9d8153e74e87c98",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:c59cee26d9a6e263711a2c2d5ef4778663e65ab869da69e0a298caf5285d5e85",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:e12d87cae779061d5fef3cb13c1f3d6e64f9d7f63b5612fc4d669f83fa2355b5",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:d3caa625e71307f44d01ba0f4e65ca5be92ac8ba010de5607462c9b1a8a692d7",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "derived_from",
-      "source_node_id": "finding:ffc444d9fac3da2c22f4c65743bdcc13ae72bb93cd4748aed9f8a462c1bb08bf",
-      "target_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2"
+      "source_node_id": "finding:d5c9580d1d43370be97cc1adc323f7c34786e51ea0c3ef36c84992758c3a96fa",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
+    },
+    {
+      "kind": "derived_from",
+      "source_node_id": "finding:e2f022c8a45798206eb2355b7f66f281373b3e3925680b83c95c4671bb5d06c0",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
+    },
+    {
+      "kind": "derived_from",
+      "source_node_id": "finding:ec999c13244288dbd15da89da9942d8efc6e61c9ea03480ec5c299ec64cc589b",
+      "target_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315"
     },
     {
       "kind": "scoped_to",
@@ -280,12 +280,12 @@
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+      "source_node_id": "evidence:a0d4aae0b24893d5bed10437d8e9a45f3a802935b70e7621a1410822e610bc63",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "evidence:a0d4aae0b24893d5bed10437d8e9a45f3a802935b70e7621a1410822e610bc63",
+      "source_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
@@ -295,107 +295,97 @@
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:0678d5203cbbaee3526dbf0866a65fc9eb8249dff8939e5f6a096d763c40e6f5",
+      "source_node_id": "finding:0c5b329da2b097288a65400cdc0eccc9c8c214d94703b0c49501a7e70e778142",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:08158eb10e6caf965516d2b6dbe237e43d2fb20b49dfc6e78ca690a3d5fa83a0",
+      "source_node_id": "finding:105edbe302530fa1bebb7caa9bda05224cd43ac6bd424a28530615dd9ee6e7f9",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:0b3bdbc151a2f1a058735dc083a80ead502b4008cccf63344d575bd9c10456e2",
+      "source_node_id": "finding:306fea11d68d41ed1d25f4382ab60846872af4aa0fdfdd5c972bc398c6e8635d",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:188097fc9894b1ab519c385698307b3cf4ac694571994b0dca76d73fc32eda95",
+      "source_node_id": "finding:3ab731c663bc279cf0f620b69a52d5aef91d875621dd81aeebf4c66be4ba8118",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:2e0d49322200b443c04237a496d1e25948e8d813b1da5de21a12ea10b3ab337a",
+      "source_node_id": "finding:3edfaed375da31298967057e1ef6298740db3eb6dbe0f05e1ee6249f7d8cbfde",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:4de668327344687fe4aae2eb11aba28bafc457190cb572d6282a98c5e544811d",
+      "source_node_id": "finding:5613f3e3b51d1390d509392040ff9f55ca3fbfa19a2c6137bd9fe1b8f44976d1",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:5e41c337792c8082cfe6dcd032690b29a44eb135e77a667d48e63c3d0c5cf563",
+      "source_node_id": "finding:582448fe1e5cbdeffe59db41347e7d345eb4e8ed8d20acf31c1f8bdfc36795d9",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:6aab4d24ba84a2e375ba731aec7591c95d4c6fac843f979f27727a1ee27f6905",
+      "source_node_id": "finding:60045598e980ba4e1c556eac392054ad6b58f40f1b4bfcf9c2cf2f2d8cc93104",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:6edc1995b0087259968fbada9b800ee694d3c2ccf5072c4e1b4b260a32a7a19c",
+      "source_node_id": "finding:654ab8898b9b72c058852be388be59b1ac78f889d9a8d6883839b280d5344ae2",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:83bf4e6c59e3fa533464bb12f9e0d1315aa155c5c816978705215d796f528943",
+      "source_node_id": "finding:66c931d5d250d048807fbe395c64edc34009b88e2abfe3ca68d20d5c12d83dbb",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:8406eab2dc4a9c0db19768495a0cff66e67732898ef3bff9f05a8ebbb930199f",
+      "source_node_id": "finding:72bc7bf1d8286dc2a70b59a8b87aa77c38dad3f9244d8f896c2b0b7d0a335352",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:8521692b3e3d963dac4d14c1b8fb2f72cf4db8bdc6b555d50347564b00ec621b",
+      "source_node_id": "finding:7d80446328bad0c575d6142fcb77eec00ab8baa01d8dfd1eb9995f6cc3f87b23",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:91167a6c6de8444082e15a830575be42a5168a4cd93afcc5b9a0a300b1dd1e5b",
+      "source_node_id": "finding:81938c469db3b8addc3d5d8d717868921993d3a39f7fdd343461b6633ad73f72",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:993ddf1fdaa5c8cadd2bd2670dc0f0f6e24f1389138d9516796d233ed5e02d9c",
+      "source_node_id": "finding:8aa088dc3badaf8c83a46abaaca805ccf811ee9adf0179e26f63f76285a0fca0",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:ad18be30ddb94dbff93fe6ae49b350c6d000881af047a573b987983ab55d104e",
+      "source_node_id": "finding:8ad6572e4c6485fa28b0ef9b776352f35b169843ddf131f6059e33a7090990b3",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:b66154a618e9ade84b7f5368d1e66422a282dab9ba3b4a70c201909ecdba287c",
+      "source_node_id": "finding:944c9fd3c092313bb1bfd1709fc2665e1f186118204714e2e78d5965f4204065",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:b913b1f72a7ef1ff5f25ad788d61fc7186ca15c38050ed5e196f8e22f619fd0b",
+      "source_node_id": "finding:9a5ff6899ede450818c803c1cf8ca1578dc3be979918b35a2f4c0d94643f80b3",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:bd13eeaa14f4c22421dedbb4907cf2a528ec0e464d2ce982441b19d0adc4eab7",
+      "source_node_id": "finding:a20c147b3a72c2f73a97d95c2af568526e161698d92b5023f064d415f45c539f",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:becda9441d4c313c31a791904168803e6dfda7882690720439774b79f47192be",
-      "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-    },
-    {
-      "kind": "scoped_to",
-      "source_node_id": "finding:c1b4ab67f7281161c24cf53305d3bfd7489a372485cc7e27c8f0bb807efbde3e",
-      "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-    },
-    {
-      "kind": "scoped_to",
-      "source_node_id": "finding:c26cc59dbd7e0e716b9a2e6551b31dd612065adf173ec923e2c1e9df98c9c17d",
+      "source_node_id": "finding:c1f1fa170a5a8764ae007c50d594450764e7cfbcb627f3ee7c48387196229089",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
@@ -405,22 +395,32 @@
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:c7dd66cefac41c57ec9fdc6a7ffb4ec4451991ebe5a0329c084c953a9095ba02",
+      "source_node_id": "finding:c473244fa749197097c5349a73f4860d2814fa0afe963c7429975d71f87e834c",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:d25920f8ca7c3df2ac9df2ee0612f17146422ddc200d4ae9b9d8153e74e87c98",
+      "source_node_id": "finding:c59cee26d9a6e263711a2c2d5ef4778663e65ab869da69e0a298caf5285d5e85",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:e12d87cae779061d5fef3cb13c1f3d6e64f9d7f63b5612fc4d669f83fa2355b5",
+      "source_node_id": "finding:d3caa625e71307f44d01ba0f4e65ca5be92ac8ba010de5607462c9b1a8a692d7",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
       "kind": "scoped_to",
-      "source_node_id": "finding:ffc444d9fac3da2c22f4c65743bdcc13ae72bb93cd4748aed9f8a462c1bb08bf",
+      "source_node_id": "finding:d5c9580d1d43370be97cc1adc323f7c34786e51ea0c3ef36c84992758c3a96fa",
+      "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+    },
+    {
+      "kind": "scoped_to",
+      "source_node_id": "finding:e2f022c8a45798206eb2355b7f66f281373b3e3925680b83c95c4671bb5d06c0",
+      "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+    },
+    {
+      "kind": "scoped_to",
+      "source_node_id": "finding:ec999c13244288dbd15da89da9942d8efc6e61c9ea03480ec5c299ec64cc589b",
       "target_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
     },
     {
@@ -555,236 +555,236 @@
     },
     {
       "kind": "supports",
-      "source_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-      "target_node_id": "requirement:69ee897bfbc7ec99d7901df234bbd258343331cce02f4f5d6f3bd4c7aa3a6754"
-    },
-    {
-      "kind": "supports",
       "source_node_id": "evidence:a0d4aae0b24893d5bed10437d8e9a45f3a802935b70e7621a1410822e610bc63",
       "target_node_id": "requirement:464bb246cb851b879b0c05b09329674846dd5bb025d198aa2a49281934b8e614"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:0678d5203cbbaee3526dbf0866a65fc9eb8249dff8939e5f6a096d763c40e6f5",
-      "target_node_id": "requirement:8029bbddfda70a4ff659c8fd8f69e1ecd9273cc37be3572fb1af704f70694c47"
+      "source_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+      "target_node_id": "requirement:69ee897bfbc7ec99d7901df234bbd258343331cce02f4f5d6f3bd4c7aa3a6754"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:08158eb10e6caf965516d2b6dbe237e43d2fb20b49dfc6e78ca690a3d5fa83a0",
-      "target_node_id": "requirement:4720cbc10b5a6d8bcb37f6c527a2fe2b0054703623a6164e53731b82d9194908"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:0b3bdbc151a2f1a058735dc083a80ead502b4008cccf63344d575bd9c10456e2",
-      "target_node_id": "requirement:f7b55b5d63d9e05c38b0ef580c9eec576f873bc1858f5dd9b53a2c30f6180070"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:188097fc9894b1ab519c385698307b3cf4ac694571994b0dca76d73fc32eda95",
-      "target_node_id": "requirement:ee38d232ae9496766e521c540a7169b3cdb63503bca7268501c1fcff5c2db62a"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:4de668327344687fe4aae2eb11aba28bafc457190cb572d6282a98c5e544811d",
-      "target_node_id": "requirement:cd698cd95360981023f1befbbe4ec64613ba7db67dcde5fbdf637d89a0f1416b"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:5e41c337792c8082cfe6dcd032690b29a44eb135e77a667d48e63c3d0c5cf563",
-      "target_node_id": "requirement:b3cddbfa196b67f1cefff366febcb4f580b2ce5ed50f95043b726bbb66459302"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:6aab4d24ba84a2e375ba731aec7591c95d4c6fac843f979f27727a1ee27f6905",
-      "target_node_id": "requirement:51799986d65a21955a1fc55792994bc4041338332fd9e5569f6c4ee7bb439321"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:6edc1995b0087259968fbada9b800ee694d3c2ccf5072c4e1b4b260a32a7a19c",
-      "target_node_id": "requirement:216a3ce12d2393e123c67f6eb299c76880e9e7a3596d0e1ac53dc52765d00d48"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:8406eab2dc4a9c0db19768495a0cff66e67732898ef3bff9f05a8ebbb930199f",
-      "target_node_id": "requirement:47f4861f5b82b5e0952ed6e1b1cfbc7284a08172e949070145957e3942ab7b1e"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:8521692b3e3d963dac4d14c1b8fb2f72cf4db8bdc6b555d50347564b00ec621b",
-      "target_node_id": "requirement:984ec339ecd03c14cdf9144eba85d846f095a1dfc50b29fe97ddd78b79e96c51"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:91167a6c6de8444082e15a830575be42a5168a4cd93afcc5b9a0a300b1dd1e5b",
-      "target_node_id": "requirement:1fd9cfc0bf06ef7f3901b84d3e15188e495070d2bc388ca64f94d6a51b0d9d42"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:ad18be30ddb94dbff93fe6ae49b350c6d000881af047a573b987983ab55d104e",
-      "target_node_id": "requirement:5c2c0ec38a6c4f24c755970d4ae88965f997f603c790c34cfe9a97062e4094c4"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:b66154a618e9ade84b7f5368d1e66422a282dab9ba3b4a70c201909ecdba287c",
-      "target_node_id": "requirement:768b7d1b0824cc26cb618c0eccddd3d14f6dbe7f7432caf0807169b869c8bb33"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:b913b1f72a7ef1ff5f25ad788d61fc7186ca15c38050ed5e196f8e22f619fd0b",
-      "target_node_id": "requirement:e8fad1acb9fd4903abbbfe6be40e1aaf5388c8e63f1165006848f72c952c410e"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:bd13eeaa14f4c22421dedbb4907cf2a528ec0e464d2ce982441b19d0adc4eab7",
-      "target_node_id": "requirement:bf23da28235c103a8cbf4bf7a0894d1a1810d4869a592f5799aa2fd264e12e75"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:becda9441d4c313c31a791904168803e6dfda7882690720439774b79f47192be",
-      "target_node_id": "requirement:fa1faea564ff2cc6d4f5a9681347f1062c07054fa4e459e6a71c604479e434d7"
-    },
-    {
-      "kind": "supports",
-      "source_node_id": "finding:c1b4ab67f7281161c24cf53305d3bfd7489a372485cc7e27c8f0bb807efbde3e",
+      "source_node_id": "finding:105edbe302530fa1bebb7caa9bda05224cd43ac6bd424a28530615dd9ee6e7f9",
       "target_node_id": "requirement:26ce3656501676f0fbdc26ceea7439272c40b82c4e825d5183d8a285497d2809"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:c26cc59dbd7e0e716b9a2e6551b31dd612065adf173ec923e2c1e9df98c9c17d",
-      "target_node_id": "requirement:f202ad2d2b29416b0d30541e3939ab6c620c72a115cb2422e42a997f8eea6877"
+      "source_node_id": "finding:306fea11d68d41ed1d25f4382ab60846872af4aa0fdfdd5c972bc398c6e8635d",
+      "target_node_id": "requirement:b3cddbfa196b67f1cefff366febcb4f580b2ce5ed50f95043b726bbb66459302"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:c7dd66cefac41c57ec9fdc6a7ffb4ec4451991ebe5a0329c084c953a9095ba02",
+      "source_node_id": "finding:3ab731c663bc279cf0f620b69a52d5aef91d875621dd81aeebf4c66be4ba8118",
+      "target_node_id": "requirement:47f4861f5b82b5e0952ed6e1b1cfbc7284a08172e949070145957e3942ab7b1e"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:3edfaed375da31298967057e1ef6298740db3eb6dbe0f05e1ee6249f7d8cbfde",
+      "target_node_id": "requirement:984ec339ecd03c14cdf9144eba85d846f095a1dfc50b29fe97ddd78b79e96c51"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:5613f3e3b51d1390d509392040ff9f55ca3fbfa19a2c6137bd9fe1b8f44976d1",
       "target_node_id": "requirement:6647769145e6f3baa3276f8b1ca90b7bdbc9b1c037e503e5c9b419694c46a61a"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:d25920f8ca7c3df2ac9df2ee0612f17146422ddc200d4ae9b9d8153e74e87c98",
+      "source_node_id": "finding:582448fe1e5cbdeffe59db41347e7d345eb4e8ed8d20acf31c1f8bdfc36795d9",
+      "target_node_id": "requirement:1fd9cfc0bf06ef7f3901b84d3e15188e495070d2bc388ca64f94d6a51b0d9d42"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:60045598e980ba4e1c556eac392054ad6b58f40f1b4bfcf9c2cf2f2d8cc93104",
+      "target_node_id": "requirement:f202ad2d2b29416b0d30541e3939ab6c620c72a115cb2422e42a997f8eea6877"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:654ab8898b9b72c058852be388be59b1ac78f889d9a8d6883839b280d5344ae2",
+      "target_node_id": "requirement:fa1faea564ff2cc6d4f5a9681347f1062c07054fa4e459e6a71c604479e434d7"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:72bc7bf1d8286dc2a70b59a8b87aa77c38dad3f9244d8f896c2b0b7d0a335352",
+      "target_node_id": "requirement:f7b55b5d63d9e05c38b0ef580c9eec576f873bc1858f5dd9b53a2c30f6180070"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:7d80446328bad0c575d6142fcb77eec00ab8baa01d8dfd1eb9995f6cc3f87b23",
       "target_node_id": "requirement:880c86e0f4ed03527f58c53d56e98a516ab92cf1688071f1d5eeeec15cf6e54f"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:e12d87cae779061d5fef3cb13c1f3d6e64f9d7f63b5612fc4d669f83fa2355b5",
+      "source_node_id": "finding:81938c469db3b8addc3d5d8d717868921993d3a39f7fdd343461b6633ad73f72",
+      "target_node_id": "requirement:51799986d65a21955a1fc55792994bc4041338332fd9e5569f6c4ee7bb439321"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:8aa088dc3badaf8c83a46abaaca805ccf811ee9adf0179e26f63f76285a0fca0",
+      "target_node_id": "requirement:216a3ce12d2393e123c67f6eb299c76880e9e7a3596d0e1ac53dc52765d00d48"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:8ad6572e4c6485fa28b0ef9b776352f35b169843ddf131f6059e33a7090990b3",
+      "target_node_id": "requirement:8029bbddfda70a4ff659c8fd8f69e1ecd9273cc37be3572fb1af704f70694c47"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:9a5ff6899ede450818c803c1cf8ca1578dc3be979918b35a2f4c0d94643f80b3",
+      "target_node_id": "requirement:ada065372a51de358366a85a5d616519895125ce12815485ed1bc22e7a7e2527"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:a20c147b3a72c2f73a97d95c2af568526e161698d92b5023f064d415f45c539f",
+      "target_node_id": "requirement:bf23da28235c103a8cbf4bf7a0894d1a1810d4869a592f5799aa2fd264e12e75"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:c1f1fa170a5a8764ae007c50d594450764e7cfbcb627f3ee7c48387196229089",
+      "target_node_id": "requirement:5c2c0ec38a6c4f24c755970d4ae88965f997f603c790c34cfe9a97062e4094c4"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:c473244fa749197097c5349a73f4860d2814fa0afe963c7429975d71f87e834c",
+      "target_node_id": "requirement:e8fad1acb9fd4903abbbfe6be40e1aaf5388c8e63f1165006848f72c952c410e"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:c59cee26d9a6e263711a2c2d5ef4778663e65ab869da69e0a298caf5285d5e85",
+      "target_node_id": "requirement:ee38d232ae9496766e521c540a7169b3cdb63503bca7268501c1fcff5c2db62a"
+    },
+    {
+      "kind": "supports",
+      "source_node_id": "finding:d3caa625e71307f44d01ba0f4e65ca5be92ac8ba010de5607462c9b1a8a692d7",
       "target_node_id": "requirement:19b92cb80e9d305d27a3219ef50bff4ae3f2e141b94bdbcdb09508fee928451f"
     },
     {
       "kind": "supports",
-      "source_node_id": "finding:ffc444d9fac3da2c22f4c65743bdcc13ae72bb93cd4748aed9f8a462c1bb08bf",
-      "target_node_id": "requirement:ada065372a51de358366a85a5d616519895125ce12815485ed1bc22e7a7e2527"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:0678d5203cbbaee3526dbf0866a65fc9eb8249dff8939e5f6a096d763c40e6f5",
-      "target_node_id": "requirement:8029bbddfda70a4ff659c8fd8f69e1ecd9273cc37be3572fb1af704f70694c47"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:08158eb10e6caf965516d2b6dbe237e43d2fb20b49dfc6e78ca690a3d5fa83a0",
+      "source_node_id": "finding:d5c9580d1d43370be97cc1adc323f7c34786e51ea0c3ef36c84992758c3a96fa",
       "target_node_id": "requirement:4720cbc10b5a6d8bcb37f6c527a2fe2b0054703623a6164e53731b82d9194908"
     },
     {
-      "kind": "targets",
-      "source_node_id": "finding:0b3bdbc151a2f1a058735dc083a80ead502b4008cccf63344d575bd9c10456e2",
-      "target_node_id": "requirement:f7b55b5d63d9e05c38b0ef580c9eec576f873bc1858f5dd9b53a2c30f6180070"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:188097fc9894b1ab519c385698307b3cf4ac694571994b0dca76d73fc32eda95",
-      "target_node_id": "requirement:ee38d232ae9496766e521c540a7169b3cdb63503bca7268501c1fcff5c2db62a"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:4de668327344687fe4aae2eb11aba28bafc457190cb572d6282a98c5e544811d",
+      "kind": "supports",
+      "source_node_id": "finding:e2f022c8a45798206eb2355b7f66f281373b3e3925680b83c95c4671bb5d06c0",
       "target_node_id": "requirement:cd698cd95360981023f1befbbe4ec64613ba7db67dcde5fbdf637d89a0f1416b"
     },
     {
-      "kind": "targets",
-      "source_node_id": "finding:5e41c337792c8082cfe6dcd032690b29a44eb135e77a667d48e63c3d0c5cf563",
-      "target_node_id": "requirement:b3cddbfa196b67f1cefff366febcb4f580b2ce5ed50f95043b726bbb66459302"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:6aab4d24ba84a2e375ba731aec7591c95d4c6fac843f979f27727a1ee27f6905",
-      "target_node_id": "requirement:51799986d65a21955a1fc55792994bc4041338332fd9e5569f6c4ee7bb439321"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:6edc1995b0087259968fbada9b800ee694d3c2ccf5072c4e1b4b260a32a7a19c",
-      "target_node_id": "requirement:216a3ce12d2393e123c67f6eb299c76880e9e7a3596d0e1ac53dc52765d00d48"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:8406eab2dc4a9c0db19768495a0cff66e67732898ef3bff9f05a8ebbb930199f",
-      "target_node_id": "requirement:47f4861f5b82b5e0952ed6e1b1cfbc7284a08172e949070145957e3942ab7b1e"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:8521692b3e3d963dac4d14c1b8fb2f72cf4db8bdc6b555d50347564b00ec621b",
-      "target_node_id": "requirement:984ec339ecd03c14cdf9144eba85d846f095a1dfc50b29fe97ddd78b79e96c51"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:91167a6c6de8444082e15a830575be42a5168a4cd93afcc5b9a0a300b1dd1e5b",
-      "target_node_id": "requirement:1fd9cfc0bf06ef7f3901b84d3e15188e495070d2bc388ca64f94d6a51b0d9d42"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:ad18be30ddb94dbff93fe6ae49b350c6d000881af047a573b987983ab55d104e",
-      "target_node_id": "requirement:5c2c0ec38a6c4f24c755970d4ae88965f997f603c790c34cfe9a97062e4094c4"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:b66154a618e9ade84b7f5368d1e66422a282dab9ba3b4a70c201909ecdba287c",
+      "kind": "supports",
+      "source_node_id": "finding:ec999c13244288dbd15da89da9942d8efc6e61c9ea03480ec5c299ec64cc589b",
       "target_node_id": "requirement:768b7d1b0824cc26cb618c0eccddd3d14f6dbe7f7432caf0807169b869c8bb33"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:b913b1f72a7ef1ff5f25ad788d61fc7186ca15c38050ed5e196f8e22f619fd0b",
-      "target_node_id": "requirement:e8fad1acb9fd4903abbbfe6be40e1aaf5388c8e63f1165006848f72c952c410e"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:bd13eeaa14f4c22421dedbb4907cf2a528ec0e464d2ce982441b19d0adc4eab7",
-      "target_node_id": "requirement:bf23da28235c103a8cbf4bf7a0894d1a1810d4869a592f5799aa2fd264e12e75"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:becda9441d4c313c31a791904168803e6dfda7882690720439774b79f47192be",
-      "target_node_id": "requirement:fa1faea564ff2cc6d4f5a9681347f1062c07054fa4e459e6a71c604479e434d7"
-    },
-    {
-      "kind": "targets",
-      "source_node_id": "finding:c1b4ab67f7281161c24cf53305d3bfd7489a372485cc7e27c8f0bb807efbde3e",
+      "source_node_id": "finding:105edbe302530fa1bebb7caa9bda05224cd43ac6bd424a28530615dd9ee6e7f9",
       "target_node_id": "requirement:26ce3656501676f0fbdc26ceea7439272c40b82c4e825d5183d8a285497d2809"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:c26cc59dbd7e0e716b9a2e6551b31dd612065adf173ec923e2c1e9df98c9c17d",
-      "target_node_id": "requirement:f202ad2d2b29416b0d30541e3939ab6c620c72a115cb2422e42a997f8eea6877"
+      "source_node_id": "finding:306fea11d68d41ed1d25f4382ab60846872af4aa0fdfdd5c972bc398c6e8635d",
+      "target_node_id": "requirement:b3cddbfa196b67f1cefff366febcb4f580b2ce5ed50f95043b726bbb66459302"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:c7dd66cefac41c57ec9fdc6a7ffb4ec4451991ebe5a0329c084c953a9095ba02",
+      "source_node_id": "finding:3ab731c663bc279cf0f620b69a52d5aef91d875621dd81aeebf4c66be4ba8118",
+      "target_node_id": "requirement:47f4861f5b82b5e0952ed6e1b1cfbc7284a08172e949070145957e3942ab7b1e"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:3edfaed375da31298967057e1ef6298740db3eb6dbe0f05e1ee6249f7d8cbfde",
+      "target_node_id": "requirement:984ec339ecd03c14cdf9144eba85d846f095a1dfc50b29fe97ddd78b79e96c51"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:5613f3e3b51d1390d509392040ff9f55ca3fbfa19a2c6137bd9fe1b8f44976d1",
       "target_node_id": "requirement:6647769145e6f3baa3276f8b1ca90b7bdbc9b1c037e503e5c9b419694c46a61a"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:d25920f8ca7c3df2ac9df2ee0612f17146422ddc200d4ae9b9d8153e74e87c98",
+      "source_node_id": "finding:582448fe1e5cbdeffe59db41347e7d345eb4e8ed8d20acf31c1f8bdfc36795d9",
+      "target_node_id": "requirement:1fd9cfc0bf06ef7f3901b84d3e15188e495070d2bc388ca64f94d6a51b0d9d42"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:60045598e980ba4e1c556eac392054ad6b58f40f1b4bfcf9c2cf2f2d8cc93104",
+      "target_node_id": "requirement:f202ad2d2b29416b0d30541e3939ab6c620c72a115cb2422e42a997f8eea6877"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:654ab8898b9b72c058852be388be59b1ac78f889d9a8d6883839b280d5344ae2",
+      "target_node_id": "requirement:fa1faea564ff2cc6d4f5a9681347f1062c07054fa4e459e6a71c604479e434d7"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:72bc7bf1d8286dc2a70b59a8b87aa77c38dad3f9244d8f896c2b0b7d0a335352",
+      "target_node_id": "requirement:f7b55b5d63d9e05c38b0ef580c9eec576f873bc1858f5dd9b53a2c30f6180070"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:7d80446328bad0c575d6142fcb77eec00ab8baa01d8dfd1eb9995f6cc3f87b23",
       "target_node_id": "requirement:880c86e0f4ed03527f58c53d56e98a516ab92cf1688071f1d5eeeec15cf6e54f"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:e12d87cae779061d5fef3cb13c1f3d6e64f9d7f63b5612fc4d669f83fa2355b5",
+      "source_node_id": "finding:81938c469db3b8addc3d5d8d717868921993d3a39f7fdd343461b6633ad73f72",
+      "target_node_id": "requirement:51799986d65a21955a1fc55792994bc4041338332fd9e5569f6c4ee7bb439321"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:8aa088dc3badaf8c83a46abaaca805ccf811ee9adf0179e26f63f76285a0fca0",
+      "target_node_id": "requirement:216a3ce12d2393e123c67f6eb299c76880e9e7a3596d0e1ac53dc52765d00d48"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:8ad6572e4c6485fa28b0ef9b776352f35b169843ddf131f6059e33a7090990b3",
+      "target_node_id": "requirement:8029bbddfda70a4ff659c8fd8f69e1ecd9273cc37be3572fb1af704f70694c47"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:9a5ff6899ede450818c803c1cf8ca1578dc3be979918b35a2f4c0d94643f80b3",
+      "target_node_id": "requirement:ada065372a51de358366a85a5d616519895125ce12815485ed1bc22e7a7e2527"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:a20c147b3a72c2f73a97d95c2af568526e161698d92b5023f064d415f45c539f",
+      "target_node_id": "requirement:bf23da28235c103a8cbf4bf7a0894d1a1810d4869a592f5799aa2fd264e12e75"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:c1f1fa170a5a8764ae007c50d594450764e7cfbcb627f3ee7c48387196229089",
+      "target_node_id": "requirement:5c2c0ec38a6c4f24c755970d4ae88965f997f603c790c34cfe9a97062e4094c4"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:c473244fa749197097c5349a73f4860d2814fa0afe963c7429975d71f87e834c",
+      "target_node_id": "requirement:e8fad1acb9fd4903abbbfe6be40e1aaf5388c8e63f1165006848f72c952c410e"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:c59cee26d9a6e263711a2c2d5ef4778663e65ab869da69e0a298caf5285d5e85",
+      "target_node_id": "requirement:ee38d232ae9496766e521c540a7169b3cdb63503bca7268501c1fcff5c2db62a"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:d3caa625e71307f44d01ba0f4e65ca5be92ac8ba010de5607462c9b1a8a692d7",
       "target_node_id": "requirement:19b92cb80e9d305d27a3219ef50bff4ae3f2e141b94bdbcdb09508fee928451f"
     },
     {
       "kind": "targets",
-      "source_node_id": "finding:ffc444d9fac3da2c22f4c65743bdcc13ae72bb93cd4748aed9f8a462c1bb08bf",
-      "target_node_id": "requirement:ada065372a51de358366a85a5d616519895125ce12815485ed1bc22e7a7e2527"
+      "source_node_id": "finding:d5c9580d1d43370be97cc1adc323f7c34786e51ea0c3ef36c84992758c3a96fa",
+      "target_node_id": "requirement:4720cbc10b5a6d8bcb37f6c527a2fe2b0054703623a6164e53731b82d9194908"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:e2f022c8a45798206eb2355b7f66f281373b3e3925680b83c95c4671bb5d06c0",
+      "target_node_id": "requirement:cd698cd95360981023f1befbbe4ec64613ba7db67dcde5fbdf637d89a0f1416b"
+    },
+    {
+      "kind": "targets",
+      "source_node_id": "finding:ec999c13244288dbd15da89da9942d8efc6e61c9ea03480ec5c299ec64cc589b",
+      "target_node_id": "requirement:768b7d1b0824cc26cb618c0eccddd3d14f6dbe7f7432caf0807169b869c8bb33"
     }
   ],
-  "graph_digest": "05513153f32519c5552af446ee1ea0da1baa74acc032eb4f8823c48271f1695f",
+  "graph_digest": "f2ba55773d03432df86650d9134e82de81a810f584525fb44bae8398bef11baf",
   "limitations": [
     "The graph is a deterministic projection of the supplied privacy-filtered artifacts; its digest establishes canonical identity, not authenticity or evidence adequacy.",
     "The graph uses only the AssuranceEvidenceGraph/v1 four-node and six-edge vocabulary; it is not an assurance case, broad ontology, inference engine, or graph database."
@@ -816,12 +816,12 @@
           }
         ],
         "source_artifact_kind": "evaluation-summary",
-        "source_digest": "ac353ec4528da65d6356233a665102252d3af06f8af5b1eec377aa779970f5ff",
+        "source_digest": "de1bdb43ade606f9881fd5f5c950988b7bd4851261504789c75bab1ecdc22647",
         "source_id": "runset-69e59deb-4cf5-500e-bb17-405262e32611",
         "state": "supported",
         "verdict_bearing": true
       },
-      "payload_digest": "d1ca1e7583bf66a8857a7cca9d24ec12a2fc4a0cae702ad179bf025a7b36bf79"
+      "payload_digest": "c3be0bcad257de20658135dd09c5626bc61a7b9396281d057cb11d320fa03fb4"
     },
     {
       "identity": {
@@ -890,14 +890,51 @@
     },
     {
       "identity": {
-        "evidence_type": "control_efficacy",
+        "evidence_type": "gate_decision",
         "identity_kind": "evidence",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "2b6f32afcd2329907b689220cde22847f923bc61ee8bdc7ae3c706091daadea3",
+        "source_artifact_kind": "control-efficacy-gate-decision",
+        "source_id": "control-efficacy/default",
         "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
       },
       "kind": "evidence",
-      "node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+      "node_id": "evidence:a0d4aae0b24893d5bed10437d8e9a45f3a802935b70e7621a1410822e610bc63",
+      "payload": {
+        "comparison_projection": null,
+        "control_efficacy_projection": null,
+        "evaluation_basis": null,
+        "evidence_type": "gate_decision",
+        "limitations": [],
+        "payload_kind": "evidence",
+        "privacy_profile_digest": null,
+        "privacy_profile_id": null,
+        "references": [
+          {
+            "role": "gate_profile",
+            "value": "control-efficacy/default"
+          },
+          {
+            "role": "source_digest",
+            "value": "416e5aac9d23c5c7d1d3b4bf0c2e2e97d0e198f8752c442a08d6df91a1d6ba22"
+          }
+        ],
+        "source_artifact_kind": "control-efficacy-gate-decision",
+        "source_digest": "a5dd5aaf3b48448758bc246820693e44ee53d04d5bea268ff8037ded1d32d889",
+        "source_id": "control-efficacy/default",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "7428514e11a57e96180e6645b66ec247d403bad2256e53e22e676710bb31393c"
+    },
+    {
+      "identity": {
+        "evidence_type": "control_efficacy",
+        "identity_kind": "evidence",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "f088d1944b2ce9cb23f84e24b38b68ab93e354632a34975409679328a1602f1b",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "evidence",
+      "node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
       "payload": {
         "comparison_projection": null,
         "control_efficacy_projection": {
@@ -1232,49 +1269,12 @@
           }
         ],
         "source_artifact_kind": "control-efficacy-report",
-        "source_digest": "8585df94cf3f58c36d89a7f751ade6fb6b66cd0076eea237bdf37a23d9d2a1e7",
-        "source_id": "2b6f32afcd2329907b689220cde22847f923bc61ee8bdc7ae3c706091daadea3",
+        "source_digest": "416e5aac9d23c5c7d1d3b4bf0c2e2e97d0e198f8752c442a08d6df91a1d6ba22",
+        "source_id": "f088d1944b2ce9cb23f84e24b38b68ab93e354632a34975409679328a1602f1b",
         "state": "supported",
         "verdict_bearing": true
       },
-      "payload_digest": "554f467b9545ca1320290d7bb5a1ad45287639242029e668f3a904f232e63cc9"
-    },
-    {
-      "identity": {
-        "evidence_type": "gate_decision",
-        "identity_kind": "evidence",
-        "source_artifact_kind": "control-efficacy-gate-decision",
-        "source_id": "control-efficacy/default",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "evidence",
-      "node_id": "evidence:a0d4aae0b24893d5bed10437d8e9a45f3a802935b70e7621a1410822e610bc63",
-      "payload": {
-        "comparison_projection": null,
-        "control_efficacy_projection": null,
-        "evaluation_basis": null,
-        "evidence_type": "gate_decision",
-        "limitations": [],
-        "payload_kind": "evidence",
-        "privacy_profile_digest": null,
-        "privacy_profile_id": null,
-        "references": [
-          {
-            "role": "gate_profile",
-            "value": "control-efficacy/default"
-          },
-          {
-            "role": "source_digest",
-            "value": "8585df94cf3f58c36d89a7f751ade6fb6b66cd0076eea237bdf37a23d9d2a1e7"
-          }
-        ],
-        "source_artifact_kind": "control-efficacy-gate-decision",
-        "source_digest": "c9a4ac11d648c2d644ada26453943e05048ba13d5af2ce4672a99906f71d18e1",
-        "source_id": "control-efficacy/default",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "f5d39c53887da4dfad01f9c1727d455d4aa8d659d692c86f42c6587b5f7bf3de"
+      "payload_digest": "e03f9a68dbef87c161339323588c3c6ed8fe39b2c851e3610e4ee02da5f3016c"
     },
     {
       "identity": {
@@ -1306,16 +1306,700 @@
     },
     {
       "identity": {
+        "finding_type": "limitation",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-1",
+        "source_path": "/limitations/1",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:0c5b329da2b097288a65400cdc0eccc9c8c214d94703b0c49501a7e70e778142",
+      "payload": {
+        "critical": null,
+        "finding_type": "limitation",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [
+          "Kill rates are detector-test ratios, not safety, compliance, or certification scores."
+        ],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "EVIDENCE_SCOPE_LIMITATION"
+        ],
+        "references": [],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-1",
+        "source_path": "/limitations/1",
+        "state": "inconclusive",
+        "verdict_bearing": false
+      },
+      "payload_digest": "740efac83fc421049fd1d6d8b9ed360b79e855240394b7d983b8192f0ed3236c"
+    },
+    {
+      "identity": {
         "finding_type": "control_efficacy_threat",
         "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "missing-review-route",
+        "source_path": "/threat_coverage/12",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:105edbe302530fa1bebb7caa9bda05224cd43ac6bd424a28530615dd9ee6e7f9",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "bypass-required-human-review"
+          },
+          {
+            "role": "threat",
+            "value": "missing-review-route"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "missing-review-route",
+        "source_path": "/threat_coverage/12",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "35f1018007f556eabfbe67ce2f1756fc6bddb6464e86621570d50628917f1433"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "material-claim-link-regression",
+        "source_path": "/threat_coverage/11",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:306fea11d68d41ed1d25f4382ab60846872af4aa0fdfdd5c972bc398c6e8635d",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "drop-material-evidence-link"
+          },
+          {
+            "role": "threat",
+            "value": "material-claim-link-regression"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "material-claim-link-regression",
+        "source_path": "/threat_coverage/11",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "61acdbf48678dd81504326409ab4397c49ca7b4de40f243e78f525063e73bec6"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0067.000",
+        "source_path": "/threat_coverage/5",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:3ab731c663bc279cf0f620b69a52d5aef91d875621dd81aeebf4c66be4ba8118",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "drop-material-evidence-link"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0067.000"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0067.000",
+        "source_path": "/threat_coverage/5",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "0f4d3bab4a5629c3d0c547433e251ad05c4d34b5107ca6257945b25f92342e80"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "fixture-runtime-failure",
+        "source_path": "/threat_coverage/9",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:3edfaed375da31298967057e1ef6298740db3eb6dbe0f05e1ee6249f7d8cbfde",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "mark-incomplete-budget-stop"
+          },
+          {
+            "role": "threat",
+            "value": "fixture-runtime-failure"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "fixture-runtime-failure",
+        "source_path": "/threat_coverage/9",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "e5333dc36280abfb9d12b6a654379a26aafc40fcd54a2c6cf9864b34bec9d4bb"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "mark-incomplete-budget-stop",
+        "source_path": "/operator_outcomes/4",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:5613f3e3b51d1390d509392040ff9f55ca3fbfa19a2c6137bd9fe1b8f44976d1",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "runset_completion_required"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "runset-completion-integrity"
+          },
+          {
+            "role": "operator",
+            "value": "mark-incomplete-budget-stop"
+          },
+          {
+            "role": "present_control",
+            "value": "runset_completion_required"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "fixture-runtime-failure"
+          },
+          {
+            "role": "threat",
+            "value": "fixture-runtime-failure"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "mark-incomplete-budget-stop",
+        "source_path": "/operator_outcomes/4",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "1f69b103c0c511906b9be608dd5b9c0de167f1317ae9d0361eee5f4d25420e57"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "skew-evidence-source-identity",
+        "source_path": "/operator_outcomes/6",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:582448fe1e5cbdeffe59db41347e7d345eb4e8ed8d20acf31c1f8bdfc36795d9",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "evidence_provenance_identity"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "provenance-corpus-identity"
+          },
+          {
+            "role": "operator",
+            "value": "skew-evidence-source-identity"
+          },
+          {
+            "role": "present_control",
+            "value": "evidence_provenance_identity"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "evidence-provenance-mismatch"
+          },
+          {
+            "role": "threat",
+            "value": "evidence-provenance-mismatch"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "skew-evidence-source-identity",
+        "source_path": "/operator_outcomes/6",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "e0cf246cc9cf8a40453b21dfb7855e718381ec86e931e8ea6a96a311c529c2e2"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0053",
+        "source_path": "/threat_coverage/2",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:60045598e980ba4e1c556eac392054ad6b58f40f1b4bfcf9c2cf2f2d8cc93104",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "bypass-required-human-review"
+          },
+          {
+            "role": "operator",
+            "value": "inject-forbidden-tool"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0053"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0053",
+        "source_path": "/threat_coverage/2",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "c3285cba26ec4cc72d6c3c943e92d126fb7abbeedf86f9b45e5e9ef9b3fde9d9"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "persisted-sensitive-content",
+        "source_path": "/threat_coverage/13",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:654ab8898b9b72c058852be388be59b1ac78f889d9a8d6883839b280d5344ae2",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "inject-synthetic-sensitive-summary"
+          },
+          {
+            "role": "threat",
+            "value": "persisted-sensitive-content"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "persisted-sensitive-content",
+        "source_path": "/threat_coverage/13",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "70ba9c4a47eca604385f515d0063bc82bab0fd35c4dc829f2fc095c937922352"
+    },
+    {
+      "identity": {
+        "finding_type": "limitation",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-0",
+        "source_path": "/limitations/0",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:66c931d5d250d048807fbe395c64edc34009b88e2abfe3ca68d20d5c12d83dbb",
+      "payload": {
+        "critical": null,
+        "finding_type": "limitation",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [
+          "Mutation efficacy is bounded to the declared catalog, subject, evaluator, and manifest."
+        ],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "EVIDENCE_SCOPE_LIMITATION"
+        ],
+        "references": [],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-0",
+        "source_path": "/limitations/0",
+        "state": "inconclusive",
+        "verdict_bearing": false
+      },
+      "payload_digest": "deeddb3fa13a0a7294abeea11437f3cb66072cbd473a0a565bf5d203241f05fa"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "invalid-structured-record",
+        "source_path": "/threat_coverage/10",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:72bc7bf1d8286dc2a70b59a8b87aa77c38dad3f9244d8f896c2b0b7d0a335352",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "replay-duplicate-case-observation"
+          },
+          {
+            "role": "threat",
+            "value": "invalid-structured-record"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "invalid-structured-record",
+        "source_path": "/threat_coverage/10",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "28101a5c3d73f260d5f11788e079aa15abb03a46d69f8845887850f2a0fcac21"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "drop-material-evidence-link",
+        "source_path": "/operator_outcomes/1",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:7d80446328bad0c575d6142fcb77eec00ab8baa01d8dfd1eb9995f6cc3f87b23",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "material_claims_have_evidence"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0067.000"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "material-evidence-linkage"
+          },
+          {
+            "role": "operator",
+            "value": "drop-material-evidence-link"
+          },
+          {
+            "role": "present_control",
+            "value": "material_claims_have_evidence"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0067.000"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "material-claim-link-regression"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0067.000"
+          },
+          {
+            "role": "threat",
+            "value": "material-claim-link-regression"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "drop-material-evidence-link",
+        "source_path": "/operator_outcomes/1",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "756977b6accd21602050c77228c4196bc09a34fe155936963b05cf8cbf5e127d"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0057",
+        "source_path": "/threat_coverage/4",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:81938c469db3b8addc3d5d8d717868921993d3a39f7fdd343461b6633ad73f72",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "inject-synthetic-sensitive-summary"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0057"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0057",
+        "source_path": "/threat_coverage/4",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "60adc8bfd03d3cf794c20d65261a25dda6c272358e304fd734560afcb36e686a"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0054",
+        "source_path": "/threat_coverage/3",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:8aa088dc3badaf8c83a46abaaca805ccf811ee9adf0179e26f63f76285a0fca0",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "bypass-required-human-review"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0054"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0054",
+        "source_path": "/threat_coverage/3",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "d2523e559f4272cd7ef432be72aed4dc6e424ca7c1e52483e23dd0e36dc51cf8"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
         "source_artifact_kind": "control-efficacy-report",
         "source_id": "AML.T0086",
         "source_path": "/threat_coverage/7",
         "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
       },
       "kind": "finding",
-      "node_id": "finding:0678d5203cbbaee3526dbf0866a65fc9eb8249dff8939e5f6a096d763c40e6f5",
+      "node_id": "finding:8ad6572e4c6485fa28b0ef9b776352f35b169843ddf131f6059e33a7090990b3",
       "payload": {
         "critical": true,
         "finding_type": "control_efficacy_threat",
@@ -1355,16 +2039,486 @@
     },
     {
       "identity": {
+        "finding_type": "limitation",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-2",
+        "source_path": "/limitations/2",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:944c9fd3c092313bb1bfd1709fc2665e1f186118204714e2e78d5965f4204065",
+      "payload": {
+        "critical": null,
+        "finding_type": "limitation",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [
+          "Threat mappings are planning evidence and do not establish conformance."
+        ],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "EVIDENCE_SCOPE_LIMITATION"
+        ],
+        "references": [],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "limitation-2",
+        "source_path": "/limitations/2",
+        "state": "inconclusive",
+        "verdict_bearing": false
+      },
+      "payload_digest": "07e9c61e050bf4e6d53d0b285280fb2cba877d0ff3667a66170689c97d16165b"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0085.001",
+        "source_path": "/threat_coverage/6",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:9a5ff6899ede450818c803c1cf8ca1578dc3be979918b35a2f4c0d94643f80b3",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "inject-forbidden-tool"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0085.001"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0085.001",
+        "source_path": "/threat_coverage/6",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "7f1980096357b612996391e999779fabbd5929ce0b516c7ab1cb6704b7bb7173"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0051",
+        "source_path": "/threat_coverage/1",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:a20c147b3a72c2f73a97d95c2af568526e161698d92b5023f064d415f45c539f",
+      "payload": {
+        "critical": true,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "bypass-required-human-review"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0051"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "AML.T0051",
+        "source_path": "/threat_coverage/1",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "023ae864750b59a9102f6d1cc84e5c02a0778bb155a4e4fb1709ed386cf4a6aa"
+    },
+    {
+      "identity": {
         "finding_type": "control_efficacy_outcome",
         "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "inject-forbidden-tool",
+        "source_path": "/operator_outcomes/2",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:c1f1fa170a5a8764ae007c50d594450764e7cfbcb627f3ee7c48387196229089",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "tool_allowlist"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0053"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0085.001"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "tool-boundary"
+          },
+          {
+            "role": "operator",
+            "value": "inject-forbidden-tool"
+          },
+          {
+            "role": "present_control",
+            "value": "tool_allowlist"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0053"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0085.001"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "unexpected-tool-use"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0053"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0085.001"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "threat",
+            "value": "unexpected-tool-use"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "inject-forbidden-tool",
+        "source_path": "/operator_outcomes/2",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "69755fd41eefe33da8cbc2275f747485e47a46b69f85be63295fc608039b6b58"
+    },
+    {
+      "identity": {
+        "finding_type": "limitation",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:e32f92dfc2e9efb1abfd343e8a582fc5a01f0222265a3517b8301a0da463d569",
+        "source_artifact_kind": "evidence-packet",
+        "source_id": "limitation-0",
+        "source_path": "/limitations/0",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:c31487d9e8f66f6dc6a679a1d196a73c289f11ee57a78d73972eff4194666f3c",
+      "payload": {
+        "critical": null,
+        "finding_type": "limitation",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [
+          "evidence packets summarize deterministic fixture-mode results; they are not signatures, attestations, safety certifications, compliance certifications, or live model-quality evidence"
+        ],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "EVIDENCE_SCOPE_LIMITATION"
+        ],
+        "references": [],
+        "required": null,
+        "source_artifact_kind": "evidence-packet",
+        "source_id": "limitation-0",
+        "source_path": "/limitations/0",
+        "state": "inconclusive",
+        "verdict_bearing": false
+      },
+      "payload_digest": "7b7619df22c3f5504accc4e74976beec1d0ef598c9a4e29e107fc7cf301bc232"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "replay-duplicate-case-observation",
+        "source_path": "/operator_outcomes/5",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:c473244fa749197097c5349a73f4860d2814fa0afe963c7429975d71f87e834c",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "valid_record_required"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "stream-replay-integrity"
+          },
+          {
+            "role": "operator",
+            "value": "replay-duplicate-case-observation"
+          },
+          {
+            "role": "present_control",
+            "value": "valid_record_required"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "invalid-structured-record"
+          },
+          {
+            "role": "threat",
+            "value": "invalid-structured-record"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "replay-duplicate-case-observation",
+        "source_path": "/operator_outcomes/5",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "355a0991751f9da568e7656a323ad0cdfb9cf6cf08f43faa1301a5ef4ac16970"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "inject-synthetic-sensitive-summary",
+        "source_path": "/operator_outcomes/3",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:c59cee26d9a6e263711a2c2d5ef4778663e65ab869da69e0a298caf5285d5e85",
+      "payload": {
+        "critical": null,
+        "finding_type": "control_efficacy_outcome",
+        "gate_effect": null,
+        "independently_challenged": null,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "MUTATION_CAUGHT"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "control",
+            "value": "redaction_required"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0024"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0057"
+          },
+          {
+            "role": "critical_threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "independence_class",
+            "value": "first_party_postcontrol"
+          },
+          {
+            "role": "invariant_family",
+            "value": "privacy-redaction"
+          },
+          {
+            "role": "operator",
+            "value": "inject-synthetic-sensitive-summary"
+          },
+          {
+            "role": "present_control",
+            "value": "redaction_required"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0024"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0057"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "scoped_threat",
+            "value": "persisted-sensitive-content"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0024"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0057"
+          },
+          {
+            "role": "threat",
+            "value": "AML.T0086"
+          },
+          {
+            "role": "threat",
+            "value": "persisted-sensitive-content"
+          }
+        ],
+        "required": true,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "inject-synthetic-sensitive-summary",
+        "source_path": "/operator_outcomes/3",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "3e0b8c8eacfd4319265c0ba781446b6b0817d9af1c20db21b6cd65b5df510103"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_threat",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "evidence-provenance-mismatch",
+        "source_path": "/threat_coverage/8",
+        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
+      },
+      "kind": "finding",
+      "node_id": "finding:d3caa625e71307f44d01ba0f4e65ca5be92ac8ba010de5607462c9b1a8a692d7",
+      "payload": {
+        "critical": false,
+        "finding_type": "control_efficacy_threat",
+        "gate_effect": null,
+        "independently_challenged": false,
+        "messages": [],
+        "payload_kind": "finding",
+        "reason_codes": [
+          "THREAT_CHALLENGED"
+        ],
+        "references": [
+          {
+            "role": "applicability",
+            "value": "applicable"
+          },
+          {
+            "role": "operator",
+            "value": "skew-evidence-source-identity"
+          },
+          {
+            "role": "threat",
+            "value": "evidence-provenance-mismatch"
+          }
+        ],
+        "required": null,
+        "source_artifact_kind": "control-efficacy-report",
+        "source_id": "evidence-provenance-mismatch",
+        "source_path": "/threat_coverage/8",
+        "state": "supported",
+        "verdict_bearing": true
+      },
+      "payload_digest": "a06a7694df047e0d3913f80222304ac22b5af4931e81063af24e2da57693c615"
+    },
+    {
+      "identity": {
+        "finding_type": "control_efficacy_outcome",
+        "identity_kind": "finding",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
         "source_artifact_kind": "control-efficacy-report",
         "source_id": "bypass-required-human-review",
         "source_path": "/operator_outcomes/0",
         "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
       },
       "kind": "finding",
-      "node_id": "finding:08158eb10e6caf965516d2b6dbe237e43d2fb20b49dfc6e78ca690a3d5fa83a0",
+      "node_id": "finding:d5c9580d1d43370be97cc1adc323f7c34786e51ea0c3ef36c84992758c3a96fa",
       "payload": {
         "critical": null,
         "finding_type": "control_efficacy_outcome",
@@ -1458,194 +2612,14 @@
       "identity": {
         "finding_type": "control_efficacy_threat",
         "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "invalid-structured-record",
-        "source_path": "/threat_coverage/10",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:0b3bdbc151a2f1a058735dc083a80ead502b4008cccf63344d575bd9c10456e2",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "replay-duplicate-case-observation"
-          },
-          {
-            "role": "threat",
-            "value": "invalid-structured-record"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "invalid-structured-record",
-        "source_path": "/threat_coverage/10",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "28101a5c3d73f260d5f11788e079aa15abb03a46d69f8845887850f2a0fcac21"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "inject-synthetic-sensitive-summary",
-        "source_path": "/operator_outcomes/3",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:188097fc9894b1ab519c385698307b3cf4ac694571994b0dca76d73fc32eda95",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "redaction_required"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0024"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0057"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "privacy-redaction"
-          },
-          {
-            "role": "operator",
-            "value": "inject-synthetic-sensitive-summary"
-          },
-          {
-            "role": "present_control",
-            "value": "redaction_required"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0024"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0057"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "persisted-sensitive-content"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0024"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0057"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "threat",
-            "value": "persisted-sensitive-content"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "inject-synthetic-sensitive-summary",
-        "source_path": "/operator_outcomes/3",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "3e0b8c8eacfd4319265c0ba781446b6b0817d9af1c20db21b6cd65b5df510103"
-    },
-    {
-      "identity": {
-        "finding_type": "limitation",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-2",
-        "source_path": "/limitations/2",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:2e0d49322200b443c04237a496d1e25948e8d813b1da5de21a12ea10b3ab337a",
-      "payload": {
-        "critical": null,
-        "finding_type": "limitation",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [
-          "Threat mappings are planning evidence and do not establish conformance."
-        ],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "EVIDENCE_SCOPE_LIMITATION"
-        ],
-        "references": [],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-2",
-        "source_path": "/limitations/2",
-        "state": "inconclusive",
-        "verdict_bearing": false
-      },
-      "payload_digest": "07e9c61e050bf4e6d53d0b285280fb2cba877d0ff3667a66170689c97d16165b"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
         "source_artifact_kind": "control-efficacy-report",
         "source_id": "AML.T0024",
         "source_path": "/threat_coverage/0",
         "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
       },
       "kind": "finding",
-      "node_id": "finding:4de668327344687fe4aae2eb11aba28bafc457190cb572d6282a98c5e544811d",
+      "node_id": "finding:e2f022c8a45798206eb2355b7f66f281373b3e3925680b83c95c4671bb5d06c0",
       "payload": {
         "critical": true,
         "finding_type": "control_efficacy_threat",
@@ -1683,473 +2657,14 @@
       "identity": {
         "finding_type": "control_efficacy_threat",
         "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "material-claim-link-regression",
-        "source_path": "/threat_coverage/11",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:5e41c337792c8082cfe6dcd032690b29a44eb135e77a667d48e63c3d0c5cf563",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "drop-material-evidence-link"
-          },
-          {
-            "role": "threat",
-            "value": "material-claim-link-regression"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "material-claim-link-regression",
-        "source_path": "/threat_coverage/11",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "61acdbf48678dd81504326409ab4397c49ca7b4de40f243e78f525063e73bec6"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0057",
-        "source_path": "/threat_coverage/4",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:6aab4d24ba84a2e375ba731aec7591c95d4c6fac843f979f27727a1ee27f6905",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "inject-synthetic-sensitive-summary"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0057"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0057",
-        "source_path": "/threat_coverage/4",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "60adc8bfd03d3cf794c20d65261a25dda6c272358e304fd734560afcb36e686a"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0054",
-        "source_path": "/threat_coverage/3",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:6edc1995b0087259968fbada9b800ee694d3c2ccf5072c4e1b4b260a32a7a19c",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "bypass-required-human-review"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0054"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0054",
-        "source_path": "/threat_coverage/3",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "d2523e559f4272cd7ef432be72aed4dc6e424ca7c1e52483e23dd0e36dc51cf8"
-    },
-    {
-      "identity": {
-        "finding_type": "limitation",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-1",
-        "source_path": "/limitations/1",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:83bf4e6c59e3fa533464bb12f9e0d1315aa155c5c816978705215d796f528943",
-      "payload": {
-        "critical": null,
-        "finding_type": "limitation",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [
-          "Kill rates are detector-test ratios, not safety, compliance, or certification scores."
-        ],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "EVIDENCE_SCOPE_LIMITATION"
-        ],
-        "references": [],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-1",
-        "source_path": "/limitations/1",
-        "state": "inconclusive",
-        "verdict_bearing": false
-      },
-      "payload_digest": "740efac83fc421049fd1d6d8b9ed360b79e855240394b7d983b8192f0ed3236c"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0067.000",
-        "source_path": "/threat_coverage/5",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:8406eab2dc4a9c0db19768495a0cff66e67732898ef3bff9f05a8ebbb930199f",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "drop-material-evidence-link"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0067.000"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0067.000",
-        "source_path": "/threat_coverage/5",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "0f4d3bab4a5629c3d0c547433e251ad05c4d34b5107ca6257945b25f92342e80"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "fixture-runtime-failure",
-        "source_path": "/threat_coverage/9",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:8521692b3e3d963dac4d14c1b8fb2f72cf4db8bdc6b555d50347564b00ec621b",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "mark-incomplete-budget-stop"
-          },
-          {
-            "role": "threat",
-            "value": "fixture-runtime-failure"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "fixture-runtime-failure",
-        "source_path": "/threat_coverage/9",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "e5333dc36280abfb9d12b6a654379a26aafc40fcd54a2c6cf9864b34bec9d4bb"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "skew-evidence-source-identity",
-        "source_path": "/operator_outcomes/6",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:91167a6c6de8444082e15a830575be42a5168a4cd93afcc5b9a0a300b1dd1e5b",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "evidence_provenance_identity"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "provenance-corpus-identity"
-          },
-          {
-            "role": "operator",
-            "value": "skew-evidence-source-identity"
-          },
-          {
-            "role": "present_control",
-            "value": "evidence_provenance_identity"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "evidence-provenance-mismatch"
-          },
-          {
-            "role": "threat",
-            "value": "evidence-provenance-mismatch"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "skew-evidence-source-identity",
-        "source_path": "/operator_outcomes/6",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "e0cf246cc9cf8a40453b21dfb7855e718381ec86e931e8ea6a96a311c529c2e2"
-    },
-    {
-      "identity": {
-        "finding_type": "limitation",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-0",
-        "source_path": "/limitations/0",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:993ddf1fdaa5c8cadd2bd2670dc0f0f6e24f1389138d9516796d233ed5e02d9c",
-      "payload": {
-        "critical": null,
-        "finding_type": "limitation",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [
-          "Mutation efficacy is bounded to the declared catalog, subject, evaluator, and manifest."
-        ],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "EVIDENCE_SCOPE_LIMITATION"
-        ],
-        "references": [],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "limitation-0",
-        "source_path": "/limitations/0",
-        "state": "inconclusive",
-        "verdict_bearing": false
-      },
-      "payload_digest": "deeddb3fa13a0a7294abeea11437f3cb66072cbd473a0a565bf5d203241f05fa"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "inject-forbidden-tool",
-        "source_path": "/operator_outcomes/2",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:ad18be30ddb94dbff93fe6ae49b350c6d000881af047a573b987983ab55d104e",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "tool_allowlist"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0053"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0085.001"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "tool-boundary"
-          },
-          {
-            "role": "operator",
-            "value": "inject-forbidden-tool"
-          },
-          {
-            "role": "present_control",
-            "value": "tool_allowlist"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0053"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0085.001"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "unexpected-tool-use"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0053"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0085.001"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0086"
-          },
-          {
-            "role": "threat",
-            "value": "unexpected-tool-use"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "inject-forbidden-tool",
-        "source_path": "/operator_outcomes/2",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "69755fd41eefe33da8cbc2275f747485e47a46b69f85be63295fc608039b6b58"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
+        "parent_evidence_node_id": "evidence:ab2936b9bdfc5c436fcf156475ca69eaa40720821f958e5e14f92ae04fab6315",
         "source_artifact_kind": "control-efficacy-report",
         "source_id": "unexpected-tool-use",
         "source_path": "/threat_coverage/14",
         "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
       },
       "kind": "finding",
-      "node_id": "finding:b66154a618e9ade84b7f5368d1e66422a282dab9ba3b4a70c201909ecdba287c",
+      "node_id": "finding:ec999c13244288dbd15da89da9942d8efc6e61c9ea03480ec5c299ec64cc589b",
       "payload": {
         "critical": false,
         "finding_type": "control_efficacy_threat",
@@ -2182,521 +2697,6 @@
         "verdict_bearing": true
       },
       "payload_digest": "257a731debe8b380f904d8544c5ac4c3407fef4ac55a3bdc8dc5b984c4392c9d"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "replay-duplicate-case-observation",
-        "source_path": "/operator_outcomes/5",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:b913b1f72a7ef1ff5f25ad788d61fc7186ca15c38050ed5e196f8e22f619fd0b",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "valid_record_required"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "stream-replay-integrity"
-          },
-          {
-            "role": "operator",
-            "value": "replay-duplicate-case-observation"
-          },
-          {
-            "role": "present_control",
-            "value": "valid_record_required"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "invalid-structured-record"
-          },
-          {
-            "role": "threat",
-            "value": "invalid-structured-record"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "replay-duplicate-case-observation",
-        "source_path": "/operator_outcomes/5",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "355a0991751f9da568e7656a323ad0cdfb9cf6cf08f43faa1301a5ef4ac16970"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0051",
-        "source_path": "/threat_coverage/1",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:bd13eeaa14f4c22421dedbb4907cf2a528ec0e464d2ce982441b19d0adc4eab7",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "bypass-required-human-review"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0051"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0051",
-        "source_path": "/threat_coverage/1",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "023ae864750b59a9102f6d1cc84e5c02a0778bb155a4e4fb1709ed386cf4a6aa"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "persisted-sensitive-content",
-        "source_path": "/threat_coverage/13",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:becda9441d4c313c31a791904168803e6dfda7882690720439774b79f47192be",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "inject-synthetic-sensitive-summary"
-          },
-          {
-            "role": "threat",
-            "value": "persisted-sensitive-content"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "persisted-sensitive-content",
-        "source_path": "/threat_coverage/13",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "70ba9c4a47eca604385f515d0063bc82bab0fd35c4dc829f2fc095c937922352"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "missing-review-route",
-        "source_path": "/threat_coverage/12",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:c1b4ab67f7281161c24cf53305d3bfd7489a372485cc7e27c8f0bb807efbde3e",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "bypass-required-human-review"
-          },
-          {
-            "role": "threat",
-            "value": "missing-review-route"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "missing-review-route",
-        "source_path": "/threat_coverage/12",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "35f1018007f556eabfbe67ce2f1756fc6bddb6464e86621570d50628917f1433"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0053",
-        "source_path": "/threat_coverage/2",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:c26cc59dbd7e0e716b9a2e6551b31dd612065adf173ec923e2c1e9df98c9c17d",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "bypass-required-human-review"
-          },
-          {
-            "role": "operator",
-            "value": "inject-forbidden-tool"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0053"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0053",
-        "source_path": "/threat_coverage/2",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "c3285cba26ec4cc72d6c3c943e92d126fb7abbeedf86f9b45e5e9ef9b3fde9d9"
-    },
-    {
-      "identity": {
-        "finding_type": "limitation",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:e32f92dfc2e9efb1abfd343e8a582fc5a01f0222265a3517b8301a0da463d569",
-        "source_artifact_kind": "evidence-packet",
-        "source_id": "limitation-0",
-        "source_path": "/limitations/0",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:c31487d9e8f66f6dc6a679a1d196a73c289f11ee57a78d73972eff4194666f3c",
-      "payload": {
-        "critical": null,
-        "finding_type": "limitation",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [
-          "evidence packets summarize deterministic fixture-mode results; they are not signatures, attestations, safety certifications, compliance certifications, or live model-quality evidence"
-        ],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "EVIDENCE_SCOPE_LIMITATION"
-        ],
-        "references": [],
-        "required": null,
-        "source_artifact_kind": "evidence-packet",
-        "source_id": "limitation-0",
-        "source_path": "/limitations/0",
-        "state": "inconclusive",
-        "verdict_bearing": false
-      },
-      "payload_digest": "7b7619df22c3f5504accc4e74976beec1d0ef598c9a4e29e107fc7cf301bc232"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "mark-incomplete-budget-stop",
-        "source_path": "/operator_outcomes/4",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:c7dd66cefac41c57ec9fdc6a7ffb4ec4451991ebe5a0329c084c953a9095ba02",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "runset_completion_required"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "runset-completion-integrity"
-          },
-          {
-            "role": "operator",
-            "value": "mark-incomplete-budget-stop"
-          },
-          {
-            "role": "present_control",
-            "value": "runset_completion_required"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "fixture-runtime-failure"
-          },
-          {
-            "role": "threat",
-            "value": "fixture-runtime-failure"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "mark-incomplete-budget-stop",
-        "source_path": "/operator_outcomes/4",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "1f69b103c0c511906b9be608dd5b9c0de167f1317ae9d0361eee5f4d25420e57"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_outcome",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "drop-material-evidence-link",
-        "source_path": "/operator_outcomes/1",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:d25920f8ca7c3df2ac9df2ee0612f17146422ddc200d4ae9b9d8153e74e87c98",
-      "payload": {
-        "critical": null,
-        "finding_type": "control_efficacy_outcome",
-        "gate_effect": null,
-        "independently_challenged": null,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "MUTATION_CAUGHT"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "control",
-            "value": "material_claims_have_evidence"
-          },
-          {
-            "role": "critical_threat",
-            "value": "AML.T0067.000"
-          },
-          {
-            "role": "independence_class",
-            "value": "first_party_postcontrol"
-          },
-          {
-            "role": "invariant_family",
-            "value": "material-evidence-linkage"
-          },
-          {
-            "role": "operator",
-            "value": "drop-material-evidence-link"
-          },
-          {
-            "role": "present_control",
-            "value": "material_claims_have_evidence"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "AML.T0067.000"
-          },
-          {
-            "role": "scoped_threat",
-            "value": "material-claim-link-regression"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0067.000"
-          },
-          {
-            "role": "threat",
-            "value": "material-claim-link-regression"
-          }
-        ],
-        "required": true,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "drop-material-evidence-link",
-        "source_path": "/operator_outcomes/1",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "756977b6accd21602050c77228c4196bc09a34fe155936963b05cf8cbf5e127d"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "evidence-provenance-mismatch",
-        "source_path": "/threat_coverage/8",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:e12d87cae779061d5fef3cb13c1f3d6e64f9d7f63b5612fc4d669f83fa2355b5",
-      "payload": {
-        "critical": false,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "skew-evidence-source-identity"
-          },
-          {
-            "role": "threat",
-            "value": "evidence-provenance-mismatch"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "evidence-provenance-mismatch",
-        "source_path": "/threat_coverage/8",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "a06a7694df047e0d3913f80222304ac22b5af4931e81063af24e2da57693c615"
-    },
-    {
-      "identity": {
-        "finding_type": "control_efficacy_threat",
-        "identity_kind": "finding",
-        "parent_evidence_node_id": "evidence:88053910bf86e00b2a2d78171e6b96c6159bd93b172f880ba6be9101cf82b5a2",
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0085.001",
-        "source_path": "/threat_coverage/6",
-        "subject_node_id": "subject:6fc5dced873920c399f8108f6b47282e1e09443afb551795bd579d1b2bb53ed7"
-      },
-      "kind": "finding",
-      "node_id": "finding:ffc444d9fac3da2c22f4c65743bdcc13ae72bb93cd4748aed9f8a462c1bb08bf",
-      "payload": {
-        "critical": true,
-        "finding_type": "control_efficacy_threat",
-        "gate_effect": null,
-        "independently_challenged": false,
-        "messages": [],
-        "payload_kind": "finding",
-        "reason_codes": [
-          "THREAT_CHALLENGED"
-        ],
-        "references": [
-          {
-            "role": "applicability",
-            "value": "applicable"
-          },
-          {
-            "role": "operator",
-            "value": "inject-forbidden-tool"
-          },
-          {
-            "role": "threat",
-            "value": "AML.T0085.001"
-          }
-        ],
-        "required": null,
-        "source_artifact_kind": "control-efficacy-report",
-        "source_id": "AML.T0085.001",
-        "source_path": "/threat_coverage/6",
-        "state": "supported",
-        "verdict_bearing": true
-      },
-      "payload_digest": "7f1980096357b612996391e999779fabbd5929ce0b516c7ab1cb6704b7bb7173"
     },
     {
       "identity": {

@@ -43,6 +43,15 @@ vulnerability entry never means "no known vulnerabilities." CycloneDX
 composition completeness remains `unknown`: lock annotations describe the
 selected build graph but do not prove a complete global supply chain.
 
+Universal-lock marker branches are evaluated against a bounded, canonically
+serialized PEP 508 environment carried in the SBOM. Runtime roots must resolve
+to an applicable lock coordinate directly annotated to the project; selected
+development, build, and optional roots follow the same applicable direct-lock
+binding. Kernel-derived `platform_release`/`platform_version` and context-only
+extra markers are rejected because they cannot be bound reproducibly by this
+release profile. Marker-false pins remain lock evidence, not installed SBOM
+components.
+
 Validate the generated profile, canonical serial, embedded paths, lock digest,
 and exact distribution bytes offline with:
 

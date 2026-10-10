@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from importlib import metadata
 from pathlib import Path, PurePosixPath
+from typing import cast
 from urllib.parse import quote
 
 from agent_assure import __version__
@@ -31,11 +32,27 @@ _NORMALIZED_PACKAGE_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 _REQUIREMENT_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)")
 _LOCK_REQUIREMENT_RE = re.compile(
     r"^([A-Za-z0-9][A-Za-z0-9._-]*)(?:\[[A-Za-z0-9_,.-]+\])?"
-    r"={2,3}([^;\\\s]+)(?:\s*;[^\\]*)?\s*\\?$"
+    r"={2,3}([^;\\\s]+)(?:\s*;([^\\]*))?\s*\\?$"
 )
 _LOCK_HASH_RE = re.compile(r"^\s+--hash=sha256:([0-9a-fA-F]{64})\s*\\?$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _CONTROL_CHARACTER_RE = re.compile(r"[\x00-\x1f\x7f]")
+_PEP508_MARKER_ENVIRONMENT_KEYS = frozenset(
+    {
+        "implementation_name",
+        "implementation_version",
+        "os_name",
+        "platform_machine",
+        "platform_python_implementation",
+        "platform_system",
+        "python_full_version",
+        "python_version",
+        "sys_platform",
+    }
+)
+_UNSUPPORTED_PEP508_MARKER_VARIABLE_RE = re.compile(
+    r"\b(?:dependency_groups|extra|extras|platform_release|platform_version)\b"
+)
 
 
 @dataclass(frozen=True)
@@ -44,6 +61,7 @@ class _LockedPackage:
     version: str
     hashes: tuple[str, ...]
     parents: tuple[str, ...]
+    marker: str | None
 
 
 @dataclass(frozen=True)
@@ -643,11 +661,48 @@ def _metadata_properties(
             [
                 {"name": "agent-assure:dependency-lock-path", "value": lock_evidence.relative_path},
                 {"name": "agent-assure:dependency-lock-sha256", "value": lock_evidence.digest},
+                {
+                    "name": "agent-assure:pep508-marker-environment",
+                    "value": _serialized_marker_environment(environment),
+                },
             ]
         )
     else:
         properties.append({"name": "agent-assure:dependency-lock-status", "value": "unavailable"})
     return _sorted_properties(properties)
+
+
+def _serialized_marker_environment(environment: EnvironmentInfo) -> str:
+    try:
+        from packaging.markers import default_environment
+        from packaging.version import InvalidVersion, Version
+    except ImportError as exc:  # pragma: no cover - release lock includes packaging
+        raise ValueError("packaging is required to capture the PEP 508 marker environment") from exc
+    try:
+        python_version = Version(environment.python_version)
+    except InvalidVersion as exc:
+        raise ValueError("environment Python version is not valid PEP 440") from exc
+    if len(python_version.release) < 2:
+        raise ValueError("environment Python version must include major and minor components")
+    current = cast(Mapping[str, str], default_environment())
+    missing_keys = sorted(_PEP508_MARKER_ENVIRONMENT_KEYS - current.keys())
+    if missing_keys:
+        raise ValueError(f"PEP 508 marker environment is incomplete: {missing_keys}")
+    captured = {key: current[key] for key in _PEP508_MARKER_ENVIRONMENT_KEYS}
+    normalized_python = str(python_version)
+    captured["python_full_version"] = normalized_python
+    captured["python_version"] = ".".join(str(part) for part in python_version.release[:2])
+    if captured["implementation_name"] == "cpython":
+        captured["implementation_version"] = normalized_python
+    if any(
+        not isinstance(value, str)
+        or not value
+        or len(value) > 512
+        or _CONTROL_CHARACTER_RE.search(value)
+        for value in captured.values()
+    ):
+        raise ValueError("PEP 508 marker environment contains an invalid value")
+    return json.dumps(captured, sort_keys=True, separators=(",", ":"))
 
 
 def _validated_installed_packages(
@@ -711,7 +766,7 @@ def _parse_hashed_requirements_lock(
         lines = raw.decode("utf-8").splitlines()
     except UnicodeDecodeError as exc:
         raise ValueError("dependency lock is not UTF-8") from exc
-    records: dict[tuple[str, str], tuple[str, set[str], set[str]]] = {}
+    records: dict[tuple[str, str], tuple[str, set[str], set[str], str | None]] = {}
     current: tuple[str, str] | None = None
     collecting_hashes = False
     collecting_via = False
@@ -727,7 +782,13 @@ def _parse_hashed_requirements_lock(
                 raise ValueError(
                     f"duplicate dependency lock coordinate at {path_label}:{line_number}"
                 )
-            records[current] = (name, set(), set())
+            marker = requirement.group(3)
+            records[current] = (
+                name,
+                set(),
+                set(),
+                _validated_lock_marker(marker) if marker is not None else None,
+            )
             collecting_hashes = True
             collecting_via = False
             continue
@@ -772,7 +833,7 @@ def _parse_hashed_requirements_lock(
     if not records:
         raise ValueError("dependency lock contains no exact package pins")
     result: dict[tuple[str, str], _LockedPackage] = {}
-    for coordinate, (name, hashes, parents) in sorted(records.items()):
+    for coordinate, (name, hashes, parents, marker) in sorted(records.items()):
         if not hashes:
             raise ValueError(
                 "dependency lock entry has no SHA-256 archive hashes: "
@@ -783,8 +844,86 @@ def _parse_hashed_requirements_lock(
             version=coordinate[1],
             hashes=tuple(sorted(hashes)),
             parents=tuple(sorted(parents)),
+            marker=marker,
         )
     return result
+
+
+def _validated_lock_marker(value: str) -> str:
+    marker = value.strip()
+    if not marker or len(marker) > 2048 or _CONTROL_CHARACTER_RE.search(marker):
+        raise ValueError("dependency lock marker is empty or invalid")
+    if _UNSUPPORTED_PEP508_MARKER_VARIABLE_RE.search(marker):
+        raise ValueError("dependency lock marker uses an unsupported or volatile variable")
+    try:
+        from packaging.markers import InvalidMarker, Marker
+    except ImportError as exc:  # pragma: no cover - release lock includes packaging
+        raise ValueError("packaging is required to validate dependency lock markers") from exc
+    try:
+        Marker(marker)
+    except InvalidMarker as exc:
+        raise ValueError(f"dependency lock marker is invalid: {marker!r}") from exc
+    return marker
+
+
+def _validated_marker_environment(
+    metadata_properties: Mapping[str, list[str]],
+) -> Mapping[str, str]:
+    serialized_values = metadata_properties.get("agent-assure:pep508-marker-environment", [])
+    if len(serialized_values) != 1 or len(serialized_values[0]) > 8192:
+        raise ValueError("PEP 508 marker environment must be singular and bounded")
+    try:
+        payload = json.loads(serialized_values[0], object_pairs_hook=_reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        raise ValueError("PEP 508 marker environment is not valid JSON") from exc
+    if not isinstance(payload, dict) or set(payload) != _PEP508_MARKER_ENVIRONMENT_KEYS:
+        raise ValueError("PEP 508 marker environment has missing or unsupported fields")
+    marker_environment: dict[str, str] = {}
+    for key in sorted(_PEP508_MARKER_ENVIRONMENT_KEYS):
+        value = payload[key]
+        if (
+            not isinstance(value, str)
+            or not value
+            or len(value) > 512
+            or _CONTROL_CHARACTER_RE.search(value)
+        ):
+            raise ValueError("PEP 508 marker environment contains an invalid value")
+        marker_environment[key] = value
+    python_versions = metadata_properties.get("agent-assure:python-version", [])
+    if len(python_versions) != 1:
+        raise ValueError("SBOM Python version must be singular with lock evidence")
+    try:
+        from packaging.version import InvalidVersion, Version
+    except ImportError as exc:  # pragma: no cover - release lock includes packaging
+        raise ValueError(
+            "packaging is required to validate the PEP 508 marker environment"
+        ) from exc
+    try:
+        expected_python = Version(python_versions[0])
+    except InvalidVersion as exc:
+        raise ValueError("SBOM Python version is not valid PEP 440") from exc
+    if len(expected_python.release) < 2:
+        raise ValueError("SBOM Python version must include major and minor components")
+    expected_minor = ".".join(str(part) for part in expected_python.release[:2])
+    if (
+        marker_environment["python_full_version"] != str(expected_python)
+        or marker_environment["python_version"] != expected_minor
+    ):
+        raise ValueError("PEP 508 marker environment disagrees with the SBOM Python version")
+    return marker_environment
+
+
+def _lock_marker_applies(marker: str | None, environment: Mapping[str, str]) -> bool:
+    if marker is None:
+        return True
+    try:
+        from packaging.markers import InvalidMarker, Marker, UndefinedEnvironmentName
+    except ImportError as exc:  # pragma: no cover - release lock includes packaging
+        raise ValueError("packaging is required to evaluate dependency lock markers") from exc
+    try:
+        return Marker(marker).evaluate(environment=dict(environment))
+    except (InvalidMarker, UndefinedEnvironmentName, KeyError) as exc:
+        raise ValueError(f"dependency lock marker cannot be evaluated: {marker!r}") from exc
 
 
 def _parent_package_name(value: str) -> str | None:
@@ -1166,6 +1305,7 @@ def _validate_local_evidence(
                 path_label=lock_paths[0],
             ),
         )
+        marker_environment = _validated_marker_environment(metadata_properties)
         metadata = sbom.get("metadata")
         if not isinstance(metadata, dict):
             raise ValueError("SBOM metadata must be an object")
@@ -1205,18 +1345,42 @@ def _validate_local_evidence(
             installed_refs[name] = ref
             match = lock_evidence.packages.get((name, version))
             if match is not None:
+                if not _lock_marker_applies(match.marker, marker_environment):
+                    raise ValueError(
+                        "SBOM component is inapplicable to the captured PEP 508 "
+                        f"marker environment: {name}=={version}"
+                    )
                 lock_matches[(name, version)] = match
             elif any(locked_name == name for locked_name, _ in lock_evidence.packages):
                 raise ValueError(
                     f"SBOM component version does not match verified lock: {name}=={version}"
                 )
         if project_metadata is not None:
+            applicable_direct_names = {
+                name
+                for (name, _), package in lock_evidence.packages.items()
+                if project_name in package.parents
+                and _lock_marker_applies(package.marker, marker_environment)
+            }
+            missing_runtime_locks = sorted(project_metadata.runtime_roots - applicable_direct_names)
+            if missing_runtime_locks:
+                raise ValueError(
+                    "verified lock omits declared project runtime dependencies: "
+                    f"{missing_runtime_locks}"
+                )
+            # Optional, development, and build roots are selected by a project-parent
+            # annotation in this digest-verified lock profile. Runtime roots must
+            # always have that direct binding, while marker-false pins remain outside
+            # the active closure.
             direct_names = set(project_metadata.runtime_roots)
             direct_names.update(project_metadata.optional_roots)
             direct_names.update(project_metadata.development_roots)
             direct_names.update(project_metadata.build_roots)
+            direct_names.intersection_update(applicable_direct_names)
             lock_children: dict[str, set[str]] = defaultdict(set)
             for (child_name, _), package in lock_evidence.packages.items():
+                if not _lock_marker_applies(package.marker, marker_environment):
+                    continue
                 for parent in package.parents:
                     lock_children[parent].add(child_name)
             required_names = _closure(
