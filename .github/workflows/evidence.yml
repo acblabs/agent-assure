@@ -126,7 +126,7 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
       # actions/download-artifact@v8
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           artifact-ids: ${{ needs.build.outputs.bundle_artifact_id }}
           merge-multiple: true
@@ -183,7 +183,7 @@ jobs:
       signed_bundle_artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       # actions/download-artifact@v8
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           artifact-ids: ${{ needs.reproduce.outputs.verified_bundle_artifact_id }}
           merge-multiple: true
@@ -244,7 +244,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # actions/download-artifact@v8
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           artifact-ids: ${{ needs.sign.outputs.signed_bundle_artifact_id }}
           merge-multiple: true
@@ -302,7 +302,7 @@ jobs:
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       # actions/download-artifact@v8
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
           artifact-ids: ${{ needs.verify.outputs.verified_signed_bundle_artifact_id }}
           merge-multiple: true
