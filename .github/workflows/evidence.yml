@@ -89,7 +89,7 @@ jobs:
       - name: Upload unsigned evidence bundle
         id: upload
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: unsigned-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -161,7 +161,7 @@ jobs:
       - name: Upload verified signing inputs and replay support
         id: upload-verified
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-unsigned-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-release
@@ -218,7 +218,7 @@ jobs:
       - name: Upload signed evidence
         id: upload
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: signed-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -272,7 +272,7 @@ jobs:
       - name: Upload promoted signed evidence
         id: upload-verified-bundle
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-signed-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/release
