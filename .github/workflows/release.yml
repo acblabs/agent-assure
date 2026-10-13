@@ -198,7 +198,7 @@ jobs:
       - name: Upload exact unsigned release bundle
         id: upload-bundle
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: unsigned-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -281,7 +281,7 @@ jobs:
       - name: Upload verified signing inputs and replay support
         id: upload-verified
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-unsigned-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-release
@@ -1109,7 +1109,7 @@ jobs:
       - name: Upload signed release bundle
         id: upload-signed
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: signed-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -1170,7 +1170,7 @@ jobs:
       - name: Upload verified distributions by immutable artifact ID
         id: upload-distributions
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/distributions
@@ -1179,7 +1179,7 @@ jobs:
       - name: Promote the fully verified signed release bundle
         id: upload-verified-bundle
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/release
@@ -1289,7 +1289,7 @@ jobs:
       - name: Upload exact verified provenance subject list
         id: upload-provenance-subjects
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: release-provenance-subjects-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release-provenance-subjects.sha256
@@ -1962,7 +1962,7 @@ jobs:
       - name: Promote reverified signed bundle
         id: upload-bundle
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: recovery-verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -1971,7 +1971,7 @@ jobs:
       - name: Promote reverified Python distributions
         id: upload-distributions
         # actions/upload-artifact@v7
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: recovery-verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/publish
