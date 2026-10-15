@@ -1,0 +1,358 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/delivery-forecast.schema.json",
+  "title": "Agent Assure S1 delivery forecast",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_id",
+    "spec_revision",
+    "forecast_status",
+    "full_roadmap_digest",
+    "sorted_ticket_set_digest",
+    "dependency_graph_digest",
+    "release_train_digest",
+    "aggregation_method_registry_digest",
+    "authoring_ledger_digest",
+    "approval_roster_digest",
+    "issued_at_utc",
+    "valid_until_utc",
+    "trusted_time_basis",
+    "producer_person_id",
+    "producer_role",
+    "portfolio_aggregate",
+    "rows",
+    "record_digest",
+    "signature_envelope",
+    "acceptance_receipt"
+  ],
+  "properties": {
+    "contract_id": { "const": "delivery-forecast/v1" },
+    "spec_revision": { "const": "6.5" },
+    "forecast_status": {
+      "enum": ["proposed", "ready_for_acceptance", "accepted"]
+    },
+    "full_roadmap_digest": { "$ref": "#/$defs/digest" },
+    "sorted_ticket_set_digest": { "$ref": "#/$defs/digest" },
+    "dependency_graph_digest": { "$ref": "#/$defs/digest" },
+    "release_train_digest": { "$ref": "#/$defs/digest" },
+    "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
+    "authoring_ledger_digest": { "$ref": "#/$defs/digest" },
+    "approval_roster_digest": { "$ref": "#/$defs/digest" },
+    "issued_at_utc": { "$ref": "#/$defs/utc" },
+    "valid_until_utc": { "$ref": "#/$defs/utc" },
+    "trusted_time_basis": { "$ref": "#/$defs/nonempty" },
+    "producer_person_id": { "$ref": "#/$defs/nonempty" },
+    "producer_role": { "const": "technical_lead" },
+    "portfolio_aggregate": { "$ref": "#/$defs/portfolio" },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/row" }
+    },
+    "record_digest": { "$ref": "#/$defs/digest" },
+    "signature_envelope": { "$ref": "#/$defs/signature" },
+    "acceptance_receipt": { "$ref": "#/$defs/receipt" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "forecast_status": { "const": "accepted" } },
+        "required": ["forecast_status"]
+      },
+      "then": {
+        "properties": {
+          "signature_envelope": {
+            "properties": { "status": { "const": "signed" } }
+          },
+          "acceptance_receipt": {
+            "properties": {
+              "receipt_status": { "const": "accepted_for_development" },
+              "signature_envelope": {
+                "properties": { "status": { "const": "signed" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sprint",
+        "release",
+        "p50_effort_hours",
+        "p90_effort_hours",
+        "reviewer_effort_hours"
+      ],
+      "properties": {
+        "sprint": { "type": "string", "pattern": "^S[1-9][0-9]*$" },
+        "release": { "$ref": "#/$defs/nonempty" },
+        "p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "reviewer_effort_hours": { "$ref": "#/$defs/hours" }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_id",
+        "estimate_scope",
+        "planned_execution_count",
+        "execution_estimates",
+        "aggregate_p50_effort_hours",
+        "aggregate_p90_effort_hours",
+        "aggregate_reviewer_effort_hours",
+        "aggregate_method_id",
+        "aggregate_method_definition_digest",
+        "aggregate_dependence_assumptions",
+        "confidence",
+        "dependency_assumptions",
+        "risk_assumptions",
+        "current_status",
+        "trusted_issue_time",
+        "rebaseline_status"
+      ],
+      "properties": {
+        "ticket_id": { "type": "string", "pattern": "^V1-[A-Z0-9]+-[0-9]{2}$" },
+        "estimate_scope": { "$ref": "#/$defs/nonempty" },
+        "planned_execution_count": { "type": "integer", "minimum": 1 },
+        "execution_estimates": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/execution" }
+        },
+        "aggregate_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_method_id": { "const": "comonotonic-quantile-sum/v1" },
+        "aggregate_method_definition_digest": { "$ref": "#/$defs/digest" },
+        "aggregate_dependence_assumptions": { "$ref": "#/$defs/stringSet" },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "dependency_assumptions": { "$ref": "#/$defs/stringSet" },
+        "risk_assumptions": { "$ref": "#/$defs/stringSet" },
+        "current_status": { "enum": ["not_started", "in_progress", "blocked", "done"] },
+        "trusted_issue_time": { "$ref": "#/$defs/utc" },
+        "rebaseline_status": {
+          "enum": ["pending_maintainer_confirmation", "confirmed"]
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signer_person_id",
+        "signer_role",
+        "subject_digest",
+        "public_key_fingerprint",
+        "signed_at_utc",
+        "signature"
+      ],
+      "properties": {
+        "profile": { "const": "openssh-sshsig-ed25519/v1" },
+        "status": { "enum": ["pending_human_signature", "signed"] },
+        "namespace": { "const": "agent-assure-governance-v1" },
+        "signed_payload_encoding": {
+          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v1"
+        },
+        "signature_encoding": {
+          "const": "base64-canonical-lf-openssh-sshsig-armored"
+        },
+        "signer_person_id": { "$ref": "#/$defs/nonempty" },
+        "signer_role": { "$ref": "#/$defs/nonempty" },
+        "subject_digest": { "$ref": "#/$defs/digest" },
+        "public_key_fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "signed_at_utc": {
+          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+        },
+        "signature": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 8192
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "signed" } } },
+          "then": {
+            "properties": {
+              "signature": { "type": "string", "minLength": 1 },
+              "signed_at_utc": { "$ref": "#/$defs/utc" }
+            }
+          },
+          "else": {
+            "properties": {
+              "signature": { "type": "null" },
+              "signed_at_utc": { "type": "null" }
+            }
+          }
+        }
+      ]
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_type",
+        "receipt_status",
+        "subject_contract_id",
+        "subject_record_digest",
+        "bound_source_digests",
+        "issuer_person_id",
+        "issuer_role",
+        "approval_mode",
+        "approval_roster_digest",
+        "independence_claimed",
+        "authorization_effect",
+        "author_reviewer_relationship",
+        "accepted_competence",
+        "conflicts",
+        "issued_at_utc",
+        "validity_context",
+        "review_evidence",
+        "allowed_operations",
+        "limitations",
+        "receipt_digest",
+        "signature_envelope"
+      ],
+      "properties": {
+        "receipt_type": { "const": "development_design_acceptance" },
+        "receipt_status": {
+          "enum": ["pending_human_acceptance", "accepted_for_development"]
+        },
+        "subject_contract_id": { "const": "delivery-forecast/v1" },
+        "subject_record_digest": { "$ref": "#/$defs/digest" },
+        "bound_source_digests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "full_roadmap_digest",
+            "sorted_ticket_set_digest",
+            "dependency_graph_digest",
+            "release_train_digest",
+            "aggregation_method_registry_digest",
+            "authoring_ledger_digest"
+          ],
+          "properties": {
+            "full_roadmap_digest": { "$ref": "#/$defs/digest" },
+            "sorted_ticket_set_digest": { "$ref": "#/$defs/digest" },
+            "dependency_graph_digest": { "$ref": "#/$defs/digest" },
+            "release_train_digest": { "$ref": "#/$defs/digest" },
+            "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
+            "authoring_ledger_digest": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "issuer_person_id": { "$ref": "#/$defs/nonempty" },
+        "issuer_role": { "const": "repository_maintainer" },
+        "approval_mode": { "const": "maintainer_development" },
+        "approval_roster_digest": { "$ref": "#/$defs/digest" },
+        "independence_claimed": { "const": false },
+        "authorization_effect": { "const": "none" },
+        "author_reviewer_relationship": {
+          "const": "same_person_maintainer_development_self_acceptance"
+        },
+        "accepted_competence": { "$ref": "#/$defs/stringSet" },
+        "conflicts": { "$ref": "#/$defs/stringSet" },
+        "issued_at_utc": { "$ref": "#/$defs/utc" },
+        "validity_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["not_before_utc", "not_after_utc", "half_open_interval"],
+          "properties": {
+            "not_before_utc": { "$ref": "#/$defs/utc" },
+            "not_after_utc": { "$ref": "#/$defs/utc" },
+            "half_open_interval": { "const": true }
+          }
+        },
+        "review_evidence": { "$ref": "#/$defs/stringSet" },
+        "allowed_operations": { "$ref": "#/$defs/stringSet" },
+        "limitations": { "$ref": "#/$defs/stringSet" },
+        "receipt_digest": { "$ref": "#/$defs/digest" },
+        "signature_envelope": { "$ref": "#/$defs/signature" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "receipt_status": { "const": "accepted_for_development" }
+            },
+            "required": ["receipt_status"]
+          },
+          "then": {
+            "properties": {
+              "signature_envelope": {
+                "properties": { "status": { "const": "signed" } }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "signature_envelope": {
+                "properties": { "status": { "const": "pending_human_signature" } }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "hours": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "portfolio": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_count",
+        "occurrence_count",
+        "aggregate_p50_effort_hours",
+        "aggregate_p90_effort_hours",
+        "aggregate_reviewer_effort_hours",
+        "aggregate_method_id",
+        "aggregate_method_definition_digest"
+      ],
+      "properties": {
+        "ticket_count": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "occurrence_count": { "type": "integer", "minimum": 1, "maximum": 4096 },
+        "aggregate_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_method_id": { "const": "comonotonic-quantile-sum/v1" },
+        "aggregate_method_definition_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

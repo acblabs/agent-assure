@@ -1,0 +1,3198 @@
+{
+  "contract_id": "delivery-forecast/v1",
+  "spec_revision": "6.5",
+  "forecast_status": "accepted",
+  "full_roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "sorted_ticket_set_digest": "sha256:bb59c4bfad1b13bdb380ec3b07356d739a505b7b3511528a00b296e169754fbc",
+  "dependency_graph_digest": "sha256:a1042726cc8cee8f6286d6bcbba790006c7ecef5855fd9c1a63adf1e59533bb0",
+  "release_train_digest": "sha256:b97ee803c366370923dd4dd56cfabc0d0d2aecc1629f6de34a26885499edb2cf",
+  "aggregation_method_registry_digest": "sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3",
+  "authoring_ledger_digest": "sha256:339ca4d1de0245e0563654beb9857d5baf8f972c02d690fab61a5f60e9dacf50",
+  "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+  "issued_at_utc": "2026-10-15T20:16:36Z",
+  "valid_until_utc": "2026-11-14T20:16:36Z",
+  "trusted_time_basis": "maintainer-trusted host UTC; Windows Time attestation unavailable",
+  "producer_person_id": "acblabs",
+  "producer_role": "technical_lead",
+  "portfolio_aggregate": {
+    "ticket_count": 68,
+    "occurrence_count": 121,
+    "aggregate_p50_effort_hours": 5480,
+    "aggregate_p90_effort_hours": 9008,
+    "aggregate_reviewer_effort_hours": 2056,
+    "aggregate_method_id": "comonotonic-quantile-sum/v1",
+    "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df"
+  },
+  "rows": [
+    {
+      "ticket_id": "V1-AUTH-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S5",
+          "release": "1.0.0a5",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-AUTH-01: V1-BASE-03, V1-TRUST-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-AUTH-01: Implement independently selected required-claim manifest.",
+        "Roadmap stop-condition set is bound by sha256:d4c7b47cba6260af473f77a77f34779701e36a880787fb26b8887229feb53ad2.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-AUTH-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 2,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 32,
+          "p90_effort_hours": 52,
+          "reviewer_effort_hours": 12
+        },
+        {
+          "sprint": "S7",
+          "release": "1.0.0b1",
+          "p50_effort_hours": 32,
+          "p90_effort_hours": 52,
+          "reviewer_effort_hours": 12
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-AUTH-02: V1-AUTH-01, V1-ING-04, V1-TEMP-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-AUTH-02: Integrate descriptor packet and top-level authorization.",
+        "Roadmap stop-condition set is bound by sha256:ed1068f39e1df344d857d3918e7322c2c1e0079f49d21affc101dc1f37b0e935.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-AUTH-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S8",
+          "release": "1.0.0b2",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-AUTH-03: V1-AUTH-02, V1-STAT-05.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-AUTH-03: Implement trusted deployment verification and current context.",
+        "Roadmap stop-condition set is bound by sha256:5161a80f30b531b16d4611196c7bbab444a2531662127f226a9f216e35b35915.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S1",
+          "release": "1.0.0a1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-01: none.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-01: Inventory both refs and approve repository reuse.",
+        "Roadmap stop-condition set is bound by sha256:d7d8e2b715e304a761a7a68d2a54a70ce39cfc91e284d7165972e280a94a4106.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "in_progress",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-02: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-02: Approve evidence and temporal semantics.",
+        "Roadmap stop-condition set is bound by sha256:6b69cb9e7400361b366e3fd7a9b19dec9e276468b828be7c340652a0ec3ea956.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-03: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-03: Approve verifier authority and complete authorization.",
+        "Roadmap stop-condition set is bound by sha256:a389879e5c6c21b7152aaabdb1fcd09c2a3e16b9faed47457e95140b2ec53788.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-04",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-04: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-04: Approve numerical and statistical method contracts.",
+        "Roadmap stop-condition set is bound by sha256:666bcb1791255a02c38820a60d5aa51de69a928efda198a86ca93e003ba4a0b4.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-05",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-05: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-05: Approve sharded I/O and downstream budgets.",
+        "Roadmap stop-condition set is bound by sha256:80c3a83e03aad39041a5f9488b21c240eca695bfa8882bc1009a715a4546ddd9.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-06",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-06: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-06: Install agent dispatch and trusted CI policy.",
+        "Roadmap stop-condition set is bound by sha256:b581c9cb9a283c58c78ec1178801b9635937b8944a6620fa5fc4c8ba33deff3d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-07",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S30",
+          "release": "1.5.0a1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-07: V1-BASE-01, V1-BASE-02, V1-BASE-03, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-07: Approve formal admission and ADR 0015 amendment.",
+        "Roadmap stop-condition set is bound by sha256:c07dabbf212b37ab6596b495f15f11c9c6002ce1e39acffcc51721f7a474a6db.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-08",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S24",
+          "release": "1.4.0a1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-08: V1-BASE-01, V1-BASE-02, V1-BASE-04, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-08: Approve transition projection and calibration plan.",
+        "Roadmap stop-condition set is bound by sha256:982ab007c5a70bcee627536b80bf5ca58bbba6a0ed76efe215aaa056cfd1cc4d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BASE-09",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S2",
+          "release": "1.0.0a2",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BASE-09: V1-BASE-01, V1-BOOT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BASE-09: Approve schema compatibility and production wire contracts.",
+        "Roadmap stop-condition set is bound by sha256:cf38c3083383069720b65e64c9f43b950736cdd5aaf5388e80984636e657e9ba.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-BOOT-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S1",
+          "release": "1.0.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        }
+      ],
+      "aggregate_p50_effort_hours": 16,
+      "aggregate_p90_effort_hours": 32,
+      "aggregate_reviewer_effort_hours": 8,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-BOOT-01: none.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-BOOT-01: Assign people, approval mode and bounded kickoff authority.",
+        "Roadmap stop-condition set is bound by sha256:db740dff5ebbfba69e09a58150da5a2af00ccc7d5ac02b2a5c968181f1fe8735.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "in_progress",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-CAND-01",
+      "estimate_scope": "per_candidate_execution",
+      "planned_execution_count": 7,
+      "execution_estimates": [
+        {
+          "sprint": "S11",
+          "release": "candidate-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S16",
+          "release": "candidate-1.1.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S19",
+          "release": "candidate-1.2.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S22",
+          "release": "candidate-1.3.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S28",
+          "release": "candidate-1.4.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S34",
+          "release": "candidate-1.5.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        },
+        {
+          "sprint": "S38",
+          "release": "candidate-1.6.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 448,
+      "aggregate_p90_effort_hours": 728,
+      "aggregate_reviewer_effort_hours": 168,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-CAND-01: V1-QUAL-01, V1-QUAL-02, V1-AUTH-03, V1-IO-02, V1-ING-04, V1-TEMP-03, V1-STAT-07, V1-SEC-01, V1-SEC-02, V1-SUPPLY-01, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-CAND-01: Freeze exact candidate bytes and manifest.",
+        "Roadmap stop-condition set is bound by sha256:3740d73b92dccbff819f192284c0099f2e0050db1698a244178c21f138526c9f.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-CAUS-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S36",
+          "release": "1.6.0a1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-CAUS-01: V1-BASE-03, V1-BASE-06.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-CAUS-01: Implement intervention union and sandbox policy.",
+        "Roadmap stop-condition set is bound by sha256:3073952a17fdf48aaa38d86c320c60961f20c8af8c2409c215257aa5116df603.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-CAUS-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S37",
+          "release": "1.6.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-CAUS-02: V1-CAUS-01, V1-STAT-02, V1-ING-04.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-CAUS-02: Implement randomized isolated paired harness and treatment receipt.",
+        "Roadmap stop-condition set is bound by sha256:ca1b80e3b338241edc48843504d040c6a9d7d6a4f9f398b0adb910607a61c414.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-CAUS-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S38",
+          "release": "candidate-1.6.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-CAUS-03: V1-CAUS-02, V1-STAT-09, V1-AUTH-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-CAUS-03: Implement qualified-design Beta effect report.",
+        "Roadmap stop-condition set is bound by sha256:c06aa6c4d6ef75a7569758e74b42c980e921823f7ba37aa58984d5309cce2f9a.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-DIST-01",
+      "estimate_scope": "per_preview_or_gate_execution",
+      "planned_execution_count": 22,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S5",
+          "release": "1.0.0a5",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S7",
+          "release": "1.0.0b1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S8",
+          "release": "1.0.0b2",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S9",
+          "release": "1.0.0b3",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S10",
+          "release": "1.0.0b4",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S13",
+          "release": "candidate-C1-P1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S15",
+          "release": "1.1.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S18",
+          "release": "1.2.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S21",
+          "release": "1.3.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S24",
+          "release": "1.4.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S25",
+          "release": "1.4.0a2",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S26",
+          "release": "1.4.0a3",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S27",
+          "release": "1.4.0b1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S30",
+          "release": "1.5.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S31",
+          "release": "1.5.0a2",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S32",
+          "release": "1.5.0a3",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S33",
+          "release": "1.5.0b1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S36",
+          "release": "1.6.0a1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        },
+        {
+          "sprint": "S37",
+          "release": "1.6.0b1",
+          "p50_effort_hours": 8,
+          "p90_effort_hours": 16,
+          "reviewer_effort_hours": 4
+        }
+      ],
+      "aggregate_p50_effort_hours": 176,
+      "aggregate_p90_effort_hours": 352,
+      "aggregate_reviewer_effort_hours": 88,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "medium",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-DIST-01: V1-BASE-06, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-DIST-01: Publish prereleases and orchestrate current product gates.",
+        "Roadmap stop-condition set is bound by sha256:d94f1c4947cce8d18307a67202a1e8ce357a11acdbc10b6a05d670c4eca85de9.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-DRIFT-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S27",
+          "release": "1.4.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-DRIFT-01: V1-PROC-02, V1-STAT-02, V1-NUM-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-DRIFT-01: Implement weighted row-TV transition-distribution shift.",
+        "Roadmap stop-condition set is bound by sha256:6f3742e485bede981790c81c3dc658b4eecf754279ae5c45eb2377cf6421e519.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-DRIFT-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S28",
+          "release": "candidate-1.4.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-DRIFT-02: V1-DRIFT-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-DRIFT-02: Qualify structural transition-shift null behavior and detection domain.",
+        "Roadmap stop-condition set is bound by sha256:0c27cf606b705285bb5d85ffe33f297723f45c8a9a1140735165ba51069cc9e4.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-EVID-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-EVID-01: V1-BASE-02, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-EVID-01: Implement scoped coverage and watermark descriptors.",
+        "Roadmap stop-condition set is bound by sha256:b14dec0de2de4269888af000e17c884509fcd3bb42dcfc64cb9d9693cc7b53ec.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-EVID-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S5",
+          "release": "1.0.0a5",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        }
+      ],
+      "aggregate_p50_effort_hours": 104,
+      "aggregate_p90_effort_hours": 168,
+      "aggregate_reviewer_effort_hours": 32,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-EVID-02: V1-EVID-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-EVID-02: Implement partial order and consistent-cut reconstruction.",
+        "Roadmap stop-condition set is bound by sha256:eb61c22145e7d186dc3d2c71da4ec3174eab9c32ea8f0228f86db25c31985635.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-EVID-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-EVID-03: V1-BASE-02, V1-BASE-06, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-EVID-03: Build independent temporal and cut oracle.",
+        "Roadmap stop-condition set is bound by sha256:c4014921c251019d1165945c79fe16d94179e0bf80c8734c787b13ef071f90fb.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-FORM-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S31",
+          "release": "1.5.0a2",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-FORM-01: V1-BASE-07, V1-TEMP-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-FORM-01: Implement finite complete-state workflow model.",
+        "Roadmap stop-condition set is bound by sha256:4203d7fca83ee74a1ba45f1e5ffcfcc02908f3b0dbd6988baad63259a775bb5d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-FORM-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S32",
+          "release": "1.5.0a3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-FORM-02: V1-FORM-01, V1-TEMP-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-FORM-02: Implement product-state reachability and witness encoding.",
+        "Roadmap stop-condition set is bound by sha256:0ff66607c199ff93a6b4e95cb654a5d0263d0a4e5c54f78cbabb5da507d6c61d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-FORM-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S33",
+          "release": "1.5.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-FORM-03: V1-FORM-02, V1-NUM-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-FORM-03: Implement canonical SMT-LIB and Z3 backend.",
+        "Roadmap stop-condition set is bound by sha256:4a239d81823c46aa8f07cf4d3b628a80dd04ba798e63f598879cc0fa24fa3a72.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-FORM-04",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S34",
+          "release": "candidate-1.5.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-FORM-04: V1-FORM-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-FORM-04: Implement independent tiny-model and CVC5 cross-check.",
+        "Roadmap stop-condition set is bound by sha256:6256d7a351a4421a45f59337f81583f3d5cf14100f8cad36bc96f799a1b94c8c.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-FORM-05",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S34",
+          "release": "candidate-1.5.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-FORM-05: V1-FORM-03, V1-ING-04, V1-AUTH-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-FORM-05: Implement observed conformance and concrete witness admission.",
+        "Roadmap stop-condition set is bound by sha256:dbd57d332829e44dcf10ec86082f579edbd8d466d1f1160a189eaa2430aa415a.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-ING-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S5",
+          "release": "1.0.0a5",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-ING-01: V1-IO-01, V1-BASE-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-ING-01: Implement bounded hostile-input decoder.",
+        "Roadmap stop-condition set is bound by sha256:1db85b4490e828c0cc5821458223557674083c900e1baa20c91237bb9b4093d3.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-ING-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S18",
+          "release": "1.2.0a1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-ING-02: V1-ING-01, V1-EVID-02, V1-TRUST-02, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-ING-02: Implement pinned OTLP semantic mapping.",
+        "Roadmap stop-condition set is bound by sha256:45b22a957f99ee73e82142af595be659ca818c9c2536894a22e007c16c23993d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-ING-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S19",
+          "release": "candidate-1.2.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-ING-03: V1-ING-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-ING-03: Qualify one pinned MCP-over-OTel mapping.",
+        "Roadmap stop-condition set is bound by sha256:d5a235994e01edc9ef6f27511321e2a2c2ad9c68528eb6e1e833948a59f785f5.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-ING-04",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S5",
+          "release": "1.0.0a5",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-ING-04: V1-EVID-01, V1-TRUST-02, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-ING-04: Instrument and qualify one existing framework adapter.",
+        "Roadmap stop-condition set is bound by sha256:8134e822a7994c1df63b36368d277d2b2ef72a4954be1e99c3394db25ba72ee4.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-IO-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-IO-01: V1-BASE-05, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-IO-01: Implement canonical chunks and finalized trace manifest.",
+        "Roadmap stop-condition set is bound by sha256:9e76677cbef7ed6dd7a7ab544cd7dc4b9c71349a43ccbf2da9f2fa851f6029b5.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-IO-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-IO-02: V1-IO-01, V1-EVID-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-IO-02: Implement bounded cross-chunk evaluation reader.",
+        "Roadmap stop-condition set is bound by sha256:006ea0ad821dd9b6f0b560c09066600444ff781abdbf1dcf91c0e017ea418dd0.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-MARKOV-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S27",
+          "release": "1.4.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-MARKOV-01: V1-PROC-02, V1-NUM-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-MARKOV-01: Implement model-scoped absorbing diagnostics.",
+        "Roadmap stop-condition set is bound by sha256:3879bcb8990a083d10b50a28aff62b8611122bc0ee35edd719e5f8b85fe8d48a.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-NUM-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-NUM-01: V1-BASE-04, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-NUM-01: Implement bounded canonical exact/enclosed numbers.",
+        "Roadmap stop-condition set is bound by sha256:a6e1b8c2707068f6aabd408953f2edcae92e71229388833f6a2156c646e57d02.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-NUM-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-NUM-02: V1-NUM-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-NUM-02: Implement conservative decision serialization and replay.",
+        "Roadmap stop-condition set is bound by sha256:9068e2e19b3a86b39615d0802dc8cae53ed48292ec29c8ddabe097b1e1dbe95b.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-OSC-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S15",
+          "release": "1.1.0a1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-OSC-01: V1-BASE-03, V1-BASE-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-OSC-01: Approve pinned OSCAL input/mapping contract.",
+        "Roadmap stop-condition set is bound by sha256:f55aa0a9d64df52b56a33df20f5ca4e04ff5d12d316b202cbee4f657131244d9.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-OSC-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S16",
+          "release": "candidate-1.1.0-C1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-OSC-02: V1-OSC-01, V1-AUTH-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-OSC-02: Implement acyclic export identity and resource references.",
+        "Roadmap stop-condition set is bound by sha256:ebc8fd26cdd5a182eb9f0312a6bf15e85188a0421311774cd0f0b80519334925.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-OSC-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S15",
+          "release": "1.1.0a1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-OSC-03: V1-OSC-01, V1-BASE-05.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-OSC-03: Implement offline official schema and reference validation.",
+        "Roadmap stop-condition set is bound by sha256:c67e162eb6f4bd372874d1e4b31890e8c379e4b6f96fa927bc3e524c4b6a0a46.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-OSC-04",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S16",
+          "release": "candidate-1.1.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-OSC-04: V1-OSC-02, V1-OSC-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-OSC-04: Implement Assessment Results projection.",
+        "Roadmap stop-condition set is bound by sha256:dc86987d499b667153a7a2a78cbd4638b2b9cd2fa67b42bb1505160db62e11ae.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-PROC-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S25",
+          "release": "1.4.0a2",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-PROC-01: V1-BASE-08, V1-EVID-02, V1-ING-04.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-PROC-01: Implement explicit process transition projection.",
+        "Roadmap stop-condition set is bound by sha256:05a0262a1015ea9d82144ab683ab48613fbeded4bf88205adbae060288a936d2.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-PROC-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S26",
+          "release": "1.4.0a3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-PROC-02: V1-PROC-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-PROC-02: Implement protected-state pooling and calibration freeze.",
+        "Roadmap stop-condition set is bound by sha256:56a78a952b144dac7b8075032869d154b1e8c074ade44a42f36a3d884958f849.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-QUAL-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S8",
+          "release": "1.0.0b2",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-QUAL-01: V1-AUTH-02, V1-ING-04, V1-TEMP-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-QUAL-01: Demonstrate thin real-adapter development slice.",
+        "Roadmap stop-condition set is bound by sha256:ddc49f1165ee5a6a32580d771a0786451fef2acd7df7f14dae93b94825a8a269.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-QUAL-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 2,
+      "execution_estimates": [
+        {
+          "sprint": "S9",
+          "release": "1.0.0b3",
+          "p50_effort_hours": 52,
+          "p90_effort_hours": 84,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S10",
+          "release": "1.0.0b4",
+          "p50_effort_hours": 52,
+          "p90_effort_hours": 84,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 104,
+      "aggregate_p90_effort_hours": 168,
+      "aggregate_reviewer_effort_hours": 32,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-QUAL-02: V1-STAT-03, V1-STAT-09, V1-STAT-06.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-QUAL-02: Run analytic and statistical method qualification.",
+        "Roadmap stop-condition set is bound by sha256:7e4e08676abb91753c96d67d04df8024958dee4c5aa5db7df8933677064cc158.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-QUAL-03",
+      "estimate_scope": "per_candidate_execution",
+      "planned_execution_count": 7,
+      "execution_estimates": [
+        {
+          "sprint": "S12",
+          "release": "candidate-C1-Q1",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S17",
+          "release": "1.1.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S20",
+          "release": "1.2.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S23",
+          "release": "1.3.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S29",
+          "release": "1.4.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S35",
+          "release": "1.5.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        },
+        {
+          "sprint": "S39",
+          "release": "1.6.0",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        }
+      ],
+      "aggregate_p50_effort_hours": 728,
+      "aggregate_p90_effort_hours": 1176,
+      "aggregate_reviewer_effort_hours": 224,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-QUAL-03: V1-CAND-01, V1-QUAL-01, V1-QUAL-02, V1-SEC-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-QUAL-03: Run full exact-candidate cross-platform and resource qualification.",
+        "Roadmap stop-condition set is bound by sha256:fcb533f68a7416e8114f1de30019866357523494ad6408c9f1794389053d5a00.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-QUAL-04",
+      "estimate_scope": "per_candidate_execution",
+      "planned_execution_count": 8,
+      "execution_estimates": [
+        {
+          "sprint": "S13",
+          "release": "candidate-C1-P1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S14",
+          "release": "1.0.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S17",
+          "release": "1.1.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S20",
+          "release": "1.2.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S23",
+          "release": "1.3.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S29",
+          "release": "1.4.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S35",
+          "release": "1.5.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S39",
+          "release": "1.6.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 320,
+      "aggregate_p90_effort_hours": 512,
+      "aggregate_reviewer_effort_hours": 128,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-QUAL-04: V1-CAND-01, V1-QUAL-03, V1-QUAL-01, V1-DIST-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-QUAL-04: Run independently operated exact-candidate pilot.",
+        "Roadmap stop-condition set is bound by sha256:7f612170495bcd6b6f18a2d6753975af5cc42570e804d75582f990c7e6bb659f.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-REL-01",
+      "estimate_scope": "per_release_or_gate_execution",
+      "planned_execution_count": 2,
+      "execution_estimates": [
+        {
+          "sprint": "S14",
+          "release": "1.0.0",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        },
+        {
+          "sprint": "S15",
+          "release": "1.1.0a1",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 80,
+      "aggregate_p90_effort_hours": 128,
+      "aggregate_reviewer_effort_hours": 32,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-REL-01: V1-CAND-01, V1-QUAL-03, V1-QUAL-04, V1-AUTH-03, V1-DIST-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-REL-01: Promote qualified stable-core candidate and issue sign-offs.",
+        "Roadmap stop-condition set is bound by sha256:abcf547df675b1e774039bdafc59b240664cf42d421168dba4f0a932e3a4572d.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-REL-02",
+      "estimate_scope": "per_batch_component_or_gate_execution",
+      "planned_execution_count": 11,
+      "execution_estimates": [
+        {
+          "sprint": "S17",
+          "release": "1.1.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S18",
+          "release": "1.2.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S20",
+          "release": "1.2.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S21",
+          "release": "1.3.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S23",
+          "release": "1.3.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S24",
+          "release": "1.4.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S29",
+          "release": "1.4.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S30",
+          "release": "1.5.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S35",
+          "release": "1.5.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S36",
+          "release": "1.6.0a1",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        },
+        {
+          "sprint": "S39",
+          "release": "1.6.0",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        }
+      ],
+      "aggregate_p50_effort_hours": 176,
+      "aggregate_p90_effort_hours": 352,
+      "aggregate_reviewer_effort_hours": 88,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-REL-02: V1-REL-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-REL-02: Issue atomic cumulative-package admission and carry-forward decisions.",
+        "Roadmap stop-condition set is bound by sha256:587c006e1354cc8416f2470da01376f22a4bbdb5c48ac714ab54ab463d442d2e.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-SCHEMA-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-SCHEMA-01: V1-BASE-01, V1-BASE-02, V1-BASE-09.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-SCHEMA-01: Implement schema compatibility and ordering-basis migration.",
+        "Roadmap stop-condition set is bound by sha256:3b8d3a02bb20cdfeea6709f14c6269f90cd5a124fce05aa6d44c3dbea84aa9af.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-SEC-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-SEC-01: V1-BASE-06, V1-ING-01, V1-TRUST-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-SEC-01: Test hostile import privacy and authority boundaries.",
+        "Roadmap stop-condition set is bound by sha256:c47e6fb3ab705ba03e50628f19e31e1352e6bf8ad410cc10bf7169f9622d3bc2.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-SEC-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S9",
+          "release": "1.0.0b3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-SEC-02: V1-IO-02, V1-AUTH-03, V1-STAT-05.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-SEC-02: Test crash replay tamper and resource exhaustion.",
+        "Roadmap stop-condition set is bound by sha256:a0f60d32bfb049b636a5f9c9c4340fd3700f210be69ba4660a43af2c9ccc734b.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-SPECTRAL-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S27",
+          "release": "1.4.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-SPECTRAL-01: V1-PROC-02, V1-NUM-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-SPECTRAL-01: Implement declared spectral and PageRank diagnostics.",
+        "Roadmap stop-condition set is bound by sha256:df8dd41303a5a0b189d2dd484d104dfaf42bb5553bf8f6af0c70e7810728f182.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-01: V1-BASE-04, V1-NUM-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-01: Implement method-admissibility registry and bound protocol.",
+        "Roadmap stop-condition set is bound by sha256:8e51e738f1e08b079b293f3c44853287788fd05f71267c9a000575ffa86ae974.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-02: V1-STAT-01, V1-BASE-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-02: Implement trusted randomization and committed cluster schedule.",
+        "Roadmap stop-condition set is bound by sha256:a567f8437c3ab4ff796a7610406ce83c006bc2e0ad7b23ad213a093e8da9f208.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-03: V1-STAT-01, V1-EVID-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-03: Implement B1 uniform beta-binomial confidence sequence.",
+        "Roadmap stop-condition set is bound by sha256:32cfb20a65240b818bb878f88aacc1f1ce5229b57678ca90768385dfe556b202.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-04",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S21",
+          "release": "1.3.0a1",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        }
+      ],
+      "aggregate_p50_effort_hours": 104,
+      "aggregate_p90_effort_hours": 168,
+      "aggregate_reviewer_effort_hours": 32,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-04: V1-STAT-01, V1-EVID-03, V1-STAT-02, V1-STAT-05, V1-STAT-06, V1-NUM-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-04: Implement diagnostic M1-VA certified-extrema inversion.",
+        "Roadmap stop-condition set is bound by sha256:f79bfbb77be9179795bfb556e7328e5defad07329b0447ff71680a642c562c98.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-05",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S7",
+          "release": "1.0.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-05: V1-STAT-01, V1-STAT-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-05: Implement generic persistent ledger and restart protection.",
+        "Roadmap stop-condition set is bound by sha256:3d4868154074bcf8dfdf9b71e253a0096425adaaa7d22db5b08ece597760a914.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-06",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S8",
+          "release": "1.0.0b2",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-06: V1-STAT-05.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-06: Implement directional and re-registration error allocation.",
+        "Roadmap stop-condition set is bound by sha256:ff301ec7fd58edbf0a37d338ef6071e62e906d7848ceb79657922e440d11068f.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-07",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S9",
+          "release": "1.0.0b3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-07: V1-STAT-06, V1-AUTH-03, V1-STAT-03, V1-STAT-09, V1-NUM-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-07: Integrate registered statistical decision adapters into authorization.",
+        "Roadmap stop-condition set is bound by sha256:7bdf9fdef296e3cc9d3d47e7f3a54ae445aa0e5e2c8a814522fe9639cb66e723.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-08",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S22",
+          "release": "candidate-1.3.0-C1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-08: V1-STAT-01, V1-STAT-02, V1-STAT-05, V1-STAT-06, V1-NUM-02.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-08: Implement optional fixed-frame binary method F1.",
+        "Roadmap stop-condition set is bound by sha256:de5c064af0690ab0f382e2827730fdc935547ed8f95da20237cb5cbcbe5dfc47.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-STAT-09",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-STAT-09: V1-STAT-01, V1-EVID-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-STAT-09: Implement stable bounded-mean directional e-process.",
+        "Roadmap stop-condition set is bound by sha256:59458c9f41e08804ee3254c2e067153529b603db4ea588bab0fa861caa7f3643.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-SUPPLY-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S10",
+          "release": "1.0.0b4",
+          "p50_effort_hours": 16,
+          "p90_effort_hours": 32,
+          "reviewer_effort_hours": 8
+        }
+      ],
+      "aggregate_p50_effort_hours": 16,
+      "aggregate_p90_effort_hours": 32,
+      "aggregate_reviewer_effort_hours": 8,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-SUPPLY-01: V1-BASE-01, V1-BASE-06.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-SUPPLY-01: Qualify optional dependency locks and SBOM.",
+        "Roadmap stop-condition set is bound by sha256:d8fd5fb1694a1344b39a7bd42373af2f0098ef37f783d8b7b73f37261230d1a7.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-TEMP-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-TEMP-01: V1-BASE-02, V1-BASE-06, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-TEMP-01: Implement temporal AST and compiler.",
+        "Roadmap stop-condition set is bound by sha256:74ad1b5260770b05458dac158a4cd7fb29db2e42c003be03d1a4cbd15fee66a3.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-TEMP-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S6",
+          "release": "1.0.0a6",
+          "p50_effort_hours": 104,
+          "p90_effort_hours": 168,
+          "reviewer_effort_hours": 32
+        }
+      ],
+      "aggregate_p50_effort_hours": 104,
+      "aggregate_p90_effort_hours": 168,
+      "aggregate_reviewer_effort_hours": 32,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-TEMP-02: V1-TEMP-01, V1-EVID-02, V1-TRUST-02, V1-EVID-03.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-TEMP-02: Implement action-bound temporal monitor.",
+        "Roadmap stop-condition set is bound by sha256:e5dd4b183fdaecd5481e9392acf2ae5c657654c10038f59e8fa605b792a802ef.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-TEMP-03",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S7",
+          "release": "1.0.0b1",
+          "p50_effort_hours": 64,
+          "p90_effort_hours": 104,
+          "reviewer_effort_hours": 24
+        }
+      ],
+      "aggregate_p50_effort_hours": 64,
+      "aggregate_p90_effort_hours": 104,
+      "aggregate_reviewer_effort_hours": 24,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-TEMP-03: V1-TEMP-02, V1-NUM-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-TEMP-03: Implement qualified bounded timing and work ceilings.",
+        "Roadmap stop-condition set is bound by sha256:edc04b9532cd92cce7e520617d3bad0fc7a72c7e34310d0afe5b33b3f302da74.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-TRUST-01",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S3",
+          "release": "1.0.0a3",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-TRUST-01: V1-BASE-02, V1-BASE-03, V1-SCHEMA-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-TRUST-01: Implement immutable provenance and signature records.",
+        "Roadmap stop-condition set is bound by sha256:b32f54bb0d57770a07d72e5252f9c254abab8f0919b116bec0cae433c548e001.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    },
+    {
+      "ticket_id": "V1-TRUST-02",
+      "estimate_scope": "ticket_completion",
+      "planned_execution_count": 1,
+      "execution_estimates": [
+        {
+          "sprint": "S4",
+          "release": "1.0.0a4",
+          "p50_effort_hours": 40,
+          "p90_effort_hours": 64,
+          "reviewer_effort_hours": 16
+        }
+      ],
+      "aggregate_p50_effort_hours": 40,
+      "aggregate_p90_effort_hours": 64,
+      "aggregate_reviewer_effort_hours": 16,
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_method_definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df",
+      "aggregate_dependence_assumptions": [
+        "Occurrence effort ranks are comonotonic under one shared latent severity.",
+        "Effort is additive; no elapsed-time or parallelism discount is applied.",
+        "No ticket or occurrence independence is claimed."
+      ],
+      "confidence": "low",
+      "dependency_assumptions": [
+        "Declared ticket predecessors for V1-TRUST-02: V1-TRUST-01.",
+        "Every declared predecessor closes with its operation-scoped receipt before dispatch.",
+        "Sprint labels express dependency order and are not calendar commitments."
+      ],
+      "risk_assumptions": [
+        "Estimate scope is limited to V1-TRUST-02: Implement verifier-derived claim eligibility.",
+        "Roadmap stop-condition set is bound by sha256:69f13b56593db77e1befd7413217f7be2b2e118d3f97866abf900ef003bfd9c8.",
+        "A roadmap, dependency, estimate-scope, or occurrence-order change requires rebaselining.",
+        "Missing qualified staffing can delay acceptance but cannot weaken an assurance gate.",
+        "LLM assistance does not reduce accountable review, verification, or rework effort to zero."
+      ],
+      "current_status": "not_started",
+      "trusted_issue_time": "2026-10-15T20:16:36Z",
+      "rebaseline_status": "confirmed"
+    }
+  ],
+  "record_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+  "signature_envelope": {
+    "profile": "openssh-sshsig-ed25519/v1",
+    "status": "signed",
+    "namespace": "agent-assure-governance-v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+    "signer_person_id": "acblabs",
+    "signer_role": "technical_lead",
+    "subject_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+    "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "signed_at_utc": "2026-10-15T20:17:07Z",
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVM1Um9OSnJPOFdzbkN3RVVERWpUaUJ6UUpINnppelpKL0QKRmJjcjlBOWE0L00zRXVvT0pGMVA2clRRWGVSYnRsdTY2RXFSVmZNU2J3U3Fmb0RCcHBEQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  },
+  "acceptance_receipt": {
+    "receipt_type": "development_design_acceptance",
+    "receipt_status": "accepted_for_development",
+    "subject_contract_id": "delivery-forecast/v1",
+    "subject_record_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+    "bound_source_digests": {
+      "full_roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+      "sorted_ticket_set_digest": "sha256:bb59c4bfad1b13bdb380ec3b07356d739a505b7b3511528a00b296e169754fbc",
+      "dependency_graph_digest": "sha256:a1042726cc8cee8f6286d6bcbba790006c7ecef5855fd9c1a63adf1e59533bb0",
+      "release_train_digest": "sha256:b97ee803c366370923dd4dd56cfabc0d0d2aecc1629f6de34a26885499edb2cf",
+      "aggregation_method_registry_digest": "sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3",
+      "authoring_ledger_digest": "sha256:339ca4d1de0245e0563654beb9857d5baf8f972c02d690fab61a5f60e9dacf50"
+    },
+    "issuer_person_id": "acblabs",
+    "issuer_role": "repository_maintainer",
+    "approval_mode": "maintainer_development",
+    "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+    "independence_claimed": false,
+    "authorization_effect": "none",
+    "author_reviewer_relationship": "same_person_maintainer_development_self_acceptance",
+    "accepted_competence": [
+      "planning_governance:s1",
+      "repository_maintenance:bounded_development",
+      "technical_direction:s1"
+    ],
+    "conflicts": [
+      "Sole maintainer self-acceptance; no independence is claimed.",
+      "LLM-authored proposal reviewed under accountable human authority."
+    ],
+    "issued_at_utc": "2026-10-15T20:16:36Z",
+    "validity_context": {
+      "not_before_utc": "2026-10-15T20:16:36Z",
+      "not_after_utc": "2026-11-14T20:16:36Z",
+      "half_open_interval": true
+    },
+    "review_evidence": [
+      "ADR-V1-MAP",
+      "delivery-forecast.authoring-ledger.json",
+      "delivery-forecast.aggregation-registry.json",
+      "scripts/v1_s1_governance.py validation"
+    ],
+    "allowed_operations": [
+      "S2 commitment after every estimate is human-confirmed and signatures verify",
+      "bounded development planning"
+    ],
+    "limitations": [
+      "NO_INDEPENDENT_REVIEW",
+      "No method admission, qualification, release authorization, or runtime authorization effect.",
+      "Pending signatures or pending estimate confirmations make this receipt non-accepting."
+    ],
+    "receipt_digest": "sha256:948b5fbbd3dee6ef031de5588954c6b36c1fea44a894fedd7f901006da2c67c1",
+    "signature_envelope": {
+      "profile": "openssh-sshsig-ed25519/v1",
+      "status": "signed",
+      "namespace": "agent-assure-governance-v1",
+      "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+      "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+      "signer_person_id": "acblabs",
+      "signer_role": "repository_maintainer",
+      "subject_digest": "sha256:948b5fbbd3dee6ef031de5588954c6b36c1fea44a894fedd7f901006da2c67c1",
+      "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+      "signed_at_utc": "2026-10-15T20:17:07Z",
+      "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQUNiUUh2VndwM0NPdzVQenpWRVA4RFFkK0ZzcXVuYzJja0UKTUJ5K3pCK2VUYTVVTnNYR1dicWVPWG5KWTFtNjlPekdYdFFDZk9FcHh6eVV6dEVWb01CZz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+    }
+  }
+}

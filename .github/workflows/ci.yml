@@ -205,7 +205,7 @@ jobs:
               tests/unit/adapters tests/unit/authoring tests/unit/canonical
               tests/unit/compare tests/unit/controls tests/unit/demo tests/unit/docs
               tests/unit/evaluation tests/unit/examples tests/unit/fixtures
-              tests/unit/graph tests/unit/mutation
+              tests/unit/governance tests/unit/graph tests/unit/mutation
           - shard: unit-b1
             test_paths: >-
               tests/unit/policies tests/unit/privacy tests/unit/rag

@@ -1,0 +1,53 @@
+{
+  "format": "agent-assure-delivery-forecast-aggregation-registry/1",
+  "spec_revision": "6.5",
+  "methods": [
+    {
+      "format": "agent-assure-delivery-forecast-aggregation-method/1",
+      "method_id": "comonotonic-quantile-sum/v1",
+      "version": "1.0.0",
+      "unit": "focused_engineer_hour",
+      "evaluated_quantile_ranks": [
+        0.5,
+        0.9
+      ],
+      "quantile_definition": "Q_p(X)=inf{x:F_X(x)>=p}",
+      "dependence_model": {
+        "name": "comonotonic_shared_severity_rank",
+        "definition": "For every occurrence i, X_i=Q_i(U), where U~Uniform(0,1) is global and shared across the portfolio and Q_i is a nondecreasing generalized-inverse marginal quantile function. Only ranks p in {0.5,0.9} are evaluated.",
+        "independence_claimed": false,
+        "reviewer_effort_coupling": "Reviewer-effort P50 entries use the same global shared-rank planning model; only their additive P50 is reported."
+      },
+      "aggregation": {
+        "aggregate_p50_effort_hours": {
+          "operation": "checked_integer_sum",
+          "source_field": "p50_effort_hours",
+          "quantile_rank": 0.5
+        },
+        "aggregate_p90_effort_hours": {
+          "operation": "checked_integer_sum",
+          "source_field": "p90_effort_hours",
+          "quantile_rank": 0.9
+        },
+        "aggregate_reviewer_effort_hours": {
+          "operation": "checked_integer_sum",
+          "source_field": "reviewer_effort_hours",
+          "quantile_rank": 0.5
+        }
+      },
+      "interpretation": [
+        "At the two declared ranks, the aggregate P50 and P90 are tail-aligned additive planning quantiles under the declared comonotonic model.",
+        "They are not distribution-free bounds, confidence intervals, elapsed-calendar forecasts, or evidence of ticket independence.",
+        "The two supplied ranks do not identify a complete marginal distribution between or beyond P50 and P90.",
+        "Parallel execution changes elapsed time but does not discount accountable effort."
+      ],
+      "arithmetic": {
+        "input_type": "nonnegative integer hours",
+        "maximum_exact_integer": 9007199254740991,
+        "rounding": "none after authoring; day priors are converted at exactly 8 hours/day"
+      },
+      "definition_digest": "sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df"
+    }
+  ],
+  "registry_digest": "sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3"
+}

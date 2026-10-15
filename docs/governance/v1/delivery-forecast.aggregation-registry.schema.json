@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+  "title": "Agent Assure delivery forecast aggregation-method registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "spec_revision", "methods", "registry_digest"],
+  "properties": {
+    "format": { "const": "agent-assure-delivery-forecast-aggregation-registry/1" },
+    "spec_revision": { "const": "6.5" },
+    "methods": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/$defs/method" }
+    },
+    "registry_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "sumRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["operation", "source_field", "quantile_rank"],
+      "properties": {
+        "operation": { "const": "checked_integer_sum" },
+        "source_field": { "$ref": "#/$defs/nonempty" },
+        "quantile_rank": { "enum": [0.5, 0.9] }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "method_id",
+        "version",
+        "unit",
+        "evaluated_quantile_ranks",
+        "quantile_definition",
+        "dependence_model",
+        "aggregation",
+        "interpretation",
+        "arithmetic",
+        "definition_digest"
+      ],
+      "properties": {
+        "format": { "const": "agent-assure-delivery-forecast-aggregation-method/1" },
+        "method_id": { "const": "comonotonic-quantile-sum/v1" },
+        "version": { "const": "1.0.0" },
+        "unit": { "const": "focused_engineer_hour" },
+        "evaluated_quantile_ranks": {
+          "const": [0.5, 0.9]
+        },
+        "quantile_definition": { "$ref": "#/$defs/nonempty" },
+        "dependence_model": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "definition",
+            "independence_claimed",
+            "reviewer_effort_coupling"
+          ],
+          "properties": {
+            "name": { "const": "comonotonic_shared_severity_rank" },
+            "definition": { "$ref": "#/$defs/nonempty" },
+            "independence_claimed": { "const": false },
+            "reviewer_effort_coupling": { "$ref": "#/$defs/nonempty" }
+          }
+        },
+        "aggregation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "aggregate_p50_effort_hours",
+            "aggregate_p90_effort_hours",
+            "aggregate_reviewer_effort_hours"
+          ],
+          "properties": {
+            "aggregate_p50_effort_hours": { "$ref": "#/$defs/sumRule" },
+            "aggregate_p90_effort_hours": { "$ref": "#/$defs/sumRule" },
+            "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/sumRule" }
+          }
+        },
+        "interpretation": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonempty" }
+        },
+        "arithmetic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["input_type", "maximum_exact_integer", "rounding"],
+          "properties": {
+            "input_type": { "const": "nonnegative integer hours" },
+            "maximum_exact_integer": { "const": 9007199254740991 },
+            "rounding": { "$ref": "#/$defs/nonempty" }
+          }
+        },
+        "definition_digest": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

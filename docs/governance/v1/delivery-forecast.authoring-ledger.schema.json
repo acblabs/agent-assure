@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+  "title": "Agent Assure S1 delivery forecast authoring ledger",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "roadmap_digest",
+    "baseline_observations_digest",
+    "inventory_completed_at_utc",
+    "proposal_preparer_kind",
+    "accountable_maintainer_person_id",
+    "issued_at_utc",
+    "accountable_confirmation_required",
+    "rows",
+    "ledger_digest"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-delivery-forecast-authoring-ledger/1" },
+    "spec_revision": { "const": "6.5" },
+    "roadmap_digest": { "$ref": "#/$defs/digest" },
+    "baseline_observations_digest": { "$ref": "#/$defs/digest" },
+    "inventory_completed_at_utc": { "$ref": "#/$defs/utc" },
+    "proposal_preparer_kind": { "const": "llm_implementation_agent" },
+    "accountable_maintainer_person_id": { "$ref": "#/$defs/id" },
+    "issued_at_utc": { "$ref": "#/$defs/utc" },
+    "accountable_confirmation_required": { "const": true },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/row" }
+    },
+    "ledger_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "nullableUtc": {
+      "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+    },
+    "nullableId": {
+      "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+    },
+    "hours": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "decision": {
+      "enum": [
+        "pending_maintainer_reconfirmation",
+        "affirmatively_reconfirmed_after_inventory",
+        "reestimated_after_inventory"
+      ]
+    },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "roadmapPrior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit",
+        "p50",
+        "p90",
+        "review_effort_p50_days",
+        "confidence",
+        "basis"
+      ],
+      "properties": {
+        "unit": { "const": "focused_engineer_day" },
+        "p50": { "type": "number", "minimum": 0 },
+        "p90": { "type": "number", "minimum": 0 },
+        "review_effort_p50_days": { "type": "number", "minimum": 0 },
+        "confidence": { "enum": ["low", "medium", "high"] },
+        "basis": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "executionProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sprint",
+        "release",
+        "proposed_p50_effort_hours",
+        "proposed_p90_effort_hours",
+        "proposed_reviewer_effort_hours",
+        "selected_p50_effort_hours",
+        "selected_p90_effort_hours",
+        "selected_reviewer_effort_hours",
+        "decision",
+        "rationale",
+        "confirmed_by_person_id",
+        "confirmed_at_utc"
+      ],
+      "properties": {
+        "sprint": { "type": "string", "pattern": "^S[1-9][0-9]*$" },
+        "release": { "$ref": "#/$defs/nonempty" },
+        "proposed_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "proposed_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "proposed_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "selected_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "selected_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "selected_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "decision": { "$ref": "#/$defs/decision" },
+        "rationale": { "$ref": "#/$defs/nonempty" },
+        "confirmed_by_person_id": { "$ref": "#/$defs/nullableId" },
+        "confirmed_at_utc": { "$ref": "#/$defs/nullableUtc" }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_id",
+        "estimate_scope",
+        "roadmap_prior",
+        "proposal_rule",
+        "selected_confidence",
+        "selected_current_status",
+        "selected_dependency_assumptions",
+        "selected_risk_assumptions",
+        "row_decision",
+        "row_decision_rationale",
+        "row_confirmed_by_person_id",
+        "row_confirmed_at_utc",
+        "execution_proposals"
+      ],
+      "properties": {
+        "ticket_id": { "type": "string", "pattern": "^V1-[A-Z0-9]+-[0-9]{2}$" },
+        "estimate_scope": { "$ref": "#/$defs/nonempty" },
+        "roadmap_prior": { "$ref": "#/$defs/roadmapPrior" },
+        "proposal_rule": {
+          "enum": [
+            "split_ticket_completion_total_across_nonoverlapping_occurrences",
+            "apply_declared_per_scope_prior_to_each_occurrence"
+          ]
+        },
+        "selected_confidence": { "enum": ["low", "medium", "high"] },
+        "selected_current_status": {
+          "enum": ["not_started", "in_progress", "blocked", "done"]
+        },
+        "selected_dependency_assumptions": { "$ref": "#/$defs/stringSet" },
+        "selected_risk_assumptions": { "$ref": "#/$defs/stringSet" },
+        "row_decision": { "$ref": "#/$defs/decision" },
+        "row_decision_rationale": { "$ref": "#/$defs/nonempty" },
+        "row_confirmed_by_person_id": { "$ref": "#/$defs/nullableId" },
+        "row_confirmed_at_utc": { "$ref": "#/$defs/nullableUtc" },
+        "execution_proposals": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/$defs/executionProposal" }
+        }
+      }
+    }
+  }
+}

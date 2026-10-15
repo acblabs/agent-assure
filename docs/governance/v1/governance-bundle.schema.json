@@ -1,0 +1,364 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/governance-bundle.schema.json",
+  "title": "Agent Assure S1 governed-baseline release object",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "bundle_status",
+    "sprint",
+    "release",
+    "train",
+    "maturity",
+    "artifact_kind",
+    "source_ticket_ids",
+    "authorization_effect",
+    "installability",
+    "distribution_channels",
+    "package_version",
+    "base_commit",
+    "result_commit",
+    "roadmap_digest",
+    "approval_roster_digest",
+    "signed_decisions",
+    "compatibility_note",
+    "known_limitations",
+    "planning_evidence",
+    "artifact_inventory",
+    "artifact_set_digest",
+    "issuer_person_id",
+    "issuer_role",
+    "approval_mode",
+    "independence_claimed",
+    "issued_at_utc",
+    "valid_until_utc",
+    "bundle_digest",
+    "signature_envelope"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-governance-bundle/1" },
+    "spec_revision": { "const": "6.5" },
+    "bundle_status": {
+      "enum": ["pending_human_acceptance", "accepted_for_development"]
+    },
+    "sprint": { "const": "S1" },
+    "release": { "const": "1.0.0a1" },
+    "train": { "const": "stable-1.0" },
+    "maturity": { "const": "governed-baseline" },
+    "artifact_kind": { "const": "governance-bundle" },
+    "source_ticket_ids": { "const": ["V1-BOOT-01", "V1-BASE-01"] },
+    "authorization_effect": { "const": "none" },
+    "installability": { "const": "none" },
+    "distribution_channels": { "const": [] },
+    "package_version": { "type": "null" },
+    "base_commit": { "$ref": "#/$defs/gitCommit" },
+    "result_commit": {
+      "oneOf": [{ "$ref": "#/$defs/gitCommit" }, { "type": "null" }]
+    },
+    "roadmap_digest": { "$ref": "#/$defs/digest" },
+    "approval_roster_digest": { "$ref": "#/$defs/digest" },
+    "signed_decisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "roster_selection_status",
+        "signing_key_status",
+        "signing_key_record_digest",
+        "kickoff_authorizations",
+        "ticket_completion_receipts"
+      ],
+      "properties": {
+        "roster_selection_status": { "enum": ["not_approved", "approved"] },
+        "signing_key_status": {
+          "enum": ["pending_human_confirmation", "confirmed_by_human"]
+        },
+        "signing_key_record_digest": { "$ref": "#/$defs/digest" },
+        "kickoff_authorizations": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/kickoffBinding" },
+                { "properties": { "ticket_id": { "const": "V1-BASE-01" } } }
+              ]
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/kickoffBinding" },
+                { "properties": { "ticket_id": { "const": "V1-BOOT-01" } } }
+              ]
+            }
+          ],
+          "items": false
+        },
+        "ticket_completion_receipts": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "prefixItems": [
+            {
+              "allOf": [
+                { "$ref": "#/$defs/completionBinding" },
+                { "properties": { "ticket_id": { "const": "V1-BASE-01" } } }
+              ]
+            },
+            {
+              "allOf": [
+                { "$ref": "#/$defs/completionBinding" },
+                { "properties": { "ticket_id": { "const": "V1-BOOT-01" } } }
+              ]
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "compatibility_note": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_package_version",
+        "baseline_writer_schema_version",
+        "production_behavior_changed",
+        "installable_artifact_emitted",
+        "note"
+      ],
+      "properties": {
+        "baseline_package_version": { "const": "0.7.0" },
+        "baseline_writer_schema_version": { "const": "0.6.6" },
+        "production_behavior_changed": { "const": false },
+        "installable_artifact_emitted": { "const": false },
+        "note": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "known_limitations": { "$ref": "#/$defs/stringSet" },
+    "planning_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline_observations_digest",
+        "full_repository_pytest_outcome",
+        "forecast_status",
+        "forecast_record_digest",
+        "forecast_acceptance_receipt_status",
+        "forecast_acceptance_receipt_digest",
+        "aggregation_method_registry_digest",
+        "authoring_ledger_digest",
+        "ticket_count",
+        "occurrence_count"
+      ],
+      "properties": {
+        "baseline_observations_digest": { "$ref": "#/$defs/digest" },
+        "full_repository_pytest_outcome": {
+          "enum": ["passed", "failed", "timed_out"]
+        },
+        "forecast_status": { "enum": ["proposed", "ready_for_acceptance", "accepted"] },
+        "forecast_record_digest": { "$ref": "#/$defs/digest" },
+        "forecast_acceptance_receipt_status": {
+          "enum": ["pending_human_acceptance", "accepted_for_development"]
+        },
+        "forecast_acceptance_receipt_digest": { "$ref": "#/$defs/digest" },
+        "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
+        "authoring_ledger_digest": { "$ref": "#/$defs/digest" },
+        "ticket_count": { "type": "integer", "minimum": 1, "maximum": 256 },
+        "occurrence_count": { "type": "integer", "minimum": 1, "maximum": 4096 }
+      }
+    },
+    "artifact_inventory": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/artifact" }
+    },
+    "artifact_set_digest": { "$ref": "#/$defs/digest" },
+    "issuer_person_id": { "$ref": "#/$defs/id" },
+    "issuer_role": { "const": "repository_maintainer" },
+    "approval_mode": { "const": "maintainer_development" },
+    "independence_claimed": { "const": false },
+    "issued_at_utc": { "$ref": "#/$defs/utc" },
+    "valid_until_utc": { "$ref": "#/$defs/utc" },
+    "bundle_digest": { "$ref": "#/$defs/digest" },
+    "signature_envelope": { "$ref": "#/$defs/signature" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "bundle_status": { "const": "accepted_for_development" } },
+        "required": ["bundle_status"]
+      },
+      "then": {
+        "properties": {
+          "result_commit": { "$ref": "#/$defs/gitCommit" },
+          "signed_decisions": {
+            "properties": {
+              "roster_selection_status": { "const": "approved" },
+              "signing_key_status": { "const": "confirmed_by_human" },
+              "kickoff_authorizations": {
+                "prefixItems": [
+                  {
+                    "properties": { "authorization_status": { "const": "authorized" } }
+                  },
+                  {
+                    "properties": { "authorization_status": { "const": "authorized" } }
+                  }
+                ]
+              },
+              "ticket_completion_receipts": {
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "receipt_status": { "const": "accepted_for_development" }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "receipt_status": { "const": "accepted_for_development" }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "planning_evidence": {
+            "properties": {
+              "forecast_status": { "const": "accepted" },
+              "forecast_acceptance_receipt_status": {
+                "const": "accepted_for_development"
+              }
+            }
+          },
+          "signature_envelope": {
+            "properties": { "status": { "const": "signed" } }
+          }
+        }
+      },
+      "else": {
+        "properties": { "result_commit": { "type": "null" } }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "kickoffBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticket_id", "authorization_status", "authorization_digest"],
+      "properties": {
+        "ticket_id": { "enum": ["V1-BOOT-01", "V1-BASE-01"] },
+        "authorization_status": { "enum": ["pending_human_signature", "authorized"] },
+        "authorization_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "completionBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ticket_id", "receipt_status", "receipt_digest"],
+      "properties": {
+        "ticket_id": { "enum": ["V1-BOOT-01", "V1-BASE-01"] },
+        "receipt_status": {
+          "enum": ["pending_human_acceptance", "accepted_for_development"]
+        },
+        "receipt_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "size_bytes", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+        },
+        "kind": { "$ref": "#/$defs/id" },
+        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 16777216 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signer_person_id",
+        "signer_role",
+        "subject_digest",
+        "public_key_fingerprint",
+        "signed_at_utc",
+        "signature"
+      ],
+      "properties": {
+        "profile": { "const": "openssh-sshsig-ed25519/v1" },
+        "status": { "enum": ["pending_human_signature", "signed"] },
+        "namespace": { "const": "agent-assure-governance-v1" },
+        "signed_payload_encoding": {
+          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v1"
+        },
+        "signature_encoding": {
+          "const": "base64-canonical-lf-openssh-sshsig-armored"
+        },
+        "signer_person_id": { "$ref": "#/$defs/id" },
+        "signer_role": { "$ref": "#/$defs/id" },
+        "subject_digest": { "$ref": "#/$defs/digest" },
+        "public_key_fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "signed_at_utc": {
+          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+        },
+        "signature": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 8192
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "signed" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "signed_at_utc": { "$ref": "#/$defs/utc" },
+              "signature": { "type": "string", "minLength": 1 }
+            }
+          },
+          "else": {
+            "properties": {
+              "signed_at_utc": { "type": "null" },
+              "signature": { "type": "null" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

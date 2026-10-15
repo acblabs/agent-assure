@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/kickoff-authorization.schema.json",
+  "title": "Agent Assure S1 kickoff authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "authorization_status",
+    "purpose",
+    "subject_ticket_id",
+    "subject_dispatch_kind",
+    "approval_mode",
+    "approval_roster_digest",
+    "authorizer_person_id",
+    "authorizer_role",
+    "issued_at_utc",
+    "valid_until_utc",
+    "authorization_effect",
+    "allowed_operations",
+    "forbidden_operations",
+    "source_instruction_evidence",
+    "limitations",
+    "authorization_digest",
+    "signature_envelope"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-kickoff-authorization/1" },
+    "spec_revision": { "const": "6.5" },
+    "authorization_status": { "enum": ["pending_human_signature", "authorized"] },
+    "purpose": { "const": "kickoff_authorization" },
+    "subject_ticket_id": { "enum": ["V1-BOOT-01", "V1-BASE-01"] },
+    "subject_dispatch_kind": { "enum": ["kickoff", "inventory"] },
+    "approval_mode": { "const": "maintainer_development" },
+    "approval_roster_digest": { "$ref": "#/$defs/digest" },
+    "authorizer_person_id": { "$ref": "#/$defs/id" },
+    "authorizer_role": { "const": "repository_maintainer" },
+    "issued_at_utc": { "$ref": "#/$defs/utc" },
+    "valid_until_utc": { "$ref": "#/$defs/utc" },
+    "authorization_effect": { "const": "bounded_s1_governance_only" },
+    "allowed_operations": { "$ref": "#/$defs/stringSet" },
+    "forbidden_operations": { "$ref": "#/$defs/stringSet" },
+    "source_instruction_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "summary", "identity_binding_status"],
+      "properties": {
+        "kind": { "const": "interactive_user_instruction" },
+        "summary": { "$ref": "#/$defs/nonempty" },
+        "identity_binding_status": {
+          "enum": [
+            "pending_cryptographic_confirmation",
+            "bound_by_authorization_signature"
+          ]
+        }
+      }
+    },
+    "limitations": { "$ref": "#/$defs/stringSet" },
+    "authorization_digest": { "$ref": "#/$defs/digest" },
+    "signature_envelope": { "$ref": "#/$defs/signature" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "authorization_status": { "const": "authorized" } },
+        "required": ["authorization_status"]
+      },
+      "then": {
+        "properties": {
+          "source_instruction_evidence": {
+            "properties": {
+              "identity_binding_status": { "const": "bound_by_authorization_signature" }
+            }
+          },
+          "signature_envelope": {
+            "properties": { "status": { "const": "signed" } }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "source_instruction_evidence": {
+            "properties": {
+              "identity_binding_status": { "const": "pending_cryptographic_confirmation" }
+            }
+          },
+          "signature_envelope": {
+            "properties": { "status": { "const": "pending_human_signature" } }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signer_person_id",
+        "signer_role",
+        "subject_digest",
+        "public_key_fingerprint",
+        "signed_at_utc",
+        "signature"
+      ],
+      "properties": {
+        "profile": { "const": "openssh-sshsig-ed25519/v1" },
+        "status": { "enum": ["pending_human_signature", "signed"] },
+        "namespace": { "const": "agent-assure-governance-v1" },
+        "signed_payload_encoding": {
+          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v1"
+        },
+        "signature_encoding": {
+          "const": "base64-canonical-lf-openssh-sshsig-armored"
+        },
+        "signer_person_id": { "$ref": "#/$defs/id" },
+        "signer_role": { "$ref": "#/$defs/id" },
+        "subject_digest": { "$ref": "#/$defs/digest" },
+        "public_key_fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "signed_at_utc": {
+          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+        },
+        "signature": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 8192
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "signed" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "signed_at_utc": { "$ref": "#/$defs/utc" },
+              "signature": { "type": "string", "minLength": 1 }
+            }
+          },
+          "else": {
+            "properties": {
+              "signed_at_utc": { "type": "null" },
+              "signature": { "type": "null" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

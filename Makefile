@@ -12,8 +12,15 @@ EXTERNAL_PILOT_REVIEW_RECEIPT ?= external-pilot-independence-review.json
 RELEASE_EFFICACY_PACKET ?= evidence/synthetic/release-control-efficacy/evidence-packet.json
 RELEASE_EFFICACY_POLICY ?= evidence/synthetic/release-control-efficacy/controls-mutation.yaml
 RELEASE_EFFICACY_ARTIFACT_ROOT ?= .
+V1_ROADMAP ?= Agent_Assure_Implementation_Roadmap.md
+V1_GOVERNANCE_DIR ?= docs/governance/v1
+V1_GOVERNANCE_POWERSHELL ?= C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+V1_GOVERNANCE_LAUNCHER ?= scripts/v1_s1_governance.ps1
+V1_GOVERNANCE_COMMITMENT_TIME ?=
+V1_GOVERNANCE_CLOSURE_COMMIT ?=
+V1_GOVERNANCE_ACCEPTANCE_TAG_OBJECT ?=
 
-.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo
+.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo v1-governance-check v1-governance-check-nonaccepting
 
 test:
 	$(PYTHON) -m pytest
@@ -81,6 +88,17 @@ release-publish-check:
 
 demo:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
+
+# The roadmap is intentionally local-only, so these explicit targets are not
+# part of CI's default check graph. The default performs durable historical
+# validation of the signed closure. The nonaccepting target validates a
+# self-consistent draft or in-progress record set at a caller-supplied trusted
+# time; neither target infers host-clock trust.
+v1-governance-check:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" check --roadmap "$(V1_ROADMAP)" --governance-dir "$(V1_GOVERNANCE_DIR)" --repository-root . --historical --closure-commit "$(V1_GOVERNANCE_CLOSURE_COMMIT)" --acceptance-tag-object "$(V1_GOVERNANCE_ACCEPTANCE_TAG_OBJECT)"
+
+v1-governance-check-nonaccepting:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" check --roadmap "$(V1_ROADMAP)" --governance-dir "$(V1_GOVERNANCE_DIR)" --repository-root . --allow-pending --commitment-time "$(V1_GOVERNANCE_COMMITMENT_TIME)"
 
 schemas:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out $(SCHEMA_DIR)

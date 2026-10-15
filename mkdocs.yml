@@ -28,6 +28,7 @@ nav:
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
+  - V1 S1 governance baseline: governance/v1/README.md
   - Privacy model: privacy_model.md
   - Threat model: threat_model.md
   - Security correction containment: security_release_containment.md
@@ -56,3 +57,4 @@ nav:
       - Deterministic and stochastic semantics: adr/0013-deterministic-and-stochastic-semantics.md
       - LLM judgments are advisory: adr/0014-llm-judgments-are-advisory.md
       - Formal and conformal scope: adr/0015-formal-and-conformal-scope.md
+      - V1 repository map and S1 planning governance: adr/0016-v1-repository-map.md

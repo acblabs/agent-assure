@@ -1,0 +1,270 @@
+{
+  "format": "agent-assure-approval-roster/1",
+  "spec_revision": "6.5",
+  "selection_status": "approved",
+  "selected_mode": "maintainer_development",
+  "maintainer_person_id": "acblabs",
+  "people": [
+    {
+      "person_id": "acblabs",
+      "display_name": "acblabs",
+      "affiliation": null,
+      "competence_scopes": [
+        "planning_governance:s1",
+        "repository_maintenance:bounded_development",
+        "technical_direction:s1"
+      ],
+      "conflicts": [
+        "Sole human owner and development acceptor for S1",
+        "Cannot issue an independent-review receipt for self-authored or LLM-authored work accepted under this identity",
+        "Repository-configured handle; legal identity is not asserted by this record"
+      ]
+    }
+  ],
+  "role_assignments": [
+    {
+      "role": "assurance_lead",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "assurance_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "experiment_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "external_assurance_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent external responsibility explicitly unfilled"
+    },
+    {
+      "role": "formal_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Optional future responsibility explicitly unfilled"
+    },
+    {
+      "role": "formal_lead",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Optional future responsibility explicitly unfilled"
+    },
+    {
+      "role": "formal_test_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Optional future responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_assurance_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_experiment_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_formal_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_method_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_release_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_security_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "independent_temporal_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Independent responsibility explicitly unfilled"
+    },
+    {
+      "role": "integration_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "integration_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "numeric_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "pilot_operator",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future independent-pilot responsibility explicitly unfilled"
+    },
+    {
+      "role": "platform_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "platform_lead",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "process_domain_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "process_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "release_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "release_policy_owner",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future release authority explicitly unfilled"
+    },
+    {
+      "role": "reliability_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "reliability_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "repository_maintainer",
+      "person_id": "acblabs",
+      "backup_person_id": null,
+      "review_capacity": "S1 maintainer-development acceptance only; one active review; no backup"
+    },
+    {
+      "role": "security_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "security_reliability_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "security_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "statistical_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "statistical_lead",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "technical_lead",
+      "person_id": "acblabs",
+      "backup_person_id": null,
+      "review_capacity": "S1 technical direction and planning only; one active review; no backup"
+    },
+    {
+      "role": "telemetry_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "telemetry_security_reviewer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "test_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "test_statistician",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    },
+    {
+      "role": "verification_engineer",
+      "person_id": null,
+      "backup_person_id": null,
+      "review_capacity": "Future responsibility explicitly unfilled"
+    }
+  ],
+  "incompatibilities": [
+    "An author cannot supply the independent review receipt for the same scoped artifact",
+    "A second LLM session, account, title, or role label is not a second independent person",
+    "The S1 maintainer may self-accept bounded development only with NO_INDEPENDENT_REVIEW",
+    "Release, method-admission, qualification, and independent-pilot receipts require later compatible staffing"
+  ],
+  "qualification_receipts": [],
+  "limitations": [
+    "NO_INDEPENDENT_REVIEW",
+    "Only technical_lead and repository_maintainer are staffed for S1",
+    "No legal identity, external affiliation, mathematical qualification, security qualification, or release qualification is inferred from the repository handle",
+    "LLM implementation agents may draft code and evidence but cannot issue human or independent approval receipts",
+    "Future stable-core qualification staffing plan (nonauthorizing): before dispatch, amend and approve this roster with named competent, conflict-compatible people, affiliations where relevant, explicit capacity, and explicit backups or documented absence of backup for test_engineer and a distinct external_assurance_reviewer (V1-QUAL-01), test_statistician and an independent_method_reviewer (V1-QUAL-02), reliability_engineer and an independent_release_reviewer (V1-QUAL-03), and pilot_operator and an independent_assurance_reviewer (V1-QUAL-04); an author cannot independently review that person's own scoped work",
+    "Future stable-core qualification evidence plan (nonauthorizing): issue exact-subject qualification_execution_authorization for V1-QUAL-01 through V1-QUAL-03 and pilot_execution_authorization for V1-QUAL-04, then obtain every ticket-required signed receipt; V1-QUAL-02 additionally requires implementation_acceptance, qualification_review, independent_method_review, and a separately signed admitted method_admission outcome",
+    "Future stable-core release plan (nonauthorizing): only after exact-candidate qualification and pilot evidence, staff release_engineer, independent_release_reviewer, and a distinct release_policy_owner for V1-REL-01, then obtain fresh independent_release_acceptance and separate release_approval; until these roster amendments, authorizations, evidence, and receipts exist and verify, S1 qualifies and authorizes nothing"
+  ]
+}

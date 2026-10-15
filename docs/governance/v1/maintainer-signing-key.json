@@ -1,0 +1,25 @@
+{
+  "format": "agent-assure-governance-signing-key/1",
+  "spec_revision": "6.5",
+  "key_status": "confirmed_by_human",
+  "person_id": "acblabs",
+  "algorithm": "ssh-ed25519",
+  "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+  "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+  "signature_profile": "openssh-sshsig-ed25519/v1",
+  "allowed_namespace": "agent-assure-governance-v1",
+  "allowed_roles": [
+    "repository_maintainer",
+    "technical_lead"
+  ],
+  "trust_scope": [
+    "S1 maintainer-development governance records only",
+    "Public-key possession does not establish legal identity, independence, or qualification"
+  ],
+  "out_of_band_confirmation_evidence": "Explicit confirmation by acblabs in the interactive maintainer session at 2026-10-15T20:16:36Z; displayed fingerprint SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k.",
+  "limitations": [
+    "Repository-local TOFU metadata is not an independent trust anchor",
+    "No runtime, method-admission, deployment, or release-authorization trust is granted"
+  ],
+  "record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a"
+}

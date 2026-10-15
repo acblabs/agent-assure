@@ -1,0 +1,50 @@
+{
+  "format": "agent-assure-kickoff-authorization/1",
+  "spec_revision": "6.5",
+  "authorization_status": "authorized",
+  "purpose": "kickoff_authorization",
+  "subject_ticket_id": "V1-BOOT-01",
+  "subject_dispatch_kind": "kickoff",
+  "approval_mode": "maintainer_development",
+  "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+  "authorizer_person_id": "acblabs",
+  "authorizer_role": "repository_maintainer",
+  "issued_at_utc": "2026-10-15T20:16:36Z",
+  "valid_until_utc": "2026-11-14T20:16:36Z",
+  "authorization_effect": "bounded_s1_governance_only",
+  "allowed_operations": [
+    "Prepare and validate the exact 38-role V1-APPROVAL-ROSTER proposal.",
+    "Draft bounded S1 governance records, schemas, documentation, and adversarial tests.",
+    "Inspect repository governance anchors and the private roadmap read-only."
+  ],
+  "forbidden_operations": [
+    "No production package behavior, trusted policy, oracle, or frozen schema may be edited.",
+    "No method admission, qualification, pilot, release, deployment, or runtime authorization is granted.",
+    "No independent-review claim may be issued by the sole maintainer or an LLM session.",
+    "No contributor work may be reset, stashed, deleted, or overwritten."
+  ],
+  "source_instruction_evidence": {
+    "kind": "interactive_user_instruction",
+    "summary": "The user requested S1 implementation and stated they are the individual in charge while delegating code implementation to LLMs.",
+    "identity_binding_status": "bound_by_authorization_signature"
+  },
+  "limitations": [
+    "NO_INDEPENDENT_REVIEW",
+    "The interactive account is not treated as cryptographically bound to the repository handle until signature verification succeeds.",
+    "This authorization has no runtime, release, deployment, qualification, or method-admission effect."
+  ],
+  "authorization_digest": "sha256:766fda6100d1e7be901f218f1fbb43ecd2b31e91426cc422dae7e90d5732a0f8",
+  "signature_envelope": {
+    "profile": "openssh-sshsig-ed25519/v1",
+    "status": "signed",
+    "namespace": "agent-assure-governance-v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+    "signer_person_id": "acblabs",
+    "signer_role": "repository_maintainer",
+    "subject_digest": "sha256:766fda6100d1e7be901f218f1fbb43ecd2b31e91426cc422dae7e90d5732a0f8",
+    "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "signed_at_utc": "2026-10-15T20:17:07Z",
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQWxzNVhwZnJnRk03aDhpTWJiaWt0ZFdkNERDQW0wYlFic3kKWG1iVTdjNWpIdDcxQjhlS0ZkemJSYW1KK0RyakdGbWRvTHdPTk5haHBMcUx5dHFFWW5BUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  }
+}

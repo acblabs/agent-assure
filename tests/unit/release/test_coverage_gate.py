@@ -574,7 +574,7 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
             "tests/unit/adapters tests/unit/authoring tests/unit/canonical "
             "tests/unit/compare tests/unit/controls tests/unit/demo tests/unit/docs "
             "tests/unit/evaluation tests/unit/examples tests/unit/fixtures "
-            "tests/unit/graph tests/unit/mutation"
+            "tests/unit/governance tests/unit/graph tests/unit/mutation"
         ),
         "unit-b1": (
             "tests/unit/policies tests/unit/privacy tests/unit/rag "
