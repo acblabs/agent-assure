@@ -1,0 +1,112 @@
+{
+  "format": "agent-assure-ticket-completion-receipt/1",
+  "spec_revision": "6.5",
+  "receipt_purpose": "development_design_acceptance",
+  "receipt_status": "accepted_for_development",
+  "subject_ticket_id": "V1-BOOT-01",
+  "subject_dispatch_kind": "kickoff",
+  "subject_stage": "S1-governed-baseline",
+  "subject_roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "subject_report": {
+    "path": "docs/governance/v1/completion-report-v1-boot-01.md",
+    "kind": "completion_report",
+    "size_bytes": 8638,
+    "sha256": "sha256:12546eb05f0ae89ceee8e317b054da3d4923b335b8565833767ae36c3c9256f9"
+  },
+  "reviewed_artifacts": [
+    {
+      "path": "docs/governance/v1/approval-roster.json",
+      "kind": "decision_record",
+      "size_bytes": 10036,
+      "sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+    },
+    {
+      "path": "docs/governance/v1/approval-roster.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 3003,
+      "sha256": "sha256:80e4077d7d07658c9a55c1f89903ecdfb87b37b2942faec8f5e122c7e6dc30c8"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization-v1-boot-01.json",
+      "kind": "kickoff_authorization",
+      "size_bytes": 3048,
+      "sha256": "sha256:b8f3cff124ff422110e94263f1fbcf448870418734c6847c1ac5c28bd9184e16"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 5723,
+      "sha256": "sha256:8d8b8084a0d45414e1d08528b3b6119cf0276aafe004c747bfd21eddff226a4a"
+    },
+    {
+      "path": "docs/governance/v1/maintainer-signing-key.json",
+      "kind": "governance_trust_key",
+      "size_bytes": 1207,
+      "sha256": "sha256:12f6925ae7327050928861fee8ad02664b12614ef29f5e1b36d4c4783b4ae0e3"
+    },
+    {
+      "path": "docs/governance/v1/maintainer-signing-key.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 2489,
+      "sha256": "sha256:e9685ac2a2fb61bc5923a2df016152c5f12be0899e38b10eae76b61cc12446d9"
+    },
+    {
+      "path": "scripts/v1_s1_governance.ps1",
+      "kind": "governance_runtime_launcher",
+      "size_bytes": 8074,
+      "sha256": "sha256:2326befebe522a45fdb7d0cf98ed4e5ec8badde2acf08ed1a14c64bf0981e368"
+    },
+    {
+      "path": "scripts/v1_s1_governance.py",
+      "kind": "governance_validator",
+      "size_bytes": 338471,
+      "sha256": "sha256:b21ef9e3f0c98b925138f631267697c7b09061286edf5e8b38ff80cec314b6cd"
+    }
+  ],
+  "reviewed_artifact_set_digest": "sha256:c48d6bb351543c026cf4fa779d7219df87ff8c502212c7b9bccac9ccd5b2f696",
+  "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+  "kickoff_authorization_digest": "sha256:766fda6100d1e7be901f218f1fbb43ecd2b31e91426cc422dae7e90d5732a0f8",
+  "base_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
+  "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+  "issuer_person_id": "acblabs",
+  "issuer_role": "repository_maintainer",
+  "owner_role": "technical_lead",
+  "approval_mode": "maintainer_development",
+  "author_reviewer_relationship": "same_person_maintainer_development_self_acceptance",
+  "independence_claimed": false,
+  "authorization_effect": "none",
+  "accepted_competence": [
+    "planning_governance:s1",
+    "repository_maintenance:bounded_development",
+    "technical_direction:s1"
+  ],
+  "conflicts": [
+    "Sole maintainer self-acceptance; no independence is claimed.",
+    "LLM-authored implementation evidence requires accountable human review."
+  ],
+  "issued_at_utc": "2026-10-15T21:40:54Z",
+  "valid_until_utc": "2026-11-14T20:16:36Z",
+  "allowed_operations": [
+    "Rely on the accepted S1 staffing mode for bounded development governance only.",
+    "Dispatch work only to roles actually staffed and within recorded capacity."
+  ],
+  "limitations": [
+    "NO_INDEPENDENT_REVIEW",
+    "No method admission, qualification, pilot, release, deployment, or runtime authorization.",
+    "Pending status or signature is non-accepting."
+  ],
+  "receipt_digest": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a",
+  "signature_envelope": {
+    "profile": "openssh-sshsig-ed25519/v1",
+    "status": "signed",
+    "namespace": "agent-assure-governance-v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+    "signer_person_id": "acblabs",
+    "signer_role": "repository_maintainer",
+    "subject_digest": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a",
+    "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "signed_at_utc": "2026-10-15T21:40:54Z",
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVRMZklpRDJ2L1o3WHA3UXhFZjV1bmNmbEphUkRoR3dXTVoKNXErazZmYUdtUnhkOTlkMXgzZTEzWnVkbWpxMkJyd0pERVZ2aGtqL1NRR201WXlwWmVEUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  }
+}

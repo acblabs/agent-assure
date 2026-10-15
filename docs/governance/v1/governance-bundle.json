@@ -1,0 +1,286 @@
+{
+  "format": "agent-assure-governance-bundle/1",
+  "spec_revision": "6.5",
+  "bundle_status": "accepted_for_development",
+  "sprint": "S1",
+  "release": "1.0.0a1",
+  "train": "stable-1.0",
+  "maturity": "governed-baseline",
+  "artifact_kind": "governance-bundle",
+  "source_ticket_ids": [
+    "V1-BOOT-01",
+    "V1-BASE-01"
+  ],
+  "authorization_effect": "none",
+  "installability": "none",
+  "distribution_channels": [],
+  "package_version": null,
+  "base_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
+  "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+  "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+  "signed_decisions": {
+    "roster_selection_status": "approved",
+    "signing_key_status": "confirmed_by_human",
+    "signing_key_record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a",
+    "kickoff_authorizations": [
+      {
+        "ticket_id": "V1-BASE-01",
+        "authorization_status": "authorized",
+        "authorization_digest": "sha256:c74d95486b7f930b4c58daa0f3699286d37ad59582140a64c78cfb0bc4dc2d00"
+      },
+      {
+        "ticket_id": "V1-BOOT-01",
+        "authorization_status": "authorized",
+        "authorization_digest": "sha256:766fda6100d1e7be901f218f1fbb43ecd2b31e91426cc422dae7e90d5732a0f8"
+      }
+    ],
+    "ticket_completion_receipts": [
+      {
+        "ticket_id": "V1-BASE-01",
+        "receipt_status": "accepted_for_development",
+        "receipt_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e"
+      },
+      {
+        "ticket_id": "V1-BOOT-01",
+        "receipt_status": "accepted_for_development",
+        "receipt_digest": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a"
+      }
+    ]
+  },
+  "compatibility_note": {
+    "baseline_package_version": "0.7.0",
+    "baseline_writer_schema_version": "0.6.6",
+    "production_behavior_changed": false,
+    "installable_artifact_emitted": false,
+    "note": "S1 adds planning governance only; package and writer identities remain separate and unchanged."
+  },
+  "known_limitations": [
+    "NO_INDEPENDENT_REVIEW",
+    "Windows Time attestation was unavailable; host UTC requires explicit maintainer acceptance.",
+    "No method, profile, qualification, release, deployment, or runtime authorization is granted.",
+    "The repository-local public key declaration is TOFU metadata, not independent identity proof.",
+    "The full repository pytest suite timed out during baseline inspection and is not claimed as passing."
+  ],
+  "planning_evidence": {
+    "baseline_observations_digest": "sha256:41a433296c91d119a4f5a73fff039e17df80ccf9bfdf33c6605ed8def5fbf197",
+    "full_repository_pytest_outcome": "timed_out",
+    "forecast_status": "accepted",
+    "forecast_record_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+    "forecast_acceptance_receipt_status": "accepted_for_development",
+    "forecast_acceptance_receipt_digest": "sha256:948b5fbbd3dee6ef031de5588954c6b36c1fea44a894fedd7f901006da2c67c1",
+    "aggregation_method_registry_digest": "sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3",
+    "authoring_ledger_digest": "sha256:339ca4d1de0245e0563654beb9857d5baf8f972c02d690fab61a5f60e9dacf50",
+    "ticket_count": 68,
+    "occurrence_count": 121
+  },
+  "artifact_inventory": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "kind": "continuous_integration",
+      "size_bytes": 19043,
+      "sha256": "sha256:2204da21dde696faf3761a3e2c79a6f0a3d6f46448cafca117deac60da276ffb"
+    },
+    {
+      "path": "Makefile",
+      "kind": "build_integration",
+      "size_bytes": 5885,
+      "sha256": "sha256:7630a249b0d6a16d0c79d2c40380418151659703c3c048d095da1ecd4641e102"
+    },
+    {
+      "path": "docs/adr/0016-v1-repository-map.md",
+      "kind": "decision_record",
+      "size_bytes": 26567,
+      "sha256": "sha256:8dc87704c7d818496c6538158d1ccf68e0b09f035b634a00e1862e32a5e3e959"
+    },
+    {
+      "path": "docs/governance/v1/README.md",
+      "kind": "governance_documentation",
+      "size_bytes": 23549,
+      "sha256": "sha256:d71e612b817d2671a0d118f11d4d53bc9664c984c0fcf6108629698db19bba05"
+    },
+    {
+      "path": "docs/governance/v1/approval-roster.json",
+      "kind": "decision_record",
+      "size_bytes": 10036,
+      "sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+    },
+    {
+      "path": "docs/governance/v1/approval-roster.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 3003,
+      "sha256": "sha256:80e4077d7d07658c9a55c1f89903ecdfb87b37b2942faec8f5e122c7e6dc30c8"
+    },
+    {
+      "path": "docs/governance/v1/baseline-observations.json",
+      "kind": "planning_evidence",
+      "size_bytes": 7399,
+      "sha256": "sha256:23838cd87a16ee7aa34f9ac85ee7d354806dcfdfeef883075735fabf339d275a"
+    },
+    {
+      "path": "docs/governance/v1/baseline-observations.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 10195,
+      "sha256": "sha256:1ef367cdd16dbf23530cc7a64e000f0fc9c95f6415badb9a280dae16ef0b57f6"
+    },
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "kind": "completion_receipt",
+      "size_bytes": 7180,
+      "sha256": "sha256:7e37bc9a508834ad9f94d056da51001482f277552d5c8efc3776f77ab4b8fb48"
+    },
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "kind": "completion_receipt",
+      "size_bytes": 5210,
+      "sha256": "sha256:ae634a7c2b5262575d6a4efb6d8c7416959bc8280957eb040aa12f388dfb8df6"
+    },
+    {
+      "path": "docs/governance/v1/completion-report-v1-base-01.md",
+      "kind": "completion_report",
+      "size_bytes": 9233,
+      "sha256": "sha256:e0dd2fec610dc1b80c2b4e2b6208d99a9673ede6945725e1316b636b3c2f08a7"
+    },
+    {
+      "path": "docs/governance/v1/completion-report-v1-boot-01.md",
+      "kind": "completion_report",
+      "size_bytes": 8638,
+      "sha256": "sha256:12546eb05f0ae89ceee8e317b054da3d4923b335b8565833767ae36c3c9256f9"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+      "kind": "planning_method_registry",
+      "size_bytes": 2470,
+      "sha256": "sha256:7c89be101993caca413de465d8233b420dc5d3022cf352ea89f295cbbbc74fad"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 3784,
+      "sha256": "sha256:cc5a03f97e14e5a364a8a2368461b0563f43701d1940c727525271c275acb680"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+      "kind": "planning_evidence",
+      "size_bytes": 199415,
+      "sha256": "sha256:5952c397bc9b1576b15930584afe95bee2817e810a4b85bf34aa247779c222ee"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 6054,
+      "sha256": "sha256:44e314bcc12b11c2c5a7dc20721d95e966310269ec7f85ec293644f6c85d9602"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.json",
+      "kind": "planning_evidence",
+      "size_bytes": 149962,
+      "sha256": "sha256:2b9e8cdca2989b7a4ac3fd997d177ab8b38aaef07b3f2c5e46ec85e4634426bf"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 12392,
+      "sha256": "sha256:99ce77a42abd251e05b97b4298911539fa8128bf56505fd4d71299dae24883ac"
+    },
+    {
+      "path": "docs/governance/v1/governance-bundle.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 12172,
+      "sha256": "sha256:44d286e3db0689f2b33f29805396a0808b027a89e7e70eaff5537fb49d6c7cbd"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization-v1-base-01.json",
+      "kind": "kickoff_authorization",
+      "size_bytes": 3092,
+      "sha256": "sha256:c7b4e5ae96b29d1185d7a1115885e8971d070a55551fa6e992fc733f225b5f82"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization-v1-boot-01.json",
+      "kind": "kickoff_authorization",
+      "size_bytes": 3048,
+      "sha256": "sha256:b8f3cff124ff422110e94263f1fbcf448870418734c6847c1ac5c28bd9184e16"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 5723,
+      "sha256": "sha256:8d8b8084a0d45414e1d08528b3b6119cf0276aafe004c747bfd21eddff226a4a"
+    },
+    {
+      "path": "docs/governance/v1/maintainer-signing-key.json",
+      "kind": "governance_trust_key",
+      "size_bytes": 1207,
+      "sha256": "sha256:12f6925ae7327050928861fee8ad02664b12614ef29f5e1b36d4c4783b4ae0e3"
+    },
+    {
+      "path": "docs/governance/v1/maintainer-signing-key.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 2489,
+      "sha256": "sha256:e9685ac2a2fb61bc5923a2df016152c5f12be0899e38b10eae76b61cc12446d9"
+    },
+    {
+      "path": "docs/governance/v1/ticket-completion-receipt.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 6906,
+      "sha256": "sha256:def83fcf397a76f3ce1e69db9f88dee78e8ea1afa4ffe4c5d62a26ab915ffe02"
+    },
+    {
+      "path": "mkdocs.yml",
+      "kind": "documentation_integration",
+      "size_bytes": 2866,
+      "sha256": "sha256:f31ab6ed7c88747dbf513ec2d88776c49e612e3750572e5e8299f5090d3938aa"
+    },
+    {
+      "path": "scripts/v1_s1_governance.ps1",
+      "kind": "governance_runtime_launcher",
+      "size_bytes": 8074,
+      "sha256": "sha256:2326befebe522a45fdb7d0cf98ed4e5ec8badde2acf08ed1a14c64bf0981e368"
+    },
+    {
+      "path": "scripts/v1_s1_governance.py",
+      "kind": "governance_validator",
+      "size_bytes": 338471,
+      "sha256": "sha256:b21ef9e3f0c98b925138f631267697c7b09061286edf5e8b38ff80cec314b6cd"
+    },
+    {
+      "path": "tests/integration/test_v1_s1_historical_check.py",
+      "kind": "integration_verification",
+      "size_bytes": 19917,
+      "sha256": "sha256:cbc2253051b17994f4c9a28619375aede6d425a716a6d3294c1288fe47dba223"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_s1_governance.py",
+      "kind": "verification",
+      "size_bytes": 88056,
+      "sha256": "sha256:57a30c613d59f9f38a5fc7708ef977efa82e640b9bfa95b1bda21f29703d0ed3"
+    },
+    {
+      "path": "tests/unit/release/test_coverage_gate.py",
+      "kind": "continuous_integration_verification",
+      "size_bytes": 23973,
+      "sha256": "sha256:76c94eff67d94fd52cbf1b48281a3390e727c79aba2f0005cc5de486f0402793"
+    }
+  ],
+  "artifact_set_digest": "sha256:c177e2f939a363d8f07a0f8e9508777f0666bee7427fec859082e5b2019478d8",
+  "issuer_person_id": "acblabs",
+  "issuer_role": "repository_maintainer",
+  "approval_mode": "maintainer_development",
+  "independence_claimed": false,
+  "issued_at_utc": "2026-10-15T21:42:43Z",
+  "valid_until_utc": "2026-11-14T20:16:36Z",
+  "bundle_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+  "signature_envelope": {
+    "profile": "openssh-sshsig-ed25519/v1",
+    "status": "signed",
+    "namespace": "agent-assure-governance-v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+    "signer_person_id": "acblabs",
+    "signer_role": "repository_maintainer",
+    "subject_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+    "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "signed_at_utc": "2026-10-15T21:42:43Z",
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQU9KN25BMzdjNUdNeHF1ak5GZ1BHbVE5NFRDNnRSVXovNnoKWUowZFR4dnhIQUN1c1cvNkZ0bEp3cy9UQmMrMG5Jb1F0QlBaZDNGb2ZMOHdZMndFQUJCdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  }
+}
