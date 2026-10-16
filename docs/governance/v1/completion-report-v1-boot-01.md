@@ -24,6 +24,11 @@ mutable acceptance status: only the signed completion receipt, signed bundle,
 exact closure commit `C`, and verified signed fixed-tag attestation can
 establish an eventual accepted state.
 
+Corrective note: the generation-1 report remains evidence of what was prepared
+and run at that time; it is not the current S2 acceptance basis. Generation 2
+uses the linear successor `C1 -> R2 -> C2`, replacement signed evidence, and
+fixed tag `agent-assure-s1-1.0.0a1-acceptance-v2`.
+
 ## Prepared evidence
 
 The initial stage delivers a machine-validated proposal, not human acceptance:
@@ -105,6 +110,14 @@ Working directory: repository root on Windows; Python `3.12.13` in `.venv`.
   command limit; exit 124. The runner emitted no buffered failure summary, and
   no full-suite or aggregate `make` pass is claimed.
 
+The `101 passed` count above is the exact historical generation-1 result. It
+does not cover the corrective code at `R2` and must not be presented as a
+post-amendment result. Before generation-2 closure, a fresh full verification
+run must target exact `R2`. The replacement BOOT completion receipt records its
+exact command, `subject_commit=R2`, host-unattested start/completion
+observations, collected/passed/skipped/failed counts, exit code, and observation
+basis; the generation-2 bundle binds that receipt.
+
 The preparation-time fresh-process governance check is not a human acceptance
 check. A strict ceremony check is a separate invocation of the frozen external
 PowerShell runtime launcher, which starts the absolute base interpreter with
@@ -133,6 +146,11 @@ the recorded full repository test run timed out. Permanent scope limitation: S1
 has no production, method-admission, qualification, release, deployment, or
 runtime authorization effect.
 
+Generation-1 `signed_at_utc` values are signer-declared, host-unattested times;
+SSHSIG proves claim integrity and key possession but supplies no timestamp. The
+generation-2 current-acceptance envelope therefore claims no actual signature
+time.
+
 ## Acceptance receipt
 
 Purpose: `development_design_acceptance`. The initial proposal names `acblabs`
@@ -144,9 +162,10 @@ competence scope, and allowed operations. The governance tool prepares claims
 and verifies externally created signatures; it cannot access a private key or
 sign for the human.
 
-`R` must have exactly the 29-path net scope enumerated in the governance README.
-Direct-child closure `C` must have exactly the two signed completion receipts
-and `governance-bundle.json`. Until the receipt status is
-`accepted_for_development`, its SSHSIG verifies, and strict `R`/`C` plus
-signed-tag validation succeeds, it is non-accepting. Even then it cannot
-satisfy an independent qualification or authorize release.
+The generation-1 `R` had exactly the 29-path net scope enumerated in the
+governance README, and its direct-child `C` contained the two signed completion
+receipts and `governance-bundle.json`. Those immutable objects remain
+historical. Until the replacement receipt is accepted, its SSHSIG verifies,
+and strict generation-2 `R2`/`C2` plus v2 signed-tag validation succeeds, S2
+remains prohibited. Even then the evidence cannot satisfy an independent
+qualification or authorize release.

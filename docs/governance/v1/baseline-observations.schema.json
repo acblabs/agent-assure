@@ -1,67 +1,107 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acblabs.github.io/agent-assure/governance/v1/baseline-observations.schema.json",
-  "title": "Agent Assure S1 baseline observations",
+  "title": "Agent Assure S1 generation-2 corrective baseline observations",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "format",
     "spec_revision",
+    "acceptance_generation",
+    "supersedes_observations_digest",
+    "corrective_authorization_claim_digest",
+    "inventory_started_at_utc",
     "inventory_completed_at_utc",
-    "trusted_time_basis",
+    "time_evidence",
     "repository",
     "roadmap",
     "environment",
     "cli_reservation",
     "dependency_locks",
-    "validation_runs",
+    "git_integrity",
+    "historical_context",
     "limitations",
     "observations_digest"
   ],
   "properties": {
-    "format": { "const": "agent-assure-baseline-observations/1" },
+    "format": { "const": "agent-assure-baseline-observations/2" },
     "spec_revision": { "const": "6.5" },
+    "acceptance_generation": { "const": 2 },
+    "supersedes_observations_digest": {
+      "const": "sha256:41a433296c91d119a4f5a73fff039e17df80ccf9bfdf33c6605ed8def5fbf197"
+    },
+    "corrective_authorization_claim_digest": {
+      "const": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+    },
+    "inventory_started_at_utc": { "$ref": "#/$defs/utc" },
     "inventory_completed_at_utc": { "$ref": "#/$defs/utc" },
-    "trusted_time_basis": { "$ref": "#/$defs/nonempty" },
+    "time_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clock_basis",
+        "external_attestation_status",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed"
+      ],
+      "properties": {
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "external_attestation_status": { "const": "unavailable_windows_time_service_not_started" },
+        "sshsig_timestamp_capability": { "const": "none" },
+        "actual_signature_time_claimed": { "const": false }
+      }
+    },
     "repository": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "observation_window",
         "approved_remote_url",
-        "fetch_command",
-        "fetch_observed_at_utc",
-        "fetch_exit_code",
-        "fetch_output_summary",
-        "origin_main_commit",
+        "authoritative_fetch_status",
+        "cached_origin_main_commit",
         "baseline_tag_name",
         "baseline_tag_object",
         "baseline_tag_commit",
-        "tag_main_delta",
-        "branch_name",
-        "branch_base_commit"
+        "corrective_branch_name",
+        "inventory_head_commit",
+        "required_corrective_result_parent"
       ],
       "properties": {
-        "approved_remote_url": { "type": "string", "format": "uri", "maxLength": 512 },
-        "fetch_command": { "$ref": "#/$defs/nonempty" },
-        "fetch_observed_at_utc": { "$ref": "#/$defs/utc" },
-        "fetch_exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
-        "fetch_output_summary": { "$ref": "#/$defs/nonempty" },
-        "origin_main_commit": { "$ref": "#/$defs/gitCommit" },
+        "observation_window": { "$ref": "#/$defs/window" },
+        "approved_remote_url": { "const": "https://github.com/acblabs/agent-assure.git" },
+        "authoritative_fetch_status": { "const": "deferred_to_final_current_acceptance_gate" },
+        "cached_origin_main_commit": { "$ref": "#/$defs/commit" },
         "baseline_tag_name": { "const": "v0.7.0" },
-        "baseline_tag_object": { "$ref": "#/$defs/gitCommit" },
-        "baseline_tag_commit": { "$ref": "#/$defs/gitCommit" },
-        "tag_main_delta": { "enum": ["none", "different"] },
-        "branch_name": { "$ref": "#/$defs/nonempty" },
-        "branch_base_commit": { "$ref": "#/$defs/gitCommit" }
+        "baseline_tag_object": { "$ref": "#/$defs/commit" },
+        "baseline_tag_commit": { "$ref": "#/$defs/commit" },
+        "corrective_branch_name": { "const": "fix/s1-governed-baseline-v2" },
+        "inventory_head_commit": {
+          "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+        },
+        "required_corrective_result_parent": {
+          "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+        }
       }
     },
     "roadmap": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["raw_digest", "local_only", "git_index_tracked"],
+      "required": [
+        "observation_window",
+        "raw_digest",
+        "size_bytes",
+        "local_only",
+        "git_ignored",
+        "git_index_tracked"
+      ],
       "properties": {
-        "raw_digest": { "$ref": "#/$defs/digest" },
+        "observation_window": { "$ref": "#/$defs/window" },
+        "raw_digest": {
+          "const": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+        },
+        "size_bytes": { "const": 2390013 },
         "local_only": { "const": true },
+        "git_ignored": { "const": true },
         "git_index_tracked": { "const": false }
       }
     },
@@ -73,87 +113,53 @@
         "python_version",
         "pip_check",
         "time_attestation",
-        "trusted_executables_observed_at_utc",
         "trusted_executables",
-        "trusted_python_runtime_observed_at_utc",
         "trusted_python_runtime"
       ],
       "properties": {
-        "platform": { "$ref": "#/$defs/nonempty" },
-        "python_version": { "$ref": "#/$defs/nonempty" },
+        "platform": { "const": "Windows" },
+        "python_version": { "const": "3.12.13" },
         "pip_check": { "$ref": "#/$defs/commandResult" },
         "time_attestation": { "$ref": "#/$defs/commandResult" },
-        "trusted_executables_observed_at_utc": { "$ref": "#/$defs/utc" },
         "trusted_executables": {
-          "type": "array",
-          "minItems": 3,
-          "maxItems": 3,
-          "uniqueItems": true,
-          "items": { "$ref": "#/$defs/trustedExecutable" }
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["observation_window", "artifacts"],
+          "properties": {
+            "observation_window": { "$ref": "#/$defs/window" },
+            "artifacts": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 3,
+              "items": { "$ref": "#/$defs/namedArtifact" }
+            }
+          }
         },
-        "trusted_python_runtime_observed_at_utc": { "$ref": "#/$defs/utc" },
         "trusted_python_runtime": {
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "file_observation_window",
+            "inventory_observation_window",
             "execution_profile",
             "launcher_profile",
-            "implementation",
-            "version",
-            "cache_tag",
-            "python_executable",
-            "python_dll",
-            "base_runtime_file_count",
-            "base_runtime_size_bytes",
-            "base_runtime_sha256",
-            "site_packages_path",
-            "runtime_roots",
-            "runtime_file_count",
-            "runtime_size_bytes",
-            "runtime_sha256",
-            "site_startup_disabled",
-            "bytecode_writes_disabled",
-            "fresh_prestart_pycache_prefix_required"
+            "files",
+            "base_runtime_inventory",
+            "site_runtime_inventory"
           ],
           "properties": {
+            "file_observation_window": { "$ref": "#/$defs/window" },
+            "inventory_observation_window": { "$ref": "#/$defs/window" },
             "execution_profile": { "const": "powershell-preverified-cpython-3.12.13-I-S-B/v1" },
             "launcher_profile": { "const": "agent-assure-s1-powershell-runtime-launcher/v1" },
-            "implementation": { "const": "CPython" },
-            "version": { "const": "3.12.13" },
-            "cache_tag": { "const": "cpython-312" },
-            "python_executable": { "$ref": "#/$defs/trustedFile" },
-            "python_dll": { "$ref": "#/$defs/trustedFile" },
-            "base_runtime_file_count": { "const": 2766 },
-            "base_runtime_size_bytes": { "const": 54224916 },
-            "base_runtime_sha256": {
-              "const": "sha256:4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152"
-            },
-            "site_packages_path": { "$ref": "#/$defs/nonempty" },
-            "runtime_roots": {
+            "files": {
               "type": "array",
-              "minItems": 8,
-              "maxItems": 8,
-              "uniqueItems": true,
-              "prefixItems": [
-                { "const": "attr" },
-                { "const": "attrs" },
-                { "const": "jsonschema" },
-                { "const": "jsonschema_specifications" },
-                { "const": "referencing" },
-                { "const": "rfc8785" },
-                { "const": "rpds" },
-                { "const": "typing_extensions.py" }
-              ],
-              "items": false
+              "minItems": 2,
+              "maxItems": 2,
+              "items": { "$ref": "#/$defs/namedArtifact" }
             },
-            "runtime_file_count": { "const": 116 },
-            "runtime_size_bytes": { "const": 1581377 },
-            "runtime_sha256": {
-              "const": "sha256:a8a4451bde03104cc2a6dae38a30ae0bef63f717a39e5b996e05c10b83fdae02"
-            },
-            "site_startup_disabled": { "const": true },
-            "bytecode_writes_disabled": { "const": true },
-            "fresh_prestart_pycache_prefix_required": { "const": true }
+            "base_runtime_inventory": { "$ref": "#/$defs/inventory" },
+            "site_runtime_inventory": { "$ref": "#/$defs/inventory" }
           }
         }
       }
@@ -162,120 +168,151 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "command",
+        "outcome",
+        "exit_code",
+        "started_at_utc",
+        "completed_at_utc",
+        "summary",
         "reserved_command",
-        "collision_found",
-        "probe_exit_code",
-        "observed_at_utc",
-        "summary"
+        "collision_found"
       ],
       "properties": {
+        "command": { "const": ".venv\\Scripts\\agent-assure.exe test activate" },
+        "outcome": { "const": "expected_absence" },
+        "exit_code": { "const": 2 },
+        "started_at_utc": { "$ref": "#/$defs/utc" },
+        "completed_at_utc": { "$ref": "#/$defs/utc" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
         "reserved_command": { "const": "agent-assure test activate" },
-        "collision_found": { "const": false },
-        "probe_exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
-        "observed_at_utc": { "$ref": "#/$defs/utc" },
-        "summary": { "$ref": "#/$defs/nonempty" }
+        "collision_found": { "const": false }
       }
     },
     "dependency_locks": {
-      "type": "array",
-      "minItems": 3,
-      "maxItems": 3,
-      "uniqueItems": true,
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["path", "sha256"],
-        "properties": {
-          "path": { "enum": ["requirements.lock", "requirements-langgraph.lock", "requirements-adk.lock"] },
-          "sha256": { "$ref": "#/$defs/digest" }
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observation_window", "artifacts"],
+      "properties": {
+        "observation_window": { "$ref": "#/$defs/window" },
+        "artifacts": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "sha256"],
+            "properties": {
+              "path": {
+                "enum": [
+                  "requirements.lock",
+                  "requirements-langgraph.lock",
+                  "requirements-adk.lock"
+                ]
+              },
+              "sha256": { "$ref": "#/$defs/digest" }
+            }
+          }
         }
       }
     },
-    "validation_runs": {
-      "type": "array",
-      "minItems": 1,
-      "maxItems": 32,
-      "items": { "$ref": "#/$defs/validationRun" }
+    "git_integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observation_window",
+        "replacement_refs",
+        "shallow_repository",
+        "grafts_present",
+        "alternate_object_store_present",
+        "generation_1_tag_object",
+        "generation_2_tag_absent"
+      ],
+      "properties": {
+        "observation_window": { "$ref": "#/$defs/window" },
+        "replacement_refs": { "type": "array", "maxItems": 0 },
+        "shallow_repository": { "const": false },
+        "grafts_present": { "const": false },
+        "alternate_object_store_present": { "const": false },
+        "generation_1_tag_object": {
+          "const": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
+        },
+        "generation_2_tag_absent": { "const": true }
+      }
+    },
+    "historical_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generation_1_disposition",
+        "generation_1_baseline_full_suite_status",
+        "post_r2_full_suite_required"
+      ],
+      "properties": {
+        "generation_1_disposition": { "const": "superseded_nonconforming" },
+        "generation_1_baseline_full_suite_status": { "const": "timed_out_after_collecting_6308" },
+        "post_r2_full_suite_required": { "const": true }
+      }
     },
     "limitations": { "$ref": "#/$defs/stringSet" },
     "observations_digest": { "$ref": "#/$defs/digest" }
   },
   "$defs": {
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
-    "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
-    "nonempty": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "utc": {
       "type": "string",
       "format": "date-time",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
     },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started_at_utc", "completed_at_utc"],
+      "properties": {
+        "started_at_utc": { "$ref": "#/$defs/utc" },
+        "completed_at_utc": { "$ref": "#/$defs/utc" }
+      }
+    },
     "commandResult": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["command", "outcome", "exit_code", "observed_at_utc", "summary"],
+      "required": [
+        "command",
+        "outcome",
+        "exit_code",
+        "started_at_utc",
+        "completed_at_utc",
+        "summary"
+      ],
       "properties": {
-        "command": { "$ref": "#/$defs/nonempty" },
-        "outcome": { "enum": ["passed", "failed", "unavailable"] },
-        "exit_code": {
-          "type": "integer",
-          "minimum": -2147483648,
-          "maximum": 4294967295
-        },
-        "observed_at_utc": { "$ref": "#/$defs/utc" },
-        "summary": { "$ref": "#/$defs/nonempty" }
+        "command": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "outcome": { "enum": ["passed", "failed", "unavailable", "expected_absence"] },
+        "exit_code": { "type": "integer", "minimum": -2147483648, "maximum": 4294967295 },
+        "started_at_utc": { "$ref": "#/$defs/utc" },
+        "completed_at_utc": { "$ref": "#/$defs/utc" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 4000 }
       }
     },
-    "trustedExecutable": {
+    "namedArtifact": {
       "type": "object",
       "additionalProperties": false,
       "required": ["name", "absolute_path", "size_bytes", "sha256"],
       "properties": {
-        "name": { "enum": ["git", "git-remote-https", "ssh-keygen"] },
-        "absolute_path": { "$ref": "#/$defs/nonempty" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "absolute_path": { "type": "string", "minLength": 3, "maxLength": 1024 },
         "size_bytes": { "type": "integer", "minimum": 1, "maximum": 2147483648 },
         "sha256": { "$ref": "#/$defs/digest" }
       }
     },
-    "trustedFile": {
+    "inventory": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["absolute_path", "size_bytes", "sha256"],
+      "required": ["file_count", "size_bytes", "sha256"],
       "properties": {
-        "absolute_path": { "$ref": "#/$defs/nonempty" },
-        "size_bytes": { "type": "integer", "minimum": 1, "maximum": 2147483648 },
+        "file_count": { "type": "integer", "minimum": 1 },
+        "size_bytes": { "type": "integer", "minimum": 1 },
         "sha256": { "$ref": "#/$defs/digest" }
-      }
-    },
-    "validationRun": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "check_id",
-        "command",
-        "outcome",
-        "exit_code",
-        "timeout_seconds",
-        "observed_at_utc",
-        "summary"
-      ],
-      "properties": {
-        "check_id": { "type": "string", "pattern": "^[a-z0-9_]+$", "maxLength": 128 },
-        "command": { "$ref": "#/$defs/nonempty" },
-        "outcome": { "enum": ["passed", "failed", "timed_out"] },
-        "exit_code": {
-          "oneOf": [
-            { "type": "integer", "minimum": 0, "maximum": 255 },
-            { "type": "null" }
-          ]
-        },
-        "timeout_seconds": {
-          "oneOf": [
-            { "type": "integer", "minimum": 1, "maximum": 86400 },
-            { "type": "null" }
-          ]
-        },
-        "observed_at_utc": { "$ref": "#/$defs/utc" },
-        "summary": { "$ref": "#/$defs/nonempty" }
       }
     },
     "stringSet": {
@@ -283,7 +320,7 @@
       "minItems": 1,
       "maxItems": 64,
       "uniqueItems": true,
-      "items": { "$ref": "#/$defs/nonempty" }
+      "items": { "type": "string", "minLength": 1, "maxLength": 4000 }
     }
   }
 }

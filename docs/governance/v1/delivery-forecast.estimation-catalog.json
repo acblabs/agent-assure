@@ -1,0 +1,461 @@
+{
+  "format": "agent-assure-delivery-forecast-estimation-catalog/1",
+  "spec_revision": "6.5",
+  "model_revision": "bottom-up-wbs/1",
+  "authority": {
+    "proposal_kind": "machine_authored_nonbinding",
+    "authorization_effect": "none",
+    "human_review_required": "every_row_and_occurrence"
+  },
+  "digest_contracts": [
+    {
+      "artifact": "estimation_catalog",
+      "domain": "agent-assure:delivery-forecast-estimation-catalog/v1",
+      "projection": "exact catalog object excluding catalog_digest"
+    },
+    {
+      "artifact": "aggregation_method",
+      "domain": "agent-assure:delivery-forecast-aggregation-method/v2",
+      "projection": "exact method object excluding definition_digest"
+    },
+    {
+      "artifact": "aggregation_registry",
+      "domain": "agent-assure:delivery-forecast-aggregation-registry/v2",
+      "projection": "exact registry object excluding registry_digest after each method definition_digest is populated"
+    },
+    {
+      "artifact": "roadmap_ticket_set",
+      "domain": "agent-assure:roadmap-ticket-set/v1",
+      "projection": "{contract_id: roadmap-ticket-set/v1, ticket_ids: UTF-8-byte-sorted ticket IDs}"
+    },
+    {
+      "artifact": "roadmap_dependency_graph",
+      "domain": "agent-assure:roadmap-dependency-graph/v1",
+      "projection": "{contract_id: roadmap-dependency-graph/v1, rows: UTF-8-byte-sorted [{ticket_id, depends_on: UTF-8-byte-sorted IDs}]}"
+    },
+    {
+      "artifact": "roadmap_release_train",
+      "domain": "agent-assure:roadmap-release-train/v1",
+      "projection": "exact parsed release-train JSON object"
+    },
+    {
+      "artifact": "acceptance_criterion_source",
+      "domain": "agent-assure:roadmap-acceptance-criterion/v1",
+      "projection": "{ticket_id, criterion_index: 1-based source order, criterion: exact source string}"
+    },
+    {
+      "artifact": "work_package_source",
+      "domain": "agent-assure:roadmap-work-package/v1",
+      "projection": "{ticket_id, work_package: exact parsed work-package object}"
+    },
+    {
+      "artifact": "roadmap_estimate_prior",
+      "domain": "agent-assure:roadmap-estimate-prior/v1",
+      "projection": "{ticket_id, prior: {unit, p50, p90, review_effort_p50_days, confidence, basis}}"
+    },
+    {
+      "artifact": "acceptance_criteria_set",
+      "domain": "agent-assure:roadmap-acceptance-criteria-set/v1",
+      "projection": "{ticket_id, obligations: source-order [{obligation_id, source_digest}]}"
+    },
+    {
+      "artifact": "work_package_set",
+      "domain": "agent-assure:roadmap-work-package-set/v1",
+      "projection": "{ticket_id, obligations: source-order [{obligation_id, source_digest}]}"
+    },
+    {
+      "artifact": "ticket_delivery",
+      "domain": "agent-assure:roadmap-ticket-delivery/v1",
+      "projection": "{ticket_id, delivery: exact parsed delivery object}"
+    },
+    {
+      "artifact": "ticket_dependencies",
+      "domain": "agent-assure:roadmap-ticket-dependencies/v1",
+      "projection": "{ticket_id, depends_on: exact source-order dependency array}"
+    },
+    {
+      "artifact": "release_train_entry",
+      "domain": "agent-assure:roadmap-release-train-entry/v1",
+      "projection": "exact parsed release-train entry object"
+    },
+    {
+      "artifact": "release_occurrence",
+      "domain": "agent-assure:roadmap-release-occurrence/v1",
+      "projection": "{ticket_id, sprint, release}"
+    },
+    {
+      "artifact": "elapsed_wait_requirement",
+      "domain": "agent-assure:roadmap-elapsed-wait-requirement/v1",
+      "projection": "{source_obligation_id, field_path: source-root key array, source_value: exact numeric value}"
+    },
+    {
+      "artifact": "obligation_coverage",
+      "domain": "agent-assure:delivery-forecast-obligation-coverage/v2",
+      "projection": "exact obligation_coverage object excluding coverage_digest"
+    },
+    {
+      "artifact": "workload_vector",
+      "domain": "agent-assure:delivery-forecast-workload-vector/v2",
+      "projection": "exact workload_vector object"
+    },
+    {
+      "artifact": "occurrence_proposal",
+      "domain": "agent-assure:delivery-forecast-occurrence-proposal/v2",
+      "projection": "exact execution_proposal object excluding proposal_digest and decision"
+    },
+    {
+      "artifact": "authoring_ledger",
+      "domain": "agent-assure:delivery-forecast-authoring-ledger/v2",
+      "projection": "exact authoring-ledger object excluding ledger_digest"
+    },
+    {
+      "artifact": "delivery_forecast",
+      "domain": "agent-assure:delivery-forecast/v2",
+      "projection": "exact forecast object excluding record_digest, signature_envelope, and acceptance_receipt"
+    },
+    {
+      "artifact": "forecast_decision_manifest",
+      "domain": "agent-assure:delivery-forecast-decision-manifest/v2",
+      "projection": "exact itemized decision manifest excluding manifest_digest"
+    },
+    {
+      "artifact": "forecast_acceptance_receipt",
+      "domain": "agent-assure:delivery-forecast-acceptance-receipt/v2",
+      "projection": "exact accepted receipt object excluding receipt_digest and signature_envelope"
+    }
+  ],
+  "prior_policy": {
+    "stale_basis": "provisional_before_V1-BASE-01",
+    "required_disposition": "stale_not_used_as_anchor",
+    "may_seed_workload_or_effort": false,
+    "reestimate_scope": "all_roadmap_rows_and_occurrences"
+  },
+  "scope_resolution_policy": {
+    "empty_resolved_allowed_files_interpretation": "unresolved_scope_not_zero_implementation_work",
+    "estimation_treatment": "first_occurrence_anchor_and_change_role_proxy_plus_one_unresolved_scope_uncertainty_unit",
+    "dispatch_requirement": "resolve_approved_file_scope_at_ticket_dispatch_and_reestimate_when_concrete_surface_count_differs",
+    "authorization_effect": "none"
+  },
+  "coverage_policy": {
+    "ticket_completion": "source_order_round_robin_once_across_release_train_occurrence_order",
+    "repeated_execution": "each_acceptance_criterion_once_per_occurrence",
+    "work_packages": "each_work_package_once_at_declared_sprint",
+    "occurrence_anchor": "exactly_once_per_release_train_occurrence"
+  },
+  "scenario_registry": [
+    {
+      "scenario_id": "stable_core_committed",
+      "membership_rule": "release_train_stable_1_0",
+      "aggregation_role": "base_scenario"
+    },
+    {
+      "scenario_id": "optional_profile_planned",
+      "membership_rule": "release_train_nonstable",
+      "aggregation_role": "incremental_optional_scenario"
+    }
+  ],
+  "work_unit_catalog": [
+    {
+      "unit_id": "acceptance_analysis_unit",
+      "reference_class": "trace and analyze one acceptance obligation",
+      "p50_effort_hours": 1,
+      "p90_effort_hours": 2,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "work_package_design_unit",
+      "reference_class": "design one bounded work-package slice",
+      "p50_effort_hours": 2,
+      "p90_effort_hours": 4,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "structured_contract_unit",
+      "reference_class": "implement or execute one structured contract surface",
+      "p50_effort_hours": 2,
+      "p90_effort_hours": 5,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "implementation_surface_unit",
+      "reference_class": "implement one bounded group of repository surfaces",
+      "p50_effort_hours": 3,
+      "p90_effort_hours": 7,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "verification_unit",
+      "reference_class": "author and execute one independently inspectable verification slice",
+      "p50_effort_hours": 2,
+      "p90_effort_hours": 5,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "fixture_vector_unit",
+      "reference_class": "prepare one fixture or adversarial-vector slice",
+      "p50_effort_hours": 1,
+      "p90_effort_hours": 3,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "documentation_trace_unit",
+      "reference_class": "document and trace one bounded normative group",
+      "p50_effort_hours": 1,
+      "p90_effort_hours": 2,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "evidence_receipt_unit",
+      "reference_class": "prepare and review one evidence or receipt surface",
+      "p50_effort_hours": 1,
+      "p90_effort_hours": 3,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "integration_edge_unit",
+      "reference_class": "integrate and verify one dependency or release-train edge",
+      "p50_effort_hours": 1,
+      "p90_effort_hours": 3,
+      "reviewer_p50_effort_hours": 1,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "release_operation_unit",
+      "reference_class": "execute one candidate, publication, gate, or promotion operation class",
+      "p50_effort_hours": 3,
+      "p90_effort_hours": 8,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "cumulative_profile_control_unit",
+      "reference_class": "re-evaluate one cumulative optional-profile control surface",
+      "p50_effort_hours": 2,
+      "p90_effort_hours": 5,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    },
+    {
+      "unit_id": "unresolved_scope_uncertainty_unit",
+      "reference_class": "resolve and review one ticket whose concrete file scope remains empty at estimation time",
+      "p50_effort_hours": 2,
+      "p90_effort_hours": 10,
+      "reviewer_p50_effort_hours": 2,
+      "calibration_status": "uncalibrated_machine_proposal_pending_human_review"
+    }
+  ],
+  "workload_derivation": {
+    "input_authority": "digest_bound_private_roadmap_inventory",
+    "projection": [
+      "acceptance_criterion_coverage_count",
+      "acceptance_command_count",
+      "cumulative_optional_profile_count",
+      "evidence_receipt_instance_count",
+      "existing_anchor_count",
+      "golden_case_count",
+      "normative_section_count",
+      "occurrence_anchor_count",
+      "proposed_change_role_count",
+      "release_operation_class_units",
+      "release_surface_count",
+      "resolved_allowed_file_count",
+      "structured_contract_count",
+      "ticket_dependency_count",
+      "unresolved_file_scope_indicator",
+      "work_package_coverage_count",
+      "work_package_dependency_count"
+    ],
+    "input_count_rules": [
+      {
+        "field": "acceptance_criterion_coverage_count",
+        "rule_id": "covered-criterion-cardinality/v1",
+        "expression": "len(occurrence.obligation_coverage.acceptance_criteria)"
+      },
+      {
+        "field": "acceptance_command_count",
+        "rule_id": "ticket-command-cardinality/v1",
+        "expression": "len(ticket.acceptance_commands)"
+      },
+      {
+        "field": "cumulative_optional_profile_count",
+        "rule_id": "cumulative-active-profile-cardinality/v1",
+        "expression": "For ticket V1-REL-02 only, map entry.train by {stable-1.0: 0, oscal-1.1: 1, otel-1.2: 2, statistics-1.3: 4, structural-1.4: 5, formal-1.5: 6, intervention-1.6: 7}; 0 for every other ticket"
+      },
+      {
+        "field": "golden_case_count",
+        "rule_id": "ticket-golden-case-cardinality/v1",
+        "expression": "len(ticket.golden_case_ids)"
+      },
+      {
+        "field": "normative_section_count",
+        "rule_id": "ticket-normative-section-cardinality/v1",
+        "expression": "len(ticket.normative_sections) on occurrence_index=1; otherwise 0"
+      },
+      {
+        "field": "occurrence_anchor_count",
+        "rule_id": "exact-occurrence-anchor/v1",
+        "expression": "1"
+      },
+      {
+        "field": "evidence_receipt_instance_count",
+        "rule_id": "evidence-receipt-instance-cardinality/v1",
+        "expression": "For assigned work packages, let batch_components count packages having profile_admission_instance_id or stable_core_renewal_instance_id: when positive, batch_components + 1 aggregate approval; otherwise sum max(1, singular completion_receipt_contract objects + cardinality of completion_receipt_contracts arrays) per package. With no assigned package, len(ticket.required_completion_receipts) for repeated scope or the final ticket_completion occurrence; otherwise 0. Consumed receipts are excluded."
+      },
+      {
+        "field": "existing_anchor_count",
+        "rule_id": "ticket-existing-anchor-cardinality/v1",
+        "expression": "len(ticket.existing_anchors_to_verify) on occurrence_index=1; otherwise 0"
+      },
+      {
+        "field": "proposed_change_role_count",
+        "rule_id": "ticket-change-role-cardinality/v1",
+        "expression": "len(ticket.proposed_change_roles) on occurrence_index=1; otherwise 0"
+      },
+      {
+        "field": "release_operation_class_units",
+        "rule_id": "artifact-operation-class/v1",
+        "expression": "On the release-operation anchor ticket only: 1 for governance-bundle; 2 for evidence-bundle, package-preview, staged-final-bytes, or staged-profile-candidate; 3 for package-promotion or exact-byte-profile-promotion; otherwise 0. Anchor is the first present ticket in priority [V1-REL-02,V1-REL-01,V1-CAND-01,V1-DIST-01], else the first source-order entry.ticket_ids value."
+      },
+      {
+        "field": "release_surface_count",
+        "rule_id": "release-entry-ticket-cardinality/v1",
+        "expression": "len(release_train_entry.ticket_ids) on the release-operation anchor ticket defined by artifact-operation-class/v1; otherwise 0"
+      },
+      {
+        "field": "resolved_allowed_file_count",
+        "rule_id": "ticket-file-scope-cardinality/v1",
+        "expression": "len(ticket.resolved_allowed_files) on occurrence_index=1; otherwise 0"
+      },
+      {
+        "field": "structured_contract_count",
+        "rule_id": "structured-contract-key-cardinality/v1",
+        "expression": "recursive count in assigned work packages of keys ending _contract or _contracts, plus the same count over ticket fields other than work_packages on occurrence_index=1"
+      },
+      {
+        "field": "ticket_dependency_count",
+        "rule_id": "ticket-dependency-cardinality/v1",
+        "expression": "len(ticket.depends_on)"
+      },
+      {
+        "field": "unresolved_file_scope_indicator",
+        "rule_id": "empty-file-scope-indicator/v1",
+        "expression": "1 on occurrence_index=1 when len(ticket.resolved_allowed_files)=0; otherwise 0"
+      },
+      {
+        "field": "work_package_coverage_count",
+        "rule_id": "covered-work-package-cardinality/v1",
+        "expression": "len(occurrence.obligation_coverage.work_packages)"
+      },
+      {
+        "field": "work_package_dependency_count",
+        "rule_id": "assigned-work-package-edge-cardinality/v1",
+        "expression": "sum(len(work_package.depends_on_work_package_ids) for assigned work packages; missing arrays count as zero)"
+      }
+    ],
+    "quantity_rules": [
+      {
+        "unit_id": "acceptance_analysis_unit",
+        "rule_id": "criteria-coverage-count/v1",
+        "expression": "acceptance_criterion_coverage_count"
+      },
+      {
+        "unit_id": "work_package_design_unit",
+        "rule_id": "work-package-count/v1",
+        "expression": "work_package_coverage_count"
+      },
+      {
+        "unit_id": "structured_contract_unit",
+        "rule_id": "structured-contract-count/v1",
+        "expression": "structured_contract_count"
+      },
+      {
+        "unit_id": "implementation_surface_unit",
+        "rule_id": "bounded-surface-groups/v1",
+        "expression": "ceil((resolved_allowed_file_count + existing_anchor_count + proposed_change_role_count + work_package_coverage_count) / 4)"
+      },
+      {
+        "unit_id": "verification_unit",
+        "rule_id": "verification-obligation-count/v1",
+        "expression": "max(1, acceptance_criterion_coverage_count + acceptance_command_count + golden_case_count)"
+      },
+      {
+        "unit_id": "fixture_vector_unit",
+        "rule_id": "fixture-floor/v1",
+        "expression": "max(1, golden_case_count)"
+      },
+      {
+        "unit_id": "documentation_trace_unit",
+        "rule_id": "normative-groups/v1",
+        "expression": "ceil(normative_section_count / 4)"
+      },
+      {
+        "unit_id": "evidence_receipt_unit",
+        "rule_id": "receipt-instance-count/v1",
+        "expression": "evidence_receipt_instance_count"
+      },
+      {
+        "unit_id": "integration_edge_unit",
+        "rule_id": "integration-edge-floor/v1",
+        "expression": "max(1, ticket_dependency_count + work_package_dependency_count + release_surface_count)"
+      },
+      {
+        "unit_id": "release_operation_unit",
+        "rule_id": "release-operation-class/v1",
+        "expression": "release_operation_class_units"
+      },
+      {
+        "unit_id": "cumulative_profile_control_unit",
+        "rule_id": "cumulative-optional-profile-count/v1",
+        "expression": "cumulative_optional_profile_count"
+      },
+      {
+        "unit_id": "unresolved_scope_uncertainty_unit",
+        "rule_id": "unresolved-file-scope-indicator/v1",
+        "expression": "unresolved_file_scope_indicator"
+      }
+    ],
+    "line_item_semantics": "quantity_counts_individually_reviewable_atomic_reference_class_units; zero_quantity_items_are_omitted; static_scope_design_and_documentation_inputs_are_charged_only_on_occurrence_1",
+    "rounding": "integer_counts_before_exact_integer_hour_multiplication",
+    "workload_digest_domain": "agent-assure:delivery-forecast-workload-vector/v2",
+    "proposal_digest_domain": "agent-assure:delivery-forecast-occurrence-proposal/v2"
+  },
+  "elapsed_time_policy": {
+    "included_in_effort_quantiles": false,
+    "known_wait_sources": "structured_minimum_elapsed_fields_only",
+    "numeric_source_rules": [
+      {
+        "field_name": "minimum_elapsed_seconds",
+        "source_unit": "second",
+        "hours_expression": "source_value / 3600"
+      },
+      {
+        "field_name": "minimum_observation_window_days",
+        "source_unit": "day",
+        "hours_expression": "source_value * 24"
+      }
+    ],
+    "traversal_order": "coverage_order_then_depth_first_utf8_key_order_then_array_index",
+    "wait_id_rule": "WAIT-%03d_assigned_one_based_after_traversal",
+    "nonintegral_hour_treatment": "reject_without_rounding",
+    "unquantified_wait_rule": "For each covered source obligation, lowercase ASCII key names and string leaves, split on every character outside [a-z], and test tokens against {wait, elapsed, window, fresh, freshness, age, before, after, duration}; count sources having a token and no whitelisted numeric wait. This is diagnostic only, not a complete wait count or schedule bound.",
+    "summary_rules": "maximum_single_known_wait_hours=max(requirement hours, default 0); serial_sum_known_wait_hours=checked integer sum; neither is a critical-path duration",
+    "unknown_wait_treatment": "reported_unquantified_never_imputed",
+    "parallelism_treatment": "not_inferred",
+    "schedule_claim": "none_until_dependency_and_resource_schedule_is_reviewed"
+  },
+  "arithmetic": {
+    "quantity_type": "nonnegative_integer",
+    "effort_unit": "focused_person_hour",
+    "maximum_exact_integer": 9007199254740991,
+    "summation": "checked_exact_integer"
+  },
+  "catalog_digest": "sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439"
+}

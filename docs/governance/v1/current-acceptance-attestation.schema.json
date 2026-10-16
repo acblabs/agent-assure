@@ -1,0 +1,228 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/current-acceptance-attestation.schema.json",
+  "title": "Agent Assure S1 generation-2 current acceptance attestation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "release",
+    "maturity",
+    "authorization_scope",
+    "independent_review_claimed",
+    "acceptance_generation",
+    "supersedes_acceptance_generation",
+    "predecessor_acceptance",
+    "acceptance_tag_name",
+    "closure_commit",
+    "result_commit",
+    "bundle_digest",
+    "full_roadmap_digest",
+    "validation_started_at_utc",
+    "gate_completed_at_utc",
+    "attestation_preparation_started_at_utc",
+    "finalization_deadline_at_utc",
+    "time_evidence",
+    "current_gate_result",
+    "live_repository_evidence",
+    "validator_artifact",
+    "launcher_artifact",
+    "signer_person_id",
+    "attestation_digest",
+    "signature_envelope"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-s1-current-acceptance-attestation/2" },
+    "spec_revision": { "const": "6.5" },
+    "release": { "const": "1.0.0a1" },
+    "maturity": { "const": "governed-baseline" },
+    "authorization_scope": { "const": "development_governance_only" },
+    "independent_review_claimed": { "const": false },
+    "acceptance_generation": { "const": 2 },
+    "supersedes_acceptance_generation": { "const": 1 },
+    "predecessor_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tag_name",
+        "tag_object",
+        "closure_commit",
+        "result_commit",
+        "disposition",
+        "current_for_s2_commitment"
+      ],
+      "properties": {
+        "tag_name": { "const": "agent-assure-s1-1.0.0a1-acceptance" },
+        "tag_object": { "const": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb" },
+        "closure_commit": { "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000" },
+        "result_commit": { "const": "038b1a8c80fc419106eecd43f4a70b14ba026106" },
+        "disposition": { "const": "superseded_nonconforming" },
+        "current_for_s2_commitment": { "const": false }
+      }
+    },
+    "acceptance_tag_name": { "const": "agent-assure-s1-1.0.0a1-acceptance-v2" },
+    "closure_commit": { "$ref": "#/$defs/commit" },
+    "result_commit": { "$ref": "#/$defs/commit" },
+    "bundle_digest": { "$ref": "#/$defs/digest" },
+    "full_roadmap_digest": {
+      "const": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+    },
+    "validation_started_at_utc": { "$ref": "#/$defs/utc" },
+    "gate_completed_at_utc": { "$ref": "#/$defs/utc" },
+    "attestation_preparation_started_at_utc": { "$ref": "#/$defs/utc" },
+    "finalization_deadline_at_utc": { "$ref": "#/$defs/utc" },
+    "time_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clock_basis",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed"
+      ],
+      "properties": {
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "sshsig_timestamp_capability": { "const": "none" },
+        "actual_signature_time_claimed": { "const": false }
+      }
+    },
+    "current_gate_result": { "const": "valid_current_closure" },
+    "live_repository_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approved_remote_url",
+        "authoritative_remote_refs",
+        "branch_name",
+        "fetch_performed",
+        "head_commit",
+        "local_refs"
+      ],
+      "properties": {
+        "approved_remote_url": { "const": "https://github.com/acblabs/agent-assure.git" },
+        "authoritative_remote_refs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "refs/heads/main",
+            "refs/tags/v0.7.0",
+            "refs/tags/v0.7.0^{}"
+          ],
+          "properties": {
+            "refs/heads/main": {
+              "const": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96"
+            },
+            "refs/tags/v0.7.0": {
+              "const": "ea4b50bd461efd817b7dc2fa5591d06ed9599a6e"
+            },
+            "refs/tags/v0.7.0^{}": {
+              "const": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96"
+            }
+          }
+        },
+        "branch_name": { "const": "fix/s1-governed-baseline-v2" },
+        "fetch_performed": { "const": true },
+        "head_commit": { "$ref": "#/$defs/commit" },
+        "local_refs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "refs/remotes/origin/main^{commit}",
+            "refs/tags/v0.7.0^{tag}",
+            "refs/tags/v0.7.0^{commit}"
+          ],
+          "properties": {
+            "refs/remotes/origin/main^{commit}": {
+              "const": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96"
+            },
+            "refs/tags/v0.7.0^{tag}": {
+              "const": "ea4b50bd461efd817b7dc2fa5591d06ed9599a6e"
+            },
+            "refs/tags/v0.7.0^{commit}": {
+              "const": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96"
+            }
+          }
+        }
+      }
+    },
+    "validator_artifact": { "$ref": "#/$defs/artifact" },
+    "launcher_artifact": { "$ref": "#/$defs/artifact" },
+    "signer_person_id": { "const": "acblabs" },
+    "attestation_digest": { "$ref": "#/$defs/digest" },
+    "signature_envelope": { "$ref": "#/$defs/signature" }
+  },
+  "$defs": {
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "utc": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "size_bytes", "sha256"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "kind": { "enum": ["governance_validator", "governance_runtime_launcher"] },
+        "size_bytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signer_person_id",
+        "signer_role",
+        "subject_digest",
+        "public_key_fingerprint",
+        "signature"
+      ],
+      "properties": {
+        "profile": { "const": "openssh-sshsig-ed25519/v1" },
+        "status": { "enum": ["pending_human_signature", "signed"] },
+        "namespace": { "const": "agent-assure-governance-v1" },
+        "signed_payload_encoding": {
+          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v2"
+        },
+        "signature_encoding": {
+          "const": "base64-canonical-lf-openssh-sshsig-armored"
+        },
+        "signer_person_id": { "const": "acblabs" },
+        "signer_role": { "const": "repository_maintainer" },
+        "subject_digest": { "$ref": "#/$defs/digest" },
+        "public_key_fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "signature": {
+          "type": ["string", "null"],
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "maxLength": 8192
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "signed" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "signature": { "type": "string", "minLength": 1 }
+            }
+          },
+          "else": {
+            "properties": { "signature": { "type": "null" } }
+          }
+        }
+      ]
+    }
+  }
+}

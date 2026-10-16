@@ -23,7 +23,7 @@ import sys
 import tempfile
 import unicodedata
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -413,20 +413,81 @@ METHOD_REGISTRY_DOMAIN: Final = "agent-assure:delivery-forecast-aggregation-regi
 FORECAST_DOMAIN: Final = "agent-assure:delivery-forecast/v1"
 RECEIPT_DOMAIN: Final = "agent-assure:governance-receipt/v1"
 LEDGER_DOMAIN: Final = "agent-assure:delivery-forecast-authoring-ledger/v1"
+ESTIMATION_CATALOG_V2_DOMAIN: Final = "agent-assure:delivery-forecast-estimation-catalog/v1"
+METHOD_V2_DOMAIN: Final = "agent-assure:delivery-forecast-aggregation-method/v2"
+METHOD_REGISTRY_V2_DOMAIN: Final = "agent-assure:delivery-forecast-aggregation-registry/v2"
+FORECAST_V2_DOMAIN: Final = "agent-assure:delivery-forecast/v2"
+LEDGER_V2_DOMAIN: Final = "agent-assure:delivery-forecast-authoring-ledger/v2"
+OBLIGATION_COVERAGE_V2_DOMAIN: Final = "agent-assure:delivery-forecast-obligation-coverage/v2"
+WORKLOAD_VECTOR_V2_DOMAIN: Final = "agent-assure:delivery-forecast-workload-vector/v2"
+OCCURRENCE_PROPOSAL_V2_DOMAIN: Final = "agent-assure:delivery-forecast-occurrence-proposal/v2"
+FORECAST_DECISION_MANIFEST_V2_DOMAIN: Final = "agent-assure:delivery-forecast-decision-manifest/v2"
+FORECAST_ACCEPTANCE_RECEIPT_V2_DOMAIN: Final = (
+    "agent-assure:delivery-forecast-acceptance-receipt/v2"
+)
+FORECAST_DECISION_PLAN_V2_DOMAIN: Final = (
+    "agent-assure:delivery-forecast-decision-signature-plan/v2"
+)
+FORECAST_SIGNATURE_PLAN_V2_DOMAIN: Final = "agent-assure:delivery-forecast-final-signature-plan/v2"
+FORECAST_DECISION_IMPORT_V2_DOMAIN: Final = (
+    "agent-assure:delivery-forecast-decision-signature-import/v2"
+)
+FORECAST_SIGNATURE_IMPORT_V2_DOMAIN: Final = (
+    "agent-assure:delivery-forecast-final-signature-import/v2"
+)
+ACCEPTANCE_CRITERION_SOURCE_DOMAIN: Final = "agent-assure:roadmap-acceptance-criterion/v1"
+WORK_PACKAGE_SOURCE_DOMAIN: Final = "agent-assure:roadmap-work-package/v1"
+ESTIMATE_PRIOR_SOURCE_DOMAIN: Final = "agent-assure:roadmap-estimate-prior/v1"
+ACCEPTANCE_CRITERIA_SET_DOMAIN: Final = "agent-assure:roadmap-acceptance-criteria-set/v1"
+WORK_PACKAGE_SET_DOMAIN: Final = "agent-assure:roadmap-work-package-set/v1"
+TICKET_DELIVERY_SOURCE_DOMAIN: Final = "agent-assure:roadmap-ticket-delivery/v1"
+TICKET_DEPENDENCIES_SOURCE_DOMAIN: Final = "agent-assure:roadmap-ticket-dependencies/v1"
+RELEASE_TRAIN_ENTRY_SOURCE_DOMAIN: Final = "agent-assure:roadmap-release-train-entry/v1"
+RELEASE_OCCURRENCE_SOURCE_DOMAIN: Final = "agent-assure:roadmap-release-occurrence/v1"
+ELAPSED_WAIT_REQUIREMENT_DOMAIN: Final = "agent-assure:roadmap-elapsed-wait-requirement/v1"
+ESTIMATION_CATALOG_V2_DIGEST: Final = (
+    "sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439"
+)
 ROSTER_DOMAIN: Final = "agent-assure:approval-roster/v1"
 KICKOFF_DOMAIN: Final = "agent-assure:kickoff-authorization/v1"
 TICKET_RECEIPT_DOMAIN: Final = "agent-assure:ticket-completion-receipt/v1"
 BUNDLE_DOMAIN: Final = "agent-assure:governance-bundle/v1"
+TICKET_RECEIPT_V2_DOMAIN: Final = "agent-assure:ticket-completion-receipt/v2"
+BUNDLE_V2_DOMAIN: Final = "agent-assure:governance-bundle/v2"
+CORRECTIVE_CHANGE_ALLOWLIST_DOMAIN: Final = "agent-assure:s1-corrective-change-allowlist/v2"
+CORRECTIVE_RESULT_ARTIFACT_SET_DOMAIN: Final = "agent-assure:s1-corrective-result-artifact-set/v2"
+CORRECTIVE_REVIEWED_ARTIFACT_SET_DOMAIN: Final = (
+    "agent-assure:s1-corrective-reviewed-artifact-set/v2"
+)
+CORRECTIVE_CLOSURE_ARTIFACT_SET_DOMAIN: Final = "agent-assure:s1-corrective-closure-artifact-set/v2"
+POST_R2_SUITE_EVIDENCE_DOMAIN: Final = "agent-assure:s1-post-r2-suite-evidence/v3"
+CORRECTIVE_RECEIPT_PLAN_V2_DOMAIN: Final = "agent-assure:s1-corrective-receipt-signature-plan/v2"
+CORRECTIVE_RECEIPT_IMPORT_V2_DOMAIN: Final = (
+    "agent-assure:s1-corrective-receipt-signature-import/v2"
+)
+CORRECTIVE_BUNDLE_PLAN_V2_DOMAIN: Final = "agent-assure:s1-corrective-bundle-signature-plan/v2"
+CORRECTIVE_CLOSURE_IMPORT_V2_DOMAIN: Final = (
+    "agent-assure:s1-corrective-closure-signature-import/v2"
+)
 SIGNING_KEY_DOMAIN: Final = "agent-assure:governance-signing-key/v1"
 BASELINE_OBSERVATIONS_DOMAIN: Final = "agent-assure:baseline-observations/v1"
+BASELINE_OBSERVATIONS_V2_DOMAIN: Final = "agent-assure:baseline-observations/v2"
+CORRECTIVE_KICKOFF_CLAIM_DIGEST: Final = (
+    "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+)
+CORRECTIVE_KICKOFF_CLAIM_SIZE: Final = 6_712
 TICKET_SET_DOMAIN: Final = "agent-assure:roadmap-ticket-set/v1"
 DEPENDENCY_GRAPH_DOMAIN: Final = "agent-assure:roadmap-dependency-graph/v1"
 RELEASE_TRAIN_DOMAIN: Final = "agent-assure:roadmap-release-train/v1"
 SIGNATURE_NAMESPACE: Final = "agent-assure-governance-v1"
 SIGNATURE_PROFILE: Final = "openssh-sshsig-ed25519/v1"
 SIGNATURE_PAYLOAD_ENCODING: Final = "agent-assure-domain-separated-rfc8785-signature-claim/v1"
+ATTESTATION_V2_SIGNATURE_PAYLOAD_ENCODING: Final = (
+    "agent-assure-domain-separated-rfc8785-signature-claim/v2"
+)
 SIGNATURE_ENCODING: Final = "base64-canonical-lf-openssh-sshsig-armored"
 SIGNATURE_CLAIM_DOMAIN: Final = "agent-assure:sshsig-claim/v1"
+ATTESTATION_V2_SIGNATURE_CLAIM_DOMAIN: Final = "agent-assure:sshsig-claim/v2"
 SIGNATURE_ENVELOPE_FIELDS: Final = frozenset(
     {
         "profile",
@@ -444,6 +505,46 @@ SIGNATURE_ENVELOPE_FIELDS: Final = frozenset(
 )
 ACCEPTANCE_PLAN_DOMAIN: Final = "agent-assure:s1-acceptance-signature-plan/v1"
 CURRENT_ACCEPTANCE_ATTESTATION_DOMAIN: Final = "agent-assure:s1-current-acceptance-attestation/v1"
+CURRENT_ACCEPTANCE_ATTESTATION_V2_DOMAIN: Final = (
+    "agent-assure:s1-current-acceptance-attestation/v2"
+)
+CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT: Final = "agent-assure-s1-current-acceptance-attestation/1"
+CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT: Final = "agent-assure-s1-current-acceptance-attestation/2"
+ATTESTATION_V2_SIGNATURE_ENVELOPE_FIELDS: Final = frozenset(
+    {
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signer_person_id",
+        "signer_role",
+        "subject_digest",
+        "public_key_fingerprint",
+        "signature",
+    }
+)
+_NO_SIGNATURE_VERIFICATION_EVIDENCE: Final = object()
+FORECAST_V2_SIGNATURE_IMPORT_EVIDENCE_FIELDS: Final = frozenset(
+    {
+        "status",
+        "signature_plan_digest",
+        "claim_preparation_started_at_utc",
+        "import_verification_started_at_utc",
+        "import_verification_completed_at_utc",
+        "clock_basis",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed",
+        "verification_result",
+        "signature_claim_binding",
+        "durable_integrity_binding",
+    }
+)
+ATTESTATION_V2_TIME_EVIDENCE: Final = {
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": False,
+}
 MAINTAINER_KEY_FINGERPRINT: Final = "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
 MAINTAINER_PUBLIC_KEY: Final = (
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB"
@@ -453,7 +554,1542 @@ PINNED_BASE_COMMIT: Final = "3b060f4da94f4d0d80e7ae507580fce82ef9bf96"
 PINNED_TAG_OBJECT: Final = "ea4b50bd461efd817b7dc2fa5591d06ed9599a6e"
 APPROVED_ORIGIN_URL: Final = "https://github.com/acblabs/agent-assure.git"
 S1_BRANCH_NAME: Final = "feat/v1-assurance-compiler"
+S1_CORRECTIVE_BRANCH_NAME: Final = "fix/s1-governed-baseline-v2"
 S1_ACCEPTANCE_TAG_NAME: Final = "agent-assure-s1-1.0.0a1-acceptance"
+S1_ACCEPTANCE_V2_TAG_NAME: Final = "agent-assure-s1-1.0.0a1-acceptance-v2"
+S1_ACCEPTANCE_V1_TAG_OBJECT: Final = "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
+S1_ACCEPTANCE_V1_CLOSURE_COMMIT: Final = "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+S1_ACCEPTANCE_V1_RESULT_COMMIT: Final = "038b1a8c80fc419106eecd43f4a70b14ba026106"
+S1_ACCEPTANCE_V1_BUNDLE_DIGEST: Final = (
+    "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82"
+)
+S1_ACCEPTANCE_V1_FORECAST_DIGEST: Final = (
+    "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460"
+)
+S1_ACCEPTANCE_V1_RECEIPT_DIGESTS: Final = {
+    "V1-BASE-01": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e",
+    "V1-BOOT-01": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a",
+}
+S1_CORRECTIVE_CLOSURE_PATHS: Final = frozenset(
+    {
+        "docs/governance/v1/completion-receipt-v1-base-01.json",
+        "docs/governance/v1/completion-receipt-v1-boot-01.json",
+        "docs/governance/v1/governance-bundle.json",
+    }
+)
+POST_R2_PYTHON_ARGUMENTS: Final = (
+    "-I",
+    "-S",
+    "-B",
+    "-X",
+    "utf8",
+)
+POST_R2_PYTEST_ARGUMENTS: Final = (
+    # Repository ``addopts`` are prepended by pytest.  Assign the final
+    # verbosity explicitly so a configured ``-q`` cannot combine with this
+    # command into ``-qq``, which suppresses the terminal totals we attest.
+    "--verbosity=-1",
+    "-p",
+    "no:cacheprovider",
+    "-p",
+    "pytest_socket",
+    "-p",
+    "_hypothesis_pytestplugin",
+    "-p",
+    "pytest_cov.plugin",
+    "--color=no",
+    "--hypothesis-seed=0",
+)
+CORRECTIVE_LOCAL_ONLY_PATH_PREFIXES: Final = (
+    ".tmp/s1-acceptance/correction-v2-",
+    ".tmp/s1-acceptance/phase-v2-",
+    ".tmp/s1-acceptance/current-gate-v2-",
+)
+POST_R2_PROCESS_TEMP_ROOT: Final = Path(r"C:\tmp")
+POST_R2_PROCESS_TEMP_PREFIX: Final = "agent-assure-s1-post-r2-process-temp-"
+POST_R2_PROCESS_USER_TEMP_DIRECTORY: Final = "temp"
+POST_R2_PYTEST_BASETEMP_DIRECTORY: Final = "pytest"
+POST_R2_DESCENDANT_RUNTIME_DIRECTORY: Final = "descendant-runtime"
+POST_R2_DESCENDANT_RUNTIME_PATHS_FILE: Final = "00_agent_assure_s1_paths.pth"
+POST_R2_DESCENDANT_RUNTIME_GUARD_FILE: Final = "sitecustomize.py"
+POST_R2_DESCENDANT_NO_SITE_ENV: Final = "AGENT_ASSURE_S1_POST_R2_REQUESTED_NO_SITE"
+POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_ENV: Final = "AGENT_ASSURE_S1_POST_R2_ORIGINAL_PYTHONPATH"
+POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_PRESENT_ENV: Final = (
+    "AGENT_ASSURE_S1_POST_R2_ORIGINAL_PYTHONPATH_PRESENT"
+)
+POST_R2_DESCENDANT_RUNTIME_REQUIRED_DIRECTORIES: Final = (
+    "Lib",
+    "Lib/site-packages",
+    "Scripts",
+)
+POST_R2_SUITE_EVIDENCE_DIRECTORY: Final = ".tmp/s1-acceptance/correction-v2-post-r2-suite-evidence"
+POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN: Final = (
+    b"agent-assure:s1-post-r2-test-runtime-inventory/v1\x00"
+)
+POST_R2_TEST_RUNTIME_EXCLUDED_DIRECTORY_NAMES: Final = frozenset({"__pycache__"})
+POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES: Final = frozenset({".pyc", ".pyo"})
+POST_R2_TEST_RUNTIME_FILE_COUNT: Final = 5_473
+POST_R2_TEST_RUNTIME_SIZE_BYTES: Final = 92_718_636
+POST_R2_TEST_RUNTIME_SHA256: Final = (
+    "a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c"
+)
+POST_R2_TEST_SURFACE_INVENTORY_DOMAIN: Final = (
+    b"agent-assure:s1-post-r2-test-surface-inventory/v1\x00"
+)
+POST_R2_TEST_AFFECTING_DIRECTORIES: Final = (
+    ".githooks",
+    ".github",
+    "compat",
+    "docs",
+    "evidence",
+    "examples",
+    "mappings",
+    "paper",
+    "schemas",
+    "scripts",
+    "src",
+    "tests",
+    "third_party",
+)
+POST_R2_TRACKED_ROOT_FILES: Final = (
+    ".dockerignore",
+    ".gitattributes",
+    ".gitignore",
+    ".gitleaks.toml",
+    ".gitleaksignore",
+    "CHANGELOG.md",
+    "CITATION.cff",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "FEATURES.md",
+    "LICENSE",
+    "Makefile",
+    "README.md",
+    "SECURITY.md",
+    "THIRD_PARTY_NOTICES.md",
+    "mkdocs.yml",
+    "pyproject.toml",
+    "requirements-adk.lock",
+    "requirements-langgraph.lock",
+    "requirements-min.constraints.txt",
+    "requirements-min.lock",
+    "requirements-otel.lock",
+    "requirements.lock",
+)
+POST_R2_ROOT_TEST_CONFIG_PATHS: Final = (
+    ".coveragerc",
+    "conftest.py",
+    "mkdocs.yml",
+    "pyproject.toml",
+    "pytest.ini",
+    "pytest.toml",
+    "setup.cfg",
+    "sitecustomize.py",
+    "tox.ini",
+    "usercustomize.py",
+)
+POST_R2_GIT_EXCLUDE_SIZE_BYTES: Final = 2_368
+POST_R2_GIT_EXCLUDE_SHA256: Final = (
+    "7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"
+)
+POST_R2_CHILD_PATH: Final = ";".join(
+    (
+        str(_FROZEN_PYTHON_ROOT),
+        str(_FROZEN_PYTHON_ROOT / "DLLs"),
+        r"C:\Program Files\Git\mingw64\bin",
+        r"C:\Windows\System32\OpenSSH",
+        r"C:\Windows\System32",
+        r"C:\Windows",
+    )
+)
+
+
+def _post_r2_descendant_sitecustomize_source(
+    descendant_python: Path,
+    pycache_prefix: Path,
+    *,
+    repository_root: Path,
+    site_packages: Path,
+) -> str:
+    """Return the fail-closed, recursively inherited Python launch guard."""
+
+    runtime_root = descendant_python.parent.parent
+    guard_directory = runtime_root / "Lib/site-packages"
+    no_site_paths = (
+        guard_directory,
+        repository_root / "src",
+        repository_root,
+        site_packages,
+    )
+    return f"""\
+from __future__ import annotations
+
+import importlib.machinery
+import importlib.util
+import os
+import re
+import subprocess
+import sys
+
+_AGENT_ASSURE_GOVERNED_PYTHON = {str(descendant_python)!r}
+_AGENT_ASSURE_PYCACHE_PREFIX = {str(pycache_prefix)!r}
+_AGENT_ASSURE_GUARD_DIRECTORY = {str(guard_directory)!r}
+_AGENT_ASSURE_NO_SITE_PATHS = {tuple(str(path) for path in no_site_paths)!r}
+_AGENT_ASSURE_NO_SITE_ENV = {POST_R2_DESCENDANT_NO_SITE_ENV!r}
+_AGENT_ASSURE_ORIGINAL_PYTHONPATH_ENV = {POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_ENV!r}
+_AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV = {
+        POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_PRESENT_ENV!r
+    }
+_AGENT_ASSURE_BOOTSTRAP_INSTALL = bool(
+    globals().get("_AGENT_ASSURE_BOOTSTRAP_INSTALL", False)
+)
+_AGENT_ASSURE_MARKER = (
+    _AGENT_ASSURE_GOVERNED_PYTHON,
+    _AGENT_ASSURE_PYCACHE_PREFIX,
+)
+_AGENT_ASSURE_FLAGS = (
+    "-B",
+    "-s",
+    "-P",
+    "-X",
+    "pycache_prefix=" + _AGENT_ASSURE_PYCACHE_PREFIX,
+)
+_AGENT_ASSURE_PYTHON_TOKEN = re.compile(
+    r"(?<![0-9A-Za-z_.-])python(?:\\.exe)?(?![0-9A-Za-z_.-])",
+    re.IGNORECASE,
+)
+_AGENT_ASSURE_SIMPLE_FLAG_CHARACTERS = frozenset("bBdEhiIOPqRsSuvVWx?")
+_AGENT_ASSURE_BUILTIN_WARNING_CATEGORIES = frozenset({{
+    "BytesWarning",
+    "DeprecationWarning",
+    "EncodingWarning",
+    "FutureWarning",
+    "ImportWarning",
+    "PendingDeprecationWarning",
+    "ResourceWarning",
+    "RuntimeWarning",
+    "SyntaxWarning",
+    "UnicodeWarning",
+    "UserWarning",
+    "Warning",
+}})
+
+if not sys.dont_write_bytecode or os.path.normcase(
+    sys.pycache_prefix or ""
+) != os.path.normcase(_AGENT_ASSURE_PYCACHE_PREFIX):
+    raise SystemExit("post-R2 descendant Python bytecode policy is not active")
+
+
+def _agent_assure_normalized_executable(value):
+    if not isinstance(value, (str, bytes, os.PathLike)):
+        return None
+    try:
+        return os.path.normcase(os.path.abspath(os.fsdecode(value)))
+    except (OSError, TypeError, ValueError):
+        return None
+
+
+def _agent_assure_python_option_name(value):
+    return value.split("=", 1)[0].casefold()
+
+
+def _agent_assure_validate_warning_option(value):
+    try:
+        text = os.fsdecode(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("governed Python -W option must be text") from exc
+    fields = tuple(part.strip() for part in text.split(":"))
+    if len(fields) > 5:
+        raise RuntimeError("governed Python -W option has too many fields")
+    category = fields[2] if len(fields) > 2 else ""
+    if category and category not in _AGENT_ASSURE_BUILTIN_WARNING_CATEGORIES:
+        raise RuntimeError(
+            "governed Python -W category must be a builtin warning class"
+        )
+
+
+def _agent_assure_rewrite_python_options(arguments):
+    rewritten = [arguments[0]]
+    requested_no_site = False
+    index = 1
+    while index < len(arguments):
+        token = arguments[index]
+        if not isinstance(token, (str, bytes, os.PathLike)):
+            raise RuntimeError("governed Python argv entries must be path-like strings")
+        text = os.fsdecode(token)
+        if text in {{"-c", "-m"}} or (
+            len(text) > 2 and text[:2] in {{"-c", "-m"}}
+        ):
+            rewritten.extend(arguments[index:])
+            return rewritten, requested_no_site
+        if text == "--":
+            rewritten.extend(arguments[index:])
+            return rewritten, requested_no_site
+        if text == "-" or not text.startswith("-"):
+            rewritten.extend(arguments[index:])
+            return rewritten, requested_no_site
+        if text == "-X":
+            if index + 1 >= len(arguments):
+                raise RuntimeError("governed Python -X option is incomplete")
+            option = os.fsdecode(arguments[index + 1])
+            if _agent_assure_python_option_name(option) == "pycache_prefix":
+                raise RuntimeError("caller cannot override the governed pycache prefix")
+            rewritten.extend((token, arguments[index + 1]))
+            index += 2
+            continue
+        if text.startswith("-X"):
+            if _agent_assure_python_option_name(text[2:]) == "pycache_prefix":
+                raise RuntimeError("caller cannot override the governed pycache prefix")
+            rewritten.append(token)
+            index += 1
+            continue
+        if text == "-W":
+            if index + 1 >= len(arguments):
+                raise RuntimeError("governed Python -W option is incomplete")
+            _agent_assure_validate_warning_option(arguments[index + 1])
+            rewritten.extend((token, arguments[index + 1]))
+            index += 2
+            continue
+        if text.startswith("-W"):
+            _agent_assure_validate_warning_option(text[2:])
+            rewritten.append(token)
+            index += 1
+            continue
+        if text == "--check-hash-based-pycs":
+            if index + 1 >= len(arguments):
+                raise RuntimeError(
+                    "governed Python --check-hash-based-pycs option is incomplete"
+                )
+            rewritten.extend((token, arguments[index + 1]))
+            index += 2
+            continue
+        if text.startswith("--check-hash-based-pycs=") or text.startswith("--"):
+            rewritten.append(token)
+            index += 1
+            continue
+        cluster = text[1:]
+        if "S" in cluster:
+            if not cluster or any(
+                character not in _AGENT_ASSURE_SIMPLE_FLAG_CHARACTERS
+                for character in cluster
+            ):
+                raise RuntimeError("governed Python -S option cannot be parsed safely")
+            requested_no_site = True
+            cluster = cluster.replace("S", "")
+            if cluster:
+                rewritten.append("-" + cluster)
+        else:
+            rewritten.append(token)
+        index += 1
+    return rewritten, requested_no_site
+
+
+def _agent_assure_scalar_names_python(arguments):
+    try:
+        text = os.fsdecode(arguments)
+    except (TypeError, ValueError):
+        return False
+    return bool(_AGENT_ASSURE_PYTHON_TOKEN.search(text))
+
+
+def _agent_assure_guarded_arguments(arguments, explicit_executable, shell):
+    governed = _agent_assure_normalized_executable(_AGENT_ASSURE_GOVERNED_PYTHON)
+    explicit = _agent_assure_normalized_executable(explicit_executable)
+    explicit_text = (
+        os.fsdecode(explicit_executable)
+        if isinstance(explicit_executable, (str, bytes, os.PathLike))
+        else None
+    )
+    governed_name = os.path.basename(_AGENT_ASSURE_GOVERNED_PYTHON).casefold()
+    governed_alias_names = {{governed_name, os.path.splitext(governed_name)[0]}}
+    explicit_is_governed_alias = (
+        explicit_text is not None
+        and not os.path.dirname(explicit_text)
+        and os.path.basename(explicit_text).casefold() in governed_alias_names
+    )
+    explicit_targets_governed = explicit == governed or explicit_is_governed_alias
+    guarded_executable = (
+        _AGENT_ASSURE_GOVERNED_PYTHON
+        if explicit_is_governed_alias
+        else explicit_executable
+    )
+    if isinstance(arguments, (str, bytes, os.PathLike)):
+        if explicit_targets_governed or _agent_assure_scalar_names_python(arguments):
+            raise RuntimeError("governed Python subprocess argv must be a sequence")
+        return arguments, False, False, guarded_executable
+    try:
+        sequence = list(arguments)
+    except TypeError as exc:
+        raise RuntimeError("post-R2 subprocess argv must be a sequence") from exc
+    if not sequence:
+        raise RuntimeError("post-R2 subprocess argv must not be empty")
+    argv_zero = _agent_assure_normalized_executable(sequence[0])
+    argv_text = os.fsdecode(sequence[0])
+    argv_name = os.path.basename(argv_text).casefold()
+    argv_is_governed_alias = (
+        not os.path.dirname(argv_text) and argv_name in governed_alias_names
+    )
+    argv_targets_governed = argv_zero == governed or argv_is_governed_alias
+    if argv_targets_governed and explicit is not None and not explicit_targets_governed:
+        raise RuntimeError("governed Python argv conflicts with subprocess executable")
+    if not argv_targets_governed and not explicit_targets_governed:
+        if shell and any(
+            _agent_assure_scalar_names_python(token)
+            for token in sequence
+            if isinstance(token, (str, bytes, os.PathLike))
+        ):
+            raise RuntimeError("governed Python subprocess shell execution is forbidden")
+        return sequence, False, False, guarded_executable
+    if shell:
+        raise RuntimeError("governed Python subprocess shell execution is forbidden")
+    argv_zero_for_launch = (
+        _AGENT_ASSURE_GOVERNED_PYTHON
+        if argv_is_governed_alias
+        else sequence[0]
+    )
+    rewritten, requested_no_site = _agent_assure_rewrite_python_options(
+        [argv_zero_for_launch, *sequence[1:]]
+    )
+    return (
+        [rewritten[0], *_AGENT_ASSURE_FLAGS, *rewritten[1:]],
+        True,
+        requested_no_site,
+        guarded_executable,
+    )
+
+
+def _agent_assure_pop_environment_value(environment, name):
+    matches = [
+        key
+        for key in environment
+        if isinstance(key, str) and key.casefold() == name.casefold()
+    ]
+    if len(matches) > 1:
+        raise RuntimeError("governed Python environment contains duplicate " + name)
+    if not matches:
+        return None
+    value = environment.pop(matches[0])
+    if not isinstance(value, str):
+        raise RuntimeError("governed Python environment value must be text: " + name)
+    return value
+
+
+def _agent_assure_discard_environment_values(environment, name):
+    for key in list(environment):
+        if isinstance(key, str) and key.casefold() == name.casefold():
+            environment.pop(key)
+
+
+def _agent_assure_guarded_environment(environment, requested_no_site):
+    try:
+        guarded = os.environ.copy() if environment is None else dict(environment)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("governed Python environment must be a mapping") from exc
+    original_pythonpath = _agent_assure_pop_environment_value(
+        guarded,
+        "PYTHONPATH",
+    )
+    original_parts = (
+        [] if original_pythonpath is None else original_pythonpath.split(os.pathsep)
+    )
+    normalized_guard = _agent_assure_normalized_executable(
+        _AGENT_ASSURE_GUARD_DIRECTORY
+    )
+    while original_parts and (
+        _agent_assure_normalized_executable(original_parts[0]) == normalized_guard
+    ):
+        original_parts.pop(0)
+    restored_pythonpath = os.pathsep.join(original_parts)
+    guarded["PYTHONPATH"] = _AGENT_ASSURE_GUARD_DIRECTORY
+    for internal_name in (
+        _AGENT_ASSURE_NO_SITE_ENV,
+        _AGENT_ASSURE_ORIGINAL_PYTHONPATH_ENV,
+        _AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV,
+    ):
+        _agent_assure_discard_environment_values(guarded, internal_name)
+    guarded[_AGENT_ASSURE_ORIGINAL_PYTHONPATH_ENV] = restored_pythonpath
+    guarded[_AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV] = (
+        "1" if original_pythonpath is not None else "0"
+    )
+    caller_path = _agent_assure_pop_environment_value(guarded, "PATH")
+    governed_path = os.environ.get("PATH", "")
+    if caller_path and caller_path != governed_path:
+        guarded["PATH"] = governed_path + os.pathsep + caller_path
+    else:
+        guarded["PATH"] = governed_path
+    for essential_name in ("COMSPEC", "SYSTEMROOT", "WINDIR"):
+        essential_value = os.environ.get(essential_name)
+        if essential_value is not None:
+            _agent_assure_discard_environment_values(guarded, essential_name)
+            guarded[essential_name] = essential_value
+    guarded[_AGENT_ASSURE_NO_SITE_ENV] = "1" if requested_no_site else "0"
+    for forbidden_name in (
+        "PYTHONCASEOK",
+        "PYTHONHOME",
+        "PYTHONPLATLIBDIR",
+        "PYTHONUSERBASE",
+        "PYTHONWARNINGS",
+    ):
+        _agent_assure_discard_environment_values(guarded, forbidden_name)
+    for policy_name, policy_value in (
+        ("PYTHONDONTWRITEBYTECODE", "1"),
+        ("PYTHONNOUSERSITE", "1"),
+        ("PYTHONPYCACHEPREFIX", _AGENT_ASSURE_PYCACHE_PREFIX),
+        ("PYTHONSAFEPATH", "1"),
+    ):
+        _agent_assure_discard_environment_values(guarded, policy_name)
+        guarded[policy_name] = policy_value
+    return guarded
+
+
+def _agent_assure_startup_context():
+    if _AGENT_ASSURE_BOOTSTRAP_INSTALL:
+        return False, ()
+    marker = _agent_assure_pop_environment_value(
+        os.environ,
+        _AGENT_ASSURE_NO_SITE_ENV,
+    )
+    if marker not in {{"0", "1"}}:
+        raise SystemExit("post-R2 descendant startup marker is absent")
+    original_pythonpath = _agent_assure_pop_environment_value(
+        os.environ,
+        _AGENT_ASSURE_ORIGINAL_PYTHONPATH_ENV,
+    )
+    original_pythonpath_present = _agent_assure_pop_environment_value(
+        os.environ,
+        _AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV,
+    )
+    if original_pythonpath is None or original_pythonpath_present not in {{"0", "1"}}:
+        raise SystemExit("post-R2 descendant original Python path marker is invalid")
+    pythonpath = _agent_assure_pop_environment_value(os.environ, "PYTHONPATH")
+    if pythonpath is None or os.pathsep in pythonpath:
+        raise SystemExit("post-R2 descendant guard path is absent")
+    if _agent_assure_normalized_executable(
+        pythonpath
+    ) != _agent_assure_normalized_executable(_AGENT_ASSURE_GUARD_DIRECTORY):
+        raise SystemExit("post-R2 descendant guard path is not first")
+    if original_pythonpath_present == "1":
+        os.environ["PYTHONPATH"] = original_pythonpath
+        original_entries = tuple(original_pythonpath.split(os.pathsep))
+    else:
+        os.environ.pop("PYTHONPATH", None)
+        original_entries = ()
+    return marker == "1", original_entries
+
+
+def _agent_assure_apply_no_site_paths(original_entries):
+    preserved_counts = {{}}
+    if not sys.flags.ignore_environment:
+        for entry in original_entries:
+            normalized = _agent_assure_normalized_executable(entry)
+            preserved_counts[normalized] = preserved_counts.get(normalized, 0) + 1
+    removed = {{
+        _agent_assure_normalized_executable(path)
+        for path in _AGENT_ASSURE_NO_SITE_PATHS
+    }}
+    filtered = []
+    for entry in sys.path:
+        normalized = _agent_assure_normalized_executable(entry)
+        if normalized in removed:
+            remaining = preserved_counts.get(normalized, 0)
+            if remaining:
+                preserved_counts[normalized] = remaining - 1
+                filtered.append(entry)
+            continue
+        filtered.append(entry)
+    sys.path[:] = filtered
+
+
+def _agent_assure_restore_original_pythonpath(original_entries):
+    if sys.flags.ignore_environment or not original_entries:
+        return
+    try:
+        restored = [os.path.abspath(entry or os.curdir) for entry in original_entries]
+    except (OSError, TypeError, ValueError) as exc:
+        raise SystemExit("post-R2 descendant original Python path is invalid") from exc
+    sys.path[:0] = restored
+
+
+def _agent_assure_chain_original_sitecustomize(original_entries):
+    if sys.flags.ignore_environment or not original_entries:
+        return
+    specification = importlib.machinery.PathFinder.find_spec(
+        "sitecustomize",
+        list(original_entries),
+    )
+    if specification is None or specification.loader is None:
+        return
+    origin = getattr(specification, "origin", None)
+    if origin is not None and _agent_assure_normalized_executable(
+        origin
+    ) == _agent_assure_normalized_executable(__file__):
+        return
+    chained = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(chained)
+
+
+_agent_assure_requested_no_site, _agent_assure_original_pythonpath = (
+    _agent_assure_startup_context()
+)
+
+
+_agent_assure_existing_marker = getattr(
+    subprocess,
+    "_agent_assure_s1_post_r2_launch_guard",
+    None,
+)
+if _agent_assure_existing_marker not in (None, _AGENT_ASSURE_MARKER):
+    raise SystemExit("conflicting post-R2 Python launch guard")
+if _agent_assure_existing_marker is None:
+    _AgentAssureOriginalPopen = subprocess.Popen
+
+    class _AgentAssureGovernedPopen(_AgentAssureOriginalPopen):
+        def __init__(self, *positional, **keywords):
+            if positional:
+                arguments = positional[0]
+                remaining = list(positional[1:])
+                keyword_arguments = False
+            elif "args" in keywords:
+                arguments = keywords["args"]
+                remaining = []
+                keyword_arguments = True
+            else:
+                super().__init__(*positional, **keywords)
+                return
+            explicit_executable = (
+                remaining[1]
+                if len(remaining) > 1
+                else keywords.get("executable")
+            )
+            shell = (
+                remaining[7]
+                if len(remaining) > 7
+                else keywords.get("shell", False)
+            )
+            guarded, is_governed, requested_no_site, guarded_executable = (
+                _agent_assure_guarded_arguments(
+                    arguments,
+                    explicit_executable,
+                    shell,
+                )
+            )
+            if is_governed:
+                environment = (
+                    remaining[9]
+                    if len(remaining) > 9
+                    else keywords.get("env")
+                )
+                guarded_environment = _agent_assure_guarded_environment(
+                    environment,
+                    requested_no_site,
+                )
+                if len(remaining) > 9:
+                    remaining[9] = guarded_environment
+                else:
+                    keywords["env"] = guarded_environment
+                if len(remaining) > 1:
+                    remaining[1] = guarded_executable
+                elif "executable" in keywords:
+                    keywords["executable"] = guarded_executable
+            if keyword_arguments:
+                keywords["args"] = guarded
+                super().__init__(**keywords)
+                return
+            super().__init__(
+                guarded,
+                *remaining,
+                **keywords,
+            )
+
+    subprocess.Popen = _AgentAssureGovernedPopen
+    subprocess._agent_assure_s1_post_r2_launch_guard = _AGENT_ASSURE_MARKER
+
+_agent_assure_installed_popen = subprocess.Popen
+_agent_assure_restore_original_pythonpath(_agent_assure_original_pythonpath)
+if _agent_assure_requested_no_site:
+    _agent_assure_apply_no_site_paths(_agent_assure_original_pythonpath)
+else:
+    _agent_assure_chain_original_sitecustomize(_agent_assure_original_pythonpath)
+if (
+    subprocess.Popen is not _agent_assure_installed_popen
+    or getattr(subprocess, "_agent_assure_s1_post_r2_launch_guard", None)
+    != _AGENT_ASSURE_MARKER
+):
+    raise SystemExit("post-R2 descendant Python launch guard was replaced")
+"""
+
+
+def _post_r2_safe_directory(path: Path, *, owner: str) -> os.stat_result:
+    """Require one exact, existing directory without link/reparse traversal."""
+
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise GovernanceError(f"{owner} is unavailable") from exc
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
+        raise GovernanceError(f"{owner} is not a safe directory")
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise GovernanceError(f"{owner} cannot be resolved safely") from exc
+    if _early_normalized_path(resolved) != _early_normalized_path(path):
+        raise GovernanceError(f"{owner} traverses a reparse point")
+    return metadata
+
+
+def _post_r2_process_temp_root() -> Path:
+    """Validate and return the configured external process-temp root."""
+
+    root = POST_R2_PROCESS_TEMP_ROOT
+    if not root.is_absolute():
+        raise GovernanceError("post-R2 process temporary root must be absolute")
+    _post_r2_safe_directory(root, owner="post-R2 process temporary root")
+    return root
+
+
+def _post_r2_validate_process_temp(
+    process_temp: Path,
+    *,
+    require_empty: bool,
+) -> None:
+    """Bind a process-temp directory to its safe governed root and prefix."""
+
+    root = _post_r2_process_temp_root()
+    if (
+        not process_temp.is_absolute()
+        or process_temp.parent != root
+        or not process_temp.name.startswith(POST_R2_PROCESS_TEMP_PREFIX)
+        or len(process_temp.name) <= len(POST_R2_PROCESS_TEMP_PREFIX)
+    ):
+        raise GovernanceError("post-R2 process temporary directory path changed")
+    _post_r2_safe_directory(
+        process_temp,
+        owner="post-R2 process temporary directory",
+    )
+    if require_empty and any(process_temp.iterdir()):
+        raise GovernanceError("post-R2 process temporary directory is not fresh")
+
+
+def _post_r2_delete_readonly_file_by_handle(
+    process_temp: Path,
+    candidate: Path,
+    relative: Path,
+    original_error: BaseException,
+) -> None:
+    """Delete one verified Windows read-only file through its pinned handle."""
+
+    if os.name != "nt":  # pragma: no cover - guarded by the callback on non-Windows hosts
+        raise original_error
+
+    import ctypes
+    from ctypes import wintypes
+
+    delete_access = 0x00010000
+    file_read_attributes = 0x00000080
+    file_write_attributes = 0x00000100
+    file_share_read = 0x00000001
+    file_share_write = 0x00000002
+    open_existing = 3
+    file_attribute_readonly = 0x00000001
+    file_attribute_directory = 0x00000010
+    file_attribute_reparse_point = 0x00000400
+    file_flag_backup_semantics = 0x02000000
+    file_flag_open_reparse_point = 0x00200000
+    file_type_disk = 0x0001
+    file_attribute_tag_info = 9
+    file_disposition_info_ex = 21
+    file_disposition_flag_delete = 0x00000001
+    file_disposition_flag_posix_semantics = 0x00000002
+    file_disposition_flag_force_image_section_check = 0x00000004
+    file_disposition_flag_ignore_readonly_attribute = 0x00000010
+    invalid_handle_value = wintypes.HANDLE(-1).value
+
+    class FileAttributeTagInfo(ctypes.Structure):
+        _fields_ = [
+            ("file_attributes", wintypes.DWORD),
+            ("reparse_tag", wintypes.DWORD),
+        ]
+
+    class FileDispositionInfoEx(ctypes.Structure):
+        _fields_ = [("flags", wintypes.DWORD)]
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    create_file = kernel32.CreateFileW
+    create_file.argtypes = [
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    ]
+    create_file.restype = wintypes.HANDLE
+    close_handle = kernel32.CloseHandle
+    close_handle.argtypes = [wintypes.HANDLE]
+    close_handle.restype = wintypes.BOOL
+    compare_string_ordinal = kernel32.CompareStringOrdinal
+    compare_string_ordinal.argtypes = [
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.LPCWSTR,
+        ctypes.c_int,
+        wintypes.BOOL,
+    ]
+    compare_string_ordinal.restype = ctypes.c_int
+    get_file_information = kernel32.GetFileInformationByHandleEx
+    get_file_information.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    ]
+    get_file_information.restype = wintypes.BOOL
+    get_file_type = kernel32.GetFileType
+    get_file_type.argtypes = [wintypes.HANDLE]
+    get_file_type.restype = wintypes.DWORD
+    get_final_path = kernel32.GetFinalPathNameByHandleW
+    get_final_path.argtypes = [
+        wintypes.HANDLE,
+        wintypes.LPWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+    ]
+    get_final_path.restype = wintypes.DWORD
+    set_file_information = kernel32.SetFileInformationByHandle
+    set_file_information.argtypes = [
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    ]
+    set_file_information.restype = wintypes.BOOL
+
+    def last_error(operation: str, path: Path) -> GovernanceError:
+        cause = ctypes.WinError(ctypes.get_last_error())
+        failure = GovernanceError(f"post-R2 cleanup could not {operation}: {path}")
+        failure.__cause__ = cause
+        return failure
+
+    @contextmanager
+    def opened_handle(
+        path: Path,
+        *,
+        desired_access: int,
+        share_access: int,
+        directory: bool,
+    ) -> Iterator[int]:
+        flags = file_flag_open_reparse_point
+        if directory:
+            flags |= file_flag_backup_semantics
+        handle = create_file(
+            os.fspath(path),
+            desired_access,
+            share_access,
+            None,
+            open_existing,
+            flags,
+            None,
+        )
+        if handle == invalid_handle_value:
+            raise last_error("open a pinned path", path)
+        try:
+            yield handle
+        except BaseException as primary:
+            if not close_handle(handle):
+                primary.add_note(str(last_error("close a pinned handle", path)))
+            raise
+        else:
+            if not close_handle(handle):
+                raise last_error("close a pinned handle", path)
+
+    def handle_attributes(handle: int, path: Path) -> int:
+        information = FileAttributeTagInfo()
+        if not get_file_information(
+            handle,
+            file_attribute_tag_info,
+            ctypes.byref(information),
+            ctypes.sizeof(information),
+        ):
+            raise last_error("read pinned-path attributes", path)
+        return int(information.file_attributes)
+
+    def handle_final_path(handle: int, path: Path) -> str:
+        capacity = 32_768
+        while True:
+            buffer = ctypes.create_unicode_buffer(capacity)
+            length = get_final_path(handle, buffer, capacity, 0)
+            if length == 0:
+                raise last_error("resolve a pinned path", path)
+            if length < capacity:
+                final_path = buffer.value
+                break
+            capacity = int(length)
+            if capacity > 65_536:
+                raise GovernanceError("post-R2 cleanup resolved path exceeds its safe bound")
+        if final_path.startswith("\\\\?\\UNC\\"):
+            final_path = "\\\\" + final_path[8:]
+        elif final_path.startswith("\\\\?\\"):
+            final_path = final_path[4:]
+        return final_path
+
+    def handle_path_matches(handle: int, path: Path) -> bool:
+        final_path = handle_final_path(handle, path)
+        expected_path = os.path.abspath(os.fspath(path))
+        comparison = int(compare_string_ordinal(final_path, -1, expected_path, -1, True))
+        if comparison == 0:
+            raise last_error("compare a pinned path", path)
+        return comparison == 2  # CSTR_EQUAL
+
+    governed_root = _post_r2_process_temp_root()
+    if _early_normalized_path(process_temp.parent) != _early_normalized_path(governed_root):
+        raise GovernanceError("post-R2 cleanup callback root changed")
+
+    directory_paths = [governed_root, process_temp]
+    current = process_temp
+    for part in relative.parts[:-1]:
+        current /= part
+        directory_paths.append(current)
+
+    with ExitStack() as pinned_directories:
+        for directory_path in directory_paths:
+            directory_handle = pinned_directories.enter_context(
+                opened_handle(
+                    directory_path,
+                    desired_access=file_read_attributes,
+                    # Omitting FILE_SHARE_DELETE pins every ancestor name.
+                    share_access=file_share_read | file_share_write,
+                    directory=True,
+                )
+            )
+            attributes = handle_attributes(directory_handle, directory_path)
+            if not attributes & file_attribute_directory:
+                raise GovernanceError("post-R2 cleanup candidate traverses a non-directory")
+            if attributes & file_attribute_reparse_point:
+                raise GovernanceError("post-R2 cleanup candidate traverses a reparse point")
+            if not handle_path_matches(directory_handle, directory_path):
+                raise GovernanceError("post-R2 cleanup directory resolved outside its lexical path")
+
+        with opened_handle(
+            candidate,
+            # FileDispositionInformationEx formally requires write-attribute
+            # access when IGNORE_READONLY_ATTRIBUTE is used; it does not
+            # rewrite the shared read-only attribute.
+            desired_access=delete_access | file_read_attributes | file_write_attributes,
+            # Cleanup starts only after pytest exits. Exclusive sharing makes
+            # a surviving reader/writer fail closed as a sharing violation.
+            share_access=0,
+            directory=False,
+        ) as candidate_handle:
+            attributes = handle_attributes(candidate_handle, candidate)
+            if get_file_type(candidate_handle) != file_type_disk:
+                raise GovernanceError("post-R2 cleanup candidate is not a disk file")
+            if attributes & (file_attribute_directory | file_attribute_reparse_point):
+                raise GovernanceError("post-R2 cleanup candidate is not a regular file")
+            if not attributes & file_attribute_readonly:
+                raise original_error
+            if not handle_path_matches(candidate_handle, candidate):
+                raise GovernanceError("post-R2 cleanup candidate resolved outside its lexical path")
+
+            disposition = FileDispositionInfoEx(
+                file_disposition_flag_delete
+                | file_disposition_flag_posix_semantics
+                | file_disposition_flag_force_image_section_check
+                | file_disposition_flag_ignore_readonly_attribute
+            )
+            if not set_file_information(
+                candidate_handle,
+                file_disposition_info_ex,
+                ctypes.byref(disposition),
+                ctypes.sizeof(disposition),
+            ):
+                raise last_error("delete a read-only file through its pinned handle", candidate)
+
+        try:
+            candidate.lstat()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            raise GovernanceError("post-R2 cleanup could not prove pinned-file deletion") from exc
+        else:
+            raise GovernanceError("post-R2 cleanup pinned-file deletion left the path present")
+
+
+def _post_r2_retry_readonly_unlink(
+    process_temp: Path,
+    function: Callable[..., Any],
+    raw_path: str,
+    error: BaseException,
+) -> None:
+    """Retry only a contained Windows read-only regular-file unlink."""
+
+    candidate = Path(raw_path)
+    try:
+        relative = candidate.relative_to(process_temp)
+    except ValueError as exc:
+        raise GovernanceError("post-R2 cleanup callback path leaves its governed root") from exc
+    if (
+        not isinstance(error, PermissionError)
+        or getattr(error, "winerror", None) != 5
+        or function is not os.unlink
+        or not candidate.is_absolute()
+        or not relative.parts
+        or any(part in {"", ".", ".."} or ":" in part for part in relative.parts)
+    ):
+        raise error
+    if os.name != "nt":
+        raise error
+
+    _post_r2_delete_readonly_file_by_handle(
+        process_temp,
+        candidate,
+        relative,
+        error,
+    )
+
+
+def _cleanup_post_r2_process_temp(process_temp: Path) -> None:
+    """Delete only a freshly revalidated governed process-temp tree."""
+
+    root = _post_r2_process_temp_root()
+    if (
+        not process_temp.is_absolute()
+        or process_temp.parent != root
+        or not process_temp.name.startswith(POST_R2_PROCESS_TEMP_PREFIX)
+        or len(process_temp.name) <= len(POST_R2_PROCESS_TEMP_PREFIX)
+    ):
+        raise GovernanceError("post-R2 process temporary cleanup path changed")
+    try:
+        process_temp.lstat()
+    except FileNotFoundError:
+        return
+    except OSError as exc:
+        raise GovernanceError("post-R2 process temporary cleanup path is unavailable") from exc
+    _post_r2_validate_process_temp(process_temp, require_empty=False)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(
+            process_temp,
+            onexc=lambda function, path, error: _post_r2_retry_readonly_unlink(
+                process_temp,
+                function,
+                path,
+                error,
+            ),
+        )
+    else:  # pragma: no cover - the accepted S1 runtime is frozen to Python 3.12
+        shutil.rmtree(
+            process_temp,
+            onerror=lambda function, path, error_info: _post_r2_retry_readonly_unlink(
+                process_temp,
+                function,
+                path,
+                error_info[1],
+            ),
+        )
+    try:
+        process_temp.lstat()
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise GovernanceError("post-R2 process temporary cleanup could not prove absence") from exc
+    else:
+        raise GovernanceError("post-R2 process temporary cleanup left the directory present")
+    _post_r2_process_temp_root()
+
+
+def _cleanup_post_r2_process_temp_after_failure(
+    process_temp: Path,
+    primary: BaseException,
+) -> None:
+    """Preserve a primary failure while making cleanup failure inspectable."""
+
+    try:
+        _cleanup_post_r2_process_temp(process_temp)
+    except BaseException as cleanup_error:
+        primary.add_note(
+            "post-R2 process temporary cleanup also failed: "
+            f"{type(cleanup_error).__name__}: {cleanup_error}"
+        )
+
+
+def _post_r2_descendant_runtime_payloads(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+) -> dict[str, bytes]:
+    """Derive the exact ephemeral venv used by every Python descendant."""
+
+    root = repository_root.resolve()
+    runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
+    descendant_python = runtime_root / "Scripts/python.exe"
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    configuration = (
+        f"home = {_FROZEN_PYTHON_ROOT}\n"
+        "implementation = CPython\n"
+        "version_info = 3.12.13.final.0\n"
+        "include-system-site-packages = false\n"
+        f"executable = {_FROZEN_PYTHON_EXECUTABLE}\n"
+    ).encode()
+    authenticated_paths = (f"{root / 'src'}\n{root}\n{root / '.venv/Lib/site-packages'}\n").encode()
+    startup_guard = _post_r2_descendant_sitecustomize_source(
+        descendant_python,
+        pycache_prefix,
+        repository_root=root,
+        site_packages=root / ".venv/Lib/site-packages",
+    ).encode("utf-8")
+    return {
+        "pyvenv.cfg": configuration,
+        f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_PATHS_FILE}": authenticated_paths,
+        f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_GUARD_FILE}": startup_guard,
+    }
+
+
+def _post_r2_descendant_runtime_record(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+) -> dict[str, Any]:
+    """Describe the exact derived runtime without requiring it to persist."""
+
+    runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
+    payloads = _post_r2_descendant_runtime_payloads(
+        repository_root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+
+    def file_record(relative_path: str) -> dict[str, Any]:
+        payload = payloads[relative_path]
+        return {
+            "absolute_path": str(runtime_root / Path(relative_path)),
+            "relative_path": relative_path,
+            "size_bytes": len(payload),
+            "sha256": raw_digest(payload),
+        }
+
+    return {
+        "format": "agent-assure-s1-post-r2-descendant-runtime/1",
+        "root": str(runtime_root),
+        "derivation": "fresh_exact_files_from_authenticated_base_and_test_runtime",
+        "tree_policy": "exact_regular_files_no_reparse_points",
+        "python_executable": {
+            "absolute_path": str(runtime_root / "Scripts/python.exe"),
+            "relative_path": "Scripts/python.exe",
+            "size_bytes": _FROZEN_PYTHON_EXECUTABLE_SIZE,
+            "sha256": "sha256:" + _FROZEN_PYTHON_EXECUTABLE_SHA256,
+        },
+        "pyvenv_configuration": file_record("pyvenv.cfg"),
+        "authenticated_paths": file_record(
+            f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_PATHS_FILE}"
+        ),
+        "startup_guard": file_record(f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_GUARD_FILE}"),
+    }
+
+
+def _verify_post_r2_descendant_runtime(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+    require_empty_user_temp: bool,
+) -> dict[str, Any]:
+    """Verify the derived runtime tree and fresh-cache invariants."""
+
+    _post_r2_validate_process_temp(process_temp, require_empty=False)
+    runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
+    user_temp = process_temp / POST_R2_PROCESS_USER_TEMP_DIRECTORY
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    expected_payloads = _post_r2_descendant_runtime_payloads(
+        repository_root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    descendant_python_relative = "Scripts/python.exe"
+    expected_paths = {*expected_payloads, descendant_python_relative}
+    expected_directories = set(POST_R2_DESCENDANT_RUNTIME_REQUIRED_DIRECTORIES)
+    observed_paths: set[str] = set()
+    observed_directories: set[str] = set()
+    for directory in (
+        runtime_root,
+        runtime_root / "Scripts",
+        runtime_root / "Lib",
+        runtime_root / "Lib/site-packages",
+        user_temp,
+    ):
+        _post_r2_safe_directory(
+            directory,
+            owner="post-R2 descendant runtime directory",
+        )
+    for candidate in runtime_root.rglob("*"):
+        relative = candidate.relative_to(runtime_root).as_posix()
+        metadata = candidate.lstat()
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if stat.S_ISLNK(metadata.st_mode) or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise GovernanceError("post-R2 descendant runtime contains a reparse point")
+        if stat.S_ISDIR(metadata.st_mode):
+            _post_r2_safe_directory(
+                candidate,
+                owner="post-R2 descendant runtime directory",
+            )
+            observed_directories.add(relative)
+            continue
+        if not stat.S_ISREG(metadata.st_mode):
+            raise GovernanceError("post-R2 descendant runtime contains a non-file")
+        observed_paths.add(relative)
+        payload = candidate.read_bytes()
+        if relative == descendant_python_relative:
+            valid_payload = (
+                len(payload) == _FROZEN_PYTHON_EXECUTABLE_SIZE
+                and hashlib.sha256(payload).hexdigest() == _FROZEN_PYTHON_EXECUTABLE_SHA256
+            )
+        else:
+            valid_payload = relative in expected_payloads and payload == expected_payloads[relative]
+        if not valid_payload:
+            raise GovernanceError("post-R2 descendant runtime bytes changed")
+    if observed_directories != expected_directories:
+        raise GovernanceError("post-R2 descendant runtime directory set changed")
+    if observed_paths != expected_paths:
+        raise GovernanceError("post-R2 descendant runtime file set changed")
+    if require_empty_user_temp and any(user_temp.iterdir()):
+        raise GovernanceError("post-R2 descendant user temporary directory is not fresh")
+    if pycache_prefix.exists() or pycache_prefix.is_symlink():
+        raise GovernanceError("post-R2 governed Python bytecode cache was materialized")
+    return _post_r2_descendant_runtime_record(
+        repository_root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+
+
+def _prepare_post_r2_descendant_runtime(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+) -> dict[str, Any]:
+    """Create and verify an exact ephemeral descendant virtual environment."""
+
+    try:
+        _post_r2_validate_process_temp(process_temp, require_empty=True)
+        runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
+        (runtime_root / "Scripts").mkdir(parents=True)
+        (runtime_root / "Lib/site-packages").mkdir(parents=True)
+        (process_temp / POST_R2_PROCESS_USER_TEMP_DIRECTORY).mkdir()
+        descendant_python = runtime_root / "Scripts/python.exe"
+        with descendant_python.open("xb") as handle:
+            handle.write(_FROZEN_PYTHON_EXECUTABLE.read_bytes())
+            handle.flush()
+            os.fsync(handle.fileno())
+        for relative_path, payload in _post_r2_descendant_runtime_payloads(
+            repository_root,
+            basetemp=basetemp,
+            process_temp=process_temp,
+        ).items():
+            target = runtime_root / Path(relative_path)
+            with target.open("xb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+        return _verify_post_r2_descendant_runtime(
+            repository_root,
+            basetemp=basetemp,
+            process_temp=process_temp,
+            require_empty_user_temp=True,
+        )
+    except BaseException as primary:
+        _cleanup_post_r2_process_temp_after_failure(process_temp, primary)
+        raise
+
+
+def _post_r2_pytest_bootstrap_source(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+) -> str:
+    """Return the fixed stdlib-only verifier that runs before pytest imports."""
+
+    process_temp_root = POST_R2_PROCESS_TEMP_ROOT
+    descendant_runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
+    descendant_python = descendant_runtime_root / "Scripts/python.exe"
+    descendant_user_temp = process_temp / POST_R2_PROCESS_USER_TEMP_DIRECTORY
+    descendant_payloads = _post_r2_descendant_runtime_payloads(
+        repository_root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    descendant_guard_relative = f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_GUARD_FILE}"
+    source = f"""\
+import hashlib
+import os
+import runpy
+import stat
+import sys
+from pathlib import Path
+
+if not (sys.flags.isolated and sys.flags.no_site and sys.flags.dont_write_bytecode):
+    raise RuntimeError("post-R2 Python isolation flags changed")
+if "site" in sys.modules:
+    raise RuntimeError("site imported before post-R2 runtime verification")
+
+repository_root = Path(sys.argv[1])
+source_root = Path(sys.argv[2])
+site_packages = Path(sys.argv[3])
+expected_pycache = Path(sys.argv[4])
+expected_surface_count = int(sys.argv[5])
+expected_surface_size = int(sys.argv[6])
+expected_surface_digest = sys.argv[7]
+pytest_arguments = sys.argv[8:]
+
+if Path(sys.pycache_prefix or "") != expected_pycache:
+    raise RuntimeError("post-R2 pycache prefix changed")
+
+runtime_rows = []
+for candidate in sorted(
+    site_packages.rglob("*"),
+    key=lambda value: value.as_posix().encode("utf-8"),
+):
+    relative = candidate.relative_to(site_packages)
+    if "__pycache__" in relative.parts:
+        continue
+    metadata = candidate.lstat()
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if candidate.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        raise RuntimeError(f"post-R2 runtime reparse point: {{relative.as_posix()}}")
+    if candidate.is_dir():
+        continue
+    if not candidate.is_file():
+        raise RuntimeError(f"post-R2 runtime non-file: {{relative.as_posix()}}")
+    if candidate.suffix.casefold() in {{".pyc", ".pyo"}}:
+        raise RuntimeError(f"post-R2 runtime direct bytecode: {{relative.as_posix()}}")
+    payload = candidate.read_bytes()
+    runtime_rows.append((relative.as_posix(), len(payload), hashlib.sha256(payload).digest()))
+runtime_rows.sort(key=lambda row: row[0].encode("utf-8"))
+runtime_digest = hashlib.sha256({POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN!r})
+for relative, size, file_digest in runtime_rows:
+    encoded = relative.encode("utf-8")
+    runtime_digest.update(len(encoded).to_bytes(8, "big"))
+    runtime_digest.update(encoded)
+    runtime_digest.update(size.to_bytes(8, "big"))
+    runtime_digest.update(file_digest)
+if (len(runtime_rows), sum(row[1] for row in runtime_rows), runtime_digest.hexdigest()) != (
+    {POST_R2_TEST_RUNTIME_FILE_COUNT},
+    {POST_R2_TEST_RUNTIME_SIZE_BYTES},
+    {POST_R2_TEST_RUNTIME_SHA256!r},
+):
+    raise RuntimeError("post-R2 authenticated site-packages inventory changed")
+
+exclude_path = repository_root / ".git/info/exclude"
+exclude_payload = exclude_path.read_bytes()
+if (len(exclude_payload), hashlib.sha256(exclude_payload).hexdigest()) != (
+    {POST_R2_GIT_EXCLUDE_SIZE_BYTES},
+    {POST_R2_GIT_EXCLUDE_SHA256!r},
+):
+    raise RuntimeError("post-R2 local-exclude policy changed")
+
+directory_roots = {POST_R2_TEST_AFFECTING_DIRECTORIES!r}
+tracked_root_files = {POST_R2_TRACKED_ROOT_FILES!r}
+root_configs = {POST_R2_ROOT_TEST_CONFIG_PATHS!r}
+surface_paths = set()
+
+def admit_surface_file(path, relative):
+    metadata = path.lstat()
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if path.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        raise RuntimeError(f"post-R2 test-surface reparse point: {{relative}}")
+    if not path.is_file():
+        raise RuntimeError(f"post-R2 test-surface non-file: {{relative}}")
+    if path.suffix.casefold() in {{".pyc", ".pyo"}}:
+        raise RuntimeError(f"post-R2 repository direct bytecode: {{relative}}")
+    surface_paths.add(relative)
+
+for name in tracked_root_files:
+    candidate = repository_root / name
+    if not candidate.exists() and not candidate.is_symlink():
+        raise RuntimeError(f"post-R2 tracked root file missing: {{name}}")
+    admit_surface_file(candidate, name)
+for name in root_configs:
+    candidate = repository_root / name
+    if candidate.exists() or candidate.is_symlink():
+        admit_surface_file(candidate, name)
+for candidate in repository_root.iterdir():
+    if (
+        candidate.name not in root_configs
+        and candidate.suffix.casefold() in {{".py", ".pyc", ".pyo"}}
+    ):
+        admit_surface_file(candidate, candidate.name)
+    if (
+        candidate.is_dir()
+        and not candidate.is_symlink()
+        and candidate.name.isidentifier()
+        and candidate.name not in directory_roots
+    ):
+        raise RuntimeError(f"post-R2 import-capable root directory: {{candidate.name}}")
+for top_level in directory_roots:
+    top = repository_root / top_level
+    if not top.is_dir() or top.is_symlink():
+        raise RuntimeError(f"post-R2 test-surface root changed: {{top_level}}")
+    for current, directories, files in os.walk(top, topdown=True):
+        current_path = Path(current)
+        retained = []
+        for name in sorted(directories, key=lambda value: value.encode("utf-8")):
+            child = current_path / name
+            relative = child.relative_to(repository_root).as_posix()
+            metadata = child.lstat()
+            attributes = getattr(metadata, "st_file_attributes", 0)
+            if child.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                raise RuntimeError(f"post-R2 test-surface reparse point: {{relative}}")
+            if name != "__pycache__":
+                retained.append(name)
+        directories[:] = retained
+        for name in sorted(files, key=lambda value: value.encode("utf-8")):
+            candidate = current_path / name
+            admit_surface_file(candidate, candidate.relative_to(repository_root).as_posix())
+
+surface_rows = []
+for relative in sorted(surface_paths, key=lambda value: value.encode("utf-8")):
+    payload = (repository_root / relative).read_bytes()
+    surface_rows.append((relative, len(payload), hashlib.sha256(payload).digest()))
+surface_digest = hashlib.sha256({POST_R2_TEST_SURFACE_INVENTORY_DOMAIN!r})
+for relative, size, file_digest in surface_rows:
+    encoded = relative.encode("utf-8")
+    surface_digest.update(len(encoded).to_bytes(8, "big"))
+    surface_digest.update(encoded)
+    surface_digest.update(size.to_bytes(8, "big"))
+    surface_digest.update(file_digest)
+if (
+    len(surface_rows),
+    sum(row[1] for row in surface_rows),
+    "sha256:" + surface_digest.hexdigest(),
+) != (expected_surface_count, expected_surface_size, expected_surface_digest):
+    raise RuntimeError("post-R2 authenticated repository test surface changed")
+
+process_temp_root = Path({str(process_temp_root)!r})
+process_temp = Path({str(process_temp)!r})
+descendant_runtime_root = Path({str(descendant_runtime_root)!r})
+descendant_python = Path({str(descendant_python)!r})
+descendant_user_temp = Path({str(descendant_user_temp)!r})
+pytest_basetemp = expected_pycache.parent
+expected_descendant_payloads = {descendant_payloads!r}
+descendant_python_relative = "Scripts/python.exe"
+
+def require_bound_directory(directory, owner):
+    metadata = directory.lstat()
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
+        raise RuntimeError(f"{{owner}} is not a safe directory")
+    resolved = directory.resolve(strict=True)
+    if os.path.normcase(os.path.abspath(resolved)) != os.path.normcase(
+        os.path.abspath(directory)
+    ):
+        raise RuntimeError(f"{{owner}} traverses a reparse point")
+
+if (
+    not process_temp_root.is_absolute()
+    or not process_temp.is_absolute()
+    or process_temp.parent != process_temp_root
+    or not process_temp.name.startswith({POST_R2_PROCESS_TEMP_PREFIX!r})
+    or len(process_temp.name) <= len({POST_R2_PROCESS_TEMP_PREFIX!r})
+    or descendant_runtime_root.parent != process_temp
+    or descendant_user_temp.parent != process_temp
+    or pytest_basetemp.parent != process_temp
+    or pytest_basetemp.name != {POST_R2_PYTEST_BASETEMP_DIRECTORY!r}
+    or pytest_basetemp.exists()
+    or pytest_basetemp.is_symlink()
+):
+    raise RuntimeError("post-R2 process temporary path binding changed")
+require_bound_directory(process_temp_root, "post-R2 process temporary root")
+require_bound_directory(process_temp, "post-R2 process temporary directory")
+if Path(os.environ.get("TEMP", "")) != descendant_user_temp:
+    raise RuntimeError("post-R2 descendant temporary directory changed")
+if os.environ.get("TMP") != os.environ.get("TEMP"):
+    raise RuntimeError("post-R2 descendant temporary directory aliases changed")
+for directory in (
+    descendant_runtime_root,
+    descendant_runtime_root / "Scripts",
+    descendant_runtime_root / "Lib",
+    descendant_runtime_root / "Lib/site-packages",
+    descendant_user_temp,
+):
+    require_bound_directory(directory, "post-R2 descendant runtime directory")
+observed_descendant_paths = set()
+observed_descendant_directories = set()
+for current, directories, files in os.walk(descendant_runtime_root, topdown=True):
+    current_path = Path(current)
+    for name in sorted(directories, key=lambda value: value.encode("utf-8")):
+        child = current_path / name
+        require_bound_directory(child, "post-R2 descendant runtime directory")
+        observed_descendant_directories.add(
+            child.relative_to(descendant_runtime_root).as_posix()
+        )
+    for name in sorted(files, key=lambda value: value.encode("utf-8")):
+        candidate = current_path / name
+        relative = candidate.relative_to(descendant_runtime_root).as_posix()
+        metadata = candidate.lstat()
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if (
+            not candidate.is_file()
+            or candidate.is_symlink()
+            or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        ):
+            raise RuntimeError("post-R2 descendant runtime non-regular file")
+        payload = candidate.read_bytes()
+        if relative == descendant_python_relative:
+            valid_payload = (
+                len(payload) == {_FROZEN_PYTHON_EXECUTABLE_SIZE}
+                and hashlib.sha256(payload).hexdigest()
+                == {_FROZEN_PYTHON_EXECUTABLE_SHA256!r}
+            )
+        else:
+            expected_payload = expected_descendant_payloads.get(relative)
+            valid_payload = expected_payload is not None and payload == expected_payload
+        if not valid_payload:
+            raise RuntimeError("post-R2 descendant runtime bytes changed")
+        observed_descendant_paths.add(relative)
+if observed_descendant_directories != set(
+    {POST_R2_DESCENDANT_RUNTIME_REQUIRED_DIRECTORIES!r}
+):
+    raise RuntimeError("post-R2 descendant runtime directory set changed")
+if observed_descendant_paths != {{*expected_descendant_payloads, descendant_python_relative}}:
+    raise RuntimeError("post-R2 descendant runtime file set changed")
+if expected_pycache.exists() or expected_pycache.is_symlink():
+    raise RuntimeError("post-R2 bytecode cache materialized before pytest")
+
+sys.executable = str(descendant_python)
+descendant_guard_source = expected_descendant_payloads[{descendant_guard_relative!r}]
+exec(
+    compile(
+        descendant_guard_source,
+        str(descendant_runtime_root / {descendant_guard_relative!r}),
+        "exec",
+    ),
+    {{
+        "__name__": "sitecustomize",
+        "__file__": str(descendant_runtime_root / {descendant_guard_relative!r}),
+        "_AGENT_ASSURE_BOOTSTRAP_INSTALL": True,
+    }},
+)
+sys.path[:0] = [str(source_root), str(repository_root), str(site_packages)]
+sys.argv = ["pytest", *pytest_arguments]
+runpy.run_module("pytest", run_name="__main__", alter_sys=True)
+"""
+    # Governance records reject control characters in canonical strings.  The
+    # actual ``-c`` argument is therefore one line whose repr-literal expands
+    # to the reviewed bootstrap only after the isolated interpreter starts.
+    return "exec(" + repr(source) + ")"
+
+
 PINNED_LOCK_DIGESTS: Final[dict[str, str]] = {
     "requirements.lock": "sha256:9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4",
     "requirements-langgraph.lock": (
@@ -467,6 +2103,8 @@ MAX_S1_VALIDITY: Final = timedelta(days=30)
 MAX_ACCEPTANCE_ATTESTATION_DELAY: Final = timedelta(hours=1)
 MAX_ROADMAP_BYTES: Final = 4 * 1024 * 1024
 MAX_GOVERNANCE_JSON_BYTES: Final = 8 * 1024 * 1024
+MAX_GIT_DIAGNOSTIC_CHARS: Final = 512
+MAX_OPENSSH_DIAGNOSTIC_CHARS: Final = 512
 
 BLOCK_PATTERN: Final = re.compile(
     r"^<!-- handoff:block ([a-z]+) ([^\n]+) -->\n"
@@ -479,10 +2117,18 @@ GIT_COMMIT_PATTERN: Final = re.compile(r"^[0-9a-f]{40}$")
 UTC_PATTERN: Final = re.compile(
     r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,6})?Z$"
 )
+CORRECTIVE_UTC_100NS_PATTERN: Final = re.compile(
+    r"^(?P<whole>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})"
+    r"(?:\.(?P<fraction>[0-9]{1,7}))?Z$"
+)
 
 
 class GovernanceError(ValueError):
     """Raised when a governance input or artifact violates the frozen contract."""
+
+
+class _GitBlobSemanticError(GovernanceError):
+    """A tree entry is absent or is not the exact regular blob requested."""
 
 
 @dataclass(frozen=True)
@@ -927,6 +2573,202 @@ def _resolve_aggregation_method(
     return matching[0]
 
 
+# Generation 2 deliberately has a separate, frozen estimation implementation.
+# Generation-1 builders and validators above and below remain available for the
+# signed historical closure.  In particular, no generation-2 record is ever
+# interpreted by a generation-1 digest domain.
+_FORECAST_V2_INPUT_RULE_IDS: Final = (
+    "covered-criterion-cardinality/v1",
+    "ticket-command-cardinality/v1",
+    "cumulative-active-profile-cardinality/v1",
+    "ticket-golden-case-cardinality/v1",
+    "ticket-normative-section-cardinality/v1",
+    "exact-occurrence-anchor/v1",
+    "evidence-receipt-instance-cardinality/v1",
+    "ticket-existing-anchor-cardinality/v1",
+    "ticket-change-role-cardinality/v1",
+    "artifact-operation-class/v1",
+    "release-entry-ticket-cardinality/v1",
+    "ticket-file-scope-cardinality/v1",
+    "structured-contract-key-cardinality/v1",
+    "ticket-dependency-cardinality/v1",
+    "empty-file-scope-indicator/v1",
+    "covered-work-package-cardinality/v1",
+    "assigned-work-package-edge-cardinality/v1",
+)
+_FORECAST_V2_QUANTITY_RULE_IDS: Final = (
+    "criteria-coverage-count/v1",
+    "work-package-count/v1",
+    "structured-contract-count/v1",
+    "bounded-surface-groups/v1",
+    "verification-obligation-count/v1",
+    "fixture-floor/v1",
+    "normative-groups/v1",
+    "receipt-instance-count/v1",
+    "integration-edge-floor/v1",
+    "release-operation-class/v1",
+    "cumulative-optional-profile-count/v1",
+    "unresolved-file-scope-indicator/v1",
+)
+_FORECAST_V2_WORK_UNITS: Final = (
+    ("WI-01", "acceptance_analysis_unit", 1, 2, 1),
+    ("WI-02", "work_package_design_unit", 2, 4, 1),
+    ("WI-03", "structured_contract_unit", 2, 5, 2),
+    ("WI-04", "implementation_surface_unit", 3, 7, 1),
+    ("WI-05", "verification_unit", 2, 5, 2),
+    ("WI-06", "fixture_vector_unit", 1, 3, 1),
+    ("WI-07", "documentation_trace_unit", 1, 2, 1),
+    ("WI-08", "evidence_receipt_unit", 1, 3, 2),
+    ("WI-09", "integration_edge_unit", 1, 3, 1),
+    ("WI-10", "release_operation_unit", 3, 8, 2),
+    ("WI-11", "cumulative_profile_control_unit", 2, 5, 2),
+    ("WI-12", "unresolved_scope_uncertainty_unit", 2, 10, 2),
+)
+
+
+def aggregation_method_registry_v2() -> dict[str, Any]:
+    """Return the exact generation-2, no-diversification aggregation registry."""
+
+    definition: dict[str, Any] = {
+        "format": "agent-assure-delivery-forecast-aggregation-method/2",
+        "method_id": METHOD_ID,
+        "version": "1.1.0",
+        "definition_digest_domain": METHOD_V2_DOMAIN,
+        "unit": "focused_person_hour",
+        "evaluated_quantile_ranks": [0.5, 0.9],
+        "quantile_definition": "Q_p(X)=inf{x:F_X(x)>=p}",
+        "effort_scope": {
+            "included": ["engineering_effort", "reviewer_effort"],
+            "excluded": ["elapsed_wait_time", "calendar_duration", "parallelism_discount"],
+        },
+        "dependence_model": {
+            "name": "full_positive_rank_dependence_no_diversification_credit",
+            "definition": (
+                "For every included workload component i, X_i=Q_i(U), where one U "
+                "distributed Uniform(0,1) is shared globally and every Q_i is a "
+                "nondecreasing generalized-inverse marginal quantile function."
+            ),
+            "independence_claimed": False,
+            "upper_bound_claimed": False,
+            "diversification_credit": "none",
+            "reviewer_effort_coupling": (
+                "Reviewer-effort P50 entries use the same shared-rank planning assumption; "
+                "only their additive P50 is reported."
+            ),
+        },
+        "aggregation": {
+            "aggregate_p50_effort_hours": {
+                "operation": "checked_integer_sum",
+                "source_field": "p50_effort_hours",
+                "quantile_rank": 0.5,
+            },
+            "aggregate_p90_effort_hours": {
+                "operation": "checked_integer_sum",
+                "source_field": "p90_effort_hours",
+                "quantile_rank": 0.9,
+            },
+            "aggregate_reviewer_effort_hours": {
+                "operation": "checked_integer_sum",
+                "source_field": "reviewer_p50_effort_hours",
+                "quantile_rank": 0.5,
+            },
+        },
+        "scenario_aggregation": {
+            "partition_field": "scenario_class",
+            "required_partitions": ["stable_core_committed", "optional_profile_planned"],
+            "full_portfolio_operation": ("checked_effort_and_occurrence_sum_with_ticket_id_union"),
+        },
+        "interpretation": [
+            (
+                "At the declared ranks, additive quantiles are mathematically exact only "
+                "under the stated comonotonic construction."
+            ),
+            (
+                "Full positive rank dependence gives no diversification credit; it is a "
+                "planning assumption, not a distribution-free bound or a claim that reality "
+                "is maximally dependent."
+            ),
+            (
+                "Two elicited ranks do not identify a complete marginal distribution, "
+                "confidence interval, or probability of meeting a calendar date."
+            ),
+            (
+                "Stable-core and optional-profile partitions are reported separately before "
+                "the full-portfolio sum."
+            ),
+            "Elapsed waits remain separate and cannot be added to person-hours.",
+        ],
+        "arithmetic": {
+            "input_type": "nonnegative integer hours",
+            "maximum_exact_integer": 2**53 - 1,
+            "rounding": "none after catalog unit multiplication",
+        },
+    }
+    method = {**definition, "definition_digest": domain_digest(METHOD_V2_DOMAIN, definition)}
+    projection = {
+        "format": "agent-assure-delivery-forecast-aggregation-registry/2",
+        "spec_revision": SPEC_REVISION,
+        "registry_digest_domain": METHOD_REGISTRY_V2_DOMAIN,
+        "methods": [method],
+    }
+    return {
+        **projection,
+        "registry_digest": domain_digest(METHOD_REGISTRY_V2_DOMAIN, projection),
+    }
+
+
+def validate_estimation_catalog_v2(catalog: Mapping[str, Any], schema: Mapping[str, Any]) -> None:
+    """Validate the frozen catalog without evaluating catalog expression strings."""
+
+    _validate_json_schema(catalog, schema, owner="delivery forecast estimation catalog")
+    projection = {key: value for key, value in catalog.items() if key != "catalog_digest"}
+    calculated = domain_digest(ESTIMATION_CATALOG_V2_DOMAIN, projection)
+    if catalog.get("catalog_digest") != calculated:
+        raise GovernanceError("estimation catalog digest mismatch")
+    if calculated != ESTIMATION_CATALOG_V2_DIGEST:
+        raise GovernanceError("estimation catalog differs from the frozen generation-2 catalog")
+    if catalog.get("format") != "agent-assure-delivery-forecast-estimation-catalog/1":
+        raise GovernanceError("estimation catalog format changed")
+    if catalog.get("model_revision") != "bottom-up-wbs/1":
+        raise GovernanceError("estimation catalog model revision changed")
+    derivation = _as_object(catalog.get("workload_derivation"), owner="workload derivation")
+    input_rules = _as_array(derivation.get("input_count_rules"), owner="input count rules")
+    quantity_rules = _as_array(derivation.get("quantity_rules"), owner="quantity rules")
+    observed_input_rule_ids = tuple(
+        _required_string(_as_object(rule, owner="input rule"), "rule_id") for rule in input_rules
+    )
+    if observed_input_rule_ids != _FORECAST_V2_INPUT_RULE_IDS:
+        raise GovernanceError("estimation catalog input rule IDs or order changed")
+    observed_quantity_rule_ids = tuple(
+        _required_string(_as_object(rule, owner="quantity rule"), "rule_id")
+        for rule in quantity_rules
+    )
+    if observed_quantity_rule_ids != _FORECAST_V2_QUANTITY_RULE_IDS:
+        raise GovernanceError("estimation catalog quantity rule IDs or order changed")
+    units = _as_array(catalog.get("work_unit_catalog"), owner="work unit catalog")
+    observed_units = tuple(
+        (
+            f"WI-{index:02d}",
+            _required_string(_as_object(unit, owner="work unit"), "unit_id"),
+            _required_integer(_as_object(unit, owner="work unit"), "p50_effort_hours"),
+            _required_integer(_as_object(unit, owner="work unit"), "p90_effort_hours"),
+            _required_integer(_as_object(unit, owner="work unit"), "reviewer_p50_effort_hours"),
+        )
+        for index, unit in enumerate(units, 1)
+    )
+    if observed_units != _FORECAST_V2_WORK_UNITS:
+        raise GovernanceError("estimation catalog work-unit identities or rates changed")
+
+
+def _resolve_aggregation_method_v2(registry: Mapping[str, Any]) -> dict[str, Any]:
+    expected = aggregation_method_registry_v2()
+    if dict(registry) != expected:
+        raise GovernanceError(
+            "generation-2 aggregation registry differs from its frozen definition"
+        )
+    return cast(dict[str, Any], expected["methods"][0])
+
+
 def release_occurrences(snapshot: RoadmapSnapshot) -> dict[str, list[tuple[str, str]]]:
     entries = _as_array(snapshot.release_train.get("entries"), owner="release-train.entries")
     occurrences: dict[str, list[tuple[str, str]]] = {
@@ -948,6 +2790,1608 @@ def release_occurrences(snapshot: RoadmapSnapshot) -> dict[str, list[tuple[str, 
     if missing:
         raise GovernanceError("tickets missing release occurrences: " + ", ".join(missing))
     return occurrences
+
+
+def _checked_forecast_v2_integer(value: int, *, owner: str) -> int:
+    if type(value) is not int or value < 0 or value > 2**53 - 1:
+        raise GovernanceError(f"{owner} is outside the nonnegative exact-integer range")
+    return value
+
+
+def _checked_forecast_v2_sum(values: Iterable[int], *, owner: str) -> int:
+    result = 0
+    for value in values:
+        _checked_forecast_v2_integer(value, owner=owner)
+        result += value
+        _checked_forecast_v2_integer(result, owner=owner)
+    return result
+
+
+def _checked_forecast_v2_multiply(left: int, right: int, *, owner: str) -> int:
+    _checked_forecast_v2_integer(left, owner=owner)
+    _checked_forecast_v2_integer(right, owner=owner)
+    return _checked_forecast_v2_integer(left * right, owner=owner)
+
+
+def _forecast_v2_occurrences(
+    snapshot: RoadmapSnapshot,
+) -> dict[str, list[tuple[int, dict[str, Any]]]]:
+    result: dict[str, list[tuple[int, dict[str, Any]]]] = {
+        _required_string(ticket, "id"): [] for ticket in snapshot.tickets
+    }
+    entries = _as_array(snapshot.release_train.get("entries"), owner="release-train.entries")
+    for entry_index, raw_entry in enumerate(entries, 1):
+        entry = _as_object(raw_entry, owner=f"release-train entry {entry_index}")
+        for ticket_id in _required_string_array(entry, "ticket_ids"):
+            if ticket_id not in result:
+                raise GovernanceError(f"release train references unknown ticket: {ticket_id}")
+            result[ticket_id].append((entry_index, entry))
+    if any(not values for values in result.values()):
+        raise GovernanceError("every roadmap ticket must have at least one release occurrence")
+    return result
+
+
+def _forecast_v2_source_obligations(
+    ticket: Mapping[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    ticket_id = _required_string(ticket, "id")
+    criteria: list[dict[str, Any]] = []
+    for index, criterion in enumerate(_required_string_array(ticket, "acceptance_criteria"), 1):
+        criteria.append(
+            {
+                "obligation_id": f"AC-{index:03d}",
+                "source_digest": domain_digest(
+                    ACCEPTANCE_CRITERION_SOURCE_DOMAIN,
+                    {
+                        "ticket_id": ticket_id,
+                        "criterion_index": index,
+                        "criterion": criterion,
+                    },
+                ),
+            }
+        )
+    packages: list[dict[str, Any]] = []
+    for raw_package in _as_array(
+        ticket.get("work_packages", []), owner=f"{ticket_id}.work_packages"
+    ):
+        package = _as_object(raw_package, owner=f"{ticket_id} work package")
+        packages.append(
+            {
+                "obligation_id": _required_string(package, "id"),
+                "source_digest": domain_digest(
+                    WORK_PACKAGE_SOURCE_DOMAIN,
+                    {"ticket_id": ticket_id, "work_package": package},
+                ),
+            }
+        )
+    return criteria, packages
+
+
+def _forecast_v2_count_contract_keys(value: object) -> int:
+    if isinstance(value, dict):
+        own = sum(
+            1
+            for key in value
+            if isinstance(key, str) and (key.endswith("_contract") or key.endswith("_contracts"))
+        )
+        return own + sum(_forecast_v2_count_contract_keys(item) for item in value.values())
+    if isinstance(value, list):
+        return sum(_forecast_v2_count_contract_keys(item) for item in value)
+    return 0
+
+
+_FORECAST_V2_WAIT_TOKENS: Final = frozenset(
+    {"wait", "elapsed", "window", "fresh", "freshness", "age", "before", "after", "duration"}
+)
+
+
+def _forecast_v2_source_contains_wait_token(value: object) -> bool:
+    strings: list[str] = []
+
+    def visit(item: object) -> None:
+        if isinstance(item, dict):
+            for key in sorted(item, key=_utf8_sort_key):
+                strings.append(key.lower())
+                visit(item[key])
+        elif isinstance(item, list):
+            for child in item:
+                visit(child)
+        elif isinstance(item, str):
+            strings.append(item.lower())
+
+    visit(value)
+    return any(
+        token in _FORECAST_V2_WAIT_TOKENS
+        for string in strings
+        for token in re.split("[^a-z]+", string)
+        if token
+    )
+
+
+def _forecast_v2_numeric_waits(
+    source: object,
+    *,
+    source_obligation_id: str,
+) -> list[dict[str, Any]]:
+    candidates: list[tuple[list[str | int], int]] = []
+
+    def visit(value: object, path: list[str | int]) -> None:
+        if isinstance(value, dict):
+            for key in sorted(value, key=_utf8_sort_key):
+                child = value[key]
+                child_path = [*path, key]
+                if key in {"minimum_elapsed_seconds", "minimum_observation_window_days"}:
+                    if isinstance(child, bool) or not isinstance(child, int | float):
+                        raise GovernanceError("elapsed wait source must be numeric")
+                    hours = Decimal(str(child))
+                    if key == "minimum_elapsed_seconds":
+                        hours /= Decimal(3600)
+                    else:
+                        hours *= Decimal(24)
+                    if not hours.is_finite() or hours < 0 or hours != hours.to_integral_value():
+                        raise GovernanceError(
+                            "elapsed wait source does not convert to integral hours"
+                        )
+                    candidates.append((child_path, int(hours)))
+                visit(child, child_path)
+        elif isinstance(value, list):
+            for index, child in enumerate(value):
+                visit(child, [*path, index])
+
+    visit(source, [])
+    waits: list[dict[str, Any]] = []
+    for index, (field_path, hours) in enumerate(candidates, 1):
+        digest = domain_digest(
+            ELAPSED_WAIT_REQUIREMENT_DOMAIN,
+            {
+                "source_obligation_id": source_obligation_id,
+                "field_path": field_path,
+                "source_value": _forecast_v2_value_at_path(source, field_path),
+            },
+        )
+        waits.append(
+            {
+                "wait_id": f"WAIT-{index:03d}",
+                "source_obligation_id": source_obligation_id,
+                "minimum_elapsed_hours": hours,
+                "requirement_digest": digest,
+            }
+        )
+    return waits
+
+
+def _forecast_v2_value_at_path(value: object, path: Sequence[str | int]) -> object:
+    current = value
+    for component in path:
+        if isinstance(component, str) and isinstance(current, dict):
+            current = current[component]
+        elif isinstance(component, int) and isinstance(current, list):
+            current = current[component]
+        else:
+            raise GovernanceError("invalid elapsed wait field path")
+    return current
+
+
+def _forecast_v2_receipt_instances(
+    ticket: Mapping[str, Any], assigned_packages: Sequence[Mapping[str, Any]], *, is_final: bool
+) -> int:
+    if assigned_packages:
+        batch_components = sum(
+            1
+            for package in assigned_packages
+            if "profile_admission_instance_id" in package
+            or "stable_core_renewal_instance_id" in package
+        )
+        if batch_components:
+            return batch_components + 1
+        result = 0
+        for package in assigned_packages:
+            singular = 1 if isinstance(package.get("completion_receipt_contract"), dict) else 0
+            plural_value = package.get("completion_receipt_contracts", [])
+            plural = len(plural_value) if isinstance(plural_value, list) else 0
+            result += max(1, singular + plural)
+        return result
+    scope = _required_string(
+        _as_object(
+            _as_object(ticket.get("delivery"), owner="ticket delivery").get("estimate"),
+            owner="ticket estimate",
+        ),
+        "scope",
+    )
+    if scope != "ticket_completion" or is_final:
+        return len(_required_string_array(ticket, "required_completion_receipts"))
+    return 0
+
+
+def _forecast_v2_release_anchor(entry: Mapping[str, Any]) -> str:
+    ticket_ids = _required_string_array(entry, "ticket_ids")
+    for candidate in ("V1-REL-02", "V1-REL-01", "V1-CAND-01", "V1-DIST-01"):
+        if candidate in ticket_ids:
+            return candidate
+    return ticket_ids[0]
+
+
+def _forecast_v2_release_operation_units(artifact_kind: str) -> int:
+    if artifact_kind == "governance-bundle":
+        return 1
+    if artifact_kind in {
+        "evidence-bundle",
+        "package-preview",
+        "staged-final-bytes",
+        "staged-profile-candidate",
+    }:
+        return 2
+    if artifact_kind in {"package-promotion", "exact-byte-profile-promotion"}:
+        return 3
+    raise GovernanceError(f"unknown release artifact kind: {artifact_kind}")
+
+
+def _forecast_v2_profile_count(ticket_id: str, train: str) -> int:
+    if ticket_id != "V1-REL-02":
+        return 0
+    mapping = {
+        "stable-1.0": 0,
+        "oscal-1.1": 1,
+        "otel-1.2": 2,
+        "statistics-1.3": 4,
+        "structural-1.4": 5,
+        "formal-1.5": 6,
+        "intervention-1.6": 7,
+    }
+    try:
+        return mapping[train]
+    except KeyError as exc:
+        raise GovernanceError(f"unknown release train: {train}") from exc
+
+
+def _forecast_v2_file_scope_observation(snapshot: RoadmapSnapshot) -> dict[str, Any]:
+    resolved = sum(1 for ticket in snapshot.tickets if ticket.get("resolved_allowed_files"))
+    return {
+        "ticket_count": len(snapshot.tickets),
+        "resolved_ticket_count": resolved,
+        "unresolved_ticket_count": len(snapshot.tickets) - resolved,
+        "evidence_basis": "roadmap_resolved_allowed_files_cardinality",
+        "interpretation": "unresolved_scope_not_zero_implementation_work",
+        "estimate_status": "nonbinding_placeholders_pending_dispatch_scope_resolution",
+        "rebaseline_trigger": (
+            "resolve_approved_file_scope_at_ticket_dispatch_and_reestimate_when_concrete_"
+            "surface_count_differs"
+        ),
+    }
+
+
+def build_authoring_ledger_v2(
+    snapshot: RoadmapSnapshot,
+    catalog: Mapping[str, Any],
+    *,
+    baseline_observations_digest_value: str,
+    inventory_completed_at: str,
+    decision_evidence: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build every generation-2 occurrence from digest-bound roadmap obligations.
+
+    Catalog expressions are explanatory text only.  All admitted rule IDs map
+    to the explicit Python operations below; there is no ``eval`` path.
+    """
+
+    if catalog.get("catalog_digest") != ESTIMATION_CATALOG_V2_DIGEST:
+        raise GovernanceError("generation-2 ledger requires the frozen estimation catalog")
+    if SHA256_PATTERN.fullmatch(baseline_observations_digest_value) is None:
+        raise GovernanceError("baseline observations digest is invalid")
+    _parse_utc(inventory_completed_at, owner="inventory_completed_at_utc")
+    occurrence_map = _forecast_v2_occurrences(snapshot)
+    entry_occurrence_counts: dict[str, int] = {}
+    rows: list[dict[str, Any]] = []
+
+    for ticket in snapshot.tickets:
+        ticket_id = _required_string(ticket, "id")
+        delivery = _as_object(ticket.get("delivery"), owner=f"{ticket_id}.delivery")
+        estimate = _as_object(delivery.get("estimate"), owner=f"{ticket_id}.delivery.estimate")
+        estimate_scope = _required_string(estimate, "scope")
+        ticket_occurrences = occurrence_map[ticket_id]
+        source_criteria, source_packages = _forecast_v2_source_obligations(ticket)
+        package_by_id = {
+            _required_string(_as_object(package, owner="work package"), "id"): _as_object(
+                package, owner="work package"
+            )
+            for package in _as_array(ticket.get("work_packages", []), owner="work packages")
+        }
+        criterion_values = _required_string_array(ticket, "acceptance_criteria")
+
+        prior = {
+            "unit": estimate.get("unit"),
+            "p50": estimate.get("p50"),
+            "p90": estimate.get("p90"),
+            "review_effort_p50_days": delivery.get("review_effort_p50_days"),
+            "confidence": estimate.get("confidence"),
+            "basis": estimate.get("basis"),
+        }
+        acceptance_set_projection = {
+            "ticket_id": ticket_id,
+            "obligations": copy.deepcopy(source_criteria),
+        }
+        work_package_set_projection = {
+            "ticket_id": ticket_id,
+            "obligations": copy.deepcopy(source_packages),
+        }
+        dependency_ids = _required_string_array(ticket, "depends_on")
+        dependency_projection = {"ticket_id": ticket_id, "depends_on": dependency_ids}
+        execution_proposals: list[dict[str, Any]] = []
+
+        for occurrence_index, (_entry_index, entry) in enumerate(ticket_occurrences, 1):
+            sprint = _required_string(entry, "sprint")
+            release = _required_string(entry, "release")
+            occurrence_id = f"{ticket_id}@{sprint}/{release}"
+            if occurrence_id in entry_occurrence_counts:
+                raise GovernanceError(f"duplicate forecast occurrence: {occurrence_id}")
+            entry_occurrence_counts[occurrence_id] = 1
+            if estimate_scope == "ticket_completion":
+                criterion_indices = [
+                    index
+                    for index in range(len(source_criteria))
+                    if index % len(ticket_occurrences) == occurrence_index - 1
+                ]
+                recurrence_binding = "ticket_lifecycle_once"
+            else:
+                criterion_indices = list(range(len(source_criteria)))
+                recurrence_binding = "once_per_occurrence"
+            assigned_package_ids = [
+                package["obligation_id"]
+                for package in source_packages
+                if _required_string(package_by_id[package["obligation_id"]], "planned_sprint")
+                == sprint
+            ]
+            assigned_packages = [package_by_id[value] for value in assigned_package_ids]
+            covered_criteria: list[dict[str, Any]] = []
+            covered_sources: list[tuple[str, object]] = []
+            for ordinal, source_index in enumerate(criterion_indices, 1):
+                source = source_criteria[source_index]
+                covered_criteria.append(
+                    {
+                        **source,
+                        "recurrence_binding": recurrence_binding,
+                        "primary_work_item_id": "WI-01",
+                        "primary_work_unit_ordinal": ordinal,
+                    }
+                )
+                covered_sources.append((source["obligation_id"], criterion_values[source_index]))
+            covered_packages: list[dict[str, Any]] = []
+            for ordinal, package_id in enumerate(assigned_package_ids, 1):
+                source = next(
+                    item for item in source_packages if item["obligation_id"] == package_id
+                )
+                covered_packages.append(
+                    {
+                        **source,
+                        "recurrence_binding": "work_package_once_at_declared_sprint",
+                        "primary_work_item_id": "WI-02",
+                        "primary_work_unit_ordinal": ordinal,
+                    }
+                )
+                covered_sources.append((package_id, package_by_id[package_id]))
+            occurrence_projection = {
+                "ticket_id": ticket_id,
+                "sprint": sprint,
+                "release": release,
+            }
+            coverage_projection = {
+                "acceptance_criteria": covered_criteria,
+                "work_packages": covered_packages,
+                "occurrence_anchor_digest": domain_digest(
+                    RELEASE_OCCURRENCE_SOURCE_DOMAIN, occurrence_projection
+                ),
+                "occurrence_anchor_work_item_id": "WI-09",
+                "occurrence_anchor_work_unit_ordinal": 1,
+            }
+            coverage = {
+                **coverage_projection,
+                "coverage_digest": domain_digest(
+                    OBLIGATION_COVERAGE_V2_DOMAIN, coverage_projection
+                ),
+            }
+
+            is_first = occurrence_index == 1
+            is_final = occurrence_index == len(ticket_occurrences)
+            entry_anchor = _forecast_v2_release_anchor(entry)
+            workload_vector = {
+                "acceptance_criterion_coverage_count": len(covered_criteria),
+                "acceptance_command_count": len(
+                    _required_string_array(ticket, "acceptance_commands")
+                ),
+                "cumulative_optional_profile_count": _forecast_v2_profile_count(
+                    ticket_id, _required_string(entry, "train")
+                ),
+                "evidence_receipt_instance_count": _forecast_v2_receipt_instances(
+                    ticket, assigned_packages, is_final=is_final
+                ),
+                "existing_anchor_count": (
+                    len(_required_string_array(ticket, "existing_anchors_to_verify"))
+                    if is_first
+                    else 0
+                ),
+                "golden_case_count": len(_required_string_array(ticket, "golden_case_ids")),
+                "normative_section_count": (
+                    len(_required_string_array(ticket, "normative_sections")) if is_first else 0
+                ),
+                "occurrence_anchor_count": 1,
+                "proposed_change_role_count": (
+                    len(_required_string_array(ticket, "proposed_change_roles")) if is_first else 0
+                ),
+                "release_operation_class_units": (
+                    _forecast_v2_release_operation_units(_required_string(entry, "artifact_kind"))
+                    if ticket_id == entry_anchor
+                    else 0
+                ),
+                "release_surface_count": (
+                    len(_required_string_array(entry, "ticket_ids"))
+                    if ticket_id == entry_anchor
+                    else 0
+                ),
+                "resolved_allowed_file_count": (
+                    len(_required_string_array(ticket, "resolved_allowed_files")) if is_first else 0
+                ),
+                "structured_contract_count": (
+                    sum(_forecast_v2_count_contract_keys(package) for package in assigned_packages)
+                    + (
+                        _forecast_v2_count_contract_keys(
+                            {key: value for key, value in ticket.items() if key != "work_packages"}
+                        )
+                        if is_first
+                        else 0
+                    )
+                ),
+                "ticket_dependency_count": len(dependency_ids),
+                "unresolved_file_scope_indicator": (
+                    1
+                    if is_first and not _required_string_array(ticket, "resolved_allowed_files")
+                    else 0
+                ),
+                "work_package_coverage_count": len(covered_packages),
+                "work_package_dependency_count": sum(
+                    len(
+                        _required_string_array(package, "depends_on_work_package_ids")
+                        if "depends_on_work_package_ids" in package
+                        else []
+                    )
+                    for package in assigned_packages
+                ),
+            }
+            workload_digest = domain_digest(WORKLOAD_VECTOR_V2_DOMAIN, workload_vector)
+            quantities = (
+                workload_vector["acceptance_criterion_coverage_count"],
+                workload_vector["work_package_coverage_count"],
+                workload_vector["structured_contract_count"],
+                math.ceil(
+                    (
+                        workload_vector["resolved_allowed_file_count"]
+                        + workload_vector["existing_anchor_count"]
+                        + workload_vector["proposed_change_role_count"]
+                        + workload_vector["work_package_coverage_count"]
+                    )
+                    / 4
+                ),
+                max(
+                    1,
+                    workload_vector["acceptance_criterion_coverage_count"]
+                    + workload_vector["acceptance_command_count"]
+                    + workload_vector["golden_case_count"],
+                ),
+                max(1, workload_vector["golden_case_count"]),
+                math.ceil(workload_vector["normative_section_count"] / 4),
+                workload_vector["evidence_receipt_instance_count"],
+                max(
+                    1,
+                    workload_vector["ticket_dependency_count"]
+                    + workload_vector["work_package_dependency_count"]
+                    + workload_vector["release_surface_count"],
+                ),
+                workload_vector["release_operation_class_units"],
+                workload_vector["cumulative_optional_profile_count"],
+                workload_vector["unresolved_file_scope_indicator"],
+            )
+            work_breakdown: list[dict[str, Any]] = []
+            for unit, quantity in zip(_FORECAST_V2_WORK_UNITS, quantities, strict=True):
+                if quantity == 0:
+                    continue
+                work_item_id, unit_id, p50_rate, p90_rate, reviewer_rate = unit
+                work_breakdown.append(
+                    {
+                        "work_item_id": work_item_id,
+                        "unit_id": unit_id,
+                        "quantity": quantity,
+                        "p50_effort_hours": _checked_forecast_v2_multiply(
+                            quantity, p50_rate, owner=f"{occurrence_id} P50"
+                        ),
+                        "p90_effort_hours": _checked_forecast_v2_multiply(
+                            quantity, p90_rate, owner=f"{occurrence_id} P90"
+                        ),
+                        "reviewer_p50_effort_hours": _checked_forecast_v2_multiply(
+                            quantity, reviewer_rate, owner=f"{occurrence_id} reviewer P50"
+                        ),
+                    }
+                )
+            effort = {
+                "p50_effort_hours": _checked_forecast_v2_sum(
+                    (item["p50_effort_hours"] for item in work_breakdown),
+                    owner=f"{occurrence_id} P50",
+                ),
+                "p90_effort_hours": _checked_forecast_v2_sum(
+                    (item["p90_effort_hours"] for item in work_breakdown),
+                    owner=f"{occurrence_id} P90",
+                ),
+                "reviewer_p50_effort_hours": _checked_forecast_v2_sum(
+                    (item["reviewer_p50_effort_hours"] for item in work_breakdown),
+                    owner=f"{occurrence_id} reviewer P50",
+                ),
+            }
+            known_waits: list[dict[str, Any]] = []
+            unquantified = 0
+            for source_id, source_value in covered_sources:
+                waits = _forecast_v2_numeric_waits(source_value, source_obligation_id=source_id)
+                for wait in waits:
+                    wait["wait_id"] = f"WAIT-{len(known_waits) + 1:03d}"
+                    known_waits.append(wait)
+                if not waits and _forecast_v2_source_contains_wait_token(source_value):
+                    unquantified += 1
+            elapsed_time = {
+                "included_in_effort_quantiles": False,
+                "known_wait_requirements": known_waits,
+                "maximum_single_known_wait_hours": max(
+                    (wait["minimum_elapsed_hours"] for wait in known_waits), default=0
+                ),
+                "serial_sum_known_wait_hours": _checked_forecast_v2_sum(
+                    (wait["minimum_elapsed_hours"] for wait in known_waits),
+                    owner=f"{occurrence_id} waits",
+                ),
+                "unquantified_wait_dependency_count": unquantified,
+                "critical_path_status": "not_modeled_pending_human_review",
+            }
+            proposal_projection = {
+                "occurrence_id": occurrence_id,
+                "occurrence_index": occurrence_index,
+                "sprint": sprint,
+                "release": release,
+                "release_train_entry_digest": domain_digest(
+                    RELEASE_TRAIN_ENTRY_SOURCE_DOMAIN, entry
+                ),
+                "scenario_class": (
+                    "stable_core_committed"
+                    if _required_string(entry, "train") == "stable-1.0"
+                    else "optional_profile_planned"
+                ),
+                "derivation_disposition": "reestimated_after_inventory",
+                "obligation_coverage": coverage,
+                "workload_vector": workload_vector,
+                "workload_vector_digest": workload_digest,
+                "work_breakdown": work_breakdown,
+                "effort_proposal": effort,
+                "elapsed_time": elapsed_time,
+            }
+            proposal = {
+                **proposal_projection,
+                "proposal_digest": domain_digest(
+                    OCCURRENCE_PROPOSAL_V2_DOMAIN, proposal_projection
+                ),
+                "decision": {
+                    "status": "pending_explicit_human_review",
+                    "selected_p50_effort_hours": None,
+                    "selected_p90_effort_hours": None,
+                    "selected_reviewer_effort_hours": None,
+                    "reviewed_by_person_id": None,
+                    "reviewed_at_utc": None,
+                    "rationale": None,
+                },
+            }
+            execution_proposals.append(proposal)
+
+        rows.append(
+            {
+                "ticket_id": ticket_id,
+                "estimate_scope": estimate_scope,
+                "roadmap_prior_evidence": {
+                    "basis": "provisional_before_V1-BASE-01",
+                    "source_digest": domain_digest(
+                        ESTIMATE_PRIOR_SOURCE_DOMAIN,
+                        {"ticket_id": ticket_id, "prior": prior},
+                    ),
+                    "disposition": "stale_not_used_as_anchor",
+                    "used_in_proposal": False,
+                },
+                "source_anchors": {
+                    "acceptance_criteria_count": len(source_criteria),
+                    "acceptance_criteria_set_digest": domain_digest(
+                        ACCEPTANCE_CRITERIA_SET_DOMAIN, acceptance_set_projection
+                    ),
+                    "work_package_count": len(source_packages),
+                    "work_package_set_digest": domain_digest(
+                        WORK_PACKAGE_SET_DOMAIN, work_package_set_projection
+                    ),
+                    "delivery_digest": domain_digest(
+                        TICKET_DELIVERY_SOURCE_DOMAIN,
+                        {"ticket_id": ticket_id, "delivery": delivery},
+                    ),
+                },
+                "coverage_contract": {
+                    "acceptance_recurrence": (
+                        "ticket_lifecycle_once"
+                        if estimate_scope == "ticket_completion"
+                        else "once_per_occurrence"
+                    ),
+                    "required_acceptance_coverage_count": (
+                        len(source_criteria)
+                        if estimate_scope == "ticket_completion"
+                        else len(source_criteria) * len(ticket_occurrences)
+                    ),
+                    "required_work_package_coverage_count": len(source_packages),
+                    "required_occurrence_anchor_count": len(ticket_occurrences),
+                },
+                "dependency_anchor": {
+                    "ticket_ids": dependency_ids,
+                    "dependency_digest": domain_digest(
+                        TICKET_DEPENDENCIES_SOURCE_DOMAIN, dependency_projection
+                    ),
+                },
+                "derivation_disposition": "reestimated_after_inventory",
+                "proposal_epistemic_status": ("uncalibrated_machine_proposal_pending_human_review"),
+                "row_decision": {
+                    "status": "pending_explicit_human_review",
+                    "reviewed_by_person_id": None,
+                    "reviewed_at_utc": None,
+                    "rationale": None,
+                },
+                "execution_proposals": execution_proposals,
+            }
+        )
+
+    projection: dict[str, Any] = {
+        "format": "agent-assure-delivery-forecast-authoring-ledger/2",
+        "spec_revision": SPEC_REVISION,
+        "roadmap_digest": snapshot.raw_digest,
+        "ticket_set_digest": snapshot.ticket_set_digest,
+        "release_train_digest": snapshot.release_train_digest,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "baseline_observations_digest": baseline_observations_digest_value,
+        "inventory_completed_at_utc": inventory_completed_at,
+        "estimation_catalog_digest": ESTIMATION_CATALOG_V2_DIGEST,
+        "file_scope_observation": _forecast_v2_file_scope_observation(snapshot),
+        "proposal_preparer_kind": "llm_implementation_agent",
+        "proposal_authority": "machine_authored_nonbinding",
+        "human_review_requirement": "every_row_and_occurrence",
+        "decision_evidence": copy.deepcopy(decision_evidence),
+        "rows": rows,
+    }
+    return {**projection, "ledger_digest": domain_digest(LEDGER_V2_DOMAIN, projection)}
+
+
+def _ledger_v2_digest(ledger: Mapping[str, Any]) -> str:
+    return domain_digest(
+        LEDGER_V2_DOMAIN,
+        {key: value for key, value in ledger.items() if key != "ledger_digest"},
+    )
+
+
+def build_forecast_decision_manifest_v2(
+    pending_ledger: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Create one ordered, itemized decision over every row and occurrence."""
+
+    if pending_ledger.get("decision_evidence") is not None:
+        raise GovernanceError("decision manifest must be built from the pending proposal ledger")
+    rows = _as_array(pending_ledger.get("rows"), owner="decision source rows")
+    items: list[dict[str, Any]] = []
+    occurrence_count = 0
+    for raw_row in rows:
+        row = _as_object(raw_row, owner="decision source row")
+        ticket_id = _required_string(row, "ticket_id")
+        proposals = _as_array(row.get("execution_proposals"), owner=f"{ticket_id} proposals")
+        anchors = _as_object(row.get("source_anchors"), owner=f"{ticket_id} source anchors")
+        dependencies = _as_object(
+            row.get("dependency_anchor"), owner=f"{ticket_id} dependency anchor"
+        )
+        items.append(
+            {
+                "item_kind": "ticket_row",
+                "ticket_id": ticket_id,
+                "decision_status": "human_accepted",
+                "selection_mode": "adopt_machine_proposal",
+                "source_anchor_digest_tuple": [
+                    anchors["acceptance_criteria_set_digest"],
+                    anchors["work_package_set_digest"],
+                    anchors["delivery_digest"],
+                    dependencies["dependency_digest"],
+                ],
+                "occurrence_count": len(proposals),
+                "rationale": (
+                    f"Adopt the enumerated {ticket_id} bottom-up proposal after reviewing "
+                    f"{anchors['acceptance_criteria_count']} acceptance criteria, "
+                    f"{anchors['work_package_count']} work packages, and {len(proposals)} "
+                    "release-train occurrences; the values remain subjective planning "
+                    "quantiles and unresolved file scope triggers dispatch rebaselining."
+                ),
+            }
+        )
+        for raw_proposal in proposals:
+            proposal = _as_object(raw_proposal, owner=f"{ticket_id} proposal")
+            coverage = _as_object(proposal.get("obligation_coverage"), owner="proposal coverage")
+            effort = _as_object(proposal.get("effort_proposal"), owner="proposal effort")
+            work_breakdown = _as_array(
+                proposal.get("work_breakdown"), owner="proposal work breakdown"
+            )
+            items.append(
+                {
+                    "item_kind": "execution_occurrence",
+                    "ticket_id": ticket_id,
+                    "occurrence_id": proposal["occurrence_id"],
+                    "occurrence_index": proposal["occurrence_index"],
+                    "scenario_class": proposal["scenario_class"],
+                    "decision_status": "human_accepted",
+                    "selection_mode": "adopt_machine_proposal",
+                    "coverage_digest": coverage["coverage_digest"],
+                    "workload_vector_digest": proposal["workload_vector_digest"],
+                    "work_breakdown_digest": domain_digest(
+                        "agent-assure:delivery-forecast-work-breakdown/v2",
+                        work_breakdown,
+                    ),
+                    "proposal_digest": proposal["proposal_digest"],
+                    "selected_p50_effort_hours": effort["p50_effort_hours"],
+                    "selected_p90_effort_hours": effort["p90_effort_hours"],
+                    "selected_reviewer_effort_hours": effort["reviewer_p50_effort_hours"],
+                    "elapsed_wait_included": False,
+                    "rationale": (
+                        f"Adopt {proposal['occurrence_id']} exactly as itemized: "
+                        f"{len(coverage['acceptance_criteria'])} acceptance obligations, "
+                        f"{len(coverage['work_packages'])} work packages, and "
+                        f"{len(work_breakdown)} nonzero WBS line items under the frozen "
+                        "no-diversification method; elapsed waits remain excluded."
+                    ),
+                }
+            )
+            occurrence_count += 1
+    projection = {
+        "format": "agent-assure-delivery-forecast-decision-manifest/2",
+        "spec_revision": SPEC_REVISION,
+        "roadmap_digest": pending_ledger["roadmap_digest"],
+        "proposal_ledger_digest": pending_ledger["ledger_digest"],
+        "estimation_catalog_digest": pending_ledger["estimation_catalog_digest"],
+        "decision_authority": {
+            "person_id": "acblabs",
+            "role": "repository_maintainer",
+            "approval_mode": "maintainer_development",
+        },
+        "shared_decision_basis": "maintainer_adoption_of_enumerated_machine_proposals",
+        "ticket_row_count": len(rows),
+        "execution_occurrence_count": occurrence_count,
+        "items": items,
+    }
+    return {
+        **projection,
+        "manifest_digest": domain_digest(FORECAST_DECISION_MANIFEST_V2_DOMAIN, projection),
+    }
+
+
+def _apply_forecast_decision_manifest_v2(
+    pending_ledger: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+    signature_envelope: Mapping[str, Any],
+) -> dict[str, Any]:
+    expected_manifest = build_forecast_decision_manifest_v2(pending_ledger)
+    if dict(manifest) != expected_manifest:
+        raise GovernanceError("forecast decision manifest differs from the exact itemized proposal")
+    manifest_digest = _required_string(manifest, "manifest_digest")
+    _validate_signature_envelope_v2(
+        signature_envelope,
+        expected_person_id="acblabs",
+        expected_role="repository_maintainer",
+        expected_subject_digest=manifest_digest,
+        allow_pending=False,
+        owner="forecast batch decision",
+    )
+    result = copy.deepcopy(dict(pending_ledger))
+    items = _as_array(manifest.get("items"), owner="forecast decision items")
+    cursor = 0
+    for row in cast(list[dict[str, Any]], result["rows"]):
+        row_item = _as_object(items[cursor], owner="forecast row decision")
+        cursor += 1
+        row["row_decision"] = {
+            "status": "human_accepted",
+            "reviewed_by_person_id": "acblabs",
+            "reviewed_at_utc": None,
+            "rationale": row_item["rationale"],
+        }
+        row["proposal_epistemic_status"] = (
+            "human_adopted_subjective_planning_quantiles_unresolved_scope_rebaseline_required"
+        )
+        for proposal in cast(list[dict[str, Any]], row["execution_proposals"]):
+            item = _as_object(items[cursor], owner="forecast occurrence decision")
+            cursor += 1
+            proposal["elapsed_time"]["critical_path_status"] = (
+                "not_modeled_scope_rebaseline_required"
+            )
+            proposal["decision"] = {
+                "status": "human_accepted",
+                "selected_p50_effort_hours": item["selected_p50_effort_hours"],
+                "selected_p90_effort_hours": item["selected_p90_effort_hours"],
+                "selected_reviewer_effort_hours": item["selected_reviewer_effort_hours"],
+                "reviewed_by_person_id": "acblabs",
+                "reviewed_at_utc": None,
+                "rationale": item["rationale"],
+            }
+    if cursor != len(items):
+        raise GovernanceError("forecast decision manifest has trailing or missing items")
+    result["decision_evidence"] = {
+        "decision_manifest_digest": manifest_digest,
+        "shared_decision_basis": manifest["shared_decision_basis"],
+        "signature_envelope": copy.deepcopy(dict(signature_envelope)),
+    }
+    result["ledger_digest"] = _ledger_v2_digest(result)
+    return result
+
+
+def validate_authoring_ledger_v2(
+    snapshot: RoadmapSnapshot,
+    ledger: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    catalog: Mapping[str, Any],
+    *,
+    baseline_observations: Mapping[str, Any],
+    allow_pending: bool,
+) -> None:
+    _validate_json_schema(ledger, schema, owner="generation-2 forecast authoring ledger")
+    expected_pending = build_authoring_ledger_v2(
+        snapshot,
+        catalog,
+        baseline_observations_digest_value=_required_string(
+            baseline_observations, "observations_digest"
+        ),
+        inventory_completed_at=_required_string(
+            baseline_observations, "inventory_completed_at_utc"
+        ),
+    )
+    evidence = ledger.get("decision_evidence")
+    if evidence is None:
+        if not allow_pending:
+            raise GovernanceError("forecast authoring ledger decisions are pending")
+        if dict(ledger) != expected_pending:
+            raise GovernanceError("pending authoring ledger does not exactly recompute")
+    else:
+        decision_evidence = _as_object(evidence, owner="decision evidence")
+        manifest = build_forecast_decision_manifest_v2(expected_pending)
+        if decision_evidence.get("decision_manifest_digest") != manifest["manifest_digest"]:
+            raise GovernanceError("authoring ledger decision manifest digest mismatch")
+        expected = _apply_forecast_decision_manifest_v2(
+            expected_pending,
+            manifest,
+            _as_object(
+                decision_evidence.get("signature_envelope"),
+                owner="decision signature envelope",
+            ),
+        )
+        if dict(ledger) != expected:
+            raise GovernanceError("decided authoring ledger does not exactly recompute")
+    if ledger.get("ledger_digest") != _ledger_v2_digest(ledger):
+        raise GovernanceError("generation-2 authoring ledger digest mismatch")
+    rows = _as_array(ledger.get("rows"), owner="authoring ledger rows")
+    occurrence_total = sum(
+        len(
+            _as_array(
+                _as_object(row, owner="ledger row").get("execution_proposals"),
+                owner="execution proposals",
+            )
+        )
+        for row in rows
+    )
+    if len(rows) != 68 or occurrence_total != 121:
+        raise GovernanceError("authoring ledger must contain exactly 68 rows and 121 occurrences")
+    source_acceptance = sum(
+        _required_integer(
+            _as_object(row, owner="ledger row")["source_anchors"],
+            "acceptance_criteria_count",
+        )
+        for row in rows
+    )
+    source_packages = sum(
+        _required_integer(
+            _as_object(row, owner="ledger row")["source_anchors"],
+            "work_package_count",
+        )
+        for row in rows
+    )
+    if (source_acceptance, source_packages) != (360, 102):
+        raise GovernanceError("roadmap source inventory must contain exactly 360 ACs and 102 WPs")
+    covered_acceptance = sum(
+        len(
+            _as_array(
+                _as_object(
+                    _as_object(proposal, owner="proposal").get("obligation_coverage"),
+                    owner="obligation coverage",
+                ).get("acceptance_criteria"),
+                owner="covered acceptance criteria",
+            )
+        )
+        for row in rows
+        for proposal in _as_array(
+            _as_object(row, owner="ledger row").get("execution_proposals"),
+            owner="execution proposals",
+        )
+    )
+    covered_packages = sum(
+        len(
+            _as_array(
+                _as_object(
+                    _as_object(proposal, owner="proposal").get("obligation_coverage"),
+                    owner="obligation coverage",
+                ).get("work_packages"),
+                owner="covered work packages",
+            )
+        )
+        for row in rows
+        for proposal in _as_array(
+            _as_object(row, owner="ledger row").get("execution_proposals"),
+            owner="execution proposals",
+        )
+    )
+    if (covered_acceptance, covered_packages) != (745, 102):
+        raise GovernanceError("ledger coverage must contain exactly 745 AC and 102 WP instances")
+    release_anchor_count = sum(
+        1
+        for row in rows
+        for proposal in _as_array(
+            _as_object(row, owner="ledger row").get("execution_proposals"),
+            owner="execution proposals",
+        )
+        if _as_object(proposal, owner="proposal")["workload_vector"][
+            "release_operation_class_units"
+        ]
+        > 0
+    )
+    if release_anchor_count != 39:
+        raise GovernanceError("each release entry must have exactly one release-operation anchor")
+    proposals = [
+        _as_object(proposal, owner="execution proposal")
+        for row in rows
+        for proposal in _as_array(
+            _as_object(row, owner="ledger row").get("execution_proposals"),
+            owner="execution proposals",
+        )
+    ]
+    waits = [
+        _as_object(wait, owner="known wait")
+        for proposal in proposals
+        for wait in _as_array(
+            _as_object(proposal.get("elapsed_time"), owner="elapsed time").get(
+                "known_wait_requirements"
+            ),
+            owner="known wait requirements",
+        )
+    ]
+    if [wait.get("minimum_elapsed_hours") for wait in waits] != [168, 336]:
+        raise GovernanceError("known elapsed waits changed from the exact two-source inventory")
+    if (
+        sum(
+            _required_integer(
+                _as_object(proposal.get("elapsed_time"), owner="elapsed time"),
+                "unquantified_wait_dependency_count",
+            )
+            for proposal in proposals
+        )
+        != 350
+    ):
+        raise GovernanceError("unquantified wait diagnostic changed from the source inventory")
+    if _forecast_v2_file_scope_observation(snapshot)["unresolved_ticket_count"] != 68:
+        raise GovernanceError("all 68 ticket file scopes must remain explicitly unresolved")
+    rel02_rows = [
+        row for row in rows if _as_object(row, owner="ledger row").get("ticket_id") == "V1-REL-02"
+    ]
+    if len(rel02_rows) != 1:
+        raise GovernanceError("ledger must contain exactly one V1-REL-02 row")
+    rel02_proposals = _as_array(
+        _as_object(rel02_rows[0], owner="V1-REL-02 row").get("execution_proposals"),
+        owner="V1-REL-02 proposals",
+    )
+    if [
+        _as_object(
+            _as_object(proposal, owner="V1-REL-02 proposal").get("workload_vector"),
+            owner="V1-REL-02 workload vector",
+        ).get("cumulative_optional_profile_count")
+        for proposal in rel02_proposals
+    ] != [1, 2, 2, 4, 4, 5, 5, 6, 6, 7, 7]:
+        raise GovernanceError("V1-REL-02 cumulative profile sequence changed")
+
+
+def _forecast_v2_projection(forecast: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in forecast.items()
+        if key not in {"record_digest", "signature_envelope", "acceptance_receipt"}
+    }
+
+
+def _forecast_v2_pending_signature(subject_digest: str) -> dict[str, Any]:
+    return {
+        "profile": SIGNATURE_PROFILE,
+        "status": "pending_human_signature",
+        "namespace": SIGNATURE_NAMESPACE,
+        "signed_payload_encoding": ATTESTATION_V2_SIGNATURE_PAYLOAD_ENCODING,
+        "signature_encoding": SIGNATURE_ENCODING,
+        "signer_person_id": None,
+        "signer_role": None,
+        "subject_digest": subject_digest,
+        "public_key_fingerprint": MAINTAINER_KEY_FINGERPRINT,
+        "signature": None,
+        "verification_evidence": None,
+    }
+
+
+def _forecast_v2_signature_envelope(
+    person_id: str, role: str, subject_digest: str
+) -> dict[str, Any]:
+    envelope = _pending_signature_v2(person_id, role, subject_digest)
+    envelope["verification_evidence"] = None
+    return envelope
+
+
+def _forecast_v2_signature_import_evidence(
+    *,
+    signature_plan_digest: str,
+    claim_preparation_started_at_utc: str,
+    import_verification_started_at_utc: str,
+    import_verification_completed_at_utc: str,
+    issued_at_utc: str,
+    valid_until_utc: str,
+) -> dict[str, Any]:
+    if SHA256_PATTERN.fullmatch(signature_plan_digest) is None:
+        raise GovernanceError("forecast signature plan digest is invalid")
+    issue_time, expiry_time = _validate_validity_interval(
+        issued_at_utc, valid_until_utc, owner="forecast signature import evidence"
+    )
+    prepared = _parse_utc(
+        claim_preparation_started_at_utc,
+        owner="forecast claim preparation start observation",
+    )
+    import_started = _parse_utc(
+        import_verification_started_at_utc,
+        owner="forecast import verification start observation",
+    )
+    import_completed = _parse_utc(
+        import_verification_completed_at_utc,
+        owner="forecast import verification completion observation",
+    )
+    if not issue_time <= prepared <= import_started <= import_completed < expiry_time:
+        raise GovernanceError(
+            "forecast signature import observations violate their validity ordering"
+        )
+    return {
+        "status": "verified_after_signature_import",
+        "signature_plan_digest": signature_plan_digest,
+        "claim_preparation_started_at_utc": claim_preparation_started_at_utc,
+        "import_verification_started_at_utc": import_verification_started_at_utc,
+        "import_verification_completed_at_utc": import_verification_completed_at_utc,
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+        "verification_result": "both_signatures_valid_exact_payload_key_and_namespace",
+        "signature_claim_binding": "excluded_post_signature_observation_not_in_sshsig_claim",
+        "durable_integrity_binding": (
+            "corrective_closure_artifact_inventory_and_acceptance_attestation"
+        ),
+    }
+
+
+def _validate_forecast_v2_signature_import_evidence(
+    value: object, *, issued_at_utc: str, valid_until_utc: str
+) -> dict[str, Any]:
+    evidence = _as_object(value, owner="forecast signature import evidence")
+    if set(evidence) != FORECAST_V2_SIGNATURE_IMPORT_EVIDENCE_FIELDS:
+        raise GovernanceError("forecast signature import evidence has unexpected fields")
+    expected = _forecast_v2_signature_import_evidence(
+        signature_plan_digest=_required_string(evidence, "signature_plan_digest"),
+        claim_preparation_started_at_utc=_required_string(
+            evidence, "claim_preparation_started_at_utc"
+        ),
+        import_verification_started_at_utc=_required_string(
+            evidence, "import_verification_started_at_utc"
+        ),
+        import_verification_completed_at_utc=_required_string(
+            evidence, "import_verification_completed_at_utc"
+        ),
+        issued_at_utc=issued_at_utc,
+        valid_until_utc=valid_until_utc,
+    )
+    if evidence != expected:
+        raise GovernanceError("forecast signature import evidence semantics changed")
+    return evidence
+
+
+def _forecast_v2_roster_metadata(
+    roster: Mapping[str, Any], *, expected_digest: str
+) -> dict[str, Any]:
+    actual_digest = approval_roster_digest(roster)
+    if actual_digest != expected_digest:
+        raise GovernanceError("forecast approval roster digest mismatch")
+    if (
+        roster.get("selection_status") != "approved"
+        or roster.get("selected_mode") != "maintainer_development"
+        or roster.get("maintainer_person_id") != "acblabs"
+    ):
+        raise GovernanceError("forecast acceptance requires the approved S1 maintainer roster")
+    people = [
+        _as_object(item, owner="forecast approval roster person")
+        for item in _as_array(roster.get("people"), owner="forecast approval roster people")
+    ]
+    matches = [person for person in people if person.get("person_id") == "acblabs"]
+    if len(matches) != 1:
+        raise GovernanceError("forecast acceptor has no unique approval-roster identity")
+    person = matches[0]
+    scopes = _required_string_array(person, "competence_scopes")
+    required_scopes = {
+        "planning_governance:s1",
+        "repository_maintenance:bounded_development",
+        "technical_direction:s1",
+    }
+    if not required_scopes <= set(scopes):
+        raise GovernanceError("forecast acceptor lacks the required rostered competence")
+    conflicts = _required_string_array(person, "conflicts")
+    assignments = {
+        _required_string(assignment, "role"): assignment
+        for assignment in (
+            _as_object(item, owner="forecast approval roster role assignment")
+            for item in _as_array(
+                roster.get("role_assignments"),
+                owner="forecast approval roster role assignments",
+            )
+        )
+    }
+    roles = ["repository_maintainer", "technical_lead"]
+    if any(
+        role not in assignments or assignments[role].get("person_id") != "acblabs" for role in roles
+    ):
+        raise GovernanceError("forecast acceptor lacks the required rostered role assignments")
+    if "NO_INDEPENDENT_REVIEW" not in _required_string_array(roster, "limitations"):
+        raise GovernanceError("forecast roster omits NO_INDEPENDENT_REVIEW")
+    return {
+        "competence_basis": {
+            "approval_roster_digest": actual_digest,
+            "issuer_person_id": "acblabs",
+            "issuer_role_assignments": roles,
+            "issuer_competence_scopes": scopes,
+        },
+        "conflicts": {
+            "approval_roster_digest": actual_digest,
+            "issuer_person_id": "acblabs",
+            "issuer_conflict_disclosures": conflicts,
+            "independence_limitation": "NO_INDEPENDENT_REVIEW",
+        },
+    }
+
+
+def _forecast_v2_acceptance_receipt(
+    *,
+    record_digest: str,
+    ledger: Mapping[str, Any],
+    approval_roster: Mapping[str, Any],
+    approval_roster_digest_value: str,
+    accepted: bool,
+) -> dict[str, Any]:
+    roster_metadata = _forecast_v2_roster_metadata(
+        approval_roster, expected_digest=approval_roster_digest_value
+    )
+    decision_evidence = ledger.get("decision_evidence")
+    decision_manifest_digest = (
+        _as_object(decision_evidence, owner="decision evidence").get("decision_manifest_digest")
+        if decision_evidence is not None
+        else None
+    )
+    common: dict[str, Any] = {
+        "receipt_type": "development_design_acceptance",
+        "receipt_status": (
+            "accepted_for_development" if accepted else "pending_explicit_human_review"
+        ),
+        "subject_contract_id": FORECAST_CONTRACT_ID,
+        "subject_record_digest": record_digest,
+        "approval_mode": "maintainer_development",
+        "competence_basis": roster_metadata["competence_basis"],
+        "allowed_operations": [
+            "use_as_a_nonbinding_development_planning_baseline",
+            "rebaseline_at_dispatch_after_concrete_file_scope_resolution",
+        ],
+        "exclusions": [
+            "no_runtime_release_deployment_qualification_or_method_admission_authority",
+            "no_calendar_delivery_commitment_or_distribution_free_probability_bound",
+            "no_independent_review_claim",
+        ],
+        "conflicts": roster_metadata["conflicts"],
+        "review_evidence": {
+            "decision_manifest_digest": decision_manifest_digest,
+            "authoring_ledger_digest": ledger["ledger_digest"],
+            "estimation_catalog_digest": ledger["estimation_catalog_digest"],
+            "approval_roster_digest": approval_roster_digest_value,
+            "ticket_row_count": len(_as_array(ledger.get("rows"), owner="ledger rows")),
+            "execution_occurrence_count": sum(
+                len(
+                    _as_array(
+                        _as_object(row, owner="ledger row").get("execution_proposals"),
+                        owner="execution proposals",
+                    )
+                )
+                for row in _as_array(ledger.get("rows"), owner="ledger rows")
+            ),
+        },
+        "limitations": [
+            "all_estimates_are_subjective_planning_quantiles_from_uncalibrated_unit_rates",
+            "all_68_ticket_file_scopes_are_unresolved_and_require_dispatch_rebaselining",
+            "elapsed_waits_resource_capacity_parallelism_and_calendar_critical_path_are_not_modeled",
+            "openssh_sshsig_contains_no_timestamp_and_no_actual_signature_time_is_claimed",
+        ],
+        "issuer_person_id": "acblabs" if accepted else None,
+        "issuer_role": "repository_maintainer" if accepted else None,
+        "decision": "accept" if accepted else None,
+    }
+    if not accepted:
+        return {**common, "receipt_digest": None, "signature_envelope": None}
+    receipt_digest = domain_digest(FORECAST_ACCEPTANCE_RECEIPT_V2_DOMAIN, common)
+    return {
+        **common,
+        "receipt_digest": receipt_digest,
+        "signature_envelope": _forecast_v2_signature_envelope(
+            "acblabs", "repository_maintainer", receipt_digest
+        ),
+    }
+
+
+def build_forecast_v2(
+    snapshot: RoadmapSnapshot,
+    ledger: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    *,
+    approval_roster: Mapping[str, Any],
+    approval_roster_digest_value: str,
+    issued_at: str | None = None,
+    valid_until: str | None = None,
+    trusted_time_basis: str | None = None,
+    accepted_candidate: bool = False,
+) -> dict[str, Any]:
+    method = _resolve_aggregation_method_v2(registry)
+    decided = ledger.get("decision_evidence") is not None
+    if decided:
+        if not all(
+            isinstance(value, str) for value in (issued_at, valid_until, trusted_time_basis)
+        ):
+            raise GovernanceError("decided forecast requires issue, expiry, and trusted-time basis")
+        issue_time, _expiry_time = _validate_validity_interval(
+            cast(str, issued_at), cast(str, valid_until), owner="generation-2 forecast"
+        )
+        inventory_time = _parse_utc(
+            _required_string(ledger, "inventory_completed_at_utc"),
+            owner="forecast inventory completion",
+        )
+        if issue_time < inventory_time:
+            raise GovernanceError("forecast issue time predates completed baseline inventory")
+    elif any(value is not None for value in (issued_at, valid_until, trusted_time_basis)):
+        raise GovernanceError("pending forecast must not claim issue or validity times")
+    if accepted_candidate and not decided:
+        raise GovernanceError("an accepted forecast candidate requires signed batch decisions")
+    method_digest = _required_string(method, "definition_digest")
+    rows: list[dict[str, Any]] = []
+    scenario_values: dict[str, dict[str, Any]] = {
+        scenario: {"tickets": set(), "occurrences": 0, "p50": 0, "p90": 0, "review": 0}
+        for scenario in ("stable_core_committed", "optional_profile_planned")
+    }
+    portfolio_tickets: set[str] = set()
+    for raw_row in _as_array(ledger.get("rows"), owner="ledger rows"):
+        source_row = _as_object(raw_row, owner="ledger row")
+        ticket_id = _required_string(source_row, "ticket_id")
+        portfolio_tickets.add(ticket_id)
+        estimates: list[dict[str, Any]] = []
+        row_p50: list[int] = []
+        row_p90: list[int] = []
+        row_review: list[int] = []
+        for raw_proposal in _as_array(
+            source_row.get("execution_proposals"), owner=f"{ticket_id} proposals"
+        ):
+            proposal = _as_object(raw_proposal, owner=f"{ticket_id} proposal")
+            effort = _as_object(proposal.get("effort_proposal"), owner="effort proposal")
+            elapsed = _as_object(proposal.get("elapsed_time"), owner="elapsed time")
+            decision = _as_object(proposal.get("decision"), owner="proposal decision")
+            proposed_values = (
+                _required_integer(effort, "p50_effort_hours"),
+                _required_integer(effort, "p90_effort_hours"),
+                _required_integer(effort, "reviewer_p50_effort_hours"),
+            )
+            selected_values = (
+                decision.get("selected_p50_effort_hours"),
+                decision.get("selected_p90_effort_hours"),
+                decision.get("selected_reviewer_effort_hours"),
+            )
+            values = cast(tuple[int, int, int], selected_values) if decided else proposed_values
+            if values[1] < values[0]:
+                raise GovernanceError(f"P90 is below P50 for {proposal['occurrence_id']}")
+            row_p50.append(values[0])
+            row_p90.append(values[1])
+            row_review.append(values[2])
+            scenario = _required_string(proposal, "scenario_class")
+            accumulator = scenario_values[scenario]
+            cast(set[str], accumulator["tickets"]).add(ticket_id)
+            accumulator["occurrences"] += 1
+            accumulator["p50"] = _checked_forecast_v2_sum(
+                (cast(int, accumulator["p50"]), values[0]), owner="scenario P50"
+            )
+            accumulator["p90"] = _checked_forecast_v2_sum(
+                (cast(int, accumulator["p90"]), values[1]), owner="scenario P90"
+            )
+            accumulator["review"] = _checked_forecast_v2_sum(
+                (cast(int, accumulator["review"]), values[2]), owner="scenario reviewer"
+            )
+            estimates.append(
+                {
+                    "occurrence_id": proposal["occurrence_id"],
+                    "sprint": proposal["sprint"],
+                    "release": proposal["release"],
+                    "scenario_class": scenario,
+                    "derivation_disposition": "reestimated_after_inventory",
+                    "workload_vector_digest": proposal["workload_vector_digest"],
+                    "proposal_digest": proposal["proposal_digest"],
+                    "proposed_p50_effort_hours": proposed_values[0],
+                    "proposed_p90_effort_hours": proposed_values[1],
+                    "proposed_reviewer_effort_hours": proposed_values[2],
+                    "p50_effort_hours": values[0] if decided else None,
+                    "p90_effort_hours": values[1] if decided else None,
+                    "reviewer_effort_hours": values[2] if decided else None,
+                    "selected_p50_effort_hours": values[0] if decided else None,
+                    "selected_p90_effort_hours": values[1] if decided else None,
+                    "selected_reviewer_effort_hours": values[2] if decided else None,
+                    "maximum_single_known_wait_hours": elapsed["maximum_single_known_wait_hours"],
+                    "serial_sum_known_wait_hours": elapsed["serial_sum_known_wait_hours"],
+                    "unquantified_wait_dependency_count": elapsed[
+                        "unquantified_wait_dependency_count"
+                    ],
+                    "elapsed_wait_included": False,
+                    "decision_status": decision["status"],
+                }
+            )
+        rows.append(
+            {
+                "ticket_id": ticket_id,
+                "estimate_scope": source_row["estimate_scope"],
+                "prior_disposition": "stale_not_used_as_anchor",
+                "derivation_disposition": "reestimated_after_inventory",
+                "planned_execution_count": len(estimates),
+                "execution_estimates": estimates,
+                "aggregate_p50_effort_hours": _checked_forecast_v2_sum(
+                    row_p50, owner=f"{ticket_id} P50"
+                ),
+                "aggregate_p90_effort_hours": _checked_forecast_v2_sum(
+                    row_p90, owner=f"{ticket_id} P90"
+                ),
+                "aggregate_reviewer_effort_hours": _checked_forecast_v2_sum(
+                    row_review, owner=f"{ticket_id} reviewer"
+                ),
+                "aggregate_method_id": METHOD_ID,
+                "aggregate_method_definition_digest": method_digest,
+                "aggregate_dependence_assumptions": [
+                    "full_positive_rank_dependence_no_diversification_credit",
+                    "reported_quantile_sums_are_exact_only_under_the_bound_comonotonic_construction",
+                ],
+                "confidence": "low",
+                "dependency_assumptions": [
+                    "bound_roadmap_dependency_edges_and_release_train_order_remain_unchanged",
+                    "ticket_execution_waits_for_declared_dependency_and_work_package_receipts",
+                ],
+                "risk_assumptions": [
+                    (
+                        "human_adopted_subjective_unit_rates_remain_uncalibrated"
+                        if decided
+                        else "uncalibrated_machine_unit_rates_require_explicit_human_review"
+                    ),
+                    "resource_capacity_parallelism_and_calendar_critical_path_are_not_modeled",
+                    "unresolved_file_scope_requires_dispatch_rebaseline",
+                ],
+                "current_status": "not_started",
+                "trusted_issue_time": issued_at if decided else None,
+                "elapsed_wait_included": False,
+                "proposal_epistemic_status": (
+                    "human_adopted_subjective_planning_quantiles_unresolved_scope_rebaseline_required"
+                    if decided
+                    else "uncalibrated_machine_proposal_pending_human_review"
+                ),
+                "decision_status": source_row["row_decision"]["status"],
+            }
+        )
+    scenarios: list[dict[str, Any]] = []
+    for scenario_id in ("stable_core_committed", "optional_profile_planned"):
+        value = scenario_values[scenario_id]
+        scenarios.append(
+            {
+                "scenario_id": scenario_id,
+                "ticket_count": len(cast(set[str], value["tickets"])),
+                "occurrence_count": value["occurrences"],
+                "aggregate_p50_effort_hours": value["p50"],
+                "aggregate_p90_effort_hours": value["p90"],
+                "aggregate_reviewer_effort_hours": value["review"],
+                "aggregate_method_id": METHOD_ID,
+                "aggregate_method_definition_digest": method_digest,
+                "elapsed_wait_included": False,
+            }
+        )
+    projection = {
+        "contract_id": FORECAST_CONTRACT_ID,
+        "format": "agent-assure-delivery-forecast/2",
+        "spec_revision": SPEC_REVISION,
+        "forecast_status": (
+            "accepted"
+            if accepted_candidate
+            else "ready_for_signature"
+            if decided
+            else "proposed_pending_explicit_human_review"
+        ),
+        "proposal_authority": "machine_authored_nonbinding",
+        "human_review_status": "complete" if decided else "pending_explicit_human_review",
+        "full_roadmap_digest": snapshot.raw_digest,
+        "sorted_ticket_set_digest": snapshot.ticket_set_digest,
+        "dependency_graph_digest": snapshot.dependency_graph_digest,
+        "release_train_digest": snapshot.release_train_digest,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "baseline_observations_digest": ledger["baseline_observations_digest"],
+        "estimation_catalog_digest": ledger["estimation_catalog_digest"],
+        "aggregation_method_registry_digest": registry["registry_digest"],
+        "authoring_ledger_digest": ledger["ledger_digest"],
+        "approval_roster_digest": approval_roster_digest_value,
+        "file_scope_observation": copy.deepcopy(ledger["file_scope_observation"]),
+        "issued_at_utc": issued_at if decided else None,
+        "valid_until_utc": valid_until if decided else None,
+        "trusted_time_basis": trusted_time_basis if decided else None,
+        "producer_person_id": "acblabs" if decided else None,
+        "producer_role": "technical_lead" if decided else None,
+        "proposal_preparer_kind": "llm_implementation_agent",
+        "portfolio_scenarios": scenarios,
+        "portfolio_aggregate": {
+            "ticket_count": len(portfolio_tickets),
+            "occurrence_count": _checked_forecast_v2_sum(
+                (cast(int, value["occurrences"]) for value in scenario_values.values()),
+                owner="portfolio occurrences",
+            ),
+            "aggregate_p50_effort_hours": _checked_forecast_v2_sum(
+                (cast(int, value["p50"]) for value in scenario_values.values()),
+                owner="portfolio P50",
+            ),
+            "aggregate_p90_effort_hours": _checked_forecast_v2_sum(
+                (cast(int, value["p90"]) for value in scenario_values.values()),
+                owner="portfolio P90",
+            ),
+            "aggregate_reviewer_effort_hours": _checked_forecast_v2_sum(
+                (cast(int, value["review"]) for value in scenario_values.values()),
+                owner="portfolio reviewer",
+            ),
+            "aggregate_method_id": METHOD_ID,
+            "aggregate_method_definition_digest": method_digest,
+            "elapsed_wait_included": False,
+        },
+        "rows": rows,
+    }
+    record_digest = domain_digest(FORECAST_V2_DOMAIN, projection)
+    if accepted_candidate:
+        signature_envelope = _forecast_v2_signature_envelope(
+            "acblabs", "technical_lead", record_digest
+        )
+    else:
+        signature_envelope = _forecast_v2_pending_signature(record_digest)
+    return {
+        **projection,
+        "record_digest": record_digest,
+        "signature_envelope": signature_envelope,
+        "acceptance_receipt": _forecast_v2_acceptance_receipt(
+            record_digest=record_digest,
+            ledger=ledger,
+            approval_roster=approval_roster,
+            approval_roster_digest_value=approval_roster_digest_value,
+            accepted=accepted_candidate,
+        ),
+    }
+
+
+def validate_forecast_v2(
+    snapshot: RoadmapSnapshot,
+    ledger: Mapping[str, Any],
+    registry: Mapping[str, Any],
+    forecast: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    *,
+    approval_roster: Mapping[str, Any],
+    approval_roster_digest_value: str,
+    allow_pending: bool,
+) -> None:
+    _validate_json_schema(forecast, schema, owner="generation-2 delivery forecast")
+    status = _required_string(forecast, "forecast_status")
+    if status == "proposed_pending_explicit_human_review":
+        expected = build_forecast_v2(
+            snapshot,
+            ledger,
+            registry,
+            approval_roster=approval_roster,
+            approval_roster_digest_value=approval_roster_digest_value,
+        )
+        if not allow_pending:
+            raise GovernanceError("delivery forecast human review is pending")
+        if dict(forecast) != expected:
+            raise GovernanceError("pending delivery forecast does not exactly recompute")
+        return
+    issued_at = _required_string(forecast, "issued_at_utc")
+    valid_until = _required_string(forecast, "valid_until_utc")
+    trusted_time_basis = _required_string(forecast, "trusted_time_basis")
+    if status == "ready_for_signature":
+        expected = build_forecast_v2(
+            snapshot,
+            ledger,
+            registry,
+            approval_roster=approval_roster,
+            approval_roster_digest_value=approval_roster_digest_value,
+            issued_at=issued_at,
+            valid_until=valid_until,
+            trusted_time_basis=trusted_time_basis,
+        )
+        if not allow_pending:
+            raise GovernanceError("delivery forecast signatures are pending")
+        if dict(forecast) != expected:
+            raise GovernanceError("ready delivery forecast does not exactly recompute")
+        return
+    if status != "accepted":
+        raise GovernanceError("unknown generation-2 delivery forecast status")
+    expected = build_forecast_v2(
+        snapshot,
+        ledger,
+        registry,
+        approval_roster=approval_roster,
+        approval_roster_digest_value=approval_roster_digest_value,
+        issued_at=issued_at,
+        valid_until=valid_until,
+        trusted_time_basis=trusted_time_basis,
+        accepted_candidate=True,
+    )
+    producer_signature = _as_object(
+        forecast.get("signature_envelope"), owner="forecast producer signature"
+    )
+    producer_verification_evidence = _validate_forecast_v2_signature_import_evidence(
+        producer_signature.get("verification_evidence"),
+        issued_at_utc=issued_at,
+        valid_until_utc=valid_until,
+    )
+    _validate_signature_envelope_v2(
+        producer_signature,
+        expected_person_id="acblabs",
+        expected_role="technical_lead",
+        expected_subject_digest=_required_string(expected, "record_digest"),
+        allow_pending=False,
+        owner="forecast producer",
+        expected_verification_evidence=producer_verification_evidence,
+    )
+    actual_receipt = _as_object(
+        forecast.get("acceptance_receipt"), owner="forecast acceptance receipt"
+    )
+    expected_receipt = _as_object(
+        expected.get("acceptance_receipt"), owner="expected forecast acceptance receipt"
+    )
+    receipt_signature = _as_object(
+        actual_receipt.get("signature_envelope"), owner="forecast acceptance signature"
+    )
+    receipt_verification_evidence = _validate_forecast_v2_signature_import_evidence(
+        receipt_signature.get("verification_evidence"),
+        issued_at_utc=issued_at,
+        valid_until_utc=valid_until,
+    )
+    if receipt_verification_evidence != producer_verification_evidence:
+        raise GovernanceError("forecast producer and acceptance import observations do not match")
+    _validate_signature_envelope_v2(
+        receipt_signature,
+        expected_person_id="acblabs",
+        expected_role="repository_maintainer",
+        expected_subject_digest=_required_string(expected_receipt, "receipt_digest"),
+        allow_pending=False,
+        owner="forecast acceptance receipt",
+        expected_verification_evidence=receipt_verification_evidence,
+    )
+    expected["signature_envelope"] = copy.deepcopy(producer_signature)
+    expected_receipt["signature_envelope"] = copy.deepcopy(receipt_signature)
+    if dict(forecast) != expected:
+        raise GovernanceError("accepted delivery forecast does not exactly recompute")
 
 
 def _integer_hours(days: int | float, *, owner: str) -> int:
@@ -2009,6 +5453,29 @@ def _parse_utc(value: str, *, owner: str) -> datetime:
     return parsed
 
 
+def _parse_corrective_utc_100ns(value: str, *, owner: str) -> tuple[datetime, int]:
+    """Parse canonical .NET-style UTC while retaining the seventh digit.
+
+    The user-signed corrective kickoff was prepared by PowerShell, whose
+    round-trip timestamp format can carry 100 ns ticks.  Python ``datetime``
+    stores only microseconds, so ordering uses a separate seven-digit tick
+    value instead of silently truncating the signed evidence.
+    """
+
+    match = CORRECTIVE_UTC_100NS_PATTERN.fullmatch(value)
+    if match is None:
+        raise GovernanceError(
+            f"{owner} must use canonical UTC with seconds, up to seven fractional digits, "
+            "and a Z suffix"
+        )
+    try:
+        whole = datetime.strptime(match.group("whole"), "%Y-%m-%dT%H:%M:%S").replace(tzinfo=UTC)
+    except ValueError as exc:
+        raise GovernanceError(f"{owner} is not a valid UTC calendar timestamp") from exc
+    ticks = int((match.group("fraction") or "").ljust(7, "0"))
+    return whole, ticks
+
+
 def _validate_validity_interval(
     issued_at: str, valid_until: str, *, owner: str
 ) -> tuple[datetime, datetime]:
@@ -2051,11 +5518,10 @@ def _receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _ticket_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in receipt.items()
-        if key not in {"receipt_digest", "signature_envelope"}
-    }
+    excluded = {"receipt_digest", "signature_envelope"}
+    if receipt.get("format") == "agent-assure-ticket-completion-receipt/2":
+        excluded.add("signature_import_evidence")
+    return {key: value for key, value in receipt.items() if key not in excluded}
 
 
 def _record_projection(record: Mapping[str, Any], digest_field: str) -> dict[str, Any]:
@@ -2122,7 +5588,414 @@ def validate_maintainer_signing_key(
     return digest
 
 
+def validate_corrective_kickoff_authorization(
+    record: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    *,
+    expected_roadmap_digest: str,
+) -> str:
+    """Validate the exact prospective corrective authorization and SSHSIG.
+
+    The detached SSH signature authenticates exact claim bytes, but SSHSIG has
+    no timestamp.  The wrapper therefore records only an externally-unattested
+    import observation and never promotes it to a signature-time assertion.
+    """
+
+    _validate_json_schema(record, schema, owner="corrective kickoff authorization")
+    if record.get("format") != "agent-assure-s1-corrective-kickoff-authorization/1":
+        raise GovernanceError("corrective kickoff authorization format changed")
+    if (
+        record.get("acceptance_generation") != 2
+        or record.get("authorization_status") != "authorized"
+        or record.get("authorization_kind") != "prospective_corrective_implementation"
+        or record.get("authorization_effect") != "corrective_s1_development_governance_only"
+    ):
+        raise GovernanceError("corrective kickoff authorization identity changed")
+
+    signed_claim = _as_object(record.get("signed_claim"), owner="corrective signed claim")
+    claim_payload = (
+        json.dumps(
+            signed_claim,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n"
+    ).encode("utf-8")
+    claim_artifact = _as_object(
+        record.get("signed_claim_artifact"), owner="corrective signed claim artifact"
+    )
+    if (
+        claim_artifact.get("serialization_profile")
+        != "utf8-json-sorted-keys-indent-2-lf-terminal-lf"
+        or claim_artifact.get("size_bytes") != CORRECTIVE_KICKOFF_CLAIM_SIZE
+        or len(claim_payload) != CORRECTIVE_KICKOFF_CLAIM_SIZE
+        or claim_artifact.get("sha256") != CORRECTIVE_KICKOFF_CLAIM_DIGEST
+        or raw_digest(claim_payload) != CORRECTIVE_KICKOFF_CLAIM_DIGEST
+    ):
+        raise GovernanceError("corrective kickoff signed claim bytes changed")
+    evidence = _as_object(signed_claim.get("evidence"), owner="corrective claim evidence")
+    if evidence.get("roadmap_raw_sha256") != expected_roadmap_digest:
+        raise GovernanceError("corrective kickoff targets another roadmap")
+    _validate_corrective_local_only_path_prefixes(signed_claim)
+    topology = _as_object(signed_claim.get("expected_topology"), owner="corrective claim topology")
+    if topology != {
+        "corrective_closure_parent": "R2",
+        "corrective_result_parent": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "shape": "C1 -> R2 -> C2",
+        "successor_tag_name": S1_ACCEPTANCE_V2_TAG_NAME,
+    }:
+        raise GovernanceError("corrective kickoff topology changed")
+    superseded = _as_object(
+        signed_claim.get("superseded_acceptance"),
+        owner="corrective superseded acceptance",
+    )
+    expected_superseded = {
+        "acceptance_tag_name": S1_ACCEPTANCE_TAG_NAME,
+        "bundle_digest": (
+            "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82"
+        ),
+        "closure_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "forecast_digest": (
+            "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460"
+        ),
+        "result_commit": S1_ACCEPTANCE_V1_RESULT_COMMIT,
+        "tag_object": S1_ACCEPTANCE_V1_TAG_OBJECT,
+    }
+    if superseded != expected_superseded:
+        raise GovernanceError("corrective kickoff predecessor binding changed")
+    plan_time = _parse_corrective_utc_100ns(
+        _required_string(signed_claim, "plan_created_at_utc"),
+        owner="corrective kickoff plan_created_at_utc",
+    )
+
+    signature_evidence = _as_object(
+        record.get("signature_evidence"), owner="corrective kickoff signature evidence"
+    )
+    try:
+        armor_base64 = _required_string(signature_evidence, "armored_signature_base64")
+        armor_bytes = base64.b64decode(armor_base64, validate=True)
+    except (ValueError, TypeError) as exc:
+        raise GovernanceError("corrective kickoff SSHSIG armor base64 is invalid") from exc
+    if base64.b64encode(armor_bytes).decode("ascii") != armor_base64:
+        raise GovernanceError("corrective kickoff SSHSIG armor base64 is not canonical")
+    canonical_armor = _canonical_sshsig_armor(armor_bytes)
+    if canonical_armor != armor_bytes:
+        raise GovernanceError("corrective kickoff SSHSIG armor is not canonical")
+    if (
+        signature_evidence.get("signature_file_size_bytes") != len(armor_bytes)
+        or signature_evidence.get("signature_file_sha256") != raw_digest(armor_bytes)
+        or signature_evidence.get("signature_time_status") != "unavailable_sshsig_has_no_timestamp"
+    ):
+        raise GovernanceError("corrective kickoff signature evidence changed")
+    _verify_sshsig(
+        signature_base64=armor_base64,
+        payload=claim_payload,
+        signer_person_id="acblabs",
+        public_key=MAINTAINER_PUBLIC_KEY,
+    )
+
+    imported = _as_object(
+        record.get("import_verification"), owner="corrective kickoff import verification"
+    )
+    recorded_time = _parse_corrective_utc_100ns(
+        _required_string(imported, "verification_recorded_at_utc"),
+        owner="corrective kickoff verification_recorded_at_utc",
+    )
+    if recorded_time < plan_time:
+        raise GovernanceError("corrective kickoff verification record predates its plan")
+    if (
+        imported.get("actual_signature_time_claimed") is not False
+        or imported.get("verification_time_status")
+        != "host_observation_recorded_after_verification_not_signature_time"
+        or imported.get("verification_result") != "valid_exact_payload_key_and_namespace"
+        or imported.get("predecessor_head_commit") != S1_ACCEPTANCE_V1_CLOSURE_COMMIT
+        or imported.get("predecessor_tag_object") != S1_ACCEPTANCE_V1_TAG_OBJECT
+        or imported.get("roadmap_digest_at_import") != expected_roadmap_digest
+    ):
+        raise GovernanceError("corrective kickoff import evidence changed")
+    return CORRECTIVE_KICKOFF_CLAIM_DIGEST
+
+
+def _baseline_v2_observation_window(
+    value: object,
+    *,
+    owner: str,
+    inventory_start: datetime,
+    inventory_end: datetime,
+) -> tuple[datetime, datetime]:
+    window = _as_object(value, owner=f"{owner} observation window")
+    started = _parse_utc(
+        _required_string(window, "started_at_utc"), owner=f"{owner} started_at_utc"
+    )
+    completed = _parse_utc(
+        _required_string(window, "completed_at_utc"),
+        owner=f"{owner} completed_at_utc",
+    )
+    if not inventory_start <= started <= completed <= inventory_end:
+        raise GovernanceError(
+            f"{owner} observation must fall inside the corrective inventory window"
+        )
+    return started, completed
+
+
+def _validate_baseline_observations_v2(
+    snapshot: RoadmapSnapshot,
+    record: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    *,
+    repository_root: Path,
+) -> str:
+    _validate_json_schema(record, schema, owner="generation-2 baseline observations")
+    exact = {
+        "format": "agent-assure-baseline-observations/2",
+        "spec_revision": SPEC_REVISION,
+        "acceptance_generation": 2,
+        "supersedes_observations_digest": (
+            "sha256:41a433296c91d119a4f5a73fff039e17df80ccf9bfdf33c6605ed8def5fbf197"
+        ),
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+    }
+    for key, expected in exact.items():
+        if record.get(key) != expected:
+            raise GovernanceError(f"generation-2 baseline changed {key}")
+    inventory_start = _parse_utc(
+        _required_string(record, "inventory_started_at_utc"),
+        owner="generation-2 baseline inventory_started_at_utc",
+    )
+    inventory_end = _parse_utc(
+        _required_string(record, "inventory_completed_at_utc"),
+        owner="generation-2 baseline inventory_completed_at_utc",
+    )
+    if inventory_end < inventory_start:
+        raise GovernanceError("generation-2 baseline inventory ends before it starts")
+    time_evidence = _as_object(record.get("time_evidence"), owner="baseline time evidence")
+    if time_evidence != {
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "external_attestation_status": "unavailable_windows_time_service_not_started",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+    }:
+        raise GovernanceError("generation-2 baseline time semantics changed")
+
+    repository = _as_object(record.get("repository"), owner="generation-2 repository")
+    _baseline_v2_observation_window(
+        repository.get("observation_window"),
+        owner="repository identity",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+    repository_exact = {
+        "approved_remote_url": APPROVED_ORIGIN_URL,
+        "authoritative_fetch_status": "deferred_to_final_current_acceptance_gate",
+        "cached_origin_main_commit": PINNED_BASE_COMMIT,
+        "baseline_tag_name": "v0.7.0",
+        "baseline_tag_object": PINNED_TAG_OBJECT,
+        "baseline_tag_commit": PINNED_BASE_COMMIT,
+        "corrective_branch_name": S1_CORRECTIVE_BRANCH_NAME,
+        "inventory_head_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "required_corrective_result_parent": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+    }
+    for key, expected in repository_exact.items():
+        if repository.get(key) != expected:
+            raise GovernanceError(f"generation-2 baseline repository changed {key}")
+
+    roadmap = _as_object(record.get("roadmap"), owner="generation-2 roadmap")
+    _baseline_v2_observation_window(
+        roadmap.get("observation_window"),
+        owner="private roadmap",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+    if (
+        roadmap.get("raw_digest") != snapshot.raw_digest
+        or roadmap.get("size_bytes") != 2_390_013
+        or roadmap.get("local_only") is not True
+        or roadmap.get("git_ignored") is not True
+        or roadmap.get("git_index_tracked") is not False
+    ):
+        raise GovernanceError("generation-2 baseline roadmap evidence changed")
+
+    environment = _as_object(record.get("environment"), owner="generation-2 environment")
+    if environment.get("platform") != "Windows" or environment.get("python_version") != "3.12.13":
+        raise GovernanceError("generation-2 baseline platform or Python identity changed")
+    command_expectations = {
+        "pip_check": ("passed", 0),
+        "time_attestation": ("unavailable", -2147023834),
+    }
+    for name, (outcome, exit_code) in command_expectations.items():
+        command = _as_object(environment.get(name), owner=f"generation-2 {name}")
+        if command.get("outcome") != outcome or command.get("exit_code") != exit_code:
+            raise GovernanceError(f"generation-2 baseline {name} changed")
+        _baseline_v2_observation_window(
+            {
+                "started_at_utc": command.get("started_at_utc"),
+                "completed_at_utc": command.get("completed_at_utc"),
+            },
+            owner=name,
+            inventory_start=inventory_start,
+            inventory_end=inventory_end,
+        )
+
+    tool_record = _as_object(
+        environment.get("trusted_executables"), owner="generation-2 trusted executables"
+    )
+    _baseline_v2_observation_window(
+        tool_record.get("observation_window"),
+        owner="trusted executables",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+    observed_tools: dict[str, Mapping[str, Any]] = {}
+    for value in _as_array(tool_record.get("artifacts"), owner="trusted executable artifacts"):
+        tool = _as_object(value, owner="trusted executable")
+        name = _required_string(tool, "name")
+        if name in observed_tools:
+            raise GovernanceError(f"duplicate generation-2 trusted executable: {name}")
+        observed_tools[name] = tool
+    if set(observed_tools) != set(FROZEN_S1_EXECUTABLE_IDENTITIES):
+        raise GovernanceError("generation-2 trusted executable inventory is incomplete")
+    for name, identity in FROZEN_S1_EXECUTABLE_IDENTITIES.items():
+        if observed_tools[name] != {
+            "name": name,
+            "absolute_path": identity.path,
+            "size_bytes": identity.size_bytes,
+            "sha256": f"sha256:{identity.sha256}",
+        }:
+            raise GovernanceError(f"generation-2 trusted executable changed: {name}")
+
+    runtime = _as_object(
+        environment.get("trusted_python_runtime"), owner="generation-2 Python runtime"
+    )
+    for field, owner in (
+        ("file_observation_window", "trusted Python files"),
+        ("inventory_observation_window", "trusted Python inventories"),
+    ):
+        _baseline_v2_observation_window(
+            runtime.get(field),
+            owner=owner,
+            inventory_start=inventory_start,
+            inventory_end=inventory_end,
+        )
+    if (
+        runtime.get("execution_profile") != "powershell-preverified-cpython-3.12.13-I-S-B/v1"
+        or runtime.get("launcher_profile") != _LAUNCHER_PROFILE
+    ):
+        raise GovernanceError("generation-2 Python execution profile changed")
+    expected_runtime_files = {
+        "python.exe": {
+            "name": "python.exe",
+            "absolute_path": str(_FROZEN_PYTHON_EXECUTABLE),
+            "size_bytes": _FROZEN_PYTHON_EXECUTABLE_SIZE,
+            "sha256": f"sha256:{_FROZEN_PYTHON_EXECUTABLE_SHA256}",
+        },
+        "python312.dll": {
+            "name": "python312.dll",
+            "absolute_path": str(_FROZEN_PYTHON_DLL),
+            "size_bytes": _FROZEN_PYTHON_DLL_SIZE,
+            "sha256": f"sha256:{_FROZEN_PYTHON_DLL_SHA256}",
+        },
+    }
+    runtime_files: dict[str, Mapping[str, Any]] = {}
+    for item in _as_array(runtime.get("files"), owner="trusted Python files"):
+        runtime_file = _as_object(item, owner="trusted Python file")
+        name = _required_string(runtime_file, "name")
+        if name in runtime_files:
+            raise GovernanceError(f"duplicate generation-2 trusted Python file: {name}")
+        runtime_files[name] = runtime_file
+    if runtime_files != expected_runtime_files:
+        raise GovernanceError("generation-2 trusted Python files changed")
+    if runtime.get("base_runtime_inventory") != {
+        "file_count": _FROZEN_BASE_RUNTIME_FILE_COUNT,
+        "size_bytes": _FROZEN_BASE_RUNTIME_SIZE_BYTES,
+        "sha256": f"sha256:{_FROZEN_BASE_RUNTIME_SHA256}",
+    } or runtime.get("site_runtime_inventory") != {
+        "file_count": _FROZEN_RUNTIME_FILE_COUNT,
+        "size_bytes": _FROZEN_RUNTIME_SIZE_BYTES,
+        "sha256": f"sha256:{_FROZEN_RUNTIME_SHA256}",
+    }:
+        raise GovernanceError("generation-2 Python runtime inventory changed")
+
+    cli = _as_object(record.get("cli_reservation"), owner="generation-2 CLI reservation")
+    if (
+        cli.get("outcome") != "expected_absence"
+        or cli.get("exit_code") != 2
+        or cli.get("reserved_command") != "agent-assure test activate"
+        or cli.get("collision_found") is not False
+    ):
+        raise GovernanceError("generation-2 CLI reservation changed")
+    _baseline_v2_observation_window(
+        {
+            "started_at_utc": cli.get("started_at_utc"),
+            "completed_at_utc": cli.get("completed_at_utc"),
+        },
+        owner="CLI reservation",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+
+    locks_record = _as_object(record.get("dependency_locks"), owner="dependency locks")
+    _baseline_v2_observation_window(
+        locks_record.get("observation_window"),
+        owner="dependency locks",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+    observed_locks: dict[str, str] = {}
+    for value in _as_array(locks_record.get("artifacts"), owner="dependency lock artifacts"):
+        lock = _as_object(value, owner="dependency lock")
+        path = _required_string(lock, "path")
+        digest = _required_string(lock, "sha256")
+        if path in observed_locks:
+            raise GovernanceError(f"duplicate generation-2 dependency lock: {path}")
+        observed_locks[path] = digest
+    if observed_locks != PINNED_LOCK_DIGESTS:
+        raise GovernanceError("generation-2 dependency lock identities changed")
+    for path, digest in observed_locks.items():
+        committed = _read_commit_blob(
+            repository_root,
+            PINNED_BASE_COMMIT,
+            path,
+            owner="pinned dependency lock",
+        )
+        if raw_digest(committed) != digest:
+            raise GovernanceError(f"pinned base does not reproduce dependency lock: {path}")
+
+    integrity = _as_object(record.get("git_integrity"), owner="generation-2 Git integrity")
+    _baseline_v2_observation_window(
+        integrity.get("observation_window"),
+        owner="Git integrity",
+        inventory_start=inventory_start,
+        inventory_end=inventory_end,
+    )
+    if (
+        integrity.get("replacement_refs") != []
+        or integrity.get("shallow_repository") is not False
+        or integrity.get("grafts_present") is not False
+        or integrity.get("alternate_object_store_present") is not False
+        or integrity.get("generation_1_tag_object") != S1_ACCEPTANCE_V1_TAG_OBJECT
+        or integrity.get("generation_2_tag_absent") is not True
+    ):
+        raise GovernanceError("generation-2 Git integrity observation changed")
+
+    expected_digest = domain_digest(
+        BASELINE_OBSERVATIONS_V2_DOMAIN,
+        _record_projection(record, "observations_digest"),
+    )
+    if record.get("observations_digest") != expected_digest:
+        raise GovernanceError("generation-2 baseline observations digest mismatch")
+    return expected_digest
+
+
 def _baseline_full_suite_status(record: Mapping[str, Any]) -> str:
+    if record.get("format") == "agent-assure-baseline-observations/2":
+        historical = _as_object(
+            record.get("historical_context"), owner="generation-2 baseline historical context"
+        )
+        if historical.get("post_r2_full_suite_required") is not True:
+            raise GovernanceError("generation-2 baseline must require post-R2 verification")
+        return "post_result_verification_required"
     runs = _as_array(record.get("validation_runs"), owner="baseline validation_runs")
     matches = [
         _as_object(run, owner="baseline validation run")
@@ -2145,6 +6018,14 @@ def validate_baseline_observations(
     repository_root: Path,
 ) -> str:
     """Validate immutable S1 inventory facts without refreshing external state."""
+
+    if record.get("format") == "agent-assure-baseline-observations/2":
+        return _validate_baseline_observations_v2(
+            snapshot,
+            record,
+            schema,
+            repository_root=repository_root,
+        )
 
     _validate_json_schema(record, schema, owner="baseline observations")
     inventory_completed_at = _parse_utc(
@@ -2370,23 +6251,17 @@ def _artifact_evidence_from_commit(
     *,
     kind: str,
 ) -> dict[str, Any]:
-    tree_entry = _run_git(repository_root, ["ls-tree", result_commit, "--", relative_path])
-    fields = tree_entry.stdout.split(None, 3)
-    if (
-        tree_entry.returncode != 0
-        or len(fields) < 4
-        or fields[0] not in {b"100644", b"100755"}
-        or fields[1] != b"blob"
-    ):
-        raise GovernanceError(f"result artifact is not a regular Git blob: {relative_path}")
-    committed = _run_git(repository_root, ["show", f"{result_commit}:{relative_path}"])
-    if committed.returncode != 0:
-        raise GovernanceError(f"unable to read result artifact: {relative_path}")
+    committed = _read_commit_blob(
+        repository_root,
+        result_commit,
+        relative_path,
+        owner="result artifact",
+    )
     return {
         "path": relative_path,
         "kind": kind,
-        "size_bytes": len(committed.stdout),
-        "sha256": raw_digest(committed.stdout),
+        "size_bytes": len(committed),
+        "sha256": raw_digest(committed),
     }
 
 
@@ -2536,6 +6411,45 @@ def _governance_subprocess_environment() -> dict[str, str]:
     return environment
 
 
+def _require_empty_openssh_program_data(path: Path) -> None:
+    """Require the isolated OpenSSH machine-data directory to remain pristine."""
+
+    _post_r2_safe_directory(path, owner="isolated OpenSSH PROGRAMDATA directory")
+    try:
+        modified = next(path.iterdir(), None) is not None
+    except OSError as exc:
+        raise GovernanceError("unable to inspect isolated OpenSSH PROGRAMDATA") from exc
+    if modified:
+        raise GovernanceError("OpenSSH modified its isolated PROGRAMDATA directory")
+
+
+@contextmanager
+def _isolated_openssh_environment() -> Iterator[dict[str, str]]:
+    """Yield a governed environment with fresh per-call Windows machine data."""
+
+    with tempfile.TemporaryDirectory(prefix="agent-assure-s1-openssh-") as temporary:
+        program_data = Path(temporary) / "program-data"
+        program_data.mkdir()
+        _require_empty_openssh_program_data(program_data)
+        environment = _governance_subprocess_environment()
+        for key in tuple(environment):
+            if key.casefold() == "programdata":
+                del environment[key]
+        environment["PROGRAMDATA"] = str(program_data)
+        try:
+            yield environment
+        except BaseException as primary:
+            try:
+                _require_empty_openssh_program_data(program_data)
+            except BaseException as postcondition:
+                primary.add_note(
+                    f"isolated OpenSSH PROGRAMDATA postcondition also failed: {postcondition}"
+                )
+            raise
+        else:
+            _require_empty_openssh_program_data(program_data)
+
+
 def _git_invocation_prefix(executable: str, hooks_directory: Path) -> list[str]:
     return [
         executable,
@@ -2559,7 +6473,12 @@ def _git_invocation_prefix(executable: str, hooks_directory: Path) -> list[str]:
     ]
 
 
-def _run_git(repository_root: Path, arguments: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+def _run_git(
+    repository_root: Path,
+    arguments: Sequence[str],
+    *,
+    input_bytes: bytes | None = None,
+) -> subprocess.CompletedProcess[bytes]:
     executable = _trusted_executable("git", repository_root=repository_root)
     try:
         with tempfile.TemporaryDirectory(prefix="agent-assure-s1-hooks-") as temporary:
@@ -2576,10 +6495,93 @@ def _run_git(repository_root: Path, arguments: Sequence[str]) -> subprocess.Comp
                 capture_output=True,
                 check=False,
                 env=_governance_subprocess_environment(),
+                input=input_bytes,
                 timeout=30,
             )
     except subprocess.TimeoutExpired as exc:
         raise GovernanceError("governed Git inspection timed out") from exc
+
+
+def _bounded_git_failure(completed: subprocess.CompletedProcess[bytes]) -> str:
+    """Return a stable, bounded diagnostic for a failed governed Git call."""
+
+    raw = completed.stderr if completed.stderr else completed.stdout
+    detail = " ".join(raw.decode("utf-8", errors="replace").split())
+    if len(detail) > MAX_GIT_DIAGNOSTIC_CHARS:
+        detail = detail[: MAX_GIT_DIAGNOSTIC_CHARS - 3] + "..."
+    status = f"Git exited with status {completed.returncode}"
+    return f"{status}: {detail}" if detail else status
+
+
+def _read_commit_blob(
+    repository_root: Path,
+    commit: str,
+    relative_path: str,
+    *,
+    owner: str,
+) -> bytes:
+    """Read one exact regular blob without revision/path expression parsing.
+
+    ``git show <revision>:<path>`` combines two independently supplied values
+    into Git's revision-expression grammar.  That is unnecessary here and can
+    turn path handling failures into misleading content mismatches.  Resolve
+    the exact tree entry with NUL-delimited output, validate its mode/type/path,
+    and then address the immutable blob object directly.
+    """
+
+    if GIT_COMMIT_PATTERN.fullmatch(commit) is None:
+        raise GovernanceError(f"{owner} commit must be a full lowercase 40-hex object ID")
+    if (
+        not relative_path
+        or "\x00" in relative_path
+        or "\\" in relative_path
+        or Path(relative_path).is_absolute()
+        or Path(relative_path).as_posix() != relative_path
+        or any(part in {"", ".", ".."} for part in relative_path.split("/"))
+    ):
+        raise GovernanceError(f"{owner} path is not a canonical repository path: {relative_path}")
+    tree_entry = _run_git(
+        repository_root,
+        ["ls-tree", "-z", "--full-tree", commit, "--", f":(top,literal){relative_path}"],
+    )
+    if tree_entry.returncode != 0:
+        raise GovernanceError(
+            f"unable to inspect {owner} tree entry: {relative_path} "
+            f"({_bounded_git_failure(tree_entry)})"
+        )
+    if not tree_entry.stdout.endswith(b"\x00"):
+        if tree_entry.stdout:
+            raise _GitBlobSemanticError(
+                f"Git returned a malformed {owner} tree entry: {relative_path}"
+            )
+        raise _GitBlobSemanticError(f"{owner} is not a regular Git blob: {relative_path}")
+    records = tree_entry.stdout[:-1].split(b"\x00")
+    if len(records) != 1:
+        raise _GitBlobSemanticError(
+            f"Git returned an ambiguous {owner} tree entry: {relative_path}"
+        )
+    metadata, separator, raw_path = records[0].partition(b"\t")
+    fields = metadata.split(b" ")
+    if (
+        separator != b"\t"
+        or len(fields) != 3
+        or fields[0] not in {b"100644", b"100755"}
+        or fields[1] != b"blob"
+        or re.fullmatch(rb"[0-9a-f]{40}", fields[2]) is None
+    ):
+        raise _GitBlobSemanticError(f"{owner} is not a regular Git blob: {relative_path}")
+    try:
+        observed_path = raw_path.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise _GitBlobSemanticError(f"{owner} tree path is not UTF-8: {relative_path}") from exc
+    if observed_path != relative_path:
+        raise _GitBlobSemanticError(f"Git returned another {owner} tree path: {relative_path}")
+    blob = _run_git(repository_root, ["cat-file", "blob", fields[2].decode("ascii")])
+    if blob.returncode != 0:
+        raise GovernanceError(
+            f"unable to read {owner}: {relative_path} ({_bounded_git_failure(blob)})"
+        )
+    return blob.stdout
 
 
 def _run_isolated_git(
@@ -2696,17 +6698,23 @@ def _validate_repository_identity(repository_root: Path) -> None:
 
 
 def validate_local_only_roadmap(repository_root: Path, roadmap_path: Path) -> str:
-    """Prove the private roadmap is local-only, ignored locally, and unversioned."""
+    """Require an ignored, untracked path and current bytes absent from the object DB."""
 
     root = repository_root.resolve()
     _validate_repository_identity(root)
-    resolved = roadmap_path.resolve()
-    try:
-        relative = resolved.relative_to(root).as_posix()
-    except ValueError as exc:
-        raise GovernanceError("private roadmap must remain inside the repository worktree") from exc
+    resolved = _resolve_repository_path_without_links(
+        root,
+        roadmap_path,
+        owner="private roadmap",
+    )
+    relative = resolved.relative_to(root).as_posix()
     if relative != "Agent_Assure_Implementation_Roadmap.md":
         raise GovernanceError("unexpected private roadmap path")
+    if not resolved.is_file():
+        raise GovernanceError("private roadmap is not a regular file")
+    roadmap_bytes = resolved.read_bytes()
+    if len(roadmap_bytes) > MAX_ROADMAP_BYTES:
+        raise GovernanceError("roadmap exceeds the 4 MiB input limit")
     indexed = _run_git(root, ["ls-files", "--stage", "--", relative])
     if indexed.returncode != 0:
         raise GovernanceError("unable to inspect the Git index for the private roadmap")
@@ -2720,7 +6728,29 @@ def validate_local_only_roadmap(repository_root: Path, roadmap_path: Path) -> st
         raise GovernanceError("unable to inspect Git history for the private roadmap")
     if history.stdout.strip():
         raise GovernanceError("private roadmap exists in reachable local Git history")
-    return relative
+    object_id_result = _run_git(
+        root,
+        ["hash-object", "--stdin"],
+        input_bytes=roadmap_bytes,
+    )
+    object_id = object_id_result.stdout.decode("ascii", errors="strict").strip()
+    if object_id_result.returncode != 0 or GIT_COMMIT_PATTERN.fullmatch(object_id) is None:
+        raise GovernanceError("unable to compute the private roadmap Git blob ID")
+    object_lookup = _run_git(
+        root,
+        ["cat-file", "--batch-check=%(objectname) %(objecttype)"],
+        input_bytes=f"{object_id}\n".encode("ascii"),
+    )
+    if object_lookup.returncode != 0:
+        raise GovernanceError("unable to inspect the Git object database for roadmap bytes")
+    lookup_fields = object_lookup.stdout.decode("ascii", errors="strict").strip().split()
+    if lookup_fields == [object_id, "missing"]:
+        return relative
+    if len(lookup_fields) == 2 and lookup_fields[0] == object_id:
+        raise GovernanceError(
+            "private roadmap bytes already exist in the local Git object database"
+        )
+    raise GovernanceError("unexpected Git object lookup result for private roadmap bytes")
 
 
 def _validate_git_history_safety(repository_root: Path) -> None:
@@ -2820,7 +6850,55 @@ def _fetch_authoritative_remote_refs() -> dict[str, str]:
     return observed
 
 
-def validate_live_acceptance_repository(repository_root: Path, *, fetch: bool) -> dict[str, Any]:
+def _validate_corrective_acceptance_tag_state(
+    repository_root: Path,
+    *,
+    head_commit: str,
+) -> None:
+    """Require the immutable predecessor tag and an unused successor tag name."""
+
+    predecessor_refs = {
+        f"refs/tags/{S1_ACCEPTANCE_TAG_NAME}^{{tag}}": S1_ACCEPTANCE_V1_TAG_OBJECT,
+        f"refs/tags/{S1_ACCEPTANCE_TAG_NAME}^{{commit}}": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+    }
+    for ref, expected in predecessor_refs.items():
+        resolved = _run_git(repository_root, ["rev-parse", "--verify", ref])
+        if resolved.returncode != 0:
+            raise GovernanceError(
+                "generation-2 preflight cannot resolve the immutable predecessor acceptance tag"
+            )
+        actual = resolved.stdout.decode("ascii", errors="strict").strip()
+        if actual != expected:
+            raise GovernanceError("generation-2 predecessor acceptance tag moved or changed")
+    predecessor_ancestry = _run_git(
+        repository_root,
+        ["merge-base", "--is-ancestor", S1_ACCEPTANCE_V1_CLOSURE_COMMIT, head_commit],
+    )
+    if predecessor_ancestry.returncode != 0:
+        raise GovernanceError(
+            "generation-2 HEAD does not descend from the predecessor acceptance closure"
+        )
+    successor_ref = f"refs/tags/{S1_ACCEPTANCE_V2_TAG_NAME}"
+    successor = _run_git(
+        repository_root,
+        ["show-ref", "--verify", "--quiet", successor_ref],
+    )
+    if successor.returncode == 0:
+        raise GovernanceError(
+            "generation-2 successor acceptance tag already exists and must never be moved"
+        )
+    if successor.returncode != 1:
+        raise GovernanceError(
+            "generation-2 preflight could not prove the successor acceptance tag is absent"
+        )
+
+
+def validate_live_acceptance_repository(
+    repository_root: Path,
+    *,
+    fetch: bool,
+    expected_branch_name: str = S1_BRANCH_NAME,
+) -> dict[str, Any]:
     """Validate mutable repository facts at the one-time acceptance boundary."""
 
     _validate_git_history_safety(repository_root)
@@ -2851,8 +6929,8 @@ def validate_live_acceptance_repository(repository_root: Path, *, fetch: bool) -
     branch = _run_git(repository_root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
     if branch.returncode != 0:
         raise GovernanceError("acceptance repository HEAD is detached")
-    if branch.stdout.decode("utf-8", errors="strict").strip() != S1_BRANCH_NAME:
-        raise GovernanceError("acceptance repository is not on the governed S1 branch")
+    if branch.stdout.decode("utf-8", errors="strict").strip() != expected_branch_name:
+        raise GovernanceError("acceptance repository is not on the governed acceptance branch")
     head = _run_git(repository_root, ["rev-parse", "--verify", "HEAD^{commit}"])
     if head.returncode != 0:
         raise GovernanceError("unable to resolve acceptance repository HEAD")
@@ -2863,10 +6941,15 @@ def validate_live_acceptance_repository(repository_root: Path, *, fetch: bool) -
     )
     if ancestry.returncode != 0:
         raise GovernanceError("acceptance repository HEAD does not descend from the pinned base")
+    if expected_branch_name == S1_CORRECTIVE_BRANCH_NAME:
+        _validate_corrective_acceptance_tag_state(
+            repository_root,
+            head_commit=head_commit,
+        )
     return {
         "approved_remote_url": APPROVED_ORIGIN_URL,
         "authoritative_remote_refs": observed_remote_refs,
-        "branch_name": S1_BRANCH_NAME,
+        "branch_name": expected_branch_name,
         "fetch_performed": fetch,
         "head_commit": head_commit,
         "local_refs": local_refs,
@@ -2891,17 +6974,18 @@ def _validate_reviewed_commit(
         raise GovernanceError("completion result commit does not descend from the pinned base")
     for artifact in artifacts:
         relative_path = _required_string(artifact, "path")
-        committed = _run_git(repository_root, ["show", f"{result_commit}:{relative_path}"])
-        if committed.returncode != 0:
-            raise GovernanceError(
-                f"reviewed artifact is absent from completion result commit: {relative_path}"
-            )
+        committed = _read_commit_blob(
+            repository_root,
+            result_commit,
+            relative_path,
+            owner="reviewed artifact",
+        )
         expected_size = _required_integer(artifact, "size_bytes")
-        if len(committed.stdout) != expected_size:
+        if len(committed) != expected_size:
             raise GovernanceError(
                 f"reviewed artifact size differs from completion result commit: {relative_path}"
             )
-        if raw_digest(committed.stdout) != artifact.get("sha256"):
+        if raw_digest(committed) != artifact.get("sha256"):
             raise GovernanceError(
                 f"reviewed artifact digest differs from completion result commit: {relative_path}"
             )
@@ -3008,12 +7092,12 @@ def _validate_s1_commit_scope(
         artifacts=committed_inventory,
     )
     for path in sorted(expected_paths):
-        tree_entry = _run_git(repository_root, ["ls-tree", result_commit, "--", path])
-        if tree_entry.returncode != 0 or not tree_entry.stdout:
-            raise GovernanceError(f"S1 result commit lacks a tree entry for {path}")
-        fields = tree_entry.stdout.split(None, 3)
-        if len(fields) < 4 or fields[0] not in {b"100644", b"100755"} or fields[1] != b"blob":
-            raise GovernanceError(f"S1 artifact is not a regular Git blob: {path}")
+        _read_commit_blob(
+            repository_root,
+            result_commit,
+            path,
+            owner="S1 artifact",
+        )
 
 
 def _validate_s1_closure_checkout(
@@ -3080,29 +7164,25 @@ def _validate_s1_closure_checkout(
             continue
         candidate_matches = True
         for path in sorted(closure_paths):
-            tree_entry = _run_git(repository_root, ["ls-tree", candidate, "--", path])
-            fields = tree_entry.stdout.split(None, 3)
-            if (
-                tree_entry.returncode != 0
-                or len(fields) < 4
-                or fields[0] not in {b"100644", b"100755"}
-                or fields[1] != b"blob"
-            ):
-                candidate_matches = False
-                break
-            committed = _run_git(repository_root, ["show", f"{candidate}:{path}"])
-            if committed.returncode != 0:
+            try:
+                committed = _read_commit_blob(
+                    repository_root,
+                    candidate,
+                    path,
+                    owner="S1 closure artifact",
+                )
+            except _GitBlobSemanticError:
                 candidate_matches = False
                 break
             if path == "docs/governance/v1/governance-bundle.json":
-                if committed.stdout != expected_bundle_bytes:
+                if committed != expected_bundle_bytes:
                     candidate_matches = False
                     break
             else:
                 evidence = receipt_evidence_by_path[path]
                 if (
-                    len(committed.stdout) != evidence["size_bytes"]
-                    or raw_digest(committed.stdout) != evidence["sha256"]
+                    len(committed) != evidence["size_bytes"]
+                    or raw_digest(committed) != evidence["sha256"]
                 ):
                     candidate_matches = False
                     break
@@ -3122,7 +7202,12 @@ def _validate_s1_closure_checkout(
     closure_commit = matching[0]
     if expected_closure_commit is not None and closure_commit != expected_closure_commit:
         raise GovernanceError("selected historical closure is not the unique valid S1 closure")
-    expected_bundle_digest = domain_digest(BUNDLE_DOMAIN, _bundle_projection(bundle))
+    bundle_domain = (
+        BUNDLE_V2_DOMAIN
+        if bundle.get("format") == "agent-assure-governance-bundle/2"
+        else BUNDLE_DOMAIN
+    )
+    expected_bundle_digest = domain_digest(bundle_domain, _bundle_projection(bundle))
     if bundle.get("bundle_digest") != expected_bundle_digest:
         raise GovernanceError("closure commit bundle digest changed")
     if require_current_checkout:
@@ -3326,6 +7411,25 @@ def validate_ticket_completion_receipt(
     validation_time: datetime | None = None,
     expected_kickoff_record: Mapping[str, Any] | None = None,
 ) -> None:
+    if record.get("format") == "agent-assure-ticket-completion-receipt/2":
+        validate_ticket_completion_receipt_v2(
+            snapshot,
+            record,
+            schema,
+            repository_root=repository_root,
+            expected_ticket_id=expected_ticket_id,
+            expected_roster_digest=expected_roster_digest,
+            # Generation 2 replaces, rather than extends, the generation-1
+            # kickoff/receipt chain.  The compatibility wrapper still accepts
+            # the legacy arguments so historical generation-1 callers remain
+            # byte-for-byte stable, but a v2 record is always anchored to the
+            # one signed corrective kickoff and immutable C1 closure.
+            expected_corrective_authorization_digest=CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+            expected_person_id=expected_person_id,
+            expected_result_parent=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            allow_pending=allow_pending,
+        )
+        return
     _validate_json_schema(record, schema, owner=f"{expected_ticket_id} completion receipt")
     if validation_time is not None and validation_time.tzinfo is None:
         raise GovernanceError("completion validation time must be timezone-aware")
@@ -3442,11 +7546,10 @@ def validate_ticket_completion_receipt(
 
 
 def _bundle_projection(bundle: Mapping[str, Any]) -> dict[str, Any]:
-    return {
-        key: value
-        for key, value in bundle.items()
-        if key not in {"bundle_digest", "signature_envelope"}
-    }
+    excluded = {"bundle_digest", "signature_envelope"}
+    if bundle.get("format") == "agent-assure-governance-bundle/2":
+        excluded.add("signature_import_evidence")
+    return {key: value for key, value in bundle.items() if key not in excluded}
 
 
 def _bundle_inventory_paths() -> list[tuple[str, str]]:
@@ -3743,6 +7846,25 @@ def validate_governance_bundle(
     historical_records: Mapping[str, Mapping[str, Any]] | None = None,
     expected_closure_commit: str | None = None,
 ) -> None:
+    if bundle.get("format") == "agent-assure-governance-bundle/2":
+        validate_governance_bundle_v2(
+            snapshot,
+            bundle,
+            schema,
+            repository_root=repository_root,
+            roster=roster,
+            completion_receipts=completion_receipts,
+            forecast=forecast,
+            baseline_observations=baseline_observations,
+            expected_person_id=expected_person_id,
+            expected_result_parent=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            allow_pending=allow_pending,
+            validation_time=validation_time,
+            require_current_closure=require_current_closure,
+            require_closure=require_closure,
+            expected_closure_commit=expected_closure_commit,
+        )
+        return
     _validate_json_schema(bundle, schema, owner="S1 governance bundle")
     if validation_time is not None and validation_time.tzinfo is None:
         raise GovernanceError("bundle validation time must be timezone-aware")
@@ -4152,6 +8274,20 @@ def _public_key_fingerprint(public_key: str) -> str:
     return f"SHA256:{encoded}"
 
 
+def _bounded_openssh_failure(completed: subprocess.CompletedProcess[bytes]) -> str:
+    """Return a stable, bounded diagnostic for a failed OpenSSH invocation."""
+
+    details: list[str] = []
+    for name, raw in (("stderr", completed.stderr), ("stdout", completed.stdout)):
+        detail = " ".join(raw.decode("utf-8", errors="replace").split())
+        if detail:
+            details.append(f"{name}={detail}")
+    rendered = "; ".join(details) if details else "<no stdout/stderr>"
+    if len(rendered) > MAX_OPENSSH_DIAGNOSTIC_CHARS:
+        rendered = rendered[: MAX_OPENSSH_DIAGNOSTIC_CHARS - 3] + "..."
+    return f"OpenSSH exited with status {completed.returncode}: {rendered}"
+
+
 def _verify_sshsig(
     *, signature_base64: str, payload: bytes, signer_person_id: str, public_key: str
 ) -> None:
@@ -4261,31 +8397,33 @@ def _verify_sshsig(
         )
         signature_path.write_text(signature, encoding="ascii", newline="\n")
         try:
-            completed = subprocess.run(
-                [
-                    executable,
-                    "-Y",
-                    "verify",
-                    "-f",
-                    str(allowed_signers),
-                    "-I",
-                    signer_person_id,
-                    "-n",
-                    SIGNATURE_NAMESPACE,
-                    "-s",
-                    str(signature_path),
-                ],
-                input=payload,
-                capture_output=True,
-                check=False,
-                env=_governance_subprocess_environment(),
-                timeout=10,
-            )
+            with _isolated_openssh_environment() as environment:
+                completed = subprocess.run(
+                    [
+                        executable,
+                        "-Y",
+                        "verify",
+                        "-f",
+                        str(allowed_signers),
+                        "-I",
+                        signer_person_id,
+                        "-n",
+                        SIGNATURE_NAMESPACE,
+                        "-s",
+                        str(signature_path),
+                    ],
+                    input=payload,
+                    capture_output=True,
+                    check=False,
+                    env=environment,
+                    timeout=10,
+                )
         except subprocess.TimeoutExpired as exc:
             raise GovernanceError("OpenSSH signature verification timed out") from exc
     if completed.returncode != 0:
-        diagnostic = completed.stderr.decode("utf-8", errors="replace").strip()
-        raise GovernanceError(f"OpenSSH signature verification failed: {diagnostic}")
+        raise GovernanceError(
+            "OpenSSH signature verification failed: " + _bounded_openssh_failure(completed)
+        )
 
 
 def _validate_signature_envelope(
@@ -4364,6 +8502,2815 @@ def _signature_claim_bytes(envelope: Mapping[str, Any]) -> bytes:
         "signed_at_utc": signed_at,
     }
     return SIGNATURE_CLAIM_DOMAIN.encode("ascii") + b"\x00" + canonical_bytes(claim)
+
+
+def _pending_signature_v2(person_id: str, role: str, subject_digest: str) -> dict[str, Any]:
+    """Create a generation-2 SSHSIG envelope with no signature-time claim.
+
+    OpenSSH SSHSIG carries no trusted or untrusted timestamp.  Generation 2
+    therefore binds any relevant preparation times through the signed subject
+    and deliberately omits the legacy ``signed_at_utc`` member everywhere.
+    """
+
+    return {
+        "profile": SIGNATURE_PROFILE,
+        "status": "pending_human_signature",
+        "namespace": SIGNATURE_NAMESPACE,
+        "signed_payload_encoding": ATTESTATION_V2_SIGNATURE_PAYLOAD_ENCODING,
+        "signature_encoding": SIGNATURE_ENCODING,
+        "signer_person_id": person_id,
+        "signer_role": role,
+        "subject_digest": subject_digest,
+        "public_key_fingerprint": MAINTAINER_KEY_FINGERPRINT,
+        "signature": None,
+    }
+
+
+def _signature_claim_bytes_v2(envelope: Mapping[str, Any]) -> bytes:
+    """Render a timestamp-free, role-bound generation-2 signature claim."""
+
+    claim = {
+        "namespace": _required_string(envelope, "namespace"),
+        "signer_person_id": _required_string(envelope, "signer_person_id"),
+        "signer_role": _required_string(envelope, "signer_role"),
+        "subject_digest": _required_string(envelope, "subject_digest"),
+        "public_key_fingerprint": _required_string(envelope, "public_key_fingerprint"),
+    }
+    return ATTESTATION_V2_SIGNATURE_CLAIM_DOMAIN.encode("ascii") + b"\x00" + canonical_bytes(claim)
+
+
+def _validate_signature_envelope_v2(
+    value: object,
+    *,
+    expected_person_id: str,
+    expected_role: str,
+    expected_subject_digest: str,
+    allow_pending: bool,
+    owner: str,
+    expected_verification_evidence: object = _NO_SIGNATURE_VERIFICATION_EVIDENCE,
+) -> bool:
+    """Validate a generation-2 SSHSIG without inventing a signing time."""
+
+    envelope = _as_object(value, owner=f"{owner} signature envelope")
+    expected_fields = ATTESTATION_V2_SIGNATURE_ENVELOPE_FIELDS
+    if expected_verification_evidence is not _NO_SIGNATURE_VERIFICATION_EVIDENCE:
+        expected_fields = expected_fields | {"verification_evidence"}
+    if set(envelope) != expected_fields:
+        raise GovernanceError(f"{owner} signature envelope has unexpected fields")
+    if (
+        expected_verification_evidence is not _NO_SIGNATURE_VERIFICATION_EVIDENCE
+        and envelope.get("verification_evidence") != expected_verification_evidence
+    ):
+        raise GovernanceError(f"{owner} signature verification evidence changed")
+    exact = {
+        "profile": SIGNATURE_PROFILE,
+        "namespace": SIGNATURE_NAMESPACE,
+        "signed_payload_encoding": ATTESTATION_V2_SIGNATURE_PAYLOAD_ENCODING,
+        "signature_encoding": SIGNATURE_ENCODING,
+        "signer_person_id": expected_person_id,
+        "signer_role": expected_role,
+        "subject_digest": expected_subject_digest,
+        "public_key_fingerprint": MAINTAINER_KEY_FINGERPRINT,
+    }
+    for key, expected in exact.items():
+        if envelope.get(key) != expected:
+            raise GovernanceError(f"{owner} signature envelope {key} changed")
+    if _public_key_fingerprint(MAINTAINER_PUBLIC_KEY) != MAINTAINER_KEY_FINGERPRINT:
+        raise GovernanceError(
+            "embedded maintainer public key does not match its frozen fingerprint"
+        )
+    status = _required_string(envelope, "status")
+    signature = envelope.get("signature")
+    if status == "pending_human_signature":
+        if signature is not None:
+            raise GovernanceError(f"pending {owner} signature must contain a null signature")
+        if not allow_pending:
+            raise GovernanceError(f"required {owner} signature is pending")
+        return False
+    if status != "signed" or not isinstance(signature, str):
+        raise GovernanceError(f"{owner} signature must be pending or contain a signed sshsig")
+    _verify_sshsig(
+        signature_base64=signature,
+        payload=_signature_claim_bytes_v2(envelope),
+        signer_person_id=expected_person_id,
+        public_key=MAINTAINER_PUBLIC_KEY,
+    )
+    return True
+
+
+def _pending_attestation_v2_signature(
+    person_id: str, role: str, subject_digest: str
+) -> dict[str, Any]:
+    return _pending_signature_v2(person_id, role, subject_digest)
+
+
+def _attestation_v2_signature_claim_bytes(envelope: Mapping[str, Any]) -> bytes:
+    return _signature_claim_bytes_v2(envelope)
+
+
+def _validate_attestation_v2_signature_envelope(
+    value: object,
+    *,
+    expected_person_id: str,
+    expected_subject_digest: str,
+    allow_pending: bool,
+) -> bool:
+    return _validate_signature_envelope_v2(
+        value,
+        expected_person_id=expected_person_id,
+        expected_role="repository_maintainer",
+        expected_subject_digest=expected_subject_digest,
+        allow_pending=allow_pending,
+        owner="generation-2 acceptance",
+    )
+
+
+def _corrective_authorized_paths(
+    corrective_authorization: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Return the canonical path allowlist authenticated by the corrective kickoff."""
+
+    if (
+        corrective_authorization.get("format")
+        != "agent-assure-s1-corrective-kickoff-authorization/1"
+        or corrective_authorization.get("authorization_status") != "authorized"
+    ):
+        raise GovernanceError("corrective authorization is not the signed authorized record")
+    claim_artifact = _as_object(
+        corrective_authorization.get("signed_claim_artifact"),
+        owner="corrective signed claim artifact",
+    )
+    if claim_artifact.get("sha256") != CORRECTIVE_KICKOFF_CLAIM_DIGEST:
+        raise GovernanceError("corrective authorization claim digest changed")
+    signed_claim = _as_object(
+        corrective_authorization.get("signed_claim"), owner="corrective signed claim"
+    )
+    raw_paths = _required_string_array(signed_claim, "tracked_allowed_paths")
+    if len(raw_paths) != len(set(raw_paths)):
+        raise GovernanceError("corrective authorization repeats an allowed path")
+    ordered = tuple(sorted(raw_paths, key=_utf8_sort_key))
+    if tuple(raw_paths) != ordered:
+        raise GovernanceError("corrective authorization path allowlist is not canonical")
+    if not S1_CORRECTIVE_CLOSURE_PATHS <= set(ordered):
+        raise GovernanceError("corrective authorization omits a required closure path")
+    for path in ordered:
+        if (
+            Path(path).as_posix() != path
+            or path.startswith("/")
+            or "\\" in path
+            or ".." in Path(path).parts
+        ):
+            raise GovernanceError(f"corrective authorization contains a noncanonical path: {path}")
+    return ordered
+
+
+def _corrective_artifact_kind(path: str) -> str:
+    if path.endswith(".schema.json"):
+        return "governance_schema"
+    if path.endswith(".json"):
+        return "governance_record"
+    if path.endswith(".md"):
+        return "governance_documentation"
+    if path.endswith(".py"):
+        return "verification_or_validator"
+    if path.endswith(".ps1"):
+        return "governance_runtime_launcher"
+    if path.endswith(".yml") or path.endswith(".yaml"):
+        return "repository_integration"
+    return "repository_integration"
+
+
+def _corrective_result_artifact_inventory(
+    repository_root: Path,
+    *,
+    result_commit: str,
+    corrective_authorization: Mapping[str, Any],
+    expected_result_parent: str | None = None,
+) -> list[dict[str, Any]]:
+    """Validate C1 -> R2 and return the exact, byte-bound R2 change inventory."""
+
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("corrective result commit must be a full 40-hex object ID")
+    if expected_result_parent is None:
+        expected_result_parent = S1_ACCEPTANCE_V1_CLOSURE_COMMIT
+    if expected_result_parent != S1_ACCEPTANCE_V1_CLOSURE_COMMIT:
+        raise GovernanceError("corrective result parent must be immutable generation-1 C1")
+    parent_record = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", result_commit])
+    fields = parent_record.stdout.decode("ascii", errors="strict").split()
+    if parent_record.returncode != 0 or fields != [result_commit, expected_result_parent]:
+        raise GovernanceError(
+            "corrective R2 must be the direct, non-merge child of immutable generation-1 C1"
+        )
+    allowed_all = set(_corrective_authorized_paths(corrective_authorization))
+    allowed_result = allowed_all - S1_CORRECTIVE_CLOSURE_PATHS
+    changes = _git_name_status(repository_root, expected_result_parent, result_commit)
+    if not changes:
+        raise GovernanceError("corrective R2 must contain at least one governed correction")
+    unauthorized = sorted(set(changes) - allowed_result, key=_utf8_sort_key)
+    if unauthorized:
+        raise GovernanceError(f"corrective R2 touched unauthorized paths: {unauthorized}")
+    forbidden_statuses = {
+        path: status for path, status in changes.items() if status not in {"A", "M"}
+    }
+    if forbidden_statuses:
+        raise GovernanceError(
+            f"corrective R2 contains forbidden change statuses: {forbidden_statuses}"
+        )
+    inventory: list[dict[str, Any]] = []
+    for path in sorted(changes, key=_utf8_sort_key):
+        payload = _read_commit_blob(
+            repository_root,
+            result_commit,
+            path,
+            owner="corrective R2 artifact",
+        )
+        inventory.append(
+            {
+                "path": path,
+                "kind": _corrective_artifact_kind(path),
+                "change_status": changes[path],
+                "size_bytes": len(payload),
+                "sha256": raw_digest(payload),
+            }
+        )
+    return inventory
+
+
+def _corrective_change_control(
+    repository_root: Path,
+    *,
+    result_commit: str,
+    corrective_authorization: Mapping[str, Any],
+    expected_result_parent: str | None = None,
+) -> dict[str, Any]:
+    if expected_result_parent is None:
+        expected_result_parent = S1_ACCEPTANCE_V1_CLOSURE_COMMIT
+    authorized_paths = list(_corrective_authorized_paths(corrective_authorization))
+    inventory = _corrective_result_artifact_inventory(
+        repository_root,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+        expected_result_parent=expected_result_parent,
+    )
+    return {
+        "result_parent_commit": expected_result_parent,
+        "result_commit": result_commit,
+        "authorized_change_paths": authorized_paths,
+        "authorized_change_paths_digest": domain_digest(
+            CORRECTIVE_CHANGE_ALLOWLIST_DOMAIN, {"paths": authorized_paths}
+        ),
+        "result_artifact_inventory": inventory,
+        "result_artifact_set_digest": domain_digest(
+            CORRECTIVE_RESULT_ARTIFACT_SET_DOMAIN, {"artifacts": inventory}
+        ),
+    }
+
+
+def _validate_generation_1_closure_placeholders(
+    repository_root: Path,
+    governance_root: Path,
+) -> dict[str, dict[str, Any]]:
+    """Require the three live closure files to remain the exact C1 bytes.
+
+    A generation-2 forecast and its supporting records intentionally coexist
+    with the immutable generation-1 closure files before C2 is materialized.
+    Treating those files as a v1 bundle over the new forecast would be both
+    false and impossible.  This byte comparison is the explicit transition
+    state: no result commit is needed, and no mixed-generation closure is
+    accepted.
+    """
+
+    root = repository_root.resolve()
+    expected_governance_root = (root / "docs/governance/v1").resolve()
+    if governance_root.resolve() != expected_governance_root:
+        raise GovernanceError("S1 governance directory must be docs/governance/v1")
+    records: dict[str, dict[str, Any]] = {}
+    for relative in sorted(S1_CORRECTIVE_CLOSURE_PATHS, key=_utf8_sort_key):
+        path = _resolve_repository_path_without_links(
+            root,
+            relative,
+            owner="generation-1 closure placeholder",
+        )
+        if not path.is_file() or path.is_symlink():
+            raise GovernanceError(
+                f"generation-1 closure placeholder is not a regular file: {relative}"
+            )
+        expected = _read_commit_blob(
+            root,
+            S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            relative,
+            owner="immutable generation-1 closure placeholder",
+        )
+        actual = path.read_bytes()
+        if actual != expected:
+            raise GovernanceError(
+                f"generation-1 closure placeholder differs from immutable C1: {relative}"
+            )
+        record = _read_json(path)
+        expected_format = (
+            "agent-assure-governance-bundle/1"
+            if relative.endswith("governance-bundle.json")
+            else "agent-assure-ticket-completion-receipt/1"
+        )
+        if record.get("format") != expected_format:
+            raise GovernanceError(f"generation-1 closure placeholder identity changed: {relative}")
+        records[relative] = record
+    return records
+
+
+def _require_clean_corrective_result_checkout(
+    repository_root: Path,
+    *,
+    result_commit: str,
+    owner: str,
+) -> dict[str, Any]:
+    state = _post_r2_repository_state(repository_root)
+    if state.get("head_commit") != result_commit or state.get("clean") is not True:
+        raise GovernanceError(f"{owner} requires a clean checkout at exact R2")
+    return state
+
+
+def _forecast_binding_v2(forecast: Mapping[str, Any], *, require_accepted: bool) -> dict[str, Any]:
+    if forecast.get("format") != "agent-assure-delivery-forecast/2":
+        raise GovernanceError("corrective closure requires the generation-2 delivery forecast")
+    fields = {
+        "forecast_record_digest": "record_digest",
+        "estimation_catalog_digest": "estimation_catalog_digest",
+        "aggregation_method_registry_digest": "aggregation_method_registry_digest",
+        "authoring_ledger_digest": "authoring_ledger_digest",
+    }
+    result: dict[str, Any] = {
+        "forecast_format": "agent-assure-delivery-forecast/2",
+        "forecast_status": _required_string(forecast, "forecast_status"),
+        "human_review_status": _required_string(forecast, "human_review_status"),
+    }
+    for target, source in fields.items():
+        value = _required_string(forecast, source)
+        if SHA256_PATTERN.fullmatch(value) is None:
+            raise GovernanceError(f"corrective forecast {source} is not a SHA-256 digest")
+        result[target] = value
+    receipt = _as_object(forecast.get("acceptance_receipt"), owner="forecast acceptance receipt")
+    result["forecast_acceptance_status"] = _required_string(receipt, "receipt_status")
+    receipt_digest = receipt.get("receipt_digest")
+    if not isinstance(receipt_digest, str) or SHA256_PATTERN.fullmatch(receipt_digest) is None:
+        if require_accepted:
+            raise GovernanceError("corrective forecast acceptance receipt lacks a bound digest")
+        result["forecast_acceptance_receipt_digest"] = None
+    else:
+        result["forecast_acceptance_receipt_digest"] = receipt_digest
+    if require_accepted:
+        if (
+            result["forecast_status"] != "accepted"
+            or result["human_review_status"] != "complete"
+            or result["forecast_acceptance_status"] != "accepted_for_development"
+        ):
+            raise GovernanceError(
+                "corrective closure requires the accepted human-reviewed forecast"
+            )
+        producer_envelope = _as_object(
+            forecast.get("signature_envelope"), owner="forecast producer signature"
+        )
+        acceptance_envelope = _as_object(
+            receipt.get("signature_envelope"), owner="forecast acceptance signature"
+        )
+        if (
+            producer_envelope.get("status") != "signed"
+            or acceptance_envelope.get("status") != "signed"
+        ):
+            raise GovernanceError("corrective closure requires both forecast SSHSIGs")
+    return result
+
+
+def _post_r2_execution_outcome(exit_code: int) -> str:
+    return {
+        0: "passed",
+        1: "failed",
+        2: "interrupted",
+        3: "internal_error",
+        4: "usage_error",
+        5: "no_tests_collected",
+    }.get(exit_code, "unexpected_exit")
+
+
+def _parse_post_r2_pytest_totals(stdout: bytes, stderr: bytes) -> dict[str, int]:
+    """Parse pytest's terminal summary without trusting hand-entered counts."""
+
+    try:
+        rendered_streams = {
+            "stdout": stdout.decode("utf-8", errors="strict"),
+            "stderr": stderr.decode("utf-8", errors="strict"),
+        }
+    except UnicodeDecodeError as exc:
+        raise GovernanceError("post-R2 pytest output is not deterministic UTF-8") from exc
+
+    category = r"(?:passed|failed|skipped|xfailed|xpassed|errors?|deselected|warnings?)"
+    statistic = rf"(?:[1-9][0-9]* {category})"
+    summary_pattern = re.compile(
+        rf"(?P<statistics>{statistic}(?:, {statistic})*) "
+        r"in [0-9]+\.[0-9]{2}s(?: \([^\r\n()]+\))?"
+    )
+    wrapped_prefix_pattern = re.compile(rf"{statistic}(?:, {statistic})*,")
+    candidates: list[tuple[str, str, re.Match[str]]] = []
+    wrapped_prefixes: list[tuple[str, str]] = []
+    for stream_name, rendered in rendered_streams.items():
+        for line in rendered.splitlines():
+            summary_match = summary_pattern.fullmatch(line)
+            if summary_match is not None:
+                candidates.append((stream_name, line, summary_match))
+            if wrapped_prefix_pattern.fullmatch(line):
+                wrapped_prefixes.append((stream_name, line))
+    if not candidates:
+        raise GovernanceError("post-R2 pytest output lacks a parseable terminal summary")
+    if len(candidates) != 1 or wrapped_prefixes:
+        raise GovernanceError("post-R2 pytest output has ambiguous terminal summaries")
+    stream_name, _line, summary_match = candidates[0]
+    if stream_name != "stdout":
+        raise GovernanceError("post-R2 pytest terminal summary is not on stdout")
+
+    category_pattern = re.compile(
+        r"(?P<count>[1-9][0-9]*) "
+        r"(?P<category>passed|failed|skipped|xfailed|xpassed|errors?|deselected|warnings?)"
+    )
+    matches = [
+        category_pattern.fullmatch(value) for value in summary_match.group("statistics").split(", ")
+    ]
+    if any(match is None for match in matches):
+        raise GovernanceError("post-R2 pytest terminal summary grammar changed")
+    totals = {
+        "passed": 0,
+        "failed": 0,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0,
+    }
+    seen: set[str] = set()
+    deselected = 0
+    for match in matches:
+        assert match is not None
+        raw_category = match.group("category")
+        category = "errors" if raw_category in {"error", "errors"} else raw_category
+        category = "warnings" if category in {"warning", "warnings"} else category
+        if category == "deselected":
+            if category in seen:
+                raise GovernanceError(f"post-R2 pytest summary repeats category: {category}")
+            seen.add(category)
+            deselected = int(match.group("count"))
+            continue
+        if category == "warnings":
+            if category in seen:
+                raise GovernanceError(f"post-R2 pytest summary repeats category: {category}")
+            seen.add(category)
+            continue
+        if category in seen:
+            raise GovernanceError(f"post-R2 pytest summary repeats category: {category}")
+        seen.add(category)
+        totals[category] = int(match.group("count"))
+    totals["collected"] = sum(totals[name] for name in totals if name != "errors") + deselected
+    if totals["collected"] <= 0:
+        raise GovernanceError("post-R2 pytest summary reports no collected tests")
+    return {
+        "collected": totals["collected"],
+        "passed": totals["passed"],
+        "failed": totals["failed"],
+        "skipped": totals["skipped"],
+        "xfailed": totals["xfailed"],
+        "xpassed": totals["xpassed"],
+        "errors": totals["errors"],
+    }
+
+
+def _parse_post_r2_pytest_execution_totals(
+    completed: subprocess.CompletedProcess[bytes],
+) -> dict[str, int]:
+    """Parse totals while retaining non-sensitive facts needed to diagnose failure."""
+
+    try:
+        return _parse_post_r2_pytest_totals(completed.stdout, completed.stderr)
+    except GovernanceError as exc:
+        raise GovernanceError(
+            f"{exc}; exit_code={completed.returncode}; "
+            f"outcome={_post_r2_execution_outcome(completed.returncode)}; "
+            f"stdout_size_bytes={len(completed.stdout)}; "
+            f"stdout_sha256={raw_digest(completed.stdout)}; "
+            f"stderr_size_bytes={len(completed.stderr)}; "
+            f"stderr_sha256={raw_digest(completed.stderr)}"
+        ) from exc
+
+
+def _post_r2_repository_state(repository_root: Path) -> dict[str, Any]:
+    head = _run_git(repository_root, ["rev-parse", "--verify", "HEAD^{commit}"])
+    if head.returncode != 0:
+        raise GovernanceError("unable to resolve repository HEAD for post-R2 evidence")
+    status = _run_git(repository_root, ["status", "--porcelain=v1", "--untracked-files=all"])
+    if status.returncode != 0:
+        raise GovernanceError("unable to inspect repository cleanliness for post-R2 evidence")
+    return {
+        "head_commit": head.stdout.decode("ascii", errors="strict").strip(),
+        "clean": not bool(status.stdout),
+        "status_command": ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        "status_stdout_size_bytes": len(status.stdout),
+        "status_stdout_sha256": raw_digest(status.stdout),
+    }
+
+
+def _measure_post_r2_test_runtime_inventory(
+    repository_root: Path,
+    site_packages: Path,
+) -> dict[str, Any]:
+    """Measure every non-cache file admitted to the pytest import path."""
+
+    root = repository_root.resolve()
+    site_root = _resolve_repository_path_without_links(
+        root,
+        site_packages,
+        owner="post-R2 pytest site-packages",
+    )
+    if not site_root.is_dir() or site_root.is_symlink():
+        raise GovernanceError("post-R2 pytest site-packages is not a regular directory")
+    rows: list[tuple[str, int, bytes]] = []
+    for candidate in sorted(site_root.rglob("*"), key=lambda value: value.as_posix()):
+        relative = candidate.relative_to(site_root)
+        if any(
+            part in POST_R2_TEST_RUNTIME_EXCLUDED_DIRECTORY_NAMES for part in relative.parts[:-1]
+        ):
+            continue
+        metadata = candidate.lstat()
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if candidate.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise GovernanceError(
+                f"post-R2 pytest runtime contains a reparse point: {relative.as_posix()}"
+            )
+        if candidate.is_dir():
+            continue
+        if not candidate.is_file():
+            raise GovernanceError(
+                f"post-R2 pytest runtime contains a non-file: {relative.as_posix()}"
+            )
+        if candidate.suffix.casefold() in POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES:
+            raise GovernanceError(
+                f"post-R2 pytest runtime contains direct sourceless bytecode: {relative.as_posix()}"
+            )
+        size = metadata.st_size
+        with candidate.open("rb") as handle:
+            file_hash = hashlib.file_digest(handle, "sha256").digest()
+        rows.append((relative.as_posix(), size, file_hash))
+    if not rows:
+        raise GovernanceError("post-R2 pytest runtime inventory is empty")
+    rows.sort(key=lambda row: _utf8_sort_key(row[0]))
+    inventory_digest = hashlib.sha256(POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN)
+    for relative_name, size, file_digest in rows:
+        encoded = relative_name.encode("utf-8")
+        inventory_digest.update(len(encoded).to_bytes(8, "big"))
+        inventory_digest.update(encoded)
+        inventory_digest.update(size.to_bytes(8, "big"))
+        inventory_digest.update(file_digest)
+    inventory = {
+        "format": "agent-assure-s1-post-r2-test-runtime-inventory/1",
+        "relative_root": site_root.relative_to(root).as_posix(),
+        "exclusion_policy": {
+            "directory_names": sorted(POST_R2_TEST_RUNTIME_EXCLUDED_DIRECTORY_NAMES),
+            "forbidden_direct_file_suffixes": sorted(POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES),
+            "reason": "cache_directories_inert_under_fresh_pycache_prefix",
+        },
+        "file_count": len(rows),
+        "size_bytes": sum(row[1] for row in rows),
+        "sha256": "sha256:" + inventory_digest.hexdigest(),
+    }
+    return inventory
+
+
+def _post_r2_test_runtime_inventory(
+    repository_root: Path,
+    site_packages: Path,
+) -> dict[str, Any]:
+    """Authenticate the measured pytest import path against the frozen inventory."""
+
+    inventory = _measure_post_r2_test_runtime_inventory(repository_root, site_packages)
+    expected = {
+        "file_count": POST_R2_TEST_RUNTIME_FILE_COUNT,
+        "size_bytes": POST_R2_TEST_RUNTIME_SIZE_BYTES,
+        "sha256": "sha256:" + POST_R2_TEST_RUNTIME_SHA256,
+    }
+    if any(inventory[key] != value for key, value in expected.items()):
+        raise GovernanceError("post-R2 pytest site-packages inventory changed")
+    return inventory
+
+
+def _post_r2_runtime_file_evidence(
+    repository_root: Path,
+    path: Path,
+    *,
+    owner: str,
+) -> dict[str, Any]:
+    root = repository_root.resolve()
+    resolved = _resolve_repository_path_without_links(root, path, owner=owner)
+    if not resolved.is_file() or resolved.is_symlink():
+        raise GovernanceError(f"{owner} is not a regular file")
+    payload = resolved.read_bytes()
+    return {
+        "absolute_path": str(resolved),
+        "relative_path": resolved.relative_to(root).as_posix(),
+        "size_bytes": len(payload),
+        "sha256": raw_digest(payload),
+    }
+
+
+def _post_r2_test_runtime_evidence(repository_root: Path) -> dict[str, Any]:
+    """Bind the authenticated venv packages and already-frozen base runtime."""
+
+    root = repository_root.resolve()
+    try:
+        observed_base_inventory = _base_runtime_inventory(_FROZEN_PYTHON_ROOT)
+        _early_verify_file(
+            _FROZEN_PYTHON_EXECUTABLE,
+            expected_size=_FROZEN_PYTHON_EXECUTABLE_SIZE,
+            expected_sha256=_FROZEN_PYTHON_EXECUTABLE_SHA256,
+            owner="post-R2 frozen Python executable",
+        )
+        _early_verify_file(
+            _FROZEN_PYTHON_DLL,
+            expected_size=_FROZEN_PYTHON_DLL_SIZE,
+            expected_sha256=_FROZEN_PYTHON_DLL_SHA256,
+            owner="post-R2 frozen Python DLL",
+        )
+    except (OSError, RuntimeError) as exc:
+        raise GovernanceError(f"post-R2 frozen base runtime validation failed: {exc}") from exc
+    expected_base_inventory = (
+        _FROZEN_BASE_RUNTIME_FILE_COUNT,
+        _FROZEN_BASE_RUNTIME_SIZE_BYTES,
+        _FROZEN_BASE_RUNTIME_SHA256,
+    )
+    if observed_base_inventory != expected_base_inventory:
+        raise GovernanceError("post-R2 frozen base runtime inventory changed")
+    configuration = root / ".venv/pyvenv.cfg"
+    site_packages = root / ".venv/Lib/site-packages"
+    return {
+        "format": "agent-assure-s1-post-r2-test-runtime/2",
+        "pyvenv_configuration": _post_r2_runtime_file_evidence(
+            root,
+            configuration,
+            owner="post-R2 pyvenv configuration",
+        ),
+        "site_packages_inventory": _post_r2_test_runtime_inventory(root, site_packages),
+        "base_runtime": {
+            "root": str(_FROZEN_PYTHON_ROOT),
+            "python_executable": {
+                "absolute_path": str(_FROZEN_PYTHON_EXECUTABLE),
+                "size_bytes": _FROZEN_PYTHON_EXECUTABLE_SIZE,
+                "sha256": "sha256:" + _FROZEN_PYTHON_EXECUTABLE_SHA256,
+            },
+            "python_dll": {
+                "absolute_path": str(_FROZEN_PYTHON_DLL),
+                "size_bytes": _FROZEN_PYTHON_DLL_SIZE,
+                "sha256": "sha256:" + _FROZEN_PYTHON_DLL_SHA256,
+            },
+            "inventory": {
+                "file_count": _FROZEN_BASE_RUNTIME_FILE_COUNT,
+                "size_bytes": _FROZEN_BASE_RUNTIME_SIZE_BYTES,
+                "sha256": "sha256:" + _FROZEN_BASE_RUNTIME_SHA256,
+            },
+        },
+    }
+
+
+def _post_r2_git_tree_entries(
+    repository_root: Path,
+    result_commit: str,
+) -> dict[str, tuple[str, str]]:
+    """Read the immutable commit tree without consulting the mutable index."""
+
+    object_format = _run_git(repository_root, ["rev-parse", "--show-object-format"])
+    if object_format.returncode != 0 or object_format.stdout.strip() != b"sha1":
+        raise GovernanceError("post-R2 test-surface verification requires SHA-1 Git objects")
+    completed = _run_git(repository_root, ["ls-tree", "-r", "-z", result_commit])
+    if completed.returncode != 0:
+        raise GovernanceError("unable to enumerate the immutable post-R2 test surface")
+    entries: dict[str, tuple[str, str]] = {}
+    for raw_entry in completed.stdout.split(b"\x00"):
+        if not raw_entry:
+            continue
+        try:
+            metadata, raw_path = raw_entry.split(b"\t", 1)
+            mode, object_type, object_id = metadata.decode("ascii").split(" ")
+            relative = raw_path.decode("utf-8", errors="strict")
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise GovernanceError("post-R2 commit tree contains an invalid entry") from exc
+        if (
+            object_type != "blob"
+            or mode not in {"100644", "100755"}
+            or GIT_COMMIT_PATTERN.fullmatch(object_id) is None
+            or relative in entries
+        ):
+            raise GovernanceError("post-R2 commit tree contains an unsupported entry")
+        entries[relative] = (mode, object_id)
+    return entries
+
+
+def _post_r2_git_exclude_evidence(repository_root: Path) -> dict[str, Any]:
+    """Require the accepted host's exact local-exclude bytes."""
+
+    path = repository_root / ".git/info/exclude"
+    if not path.is_file() or path.is_symlink():
+        raise GovernanceError("post-R2 .git/info/exclude is not a regular file")
+    payload = path.read_bytes()
+    digest = raw_digest(payload)
+    if (
+        len(payload) != POST_R2_GIT_EXCLUDE_SIZE_BYTES
+        or digest != "sha256:" + POST_R2_GIT_EXCLUDE_SHA256
+    ):
+        raise GovernanceError("post-R2 .git/info/exclude policy changed")
+    return {
+        "path": ".git/info/exclude",
+        "size_bytes": len(payload),
+        "sha256": digest,
+    }
+
+
+def _post_r2_test_surface_evidence(
+    repository_root: Path,
+    *,
+    result_commit: str,
+) -> dict[str, Any]:
+    """Bind every tracked byte and reject extra files that can affect pytest."""
+
+    root = repository_root.resolve()
+    all_entries = _post_r2_git_tree_entries(root, result_commit)
+    directory_roots = set(POST_R2_TEST_AFFECTING_DIRECTORIES)
+    tracked_root_files = set(POST_R2_TRACKED_ROOT_FILES)
+    commit_directory_roots = {
+        Path(relative).parts[0] for relative in all_entries if len(Path(relative).parts) > 1
+    }
+    commit_root_files = {relative for relative in all_entries if len(Path(relative).parts) == 1}
+    if commit_directory_roots != directory_roots:
+        raise GovernanceError("post-R2 tracked top-level directory set changed")
+    if commit_root_files != tracked_root_files:
+        raise GovernanceError("post-R2 tracked root-file set changed")
+
+    def in_scope(relative: str) -> bool:
+        path = Path(relative)
+        if len(path.parts) == 1:
+            return relative in tracked_root_files
+        return path.parts[0] in directory_roots
+
+    expected = {path: entry for path, entry in all_entries.items() if in_scope(path)}
+    observed: set[str] = set()
+
+    def require_regular_file(path: Path, relative: str) -> None:
+        metadata = path.lstat()
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if path.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise GovernanceError(f"post-R2 test surface contains a reparse point: {relative}")
+        if not path.is_file():
+            raise GovernanceError(f"post-R2 test surface contains a non-file: {relative}")
+        if path.suffix.casefold() in POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES:
+            raise GovernanceError(
+                f"post-R2 repository contains direct sourceless bytecode: {relative}"
+            )
+        observed.add(relative)
+
+    for name in POST_R2_TRACKED_ROOT_FILES:
+        candidate = root / name
+        if not candidate.exists() and not candidate.is_symlink():
+            raise GovernanceError(f"post-R2 tracked root file is missing: {name}")
+        require_regular_file(candidate, name)
+    for name in POST_R2_ROOT_TEST_CONFIG_PATHS:
+        candidate = root / name
+        if candidate.exists() or candidate.is_symlink():
+            require_regular_file(candidate, name)
+    for candidate in root.iterdir():
+        if candidate.name not in tracked_root_files and candidate.suffix.casefold() in {
+            ".py",
+            ".pyc",
+            ".pyo",
+        }:
+            require_regular_file(candidate, candidate.name)
+        if (
+            candidate.name.isidentifier()
+            and candidate.name not in directory_roots
+            and (candidate.is_dir() or candidate.is_symlink())
+        ):
+            raise GovernanceError(
+                "post-R2 repository contains an untracked import-capable root directory: "
+                f"{candidate.name}"
+            )
+
+    def walk_error(error: OSError) -> None:
+        raise GovernanceError(f"unable to enumerate post-R2 test surface: {error}")
+
+    for top_level in POST_R2_TEST_AFFECTING_DIRECTORIES:
+        top = root / top_level
+        if not top.is_dir() or top.is_symlink():
+            raise GovernanceError(f"post-R2 test-surface root is not a directory: {top_level}")
+        for current, directories, files in os.walk(top, topdown=True, onerror=walk_error):
+            current_path = Path(current)
+            retained_directories: list[str] = []
+            for name in sorted(directories, key=_utf8_sort_key):
+                child = current_path / name
+                relative = child.relative_to(root).as_posix()
+                metadata = child.lstat()
+                attributes = getattr(metadata, "st_file_attributes", 0)
+                if child.is_symlink() or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+                    raise GovernanceError(
+                        f"post-R2 test surface contains a reparse point: {relative}"
+                    )
+                if name != "__pycache__":
+                    retained_directories.append(name)
+            directories[:] = retained_directories
+            for name in sorted(files, key=_utf8_sort_key):
+                candidate = current_path / name
+                relative = candidate.relative_to(root).as_posix()
+                require_regular_file(candidate, relative)
+
+    if observed != set(expected):
+        extras = sorted(observed - set(expected), key=_utf8_sort_key)
+        missing = sorted(set(expected) - observed, key=_utf8_sort_key)
+        raise GovernanceError(
+            "post-R2 test surface differs from immutable R2 "
+            f"(extra={extras[:8]}, missing={missing[:8]})"
+        )
+
+    rows: list[tuple[str, int, bytes]] = []
+    for relative in sorted(observed, key=_utf8_sort_key):
+        path = root / relative
+        payload = path.read_bytes()
+        _mode, expected_object_id = expected[relative]
+        git_object = hashlib.sha1(
+            b"blob " + str(len(payload)).encode("ascii") + b"\x00" + payload,
+            usedforsecurity=False,
+        ).hexdigest()
+        if git_object != expected_object_id:
+            raise GovernanceError(f"post-R2 test-surface bytes differ from R2: {relative}")
+        rows.append((relative, len(payload), hashlib.sha256(payload).digest()))
+
+    digest = hashlib.sha256(POST_R2_TEST_SURFACE_INVENTORY_DOMAIN)
+    for relative, size, file_digest in rows:
+        encoded = relative.encode("utf-8")
+        digest.update(len(encoded).to_bytes(8, "big"))
+        digest.update(encoded)
+        digest.update(size.to_bytes(8, "big"))
+        digest.update(file_digest)
+    return {
+        "format": "agent-assure-s1-post-r2-test-surface/1",
+        "subject_result_commit": result_commit,
+        "directory_roots": list(POST_R2_TEST_AFFECTING_DIRECTORIES),
+        "tracked_root_files": list(POST_R2_TRACKED_ROOT_FILES),
+        "root_config_paths": list(POST_R2_ROOT_TEST_CONFIG_PATHS),
+        "cache_policy": {
+            "excluded_directory_name": "__pycache__",
+            "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
+            "forbidden_direct_file_suffixes": sorted(POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES),
+        },
+        "local_exclude": _post_r2_git_exclude_evidence(root),
+        "file_count": len(rows),
+        "size_bytes": sum(row[1] for row in rows),
+        "sha256": "sha256:" + digest.hexdigest(),
+    }
+
+
+def _post_r2_governance_source_evidence(
+    repository_root: Path,
+    roadmap_path: Path,
+) -> list[dict[str, Any]]:
+    paths = (
+        roadmap_path.resolve(),
+        repository_root / "docs/governance/v1/corrective-kickoff-authorization.json",
+        repository_root / "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+    )
+    return [
+        _source_file_evidence(repository_root, path)
+        for path in sorted(paths, key=lambda value: _utf8_sort_key(str(value)))
+    ]
+
+
+def _allocate_post_r2_run_paths(_repository_root: Path) -> tuple[Path, Path]:
+    """Allocate one fresh external root for pytest and its governed runtime."""
+
+    process_temp_root = _post_r2_process_temp_root()
+    process_temp: Path | None = None
+    try:
+        process_temp = Path(
+            tempfile.mkdtemp(
+                prefix=POST_R2_PROCESS_TEMP_PREFIX,
+                dir=process_temp_root,
+            )
+        )
+        _post_r2_validate_process_temp(process_temp, require_empty=True)
+        basetemp = process_temp / POST_R2_PYTEST_BASETEMP_DIRECTORY
+        if basetemp.exists() or basetemp.is_symlink():
+            raise GovernanceError("post-R2 pytest basetemp must be absent before process start")
+    except BaseException as primary:
+        if process_temp is not None:
+            _cleanup_post_r2_process_temp_after_failure(process_temp, primary)
+        raise
+    return basetemp, process_temp
+
+
+def _post_r2_pytest_argv(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+    test_surface: Mapping[str, Any],
+) -> list[str]:
+    """Build the exact site-free frozen-Python pytest command."""
+
+    root = repository_root.resolve()
+    if not basetemp.is_absolute():
+        raise GovernanceError("post-R2 pytest basetemp must be absolute")
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    site_packages = root / ".venv/Lib/site-packages"
+    return [
+        str(_FROZEN_PYTHON_EXECUTABLE),
+        *POST_R2_PYTHON_ARGUMENTS,
+        "-X",
+        f"pycache_prefix={pycache_prefix}",
+        "-",
+        str(root),
+        str(root / "src"),
+        str(site_packages),
+        str(pycache_prefix),
+        str(_required_integer(test_surface, "file_count")),
+        str(_required_integer(test_surface, "size_bytes")),
+        _required_string(test_surface, "sha256"),
+        *POST_R2_PYTEST_ARGUMENTS,
+        "--basetemp",
+        str(basetemp),
+    ]
+
+
+def _post_r2_bootstrap_input(
+    repository_root: Path,
+    *,
+    basetemp: Path,
+    process_temp: Path,
+) -> tuple[bytes, dict[str, Any]]:
+    """Return the exact stdin bootstrap and its evidence-bound identity."""
+
+    payload = _post_r2_pytest_bootstrap_source(
+        repository_root.resolve(),
+        basetemp=basetemp,
+        process_temp=process_temp,
+    ).encode("utf-8")
+    return payload, {
+        "transport": "python_stdin_utf8",
+        "size_bytes": len(payload),
+        "sha256": raw_digest(payload),
+    }
+
+
+def _post_r2_bytecode_policy(basetemp: Path) -> dict[str, Any]:
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    return {
+        "basetemp": str(basetemp),
+        "basetemp_precondition": "fresh_unique_and_absent_immediately_before_spawn",
+        "pycache_prefix": str(pycache_prefix),
+        "pycache_prefix_precondition": "absent_immediately_before_spawn",
+        "main_process_write_policy": "disabled_by_-B",
+        "descendant_read_policy": "explicit_fresh_prefix_injected_at_recursive_Popen_boundary",
+        "descendant_write_policy": "explicit_-B_injected_at_recursive_Popen_boundary",
+        "descendant_guard_bypass_policy": "sitecustomize_fails_closed_without_exact_cli_policy",
+        "pycache_prefix_postcondition": "absent_after_suite_execution",
+        "repository_cache_policy": "source_adjacent___pycache___ignored_via_fresh_prefix",
+        "repository_direct_bytecode_policy": "reject_pyc_and_pyo",
+        "site_packages_cache_policy": "excluded_inert___pycache___only",
+        "site_packages_direct_bytecode_policy": "reject_pyc_and_pyo",
+    }
+
+
+def _publish_post_r2_suite_evidence_directory(
+    evidence_root: Path,
+    *,
+    record: Mapping[str, Any],
+    stdout: bytes,
+    stderr: bytes,
+) -> None:
+    """Atomically publish the complete three-file evidence set."""
+
+    evidence_root.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(
+        tempfile.mkdtemp(
+            prefix=f"{evidence_root.name}-publish-",
+            suffix=".publish.tmp",
+            dir=evidence_root.parent,
+        )
+    )
+    try:
+        payloads = {
+            "post-r2-suite-evidence.json": _render_json_bytes(record),
+            "pytest.stdout.bin": stdout,
+            "pytest.stderr.bin": stderr,
+        }
+        for name, payload in payloads.items():
+            with (temporary / name).open("xb") as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+        _fsync_directory(temporary)
+        temporary.replace(evidence_root)
+        _fsync_directory(evidence_root.parent)
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary, ignore_errors=True)
+
+
+def _canonical_host_utc_now() -> str:
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _post_r2_subprocess_environment(
+    repository_root: Path,
+    basetemp: Path,
+    *,
+    process_temp: Path,
+) -> dict[str, str]:
+    """Build the complete allowlisted child environment from no inherited state."""
+
+    root = repository_root.resolve()
+    if not basetemp.is_absolute() or not process_temp.is_absolute():
+        raise GovernanceError("post-R2 child environment paths must be absolute")
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    descendant_scripts = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY / "Scripts"
+    user_temp = process_temp / POST_R2_PROCESS_USER_TEMP_DIRECTORY
+    return {
+        "COMSPEC": r"C:\Windows\System32\cmd.exe",
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_GLOBAL": "NUL",
+        "GIT_CONFIG_KEY_0": "core.autocrlf",
+        "GIT_CONFIG_KEY_1": "safe.directory",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_VALUE_0": "true",
+        "GIT_CONFIG_VALUE_1": str(root),
+        "GIT_TERMINAL_PROMPT": "0",
+        "HOME": r"C:\Users\user",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": r"\Users\user",
+        "HYPOTHESIS_STORAGE_DIRECTORY": str(basetemp / "hypothesis"),
+        "NO_COLOR": "1",
+        "NoDefaultCurrentDirectoryInExePath": "1",
+        "PATH": str(descendant_scripts) + ";" + POST_R2_CHILD_PATH,
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "PROCESSOR_ARCHITECTURE": "AMD64",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": str(pycache_prefix),
+        "PYTHONSAFEPATH": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+        "PY_COLORS": "0",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "SYSTEMROOT": r"C:\Windows",
+        "TEMP": str(user_temp),
+        "TMP": str(user_temp),
+        "USERPROFILE": r"C:\Users\user",
+        "WINDIR": r"C:\Windows",
+    }
+
+
+def _execute_post_r2_pytest(
+    repository_root: Path,
+    *,
+    test_surface: Mapping[str, Any],
+) -> tuple[
+    Path,
+    list[str],
+    dict[str, str],
+    dict[str, Any],
+    dict[str, Any],
+    str,
+    subprocess.CompletedProcess[bytes],
+    str,
+]:
+    """Run pytest once with fresh governed storage and return exact execution facts."""
+
+    root = repository_root.resolve()
+    basetemp, process_temp = _allocate_post_r2_run_paths(root)
+    try:
+        if basetemp != process_temp / POST_R2_PYTEST_BASETEMP_DIRECTORY:
+            raise GovernanceError("post-R2 pytest basetemp path binding changed")
+        descendant_runtime = _prepare_post_r2_descendant_runtime(
+            root,
+            basetemp=basetemp,
+            process_temp=process_temp,
+        )
+        argv = _post_r2_pytest_argv(
+            root,
+            basetemp=basetemp,
+            process_temp=process_temp,
+            test_surface=test_surface,
+        )
+        environment = _post_r2_subprocess_environment(
+            root,
+            basetemp,
+            process_temp=process_temp,
+        )
+        bootstrap_payload, bootstrap_input = _post_r2_bootstrap_input(
+            root,
+            basetemp=basetemp,
+            process_temp=process_temp,
+        )
+        pycache_prefix = basetemp / "python-bytecode-cache"
+        if (
+            basetemp.exists()
+            or basetemp.is_symlink()
+            or pycache_prefix.exists()
+            or pycache_prefix.is_symlink()
+        ):
+            raise GovernanceError(
+                "post-R2 basetemp and bytecode prefix must be absent immediately before spawn"
+            )
+        if (
+            _verify_post_r2_descendant_runtime(
+                root,
+                basetemp=basetemp,
+                process_temp=process_temp,
+                require_empty_user_temp=True,
+            )
+            != descendant_runtime
+        ):
+            raise GovernanceError("post-R2 descendant runtime changed before spawn")
+        started_at = _canonical_host_utc_now()
+        completed = subprocess.run(
+            argv,
+            cwd=root,
+            env=environment,
+            input=bootstrap_payload,
+            capture_output=True,
+            check=False,
+        )
+        completed_at = _canonical_host_utc_now()
+        if (
+            _verify_post_r2_descendant_runtime(
+                root,
+                basetemp=basetemp,
+                process_temp=process_temp,
+                require_empty_user_temp=False,
+            )
+            != descendant_runtime
+        ):
+            raise GovernanceError("post-R2 descendant runtime changed during suite execution")
+        result = (
+            basetemp,
+            argv,
+            environment,
+            descendant_runtime,
+            bootstrap_input,
+            started_at,
+            completed,
+            completed_at,
+        )
+    except BaseException as primary:
+        _cleanup_post_r2_process_temp_after_failure(process_temp, primary)
+        raise
+    _cleanup_post_r2_process_temp(process_temp)
+    return result
+
+
+def capture_post_r2_suite_evidence(
+    repository_root: Path,
+    *,
+    roadmap_path: Path,
+    result_commit: str,
+    corrective_authorization: Mapping[str, Any],
+    evidence_directory: str | Path = POST_R2_SUITE_EVIDENCE_DIRECTORY,
+) -> dict[str, Any]:
+    """Run the exact full suite once and persist local-only, source-verifiable evidence.
+
+    The output directory is deliberately separate from pytest's ignored
+    ``--basetemp`` so pytest cleanup cannot delete the evidence it is meant to
+    support.  The function never manufactures or accepts result counts; all
+    totals are parsed from the captured raw pytest streams.
+    """
+
+    root = repository_root.resolve()
+    evidence_root = _corrective_private_acceptance_path(
+        root,
+        evidence_directory,
+        owner="post-R2 suite evidence directory",
+        must_exist=False,
+    )
+    if evidence_root.exists() or evidence_root.is_symlink():
+        if not evidence_root.is_dir() or evidence_root.is_symlink():
+            raise GovernanceError("post-R2 suite evidence target is not a regular directory")
+        evidence_path = evidence_root / "post-r2-suite-evidence.json"
+        return validate_post_r2_suite_evidence_source(
+            evidence_path,
+            expected_result_commit=result_commit,
+            expected_repository_root=root,
+            require_passed=False,
+        )
+    _corrective_result_artifact_inventory(
+        root,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+    )
+    governance_sources = _post_r2_governance_source_evidence(root, roadmap_path)
+    pre_state = _post_r2_repository_state(root)
+    if pre_state != {
+        **pre_state,
+        "head_commit": result_commit,
+        "clean": True,
+    }:
+        raise GovernanceError("post-R2 suite must start at clean R2")
+
+    test_runtime = _post_r2_test_runtime_evidence(root)
+    test_surface = _post_r2_test_surface_evidence(
+        root,
+        result_commit=result_commit,
+    )
+    (
+        basetemp,
+        argv,
+        environment,
+        descendant_runtime,
+        bootstrap_input,
+        started_at,
+        completed,
+        completed_at,
+    ) = _execute_post_r2_pytest(root, test_surface=test_surface)
+    if evidence_root == basetemp or evidence_root.is_relative_to(basetemp):
+        raise GovernanceError("post-R2 evidence must be outside pytest's basetemp")
+    if (
+        _post_r2_test_surface_evidence(
+            root,
+            result_commit=result_commit,
+        )
+        != test_surface
+    ):
+        raise GovernanceError("post-R2 repository test surface changed during suite execution")
+    if _post_r2_test_runtime_evidence(root) != test_runtime:
+        raise GovernanceError("post-R2 pytest runtime changed during suite execution")
+    if _post_r2_governance_source_evidence(root, roadmap_path) != governance_sources:
+        raise GovernanceError("post-R2 governance sources changed during suite execution")
+    _corrective_result_artifact_inventory(
+        root,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+    )
+    post_state = _post_r2_repository_state(root)
+    totals = _parse_post_r2_pytest_execution_totals(completed)
+    projection: dict[str, Any] = {
+        "format": "agent-assure-s1-post-r2-suite-evidence/3",
+        "acceptance_generation": 2,
+        "subject_result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "subject_result_commit": result_commit,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "governance_sources": governance_sources,
+        "repository_test_surface": test_surface,
+        "command": {
+            "argv": argv,
+            "working_directory": str(root),
+            "environment": environment,
+            "python_executable": test_runtime["base_runtime"]["python_executable"],
+            "descendant_runtime": descendant_runtime,
+            "bootstrap_input": bootstrap_input,
+            "bytecode_policy": _post_r2_bytecode_policy(basetemp),
+            "test_runtime": test_runtime,
+        },
+        "time_evidence": {
+            **ATTESTATION_V2_TIME_EVIDENCE,
+            "started_at_utc": started_at,
+            "completed_at_utc": completed_at,
+        },
+        "repository_precondition": pre_state,
+        "repository_postcondition": post_state,
+        "execution": {
+            "exit_code": completed.returncode,
+            "outcome": _post_r2_execution_outcome(completed.returncode),
+            "pytest_totals": totals,
+            "stdout": {
+                "file_name": "pytest.stdout.bin",
+                "size_bytes": len(completed.stdout),
+                "sha256": raw_digest(completed.stdout),
+            },
+            "stderr": {
+                "file_name": "pytest.stderr.bin",
+                "size_bytes": len(completed.stderr),
+                "sha256": raw_digest(completed.stderr),
+            },
+        },
+    }
+    record = {
+        **projection,
+        "evidence_digest": domain_digest(POST_R2_SUITE_EVIDENCE_DOMAIN, projection),
+    }
+    try:
+        _publish_post_r2_suite_evidence_directory(
+            evidence_root,
+            record=record,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+    except FileExistsError:
+        return validate_post_r2_suite_evidence_source(
+            evidence_root / "post-r2-suite-evidence.json",
+            expected_result_commit=result_commit,
+            expected_repository_root=root,
+            require_passed=False,
+        )
+    return record
+
+
+def _validate_post_r2_test_surface_record(
+    value: object,
+    *,
+    expected_result_commit: str,
+) -> dict[str, Any]:
+    surface = _as_object(value, owner="post-R2 repository test surface")
+    if set(surface) != {
+        "format",
+        "subject_result_commit",
+        "directory_roots",
+        "tracked_root_files",
+        "root_config_paths",
+        "cache_policy",
+        "local_exclude",
+        "file_count",
+        "size_bytes",
+        "sha256",
+    }:
+        raise GovernanceError("post-R2 repository test-surface evidence is malformed")
+    if (
+        surface.get("format") != "agent-assure-s1-post-r2-test-surface/1"
+        or surface.get("subject_result_commit") != expected_result_commit
+        or surface.get("directory_roots") != list(POST_R2_TEST_AFFECTING_DIRECTORIES)
+        or surface.get("tracked_root_files") != list(POST_R2_TRACKED_ROOT_FILES)
+        or surface.get("root_config_paths") != list(POST_R2_ROOT_TEST_CONFIG_PATHS)
+        or surface.get("cache_policy")
+        != {
+            "excluded_directory_name": "__pycache__",
+            "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
+            "forbidden_direct_file_suffixes": sorted(POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES),
+        }
+        or _required_integer(surface, "file_count") <= 0
+        or _required_integer(surface, "size_bytes") <= 0
+        or SHA256_PATTERN.fullmatch(_required_string(surface, "sha256")) is None
+    ):
+        raise GovernanceError("post-R2 repository test-surface evidence changed")
+    local_exclude = _as_object(
+        surface.get("local_exclude"),
+        owner="post-R2 local-exclude evidence",
+    )
+    if local_exclude != {
+        "path": ".git/info/exclude",
+        "size_bytes": POST_R2_GIT_EXCLUDE_SIZE_BYTES,
+        "sha256": "sha256:" + POST_R2_GIT_EXCLUDE_SHA256,
+    }:
+        raise GovernanceError("post-R2 local-exclude evidence changed")
+    return surface
+
+
+def _validate_embedded_post_r2_suite_evidence(
+    evidence: Mapping[str, Any],
+    *,
+    expected_result_commit: str,
+    require_passed: bool,
+) -> dict[str, Any]:
+    expected_keys = {
+        "format",
+        "acceptance_generation",
+        "subject_result_parent_commit",
+        "subject_result_commit",
+        "corrective_authorization_claim_digest",
+        "governance_sources",
+        "repository_test_surface",
+        "command",
+        "time_evidence",
+        "repository_precondition",
+        "repository_postcondition",
+        "execution",
+        "evidence_digest",
+    }
+    if set(evidence) != expected_keys:
+        raise GovernanceError("post-R2 suite evidence has missing or unexpected fields")
+    exact = {
+        "format": "agent-assure-s1-post-r2-suite-evidence/3",
+        "acceptance_generation": 2,
+        "subject_result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "subject_result_commit": expected_result_commit,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+    }
+    for key, expected in exact.items():
+        if evidence.get(key) != expected:
+            raise GovernanceError(f"post-R2 suite evidence changed {key}")
+    governance_sources = _as_array(
+        evidence.get("governance_sources"), owner="post-R2 governance sources"
+    )
+    source_paths: set[str] = set()
+    for value in governance_sources:
+        source = _as_object(value, owner="post-R2 governance source")
+        if set(source) != {"path", "size_bytes", "sha256"}:
+            raise GovernanceError("post-R2 governance source evidence is malformed")
+        path = _required_string(source, "path")
+        if path in source_paths:
+            raise GovernanceError("post-R2 governance source evidence repeats a path")
+        source_paths.add(path)
+        if (
+            _required_integer(source, "size_bytes") <= 0
+            or SHA256_PATTERN.fullmatch(_required_string(source, "sha256")) is None
+        ):
+            raise GovernanceError("post-R2 governance source evidence is invalid")
+    required_governance_sources = {
+        "docs/governance/v1/corrective-kickoff-authorization.json",
+        "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+    }
+    roadmap_sources = source_paths - required_governance_sources
+    if not required_governance_sources <= source_paths or roadmap_sources != {
+        "Agent_Assure_Implementation_Roadmap.md"
+    }:
+        raise GovernanceError("post-R2 governance source set is not exact")
+    test_surface = _validate_post_r2_test_surface_record(
+        evidence.get("repository_test_surface"),
+        expected_result_commit=expected_result_commit,
+    )
+    command = _as_object(evidence.get("command"), owner="post-R2 suite command")
+    if set(command) != {
+        "argv",
+        "working_directory",
+        "environment",
+        "python_executable",
+        "descendant_runtime",
+        "bootstrap_input",
+        "bytecode_policy",
+        "test_runtime",
+    }:
+        raise GovernanceError("post-R2 suite command has unexpected fields")
+    raw_argv = _as_array(command.get("argv"), owner="post-R2 suite argv")
+    if not raw_argv or any(not isinstance(value, str) or not value for value in raw_argv):
+        raise GovernanceError("post-R2 suite argv entries must be non-empty strings")
+    argv = cast(list[str], raw_argv)
+    executable = _as_object(command.get("python_executable"), owner="post-R2 Python executable")
+    working_directory_value = command.get("working_directory")
+    if not isinstance(working_directory_value, str):
+        raise GovernanceError("post-R2 suite working directory must be absolute")
+    working_directory = Path(working_directory_value)
+    if len(argv) < 2 or argv[-2] != "--basetemp":
+        raise GovernanceError("post-R2 suite must carry one exact absolute --basetemp")
+    basetemp = Path(argv[-1])
+    if not working_directory.is_absolute() or not basetemp.is_absolute():
+        raise GovernanceError("post-R2 suite paths must be absolute")
+    normalized_root = Path(os.path.abspath(working_directory))
+    normalized_basetemp = Path(os.path.abspath(basetemp))
+
+    raw_environment = _as_object(command.get("environment"), owner="post-R2 environment")
+    if any(
+        not isinstance(key, str) or not isinstance(value, str)
+        for key, value in raw_environment.items()
+    ):
+        raise GovernanceError("post-R2 environment must contain only string pairs")
+    environment = cast(dict[str, str], raw_environment)
+    user_temp_value = environment.get("TEMP")
+    if not isinstance(user_temp_value, str) or environment.get("TMP") != user_temp_value:
+        raise GovernanceError("post-R2 process temporary directory binding changed")
+    user_temp = Path(os.path.abspath(user_temp_value))
+    if not Path(user_temp_value).is_absolute():
+        raise GovernanceError("post-R2 process temporary directory must be absolute")
+    process_temp = user_temp.parent
+    if (
+        user_temp.name != POST_R2_PROCESS_USER_TEMP_DIRECTORY
+        or process_temp.parent != POST_R2_PROCESS_TEMP_ROOT
+        or not process_temp.name.startswith(POST_R2_PROCESS_TEMP_PREFIX)
+        or len(process_temp.name) <= len(POST_R2_PROCESS_TEMP_PREFIX)
+    ):
+        raise GovernanceError("post-R2 process temporary directory prefix changed")
+    if normalized_basetemp != process_temp / POST_R2_PYTEST_BASETEMP_DIRECTORY:
+        raise GovernanceError("post-R2 suite basetemp is not bound to process temporary storage")
+    expected_environment = _post_r2_subprocess_environment(
+        normalized_root,
+        normalized_basetemp,
+        process_temp=process_temp,
+    )
+    if environment != expected_environment:
+        raise GovernanceError("post-R2 suite exact environment changed")
+    _expected_bootstrap_payload, expected_bootstrap_input = _post_r2_bootstrap_input(
+        normalized_root,
+        basetemp=normalized_basetemp,
+        process_temp=process_temp,
+    )
+    if command.get("bootstrap_input") != expected_bootstrap_input:
+        raise GovernanceError("post-R2 suite bootstrap stdin identity changed")
+    expected_argv = _post_r2_pytest_argv(
+        normalized_root,
+        basetemp=normalized_basetemp,
+        process_temp=process_temp,
+        test_surface=test_surface,
+    )
+    if argv != expected_argv:
+        raise GovernanceError("post-R2 suite pytest argv changed")
+    if command.get("bytecode_policy") != _post_r2_bytecode_policy(normalized_basetemp):
+        raise GovernanceError("post-R2 suite bytecode policy changed")
+    expected_descendant_runtime = _post_r2_descendant_runtime_record(
+        normalized_root,
+        basetemp=normalized_basetemp,
+        process_temp=process_temp,
+    )
+    if command.get("descendant_runtime") != expected_descendant_runtime:
+        raise GovernanceError("post-R2 descendant runtime evidence changed")
+    expected_executable = {
+        "absolute_path": str(_FROZEN_PYTHON_EXECUTABLE),
+        "size_bytes": _FROZEN_PYTHON_EXECUTABLE_SIZE,
+        "sha256": "sha256:" + _FROZEN_PYTHON_EXECUTABLE_SHA256,
+    }
+    if (
+        set(executable)
+        != {
+            "absolute_path",
+            "size_bytes",
+            "sha256",
+        }
+        or executable != expected_executable
+    ):
+        raise GovernanceError("post-R2 frozen Python executable evidence changed")
+    if argv[0] != executable["absolute_path"]:
+        raise GovernanceError("post-R2 suite argv is not bound to its Python executable")
+    test_runtime = _as_object(command.get("test_runtime"), owner="post-R2 test runtime")
+    if (
+        set(test_runtime)
+        != {
+            "format",
+            "pyvenv_configuration",
+            "site_packages_inventory",
+            "base_runtime",
+        }
+        or test_runtime.get("format") != "agent-assure-s1-post-r2-test-runtime/2"
+    ):
+        raise GovernanceError("post-R2 test runtime evidence is malformed")
+    pyvenv = _as_object(
+        test_runtime.get("pyvenv_configuration"),
+        owner="post-R2 pyvenv configuration",
+    )
+    if set(pyvenv) != {
+        "absolute_path",
+        "relative_path",
+        "size_bytes",
+        "sha256",
+    } or (
+        not isinstance(pyvenv.get("absolute_path"), str)
+        or not Path(cast(str, pyvenv["absolute_path"])).is_absolute()
+        or pyvenv.get("relative_path") != ".venv/pyvenv.cfg"
+        or not isinstance(pyvenv.get("size_bytes"), int)
+        or cast(int, pyvenv["size_bytes"]) <= 0
+        or not isinstance(pyvenv.get("sha256"), str)
+        or SHA256_PATTERN.fullmatch(cast(str, pyvenv["sha256"])) is None
+    ):
+        raise GovernanceError("post-R2 pyvenv configuration evidence is invalid")
+    inventory = _as_object(
+        test_runtime.get("site_packages_inventory"),
+        owner="post-R2 test runtime inventory",
+    )
+    if set(inventory) != {
+        "format",
+        "relative_root",
+        "exclusion_policy",
+        "file_count",
+        "size_bytes",
+        "sha256",
+    } or (
+        inventory.get("format") != "agent-assure-s1-post-r2-test-runtime-inventory/1"
+        or inventory.get("relative_root") != ".venv/Lib/site-packages"
+        or inventory.get("exclusion_policy")
+        != {
+            "directory_names": sorted(POST_R2_TEST_RUNTIME_EXCLUDED_DIRECTORY_NAMES),
+            "forbidden_direct_file_suffixes": sorted(POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES),
+            "reason": "cache_directories_inert_under_fresh_pycache_prefix",
+        }
+        or inventory.get("file_count") != POST_R2_TEST_RUNTIME_FILE_COUNT
+        or inventory.get("size_bytes") != POST_R2_TEST_RUNTIME_SIZE_BYTES
+        or inventory.get("sha256") != "sha256:" + POST_R2_TEST_RUNTIME_SHA256
+    ):
+        raise GovernanceError("post-R2 test runtime inventory evidence is invalid")
+    expected_base_runtime = {
+        "root": str(_FROZEN_PYTHON_ROOT),
+        "python_executable": {
+            "absolute_path": str(_FROZEN_PYTHON_EXECUTABLE),
+            "size_bytes": _FROZEN_PYTHON_EXECUTABLE_SIZE,
+            "sha256": "sha256:" + _FROZEN_PYTHON_EXECUTABLE_SHA256,
+        },
+        "python_dll": {
+            "absolute_path": str(_FROZEN_PYTHON_DLL),
+            "size_bytes": _FROZEN_PYTHON_DLL_SIZE,
+            "sha256": "sha256:" + _FROZEN_PYTHON_DLL_SHA256,
+        },
+        "inventory": {
+            "file_count": _FROZEN_BASE_RUNTIME_FILE_COUNT,
+            "size_bytes": _FROZEN_BASE_RUNTIME_SIZE_BYTES,
+            "sha256": "sha256:" + _FROZEN_BASE_RUNTIME_SHA256,
+        },
+    }
+    if (
+        test_runtime.get("base_runtime") != expected_base_runtime
+        or expected_base_runtime["python_executable"] != executable
+    ):
+        raise GovernanceError("post-R2 base runtime identity changed")
+
+    time_evidence = _as_object(evidence.get("time_evidence"), owner="post-R2 time evidence")
+    if set(time_evidence) != {
+        "clock_basis",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed",
+        "started_at_utc",
+        "completed_at_utc",
+    }:
+        raise GovernanceError("post-R2 time evidence has unexpected fields")
+    for key, expected in ATTESTATION_V2_TIME_EVIDENCE.items():
+        if time_evidence.get(key) != expected:
+            raise GovernanceError(f"post-R2 time semantics changed {key}")
+    started = _parse_utc(
+        _required_string(time_evidence, "started_at_utc"), owner="post-R2 suite start"
+    )
+    completed = _parse_utc(
+        _required_string(time_evidence, "completed_at_utc"), owner="post-R2 suite completion"
+    )
+    if completed < started:
+        raise GovernanceError("post-R2 suite completion predates its start")
+
+    empty_digest = raw_digest(b"")
+    for state_name in ("repository_precondition", "repository_postcondition"):
+        state = _as_object(evidence.get(state_name), owner=f"post-R2 {state_name}")
+        if state != {
+            "head_commit": expected_result_commit,
+            "clean": True,
+            "status_command": [
+                "git",
+                "status",
+                "--porcelain=v1",
+                "--untracked-files=all",
+            ],
+            "status_stdout_size_bytes": 0,
+            "status_stdout_sha256": empty_digest,
+        }:
+            raise GovernanceError(f"post-R2 {state_name} is not clean R2")
+    execution = _as_object(evidence.get("execution"), owner="post-R2 suite execution")
+    if set(execution) != {"exit_code", "outcome", "pytest_totals", "stdout", "stderr"}:
+        raise GovernanceError("post-R2 suite execution has unexpected fields")
+    exit_code = _required_integer(execution, "exit_code")
+    if execution.get("outcome") != _post_r2_execution_outcome(exit_code):
+        raise GovernanceError("post-R2 suite outcome does not match its exit code")
+    totals = _as_object(execution.get("pytest_totals"), owner="post-R2 pytest totals")
+    total_keys = {"collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"}
+    if set(totals) != total_keys or any(
+        not isinstance(totals.get(key), int) or cast(int, totals[key]) < 0 for key in total_keys
+    ):
+        raise GovernanceError("post-R2 pytest totals are invalid")
+    executed_count = sum(
+        cast(int, totals[name]) for name in ("passed", "failed", "skipped", "xfailed", "xpassed")
+    )
+    if totals.get("collected") != executed_count:
+        raise GovernanceError("post-R2 collected count does not equal terminal outcome totals")
+    for stream_name in ("stdout", "stderr"):
+        stream = _as_object(execution.get(stream_name), owner=f"post-R2 {stream_name}")
+        if set(stream) != {"file_name", "size_bytes", "sha256"}:
+            raise GovernanceError(f"post-R2 {stream_name} evidence has unexpected fields")
+        if stream.get("file_name") != f"pytest.{stream_name}.bin":
+            raise GovernanceError(f"post-R2 {stream_name} file name changed")
+        if (
+            not isinstance(stream.get("size_bytes"), int)
+            or cast(int, stream["size_bytes"]) < 0
+            or not isinstance(stream.get("sha256"), str)
+            or SHA256_PATTERN.fullmatch(cast(str, stream["sha256"])) is None
+        ):
+            raise GovernanceError(f"post-R2 {stream_name} artifact evidence is invalid")
+    if require_passed and (
+        exit_code != 0
+        or execution.get("outcome") != "passed"
+        or totals.get("failed") != 0
+        or totals.get("errors") != 0
+        or cast(int, totals.get("passed", 0)) <= 0
+    ):
+        raise GovernanceError("post-R2 full suite did not pass")
+    projection = {key: value for key, value in evidence.items() if key != "evidence_digest"}
+    digest = domain_digest(POST_R2_SUITE_EVIDENCE_DOMAIN, projection)
+    if evidence.get("evidence_digest") != digest:
+        raise GovernanceError("post-R2 suite evidence digest mismatch")
+    return copy.deepcopy(dict(evidence))
+
+
+def validate_post_r2_suite_evidence_source(
+    evidence_path: Path,
+    *,
+    expected_result_commit: str,
+    expected_repository_root: Path | None = None,
+    require_passed: bool = True,
+) -> dict[str, Any]:
+    evidence_directory = evidence_path.parent
+    if not evidence_directory.is_dir() or evidence_directory.is_symlink():
+        raise GovernanceError("post-R2 evidence source is not a regular directory")
+    observed_names = {entry.name for entry in evidence_directory.iterdir()}
+    if observed_names != {
+        "post-r2-suite-evidence.json",
+        "pytest.stdout.bin",
+        "pytest.stderr.bin",
+    }:
+        raise GovernanceError("post-R2 evidence source is not the exact complete set")
+    for name in observed_names:
+        source = evidence_directory / name
+        if not source.is_file() or source.is_symlink():
+            raise GovernanceError("post-R2 evidence source contains a non-regular file")
+    record = _read_json(evidence_path)
+    validated = _validate_embedded_post_r2_suite_evidence(
+        record,
+        expected_result_commit=expected_result_commit,
+        require_passed=require_passed,
+    )
+    command = _as_object(validated["command"], owner="post-R2 command")
+    if expected_repository_root is not None:
+        observed_root = os.path.normcase(
+            os.path.normpath(_required_string(command, "working_directory"))
+        )
+        required_root = os.path.normcase(os.path.normpath(str(expected_repository_root.resolve())))
+        if observed_root != required_root:
+            raise GovernanceError("post-R2 evidence was captured in another repository")
+    executable = _as_object(command.get("python_executable"), owner="post-R2 Python executable")
+    executable_path = Path(_required_string(executable, "absolute_path"))
+    if not executable_path.is_file() or executable_path.is_symlink():
+        raise GovernanceError("post-R2 Python executable source is not a regular file")
+    executable_payload = executable_path.read_bytes()
+    if len(executable_payload) != executable.get("size_bytes") or raw_digest(
+        executable_payload
+    ) != executable.get("sha256"):
+        raise GovernanceError("post-R2 Python executable source bytes changed")
+    runtime_root = (
+        expected_repository_root.resolve()
+        if expected_repository_root is not None
+        else Path(_required_string(command, "working_directory")).resolve()
+    )
+    embedded_sources = [
+        copy.deepcopy(dict(_as_object(value, owner="post-R2 governance source")))
+        for value in _as_array(
+            validated.get("governance_sources"), owner="post-R2 governance sources"
+        )
+    ]
+    embedded_paths = {_required_string(source, "path") for source in embedded_sources}
+    fixed_sources = {
+        "docs/governance/v1/corrective-kickoff-authorization.json",
+        "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+    }
+    roadmap_relative = next(iter(embedded_paths - fixed_sources))
+    roadmap_path = runtime_root / roadmap_relative
+    if embedded_sources != _post_r2_governance_source_evidence(
+        runtime_root,
+        roadmap_path,
+    ):
+        raise GovernanceError("post-R2 governance source bytes changed")
+    if validated.get("repository_test_surface") != _post_r2_test_surface_evidence(
+        runtime_root,
+        result_commit=expected_result_commit,
+    ):
+        raise GovernanceError("post-R2 repository test-surface bytes changed")
+    test_runtime = _as_object(command.get("test_runtime"), owner="post-R2 test runtime")
+    if test_runtime != _post_r2_test_runtime_evidence(runtime_root):
+        raise GovernanceError("post-R2 test runtime source bytes changed")
+    for stream_name in ("stdout", "stderr"):
+        stream = _as_object(
+            _as_object(validated["execution"], owner="post-R2 execution").get(stream_name),
+            owner=f"post-R2 {stream_name}",
+        )
+        stream_path = evidence_path.parent / _required_string(stream, "file_name")
+        if not stream_path.is_file() or stream_path.is_symlink():
+            raise GovernanceError(f"post-R2 {stream_name} source is not a regular file")
+        payload = stream_path.read_bytes()
+        if len(payload) != stream.get("size_bytes") or raw_digest(payload) != stream.get("sha256"):
+            raise GovernanceError(f"post-R2 {stream_name} source bytes changed")
+    execution = _as_object(validated["execution"], owner="post-R2 execution")
+    stdout_record = _as_object(execution["stdout"], owner="post-R2 stdout")
+    stderr_record = _as_object(execution["stderr"], owner="post-R2 stderr")
+    stdout = (evidence_path.parent / _required_string(stdout_record, "file_name")).read_bytes()
+    stderr = (evidence_path.parent / _required_string(stderr_record, "file_name")).read_bytes()
+    if execution.get("pytest_totals") != _parse_post_r2_pytest_totals(stdout, stderr):
+        raise GovernanceError("post-R2 pytest totals do not match captured output bytes")
+    return validated
+
+
+def _completion_review_paths_v2(ticket_id: str) -> list[tuple[str, str]]:
+    implementation_and_verification = [
+        ("scripts/v1_s1_governance.py", "governance_validator"),
+        ("tests/unit/governance/test_v1_s1_governance.py", "verification"),
+        ("tests/integration/test_v1_s1_historical_check.py", "integration_verification"),
+    ]
+    if ticket_id == "V1-BASE-01":
+        return [
+            ("docs/adr/0016-v1-repository-map.md", "decision_record"),
+            ("docs/governance/v1/README.md", "governance_documentation"),
+            ("docs/governance/v1/baseline-observations.json", "planning_evidence"),
+            ("docs/governance/v1/baseline-observations.schema.json", "planning_schema"),
+            (
+                "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+                "planning_method_catalog",
+            ),
+            (
+                "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+                "planning_schema",
+            ),
+            (
+                "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+                "planning_method_registry",
+            ),
+            (
+                "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+                "planning_schema",
+            ),
+            (
+                "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+                "planning_evidence",
+            ),
+            (
+                "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+                "planning_schema",
+            ),
+            ("docs/governance/v1/delivery-forecast.json", "planning_evidence"),
+            ("docs/governance/v1/delivery-forecast.schema.json", "planning_schema"),
+            *implementation_and_verification,
+        ]
+    if ticket_id == "V1-BOOT-01":
+        return [
+            (".github/workflows/ci.yml", "continuous_integration"),
+            ("Makefile", "build_integration"),
+            ("mkdocs.yml", "documentation_integration"),
+            (
+                "docs/governance/v1/corrective-kickoff-authorization.json",
+                "corrective_authorization",
+            ),
+            (
+                "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+                "planning_schema",
+            ),
+            (
+                "docs/governance/v1/current-acceptance-attestation.schema.json",
+                "planning_schema",
+            ),
+            ("docs/governance/v1/governance-bundle.schema.json", "planning_schema"),
+            (
+                "docs/governance/v1/ticket-completion-receipt.schema.json",
+                "planning_schema",
+            ),
+        ]
+    raise GovernanceError(f"{ticket_id} is not an S1 corrective completion ticket")
+
+
+def _superseded_receipt_binding(repository_root: Path, *, ticket_id: str) -> dict[str, Any]:
+    previous = _read_json_from_commit(
+        repository_root,
+        S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json",
+    )
+    if (
+        previous.get("format") != "agent-assure-ticket-completion-receipt/1"
+        or previous.get("subject_ticket_id") != ticket_id
+    ):
+        raise GovernanceError(f"immutable generation-1 {ticket_id} receipt identity changed")
+    expected_digest = S1_ACCEPTANCE_V1_RECEIPT_DIGESTS[ticket_id]
+    if (
+        previous.get("receipt_digest") != expected_digest
+        or domain_digest(TICKET_RECEIPT_DOMAIN, _ticket_receipt_projection(previous))
+        != expected_digest
+    ):
+        raise GovernanceError(f"immutable generation-1 {ticket_id} receipt digest changed")
+    return {
+        "acceptance_generation": 1,
+        "receipt_format": "agent-assure-ticket-completion-receipt/1",
+        "receipt_digest": expected_digest,
+        "closure_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "disposition": "superseded_nonconforming",
+        "nonconformance": "generation_1_forecast_and_provenance_findings",
+    }
+
+
+def _load_corrective_authorization_from_result(
+    snapshot: RoadmapSnapshot,
+    repository_root: Path,
+    result_commit: str,
+) -> dict[str, Any]:
+    authorization = _read_json_from_commit(
+        repository_root,
+        result_commit,
+        "docs/governance/v1/corrective-kickoff-authorization.json",
+    )
+    schema = _read_json_from_commit(
+        repository_root,
+        result_commit,
+        "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+    )
+    validate_corrective_kickoff_authorization(
+        authorization,
+        schema,
+        expected_roadmap_digest=snapshot.raw_digest,
+    )
+    return authorization
+
+
+def _load_forecast_from_result(repository_root: Path, result_commit: str) -> dict[str, Any]:
+    return _read_json_from_commit(
+        repository_root,
+        result_commit,
+        "docs/governance/v1/delivery-forecast.json",
+    )
+
+
+def _load_roster_from_result(repository_root: Path, result_commit: str) -> dict[str, Any]:
+    return _read_json_from_commit(
+        repository_root,
+        result_commit,
+        "docs/governance/v1/approval-roster.json",
+    )
+
+
+def _corrective_authorization_binding(
+    corrective_authorization: Mapping[str, Any],
+) -> dict[str, Any]:
+    claim = _as_object(
+        corrective_authorization.get("signed_claim"), owner="corrective signed claim"
+    )
+    return {
+        "claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "authorization_status": _required_string(corrective_authorization, "authorization_status"),
+        "authorization_kind": _required_string(claim, "authorization_kind"),
+        "authorization_effect": _required_string(claim, "authorization_effect"),
+        "authorized_person_id": _required_string(claim, "authorized_person_id"),
+        "authorized_role": _required_string(claim, "authorized_role"),
+    }
+
+
+def _rostered_issuer_metadata(
+    roster: Mapping[str, Any], *, expected_person_id: str
+) -> dict[str, Any]:
+    if (
+        roster.get("selected_mode") != "maintainer_development"
+        or roster.get("maintainer_person_id") != expected_person_id
+    ):
+        raise GovernanceError("corrective receipt issuer is not the rostered maintainer")
+    people = [
+        _as_object(item, owner="approval roster person")
+        for item in _as_array(roster.get("people"), owner="approval roster people")
+    ]
+    matches = [item for item in people if item.get("person_id") == expected_person_id]
+    if len(matches) != 1:
+        raise GovernanceError("corrective receipt issuer has no unique roster identity")
+    person = matches[0]
+    competence_scopes = _required_string_array(person, "competence_scopes")
+    required_scopes = {
+        "planning_governance:s1",
+        "repository_maintenance:bounded_development",
+    }
+    if not required_scopes <= set(competence_scopes):
+        raise GovernanceError("corrective receipt issuer lacks required S1 competence")
+    assignments = {
+        _required_string(assignment, "role"): assignment
+        for assignment in (
+            _as_object(item, owner="approval roster role assignment")
+            for item in _as_array(
+                roster.get("role_assignments"), owner="approval roster role assignments"
+            )
+        )
+    }
+    for role in ("repository_maintainer", "technical_lead"):
+        assignment = assignments.get(role)
+        if assignment is None or assignment.get("person_id") != expected_person_id:
+            raise GovernanceError(f"corrective receipt issuer is not the rostered {role}")
+    return {
+        "issuer_competence_scopes": competence_scopes,
+        "issuer_conflicts": _required_string_array(person, "conflicts"),
+        "issuer_mode": "maintainer_development",
+    }
+
+
+def _pending_signature_import_evidence() -> dict[str, Any]:
+    return {
+        "status": "pending_signature_import",
+        "verification_recorded_at_utc": None,
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+        "verification_result": None,
+    }
+
+
+def record_v2_signature_import_observation(
+    record: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Add an honest post-signature host observation without calling it signing time.
+
+    This field is intentionally outside the SSHSIG subject projection.  The
+    closure commit and final annotated tag bind the observation durably, while
+    the SSHSIG continues to authenticate only the pre-signature claim.
+    """
+
+    result = copy.deepcopy(dict(record))
+    if result.get("signature_import_evidence") != _pending_signature_import_evidence():
+        raise GovernanceError("v2 signature import observation is not pending")
+    record_format = result.get("format")
+    if record_format == "agent-assure-ticket-completion-receipt/2":
+        owner = "corrective completion"
+        subject_digest = _required_string(result, "receipt_digest")
+    elif record_format == "agent-assure-governance-bundle/2":
+        owner = "corrective governance bundle"
+        subject_digest = _required_string(result, "bundle_digest")
+    else:
+        raise GovernanceError("signature import observation requires a v2 closure record")
+    signature_verified = _validate_signature_envelope_v2(
+        result.get("signature_envelope"),
+        expected_person_id=_required_string(result, "issuer_person_id"),
+        expected_role=_required_string(result, "issuer_role"),
+        expected_subject_digest=subject_digest,
+        allow_pending=False,
+        owner=owner,
+    )
+    if not signature_verified:  # pragma: no cover - allow_pending=False is fail closed.
+        raise GovernanceError("cannot observe an unverified v2 SSHSIG import")
+    prepared = _parse_utc(
+        _required_string(result, "claim_prepared_at_utc"), owner="claim preparation"
+    )
+    verification_recorded_at = _canonical_host_utc_now()
+    observed = _parse_utc(verification_recorded_at, owner="signature verification observation")
+    if observed < prepared:
+        raise GovernanceError("signature verification observation predates claim preparation")
+    result["signature_import_evidence"] = {
+        "status": "verified_after_import",
+        "verification_recorded_at_utc": verification_recorded_at,
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+        "verification_result": "valid_exact_payload_key_and_namespace",
+    }
+    return result
+
+
+def _validate_v2_signature_import_evidence(
+    record: Mapping[str, Any], *, signature_verified: bool, owner: str
+) -> None:
+    evidence = _as_object(
+        record.get("signature_import_evidence"), owner=f"{owner} signature import evidence"
+    )
+    expected_common = {
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+    }
+    for key, expected in expected_common.items():
+        if evidence.get(key) != expected:
+            raise GovernanceError(f"{owner} signature import evidence changed {key}")
+    if not signature_verified:
+        if evidence != _pending_signature_import_evidence():
+            raise GovernanceError(f"pending {owner} has nonpending signature import evidence")
+        return
+    if (
+        evidence.get("status") != "verified_after_import"
+        or evidence.get("verification_result") != "valid_exact_payload_key_and_namespace"
+    ):
+        raise GovernanceError(f"signed {owner} lacks verified signature import evidence")
+    observed = evidence.get("verification_recorded_at_utc")
+    if not isinstance(observed, str):
+        raise GovernanceError(f"signed {owner} lacks a verification observation time")
+    if _parse_utc(observed, owner=f"{owner} verification observation") < _parse_utc(
+        _required_string(record, "claim_prepared_at_utc"), owner=f"{owner} claim preparation"
+    ):
+        raise GovernanceError(f"{owner} verification observation predates claim preparation")
+
+
+def _ticket_completion_receipt_v2_projection(
+    snapshot: RoadmapSnapshot,
+    *,
+    repository_root: Path,
+    ticket_id: str,
+    roster: Mapping[str, Any],
+    person_id: str,
+    result_commit: str,
+    corrective_authorization: Mapping[str, Any],
+    forecast: Mapping[str, Any],
+    claim_prepared_at: str,
+    status: str,
+    post_result_verification: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    if ticket_id not in S1_ACCEPTANCE_V1_RECEIPT_DIGESTS:
+        raise GovernanceError(f"{ticket_id} is not an S1 corrective completion ticket")
+    if status not in {"pending_human_acceptance", "accepted_for_development"}:
+        raise GovernanceError(f"{ticket_id} corrective completion status is invalid")
+    if status == "accepted_for_development" and roster.get("selection_status") != "approved":
+        raise GovernanceError(
+            f"{ticket_id} accepted corrective completion requires the approved roster"
+        )
+    roster_digest = approval_roster_digest(roster)
+    issuer_metadata = _rostered_issuer_metadata(roster, expected_person_id=person_id)
+    _parse_utc(claim_prepared_at, owner=f"{ticket_id} claim_prepared_at_utc")
+    ticket = _ticket_by_id(snapshot, ticket_id)
+    reviewer_role = _required_string(ticket, "reviewer_role")
+    if reviewer_role != "repository_maintainer":
+        raise GovernanceError(
+            f"{ticket_id} corrective completion issuer does not match its declared reviewer role"
+        )
+    change_control = _corrective_change_control(
+        repository_root,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+    )
+    report_path = f"docs/governance/v1/completion-report-{ticket_id.lower()}.md"
+    report = _artifact_evidence_from_commit(
+        repository_root,
+        result_commit,
+        report_path,
+        kind="completion_report",
+    )
+    reviewed = [
+        _artifact_evidence_from_commit(
+            repository_root,
+            result_commit,
+            path,
+            kind=kind,
+        )
+        for path, kind in _completion_review_paths_v2(ticket_id)
+    ]
+    reviewed.sort(key=lambda item: _utf8_sort_key(cast(str, item["path"])))
+    reviewed_set = [report, *reviewed]
+    reviewed_set.sort(key=lambda item: _utf8_sort_key(cast(str, item["path"])))
+    if ticket_id == "V1-BASE-01":
+        if post_result_verification is not None:
+            raise GovernanceError("BASE corrective receipt must not duplicate BOOT suite evidence")
+        suite_evidence: dict[str, Any] | None = None
+    else:
+        if post_result_verification is None:
+            raise GovernanceError("BOOT corrective receipt requires post-R2 suite evidence")
+        suite_evidence = _validate_embedded_post_r2_suite_evidence(
+            post_result_verification,
+            expected_result_commit=result_commit,
+            require_passed=True,
+        )
+    reviewed_artifact_set_digest = domain_digest(
+        CORRECTIVE_REVIEWED_ARTIFACT_SET_DOMAIN, {"artifacts": reviewed_set}
+    )
+    review_evidence = {
+        "review_method": "accountable_human_maintainer_self_acceptance",
+        "llm_implementation_handoff_disclosed": True,
+        "subject_report_sha256": _required_string(report, "sha256"),
+        "reviewed_artifact_set_digest": reviewed_artifact_set_digest,
+        "result_artifact_set_digest": _required_string(
+            change_control, "result_artifact_set_digest"
+        ),
+        "post_r2_suite_evidence_digest": (
+            None if suite_evidence is None else _required_string(suite_evidence, "evidence_digest")
+        ),
+    }
+    return {
+        "format": "agent-assure-ticket-completion-receipt/2",
+        "spec_revision": SPEC_REVISION,
+        "acceptance_generation": 2,
+        "receipt_purpose": "development_design_acceptance",
+        "receipt_status": status,
+        "replacement_for": _superseded_receipt_binding(repository_root, ticket_id=ticket_id),
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "corrective_authorization": _corrective_authorization_binding(corrective_authorization),
+        "subject_ticket_id": ticket_id,
+        "subject_dispatch_kind": _required_string(ticket, "dispatch_kind"),
+        "subject_stage": "S1-governed-baseline-corrective-generation-2",
+        "subject_roadmap_digest": snapshot.raw_digest,
+        "subject_report": report,
+        "reviewed_artifacts": reviewed,
+        "reviewed_artifact_set_digest": reviewed_artifact_set_digest,
+        "review_evidence": review_evidence,
+        "approval_roster_digest": roster_digest,
+        "forecast_evidence": _forecast_binding_v2(forecast, require_accepted=True),
+        "change_control": change_control,
+        "post_result_verification": suite_evidence,
+        "issuer_person_id": person_id,
+        "issuer_role": "repository_maintainer",
+        "owner_role": _required_string(ticket, "owner_role"),
+        "reviewer_role": reviewer_role,
+        **issuer_metadata,
+        "approval_mode": "maintainer_development",
+        "author_reviewer_relationship": ("same_person_maintainer_development_self_acceptance"),
+        "independence_claimed": False,
+        "independence_basis": (
+            "same_person_maintainer_development_self_acceptance_with_recorded_conflicts"
+        ),
+        "authorization_effect": "none",
+        "time_evidence": dict(ATTESTATION_V2_TIME_EVIDENCE),
+        "claim_prepared_at_utc": claim_prepared_at,
+        "validity_context": {
+            "kind": "bounded_by_generation_2_governance_bundle",
+            "standalone_currentness_claimed": False,
+            "current_acceptance_requires_current_bundle": True,
+        },
+        "allowed_operations": _completion_allowed_operations(ticket_id),
+        "exclusions": [
+            "independent_review",
+            "method_admission",
+            "qualification",
+            "pilot_authorization",
+            "release_authorization",
+            "deployment_authorization",
+            "runtime_authorization",
+        ],
+        "limitations": [
+            "NO_INDEPENDENT_REVIEW",
+            "SSHSIG contains no signing timestamp; no actual signing time is claimed.",
+            (
+                "No method admission, qualification, pilot, release, deployment, or runtime "
+                "authorization is granted."
+            ),
+        ],
+    }
+
+
+def build_ticket_completion_receipt_v2(
+    snapshot: RoadmapSnapshot,
+    *,
+    repository_root: Path,
+    ticket_id: str,
+    roster_digest: str,
+    person_id: str,
+    result_commit: str,
+    post_r2_suite_evidence_path: Path | None = None,
+    status: str = "pending_human_acceptance",
+) -> dict[str, Any]:
+    corrective_authorization = _load_corrective_authorization_from_result(
+        snapshot, repository_root, result_commit
+    )
+    forecast = _load_forecast_from_result(repository_root, result_commit)
+    roster = _load_roster_from_result(repository_root, result_commit)
+    if approval_roster_digest(roster) != roster_digest:
+        raise GovernanceError("corrective completion targets another approval roster")
+    post_evidence: Mapping[str, Any] | None = None
+    if ticket_id == "V1-BOOT-01":
+        if post_r2_suite_evidence_path is None:
+            raise GovernanceError("BOOT corrective receipt requires local post-R2 suite evidence")
+        source = _corrective_private_acceptance_path(
+            repository_root,
+            post_r2_suite_evidence_path,
+            owner="post-R2 suite evidence source",
+            must_exist=True,
+        )
+        post_evidence = validate_post_r2_suite_evidence_source(
+            source,
+            expected_result_commit=result_commit,
+            expected_repository_root=repository_root,
+            require_passed=True,
+        )
+    elif post_r2_suite_evidence_path is not None:
+        raise GovernanceError("post-R2 suite evidence belongs only to the BOOT receipt")
+    claim_prepared_at = _canonical_host_utc_now()
+    projection = _ticket_completion_receipt_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        ticket_id=ticket_id,
+        roster=roster,
+        person_id=person_id,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+        forecast=forecast,
+        claim_prepared_at=claim_prepared_at,
+        status=status,
+        post_result_verification=post_evidence,
+    )
+    digest = domain_digest(TICKET_RECEIPT_V2_DOMAIN, projection)
+    return {
+        **projection,
+        "receipt_digest": digest,
+        "signature_envelope": _pending_signature_v2(person_id, "repository_maintainer", digest),
+        "signature_import_evidence": _pending_signature_import_evidence(),
+    }
+
+
+def validate_ticket_completion_receipt_v2(
+    snapshot: RoadmapSnapshot,
+    record: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    expected_ticket_id: str,
+    expected_roster_digest: str,
+    expected_corrective_authorization_digest: str,
+    expected_person_id: str,
+    expected_result_parent: str,
+    allow_pending: bool,
+) -> None:
+    _validate_json_schema(record, schema, owner=f"{expected_ticket_id} corrective receipt")
+    if expected_result_parent != S1_ACCEPTANCE_V1_CLOSURE_COMMIT:
+        raise GovernanceError("corrective receipt expected parent is not immutable C1")
+    if expected_corrective_authorization_digest != CORRECTIVE_KICKOFF_CLAIM_DIGEST:
+        raise GovernanceError("corrective receipt authorization digest is not the signed kickoff")
+    result_commit = _required_string(
+        _as_object(record.get("change_control"), owner="corrective change control"),
+        "result_commit",
+    )
+    authorization = _load_corrective_authorization_from_result(
+        snapshot, repository_root, result_commit
+    )
+    forecast = _load_forecast_from_result(repository_root, result_commit)
+    roster = _load_roster_from_result(repository_root, result_commit)
+    if approval_roster_digest(roster) != expected_roster_digest:
+        raise GovernanceError("corrective receipt approval roster digest changed")
+    post_evidence_value = record.get("post_result_verification")
+    post_evidence = (
+        None
+        if post_evidence_value is None
+        else _as_object(post_evidence_value, owner="post-R2 suite evidence")
+    )
+    expected = _ticket_completion_receipt_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        ticket_id=expected_ticket_id,
+        roster=roster,
+        person_id=expected_person_id,
+        result_commit=result_commit,
+        corrective_authorization=authorization,
+        forecast=forecast,
+        claim_prepared_at=_required_string(record, "claim_prepared_at_utc"),
+        status=_required_string(record, "receipt_status"),
+        post_result_verification=post_evidence,
+    )
+    if _ticket_receipt_projection(record) != expected:
+        raise GovernanceError(f"{expected_ticket_id} corrective receipt differs from R2 artifacts")
+    digest = domain_digest(TICKET_RECEIPT_V2_DOMAIN, expected)
+    if record.get("receipt_digest") != digest:
+        raise GovernanceError(f"{expected_ticket_id} corrective receipt digest mismatch")
+    status = _required_string(record, "receipt_status")
+    signature_may_be_pending = allow_pending and status != "accepted_for_development"
+    signature_verified = _validate_signature_envelope_v2(
+        record.get("signature_envelope"),
+        expected_person_id=expected_person_id,
+        expected_role="repository_maintainer",
+        expected_subject_digest=digest,
+        allow_pending=signature_may_be_pending,
+        owner=f"{expected_ticket_id} corrective completion",
+    )
+    _validate_v2_signature_import_evidence(
+        record,
+        signature_verified=signature_verified,
+        owner=f"{expected_ticket_id} corrective completion",
+    )
+    if not allow_pending and status != "accepted_for_development":
+        raise GovernanceError(f"{expected_ticket_id} corrective receipt is pending")
+
+
+def _generation_1_supersession_binding(
+    snapshot: RoadmapSnapshot,
+    repository_root: Path,
+) -> dict[str, Any]:
+    for child, parent, owner in (
+        (S1_ACCEPTANCE_V1_RESULT_COMMIT, PINNED_BASE_COMMIT, "generation-1 result"),
+        (
+            S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            S1_ACCEPTANCE_V1_RESULT_COMMIT,
+            "generation-1 closure",
+        ),
+    ):
+        history = _run_git(
+            repository_root,
+            ["rev-list", "--parents", "-n", "1", child],
+        )
+        fields = history.stdout.decode("ascii", errors="strict").split()
+        if history.returncode != 0 or fields != [child, parent]:
+            raise GovernanceError(f"immutable {owner} topology changed")
+    forecast = _read_json_from_commit(
+        repository_root,
+        S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "docs/governance/v1/delivery-forecast.json",
+    )
+    if (
+        forecast.get("record_digest") != S1_ACCEPTANCE_V1_FORECAST_DIGEST
+        or domain_digest(FORECAST_DOMAIN, _forecast_projection(forecast))
+        != S1_ACCEPTANCE_V1_FORECAST_DIGEST
+    ):
+        raise GovernanceError("immutable generation-1 forecast digest changed")
+    bundle = _read_json_from_commit(
+        repository_root,
+        S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "docs/governance/v1/governance-bundle.json",
+    )
+    if (
+        bundle.get("bundle_digest") != S1_ACCEPTANCE_V1_BUNDLE_DIGEST
+        or domain_digest(BUNDLE_DOMAIN, _bundle_projection(bundle))
+        != S1_ACCEPTANCE_V1_BUNDLE_DIGEST
+    ):
+        raise GovernanceError("immutable generation-1 bundle digest changed")
+    _validate_generation_1_predecessor_acceptance(
+        repository_root,
+        expected_roadmap_digest=snapshot.raw_digest,
+    )
+    return {
+        "acceptance_generation": 1,
+        "disposition": "superseded_nonconforming",
+        "noncurrent_reason": "forecast_and_governance_provenance_nonconformance",
+        "tag_name": S1_ACCEPTANCE_TAG_NAME,
+        "tag_object": S1_ACCEPTANCE_V1_TAG_OBJECT,
+        "baseline_commit": PINNED_BASE_COMMIT,
+        "result_commit": S1_ACCEPTANCE_V1_RESULT_COMMIT,
+        "closure_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "bundle_digest": S1_ACCEPTANCE_V1_BUNDLE_DIGEST,
+        "forecast_digest": S1_ACCEPTANCE_V1_FORECAST_DIGEST,
+        "objects_remain_immutable": True,
+    }
+
+
+def _corrective_completion_bindings(
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    if set(completion_receipts) != {"V1-BASE-01", "V1-BOOT-01"}:
+        raise GovernanceError("corrective bundle requires exactly BASE and BOOT replacements")
+    return [
+        {
+            "ticket_id": ticket_id,
+            "receipt_format": _required_string(record, "format"),
+            "receipt_status": _required_string(record, "receipt_status"),
+            "receipt_digest": _required_string(record, "receipt_digest"),
+            "superseded_receipt_digest": _required_string(
+                _as_object(record.get("replacement_for"), owner="replacement binding"),
+                "receipt_digest",
+            ),
+        }
+        for ticket_id, record in sorted(completion_receipts.items(), key=lambda item: item[0])
+    ]
+
+
+def _validate_corrective_review_partition(
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+    *,
+    result_artifact_inventory: Sequence[Mapping[str, Any]],
+) -> None:
+    """Require every R2 change to be reviewed by exactly one replacement receipt."""
+
+    if set(completion_receipts) != {"V1-BASE-01", "V1-BOOT-01"}:
+        raise GovernanceError("corrective review partition requires both replacement receipts")
+    reviewed_paths: list[str] = []
+    for ticket_id, receipt in sorted(completion_receipts.items()):
+        report = _as_object(receipt.get("subject_report"), owner=f"{ticket_id} subject report")
+        reviewed_paths.append(_required_string(report, "path"))
+        reviewed_paths.extend(
+            _required_string(
+                _as_object(value, owner=f"{ticket_id} reviewed artifact"),
+                "path",
+            )
+            for value in _as_array(
+                receipt.get("reviewed_artifacts"),
+                owner=f"{ticket_id} reviewed artifacts",
+            )
+        )
+    duplicates = sorted(
+        {path for path in reviewed_paths if reviewed_paths.count(path) > 1},
+        key=_utf8_sort_key,
+    )
+    if duplicates:
+        raise GovernanceError(
+            f"corrective replacement receipts review an R2 path more than once: {duplicates}"
+        )
+    result_paths = [
+        _required_string(
+            _as_object(value, owner="corrective result artifact"),
+            "path",
+        )
+        for value in result_artifact_inventory
+    ]
+    if len(result_paths) != len(set(result_paths)):
+        raise GovernanceError("corrective result artifact inventory repeats a path")
+    missing = sorted(set(result_paths) - set(reviewed_paths), key=_utf8_sort_key)
+    extraneous = sorted(set(reviewed_paths) - set(result_paths), key=_utf8_sort_key)
+    if missing or extraneous:
+        raise GovernanceError(
+            "corrective replacement receipt review partition differs from R2 changes: "
+            f"missing={missing}, extraneous={extraneous}"
+        )
+
+
+def _corrective_receipt_artifact_inventory(
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    inventory: list[dict[str, Any]] = []
+    for ticket_id, record in sorted(completion_receipts.items(), key=lambda item: item[0]):
+        path = f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+        payload = _render_json_bytes(record)
+        inventory.append(
+            {
+                "path": path,
+                "kind": "completion_receipt",
+                "size_bytes": len(payload),
+                "sha256": raw_digest(payload),
+            }
+        )
+    return inventory
+
+
+def _governance_bundle_v2_projection(
+    snapshot: RoadmapSnapshot,
+    *,
+    repository_root: Path,
+    roster: Mapping[str, Any],
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+    forecast: Mapping[str, Any],
+    baseline_observations: Mapping[str, Any],
+    corrective_authorization: Mapping[str, Any],
+    person_id: str,
+    result_commit: str,
+    issued_at: str,
+    valid_until: str,
+    claim_prepared_at: str,
+    status: str,
+) -> dict[str, Any]:
+    if status not in {"pending_human_acceptance", "accepted_for_development"}:
+        raise GovernanceError("corrective governance bundle status is invalid")
+    issue_time, expiry_time = _validate_validity_interval(
+        issued_at, valid_until, owner="corrective governance bundle"
+    )
+    preparation_time = _parse_utc(
+        claim_prepared_at, owner="corrective bundle claim_prepared_at_utc"
+    )
+    if not issue_time <= preparation_time < expiry_time:
+        raise GovernanceError(
+            "corrective bundle claim preparation is outside its validity interval"
+        )
+    roster_digest = approval_roster_digest(roster)
+    forecast_evidence = _forecast_binding_v2(forecast, require_accepted=True)
+    change_control = _corrective_change_control(
+        repository_root,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+    )
+    _validate_corrective_review_partition(
+        completion_receipts,
+        result_artifact_inventory=_as_array(
+            change_control.get("result_artifact_inventory"),
+            owner="corrective result artifact inventory",
+        ),
+    )
+    receipt_import_times: list[datetime] = []
+    for ticket_id, receipt in completion_receipts.items():
+        if (
+            receipt.get("receipt_status") != "accepted_for_development"
+            or _as_object(
+                receipt.get("signature_envelope"),
+                owner=f"{ticket_id} corrective receipt signature",
+            ).get("status")
+            != "signed"
+        ):
+            raise GovernanceError(
+                f"corrective bundle requires accepted signed {ticket_id} replacement"
+            )
+        receipt_prepared = _parse_utc(
+            _required_string(receipt, "claim_prepared_at_utc"),
+            owner=f"{ticket_id} corrective receipt claim preparation",
+        )
+        import_evidence = _as_object(
+            receipt.get("signature_import_evidence"),
+            owner=f"{ticket_id} corrective receipt signature import",
+        )
+        receipt_imported = _parse_utc(
+            _required_string(import_evidence, "verification_recorded_at_utc"),
+            owner=f"{ticket_id} corrective receipt signature verification",
+        )
+        if (
+            import_evidence.get("status") != "verified_after_import"
+            or not issue_time <= receipt_prepared <= receipt_imported < expiry_time
+        ):
+            raise GovernanceError(
+                f"{ticket_id} corrective receipt is outside bundle validity or unverified"
+            )
+        receipt_import_times.append(receipt_imported)
+    if receipt_import_times and preparation_time < max(receipt_import_times):
+        raise GovernanceError(
+            "corrective bundle claim preparation predates replacement signature verification"
+        )
+    completion_bindings = _corrective_completion_bindings(completion_receipts)
+    receipt_inventory = _corrective_receipt_artifact_inventory(completion_receipts)
+    boot_evidence = _as_object(
+        completion_receipts["V1-BOOT-01"].get("post_result_verification"),
+        owner="BOOT post-R2 suite evidence",
+    )
+    validated_suite = _validate_embedded_post_r2_suite_evidence(
+        boot_evidence,
+        expected_result_commit=result_commit,
+        require_passed=True,
+    )
+    if completion_receipts["V1-BASE-01"].get("post_result_verification") is not None:
+        raise GovernanceError("BASE receipt must not carry BOOT suite evidence")
+    return {
+        "format": "agent-assure-governance-bundle/2",
+        "spec_revision": SPEC_REVISION,
+        "acceptance_generation": 2,
+        "bundle_status": status,
+        "sprint": "S1",
+        "release": "1.0.0a1",
+        "train": "stable-1.0",
+        "maturity": "governed-baseline-corrective-generation-2",
+        "artifact_kind": "governance-bundle",
+        "source_ticket_ids": ["V1-BOOT-01", "V1-BASE-01"],
+        "authorization_effect": "none",
+        "installability": "none",
+        "distribution_channels": [],
+        "package_version": None,
+        "result_commit": result_commit,
+        "predecessor_acceptance": _generation_1_supersession_binding(
+            snapshot,
+            repository_root,
+        ),
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "corrective_authorization": _corrective_authorization_binding(corrective_authorization),
+        "roadmap_digest": snapshot.raw_digest,
+        "approval_roster_digest": roster_digest,
+        "signed_decisions": {
+            "roster_selection_status": _required_string(roster, "selection_status"),
+            "ticket_completion_receipts": completion_bindings,
+        },
+        "planning_evidence": {
+            "baseline_observations_digest": _required_string(
+                baseline_observations, "observations_digest"
+            ),
+            **forecast_evidence,
+        },
+        "change_control": change_control,
+        "post_result_verification": validated_suite,
+        "artifact_inventory": receipt_inventory,
+        "artifact_set_digest": domain_digest(
+            CORRECTIVE_CLOSURE_ARTIFACT_SET_DOMAIN, {"artifacts": receipt_inventory}
+        ),
+        "expected_closure": {
+            "result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            "result_commit": result_commit,
+            "closure_parent_commit": result_commit,
+            "closure_changed_paths": sorted(S1_CORRECTIVE_CLOSURE_PATHS, key=_utf8_sort_key),
+            "closure_change_statuses": ["A", "M"],
+            "successor_acceptance_generation": 2,
+            "successor_tag_name": S1_ACCEPTANCE_V2_TAG_NAME,
+        },
+        "compatibility_note": {
+            "baseline_package_version": "0.7.0",
+            "baseline_writer_schema_version": "0.6.6",
+            "production_behavior_changed": False,
+            "installable_artifact_emitted": False,
+            "note": (
+                "Generation 2 replaces only S1 planning-governance acceptance; package and "
+                "writer identities remain unchanged."
+            ),
+        },
+        "known_limitations": [
+            "NO_INDEPENDENT_REVIEW",
+            "SSHSIG contains no signing timestamp; no actual signing time is claimed.",
+            (
+                "No method, profile, qualification, release, deployment, or runtime "
+                "authorization is granted."
+            ),
+        ],
+        "issuer_person_id": person_id,
+        "issuer_role": "repository_maintainer",
+        "approval_mode": "maintainer_development",
+        "independence_claimed": False,
+        "time_evidence": dict(ATTESTATION_V2_TIME_EVIDENCE),
+        "issued_at_utc": issued_at,
+        "valid_until_utc": valid_until,
+        "claim_prepared_at_utc": claim_prepared_at,
+    }
+
+
+def build_governance_bundle_v2(
+    snapshot: RoadmapSnapshot,
+    *,
+    repository_root: Path,
+    roster: Mapping[str, Any],
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+    forecast: Mapping[str, Any],
+    baseline_observations: Mapping[str, Any],
+    person_id: str,
+    result_commit: str,
+    issued_at: str,
+    valid_until: str,
+    status: str = "pending_human_acceptance",
+) -> dict[str, Any]:
+    authorization = _load_corrective_authorization_from_result(
+        snapshot, repository_root, result_commit
+    )
+    claim_prepared_at = _canonical_host_utc_now()
+    projection = _governance_bundle_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        roster=roster,
+        completion_receipts=completion_receipts,
+        forecast=forecast,
+        baseline_observations=baseline_observations,
+        corrective_authorization=authorization,
+        person_id=person_id,
+        result_commit=result_commit,
+        issued_at=issued_at,
+        valid_until=valid_until,
+        claim_prepared_at=claim_prepared_at,
+        status=status,
+    )
+    digest = domain_digest(BUNDLE_V2_DOMAIN, projection)
+    return {
+        **projection,
+        "bundle_digest": digest,
+        "signature_envelope": _pending_signature_v2(person_id, "repository_maintainer", digest),
+        "signature_import_evidence": _pending_signature_import_evidence(),
+    }
+
+
+def validate_governance_bundle_v2(
+    snapshot: RoadmapSnapshot,
+    bundle: Mapping[str, Any],
+    schema: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    roster: Mapping[str, Any],
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+    forecast: Mapping[str, Any],
+    baseline_observations: Mapping[str, Any],
+    expected_person_id: str,
+    expected_result_parent: str,
+    allow_pending: bool,
+    validation_time: datetime | None,
+    require_current_closure: bool,
+    require_closure: bool,
+    expected_closure_commit: str | None,
+) -> None:
+    _validate_json_schema(bundle, schema, owner="S1 corrective governance bundle")
+    if expected_result_parent != S1_ACCEPTANCE_V1_CLOSURE_COMMIT:
+        raise GovernanceError("corrective bundle expected parent is not immutable C1")
+    change_control = _as_object(bundle.get("change_control"), owner="corrective change control")
+    result_commit = _required_string(change_control, "result_commit")
+    authorization = _load_corrective_authorization_from_result(
+        snapshot, repository_root, result_commit
+    )
+    receipt_schema = _read_json_from_commit(
+        repository_root,
+        result_commit,
+        "docs/governance/v1/ticket-completion-receipt.schema.json",
+    )
+    roster_digest = approval_roster_digest(roster)
+    for ticket_id in ("V1-BASE-01", "V1-BOOT-01"):
+        if ticket_id not in completion_receipts:
+            raise GovernanceError(f"corrective bundle is missing {ticket_id} replacement")
+        validate_ticket_completion_receipt_v2(
+            snapshot,
+            completion_receipts[ticket_id],
+            receipt_schema,
+            repository_root=repository_root,
+            expected_ticket_id=ticket_id,
+            expected_roster_digest=roster_digest,
+            expected_corrective_authorization_digest=CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+            expected_person_id=expected_person_id,
+            expected_result_parent=expected_result_parent,
+            allow_pending=allow_pending,
+        )
+    expected = _governance_bundle_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        roster=roster,
+        completion_receipts=completion_receipts,
+        forecast=forecast,
+        baseline_observations=baseline_observations,
+        corrective_authorization=authorization,
+        person_id=expected_person_id,
+        result_commit=result_commit,
+        issued_at=_required_string(bundle, "issued_at_utc"),
+        valid_until=_required_string(bundle, "valid_until_utc"),
+        claim_prepared_at=_required_string(bundle, "claim_prepared_at_utc"),
+        status=_required_string(bundle, "bundle_status"),
+    )
+    if _bundle_projection(bundle) != expected:
+        raise GovernanceError("S1 corrective governance bundle differs from exact evidence")
+    digest = domain_digest(BUNDLE_V2_DOMAIN, expected)
+    if bundle.get("bundle_digest") != digest:
+        raise GovernanceError("S1 corrective governance bundle digest mismatch")
+    status = _required_string(bundle, "bundle_status")
+    signature_may_be_pending = allow_pending and status != "accepted_for_development"
+    signature_verified = _validate_signature_envelope_v2(
+        bundle.get("signature_envelope"),
+        expected_person_id=expected_person_id,
+        expected_role="repository_maintainer",
+        expected_subject_digest=digest,
+        allow_pending=signature_may_be_pending,
+        owner="S1 corrective governance bundle",
+    )
+    _validate_v2_signature_import_evidence(
+        bundle,
+        signature_verified=signature_verified,
+        owner="S1 corrective governance bundle",
+    )
+    if status == "accepted_for_development":
+        if validation_time is None:
+            raise GovernanceError("accepted corrective bundle requires a validation time")
+        if validation_time.tzinfo is None:
+            raise GovernanceError("corrective bundle validation time must be timezone-aware")
+        issue_time, expiry_time = _validate_validity_interval(
+            _required_string(bundle, "issued_at_utc"),
+            _required_string(bundle, "valid_until_utc"),
+            owner="corrective governance bundle",
+        )
+        if not issue_time <= validation_time.astimezone(UTC) < expiry_time:
+            raise GovernanceError("accepted corrective bundle is not current")
+        if roster.get("selection_status") != "approved":
+            raise GovernanceError("accepted corrective bundle requires the approved roster")
+        if any(
+            receipt.get("receipt_status") != "accepted_for_development"
+            for receipt in completion_receipts.values()
+        ):
+            raise GovernanceError("accepted corrective bundle requires both signed replacements")
+        if require_closure:
+            _validate_s1_closure_checkout(
+                repository_root,
+                result_commit=result_commit,
+                bundle=bundle,
+                require_current_checkout=require_current_closure,
+                expected_closure_commit=expected_closure_commit,
+            )
+        elif require_current_closure:
+            raise GovernanceError("current corrective closure validation cannot be disabled")
+    if not allow_pending and status != "accepted_for_development":
+        raise GovernanceError("S1 corrective governance bundle is pending")
 
 
 def _render_json_bytes(value: object) -> bytes:
@@ -4488,7 +11435,7 @@ def _durable_replace(path: Path, payload: bytes, *, suffix: str) -> None:
     try:
         with tempfile.NamedTemporaryFile(
             mode="wb",
-            prefix=f".{path.name}.",
+            prefix=f"{path.name}.",
             suffix=suffix,
             dir=path.parent,
             delete=False,
@@ -4502,6 +11449,47 @@ def _durable_replace(path: Path, payload: bytes, *, suffix: str) -> None:
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
+
+
+def _publish_new_file_atomically(
+    path: Path,
+    payload: bytes,
+    *,
+    staging_directory: Path,
+) -> None:
+    """Durably publish one new file without exposing a partial target.
+
+    The fully flushed staging file lives outside the exact-content plan
+    directory but on the same filesystem.  Linking it into place is atomic and
+    fails rather than replacing an existing target.  A process crash can leave
+    an orphan staging file, but it cannot leave a partial target or make the
+    immutable plan directory fail its exact-name check on retry.
+    """
+
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            prefix=f".{path.parent.name}.{path.name}.",
+            suffix=".publish.tmp",
+            dir=staging_directory,
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.link(temporary, path)
+        _fsync_directory(path.parent)
+        temporary.unlink()
+        temporary = None
+        _fsync_directory(staging_directory)
+    finally:
+        if temporary is not None:
+            try:
+                temporary.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 @contextmanager
@@ -4524,7 +11512,7 @@ def _acceptance_import_lock(repository_root: Path) -> Iterator[None]:
     )
     lock_path = _resolve_repository_path_without_links(
         repository_root,
-        lock_directory / ".import.lock",
+        lock_directory / "correction-v2-import.lock",
         owner="acceptance import lock",
     )
     handle = lock_path.open("a+b")
@@ -4565,7 +11553,27 @@ def _acceptance_import_lock(repository_root: Path) -> Iterator[None]:
 
 
 def _acceptance_transaction_journal(repository_root: Path) -> Path:
-    return repository_root / ".tmp/s1-acceptance/import-transaction.json"
+    return repository_root / ".tmp/s1-acceptance/correction-v2-import-transaction.json"
+
+
+def _require_frozen_runtime(
+    function: Callable[[argparse.Namespace], int],
+) -> Callable[[argparse.Namespace], int]:
+    """Reject every command handler unless the frozen launcher bootstrapped it.
+
+    ``__wrapped__`` is deliberately retained as the narrow unit/integration-test
+    seam.  Production dispatch and ordinary imported calls always enter this
+    outer wrapper first.
+    """
+
+    @wraps(function)
+    def guarded(args: argparse.Namespace) -> int:
+        if not _main_has_active_runtime_bootstrap():
+            raise GovernanceError("commands require successful frozen runtime bootstrap")
+        return function(args)
+
+    guarded.__dict__["__requires_frozen_runtime__"] = True
+    return guarded
 
 
 def _guard_acceptance_reader(
@@ -4607,7 +11615,12 @@ def _acceptance_stage_path(
     except ValueError as exc:
         raise GovernanceError("acceptance target leaves the repository root") from exc
     token = hashlib.sha256(f"{plan_digest}\x00{relative}".encode()).hexdigest()[:20]
-    return target.with_name(f".{target.name}.s1-accept-{token}.tmp")
+    staging_root = _resolve_repository_path_without_links(
+        root,
+        ".tmp/s1-acceptance/correction-v2-install-staging",
+        owner="acceptance transaction staging root",
+    )
+    return staging_root / f"{token}-{target.name}.tmp"
 
 
 def _acceptance_plan_target_prior_evidence(
@@ -4697,6 +11710,7 @@ def _recover_acceptance_transaction(
         raise GovernanceError("interrupted acceptance transaction target set changed")
 
     governance_root = (repository_root / "docs/governance/v1").resolve()
+    staging_root = (repository_root / ".tmp/s1-acceptance/correction-v2-install-staging").resolve()
     validated: list[tuple[Path, Path, bytes | None, bytes | None]] = []
     for relative, record in records.items():
         target = _resolve_repository_path_without_links(
@@ -4712,10 +11726,15 @@ def _recover_acceptance_transaction(
             raise GovernanceError("acceptance transaction staging path is not deterministic")
         try:
             target.relative_to(governance_root)
-            stage.relative_to(governance_root)
         except ValueError as exc:
             raise GovernanceError(
-                "acceptance transaction path leaves governance directory"
+                "acceptance transaction target leaves governance directory"
+            ) from exc
+        try:
+            stage.relative_to(staging_root)
+        except ValueError as exc:
+            raise GovernanceError(
+                "acceptance transaction stage leaves signed corrective staging"
             ) from exc
         if target.exists() and not target.is_file():
             raise GovernanceError("acceptance transaction target is not a regular file")
@@ -4760,7 +11779,14 @@ def _recover_acceptance_transaction(
                 target.unlink(missing_ok=True)
                 _fsync_directory(target.parent)
             else:
-                _durable_replace(target, prior, suffix=".recovery.tmp")
+                stage.unlink(missing_ok=True)
+                stage.parent.mkdir(parents=True, exist_ok=True)
+                with stage.open("xb") as handle:
+                    handle.write(prior)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                stage.replace(target)
+                _fsync_directory(target.parent)
         stage.unlink(missing_ok=True)
     journal_path.unlink()
     _fsync_directory(journal_path.parent)
@@ -4826,6 +11852,7 @@ def _install_acceptance_targets(
     try:
         for path, stage in stages.items():
             path.parent.mkdir(parents=True, exist_ok=True)
+            stage.parent.mkdir(parents=True, exist_ok=True)
             with stage.open("xb") as handle:
                 handle.write(rendered[path])
                 handle.flush()
@@ -4894,6 +11921,54 @@ def _private_acceptance_path(
     if must_exist is False and resolved.exists():
         raise GovernanceError(f"refusing to overwrite existing {owner}")
     return resolved
+
+
+def _corrective_private_acceptance_path(
+    repository_root: Path,
+    value: str | Path,
+    *,
+    owner: str,
+    must_exist: bool | None = None,
+) -> Path:
+    """Resolve a generation-2 artifact under an exact signed local-only prefix."""
+
+    root = repository_root.resolve()
+    resolved = _private_acceptance_path(
+        root,
+        value,
+        owner=owner,
+        must_exist=must_exist,
+    )
+    relative = resolved.relative_to(root).as_posix()
+    _require_corrective_local_only_path(relative, owner=owner)
+    return resolved
+
+
+def _validate_corrective_local_only_path_prefixes(
+    signed_claim: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Require the exact ordered local-only prefixes in the signed kickoff claim."""
+
+    observed = tuple(_required_string_array(signed_claim, "local_only_path_prefixes"))
+    if observed != CORRECTIVE_LOCAL_ONLY_PATH_PREFIXES:
+        raise GovernanceError("corrective kickoff local-only path prefixes changed")
+    return observed
+
+
+def _require_corrective_local_only_path(relative: str, *, owner: str) -> None:
+    """Reject any generation-2 local artifact outside its signed prefix set."""
+
+    if (
+        Path(relative).as_posix() != relative
+        or relative.startswith("/")
+        or "\\" in relative
+        or ".." in Path(relative).parts
+        or not any(relative.startswith(prefix) for prefix in CORRECTIVE_LOCAL_ONLY_PATH_PREFIXES)
+    ):
+        allowed = ", ".join(CORRECTIVE_LOCAL_ONLY_PATH_PREFIXES)
+        raise GovernanceError(
+            f"{owner} is outside the signed corrective local-only prefixes: {allowed}"
+        )
 
 
 def _source_file_evidence(repository_root: Path, path: Path) -> dict[str, Any]:
@@ -5009,7 +12084,7 @@ def _write_acceptance_plan(
     plan = {**projection, "plan_digest": domain_digest(ACCEPTANCE_PLAN_DOMAIN, projection)}
     parent = plan_directory.parent
     parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix=f".{plan_directory.name}.", dir=parent))
+    temporary = Path(tempfile.mkdtemp(prefix=f"{plan_directory.name}-staging-", dir=parent))
     try:
         (temporary / "claims").mkdir()
         (temporary / "plan.json").write_bytes(_render_json_bytes(plan))
@@ -5086,6 +12161,31 @@ def _verify_plan_sources(repository_root: Path, plan: Mapping[str, Any]) -> None
         actual = _source_file_evidence(repository_root, repository_root / path)
         if actual != source:
             raise GovernanceError(f"acceptance source file changed after plan creation: {path}")
+
+
+def _verify_plan_sources_after_target_install(
+    repository_root: Path,
+    plan: Mapping[str, Any],
+    *,
+    installed_target_paths: set[str],
+) -> None:
+    """Recheck every immutable plan source while exempting exact installed targets."""
+
+    observed: set[str] = set()
+    for value in _as_array(plan.get("source_files"), owner="acceptance plan source files"):
+        source = _as_object(value, owner="acceptance plan source file")
+        path = _required_string(source, "path")
+        if path in observed:
+            raise GovernanceError(f"acceptance plan repeats source file: {path}")
+        observed.add(path)
+        if path in installed_target_paths:
+            continue
+        actual = _source_file_evidence(repository_root, repository_root / path)
+        if actual != source:
+            raise GovernanceError(f"acceptance source file changed after plan creation: {path}")
+    if not installed_target_paths <= observed:
+        missing = ", ".join(sorted(installed_target_paths - observed, key=_utf8_sort_key))
+        raise GovernanceError(f"acceptance plan lacks installed target sources: {missing}")
 
 
 def _canonical_sshsig_armor(payload: bytes) -> bytes:
@@ -5176,6 +12276,7 @@ def _validate_live_repository_evidence(
     value: object,
     *,
     expected_closure_commit: str,
+    expected_branch_name: str = S1_BRANCH_NAME,
 ) -> dict[str, Any]:
     evidence = _as_object(value, owner="current acceptance live repository evidence")
     required = {
@@ -5202,7 +12303,7 @@ def _validate_live_repository_evidence(
         evidence.get("approved_remote_url") != APPROVED_ORIGIN_URL
         or evidence.get("authoritative_remote_refs") != expected_remote_refs
         or evidence.get("local_refs") != expected_local_refs
-        or evidence.get("branch_name") != S1_BRANCH_NAME
+        or evidence.get("branch_name") != expected_branch_name
         or evidence.get("fetch_performed") is not True
         or evidence.get("head_commit") != expected_closure_commit
     ):
@@ -5256,7 +12357,7 @@ def build_current_acceptance_attestation(
     if SHA256_PATTERN.fullmatch(bundle_digest) is None:
         raise GovernanceError("current acceptance bundle digest is invalid")
     projection: dict[str, Any] = {
-        "format": "agent-assure-s1-current-acceptance-attestation/1",
+        "format": CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT,
         "spec_revision": SPEC_REVISION,
         "release": "1.0.0a1",
         "maturity": "governed-baseline",
@@ -5297,6 +12398,497 @@ def build_current_acceptance_attestation(
     }
 
 
+def _v1_predecessor_acceptance_binding() -> dict[str, Any]:
+    return {
+        "tag_name": S1_ACCEPTANCE_TAG_NAME,
+        "tag_object": S1_ACCEPTANCE_V1_TAG_OBJECT,
+        "closure_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "result_commit": S1_ACCEPTANCE_V1_RESULT_COMMIT,
+        "disposition": "superseded_nonconforming",
+        "current_for_s2_commitment": False,
+    }
+
+
+def _validate_attestation_v2_event_times(
+    *,
+    validation_started_at: str,
+    gate_completed_at: str,
+    attestation_preparation_started_at: str,
+) -> tuple[datetime, datetime, datetime]:
+    """Validate runtime-captured host observations without claiming a signing time."""
+
+    validation_started_time = _parse_utc(
+        validation_started_at,
+        owner="generation-2 acceptance validation_started_at_utc",
+    )
+    gate_time = _parse_utc(
+        gate_completed_at,
+        owner="generation-2 acceptance gate_completed_at_utc",
+    )
+    preparation_started_time = _parse_utc(
+        attestation_preparation_started_at,
+        owner="generation-2 acceptance attestation_preparation_started_at_utc",
+    )
+    if not validation_started_time <= gate_time <= preparation_started_time:
+        raise GovernanceError(
+            "generation-2 acceptance times must satisfy validation start <= gate completion "
+            "<= attestation preparation start"
+        )
+    if preparation_started_time - gate_time > MAX_ACCEPTANCE_ATTESTATION_DELAY:
+        raise GovernanceError(
+            "generation-2 attestation preparation started more than one hour after the gate"
+        )
+    return validation_started_time, gate_time, preparation_started_time
+
+
+def _canonical_utc_timestamp(value: datetime) -> str:
+    """Render a timezone-aware instant in the governance UTC profile."""
+
+    if value.tzinfo is None:
+        raise GovernanceError("canonical UTC rendering requires a timezone-aware instant")
+    observed = value.astimezone(UTC)
+    timespec = "microseconds" if observed.microsecond else "seconds"
+    return observed.isoformat(timespec=timespec).replace("+00:00", "Z")
+
+
+def _derive_generation_2_finalization_deadline(
+    *,
+    gate_time: datetime,
+    bundle: Mapping[str, Any],
+) -> tuple[str, datetime]:
+    """Derive the signed half-open finalization deadline from gate and bundle."""
+
+    if gate_time.tzinfo is None:
+        raise GovernanceError("generation-2 gate observation must be timezone-aware")
+    _bundle_issue, bundle_expiry = _validate_validity_interval(
+        _required_string(bundle, "issued_at_utc"),
+        _required_string(bundle, "valid_until_utc"),
+        owner="S1 generation-2 governance bundle",
+    )
+    deadline = min(
+        gate_time.astimezone(UTC) + MAX_ACCEPTANCE_ATTESTATION_DELAY,
+        bundle_expiry,
+    )
+    if deadline <= gate_time.astimezone(UTC):
+        raise GovernanceError("generation-2 finalization deadline is not after the gate")
+    return _canonical_utc_timestamp(deadline), deadline
+
+
+def _validate_generation_2_finalization_deadline_binding(
+    record: Mapping[str, Any],
+    *,
+    bundle: Mapping[str, Any],
+) -> datetime:
+    """Require the signed deadline to be the exact gate/bundle derivation."""
+
+    gate_time = _parse_utc(
+        _required_string(record, "gate_completed_at_utc"),
+        owner="generation-2 acceptance gate_completed_at_utc",
+    )
+    expected_value, expected_time = _derive_generation_2_finalization_deadline(
+        gate_time=gate_time,
+        bundle=bundle,
+    )
+    if record.get("finalization_deadline_at_utc") != expected_value:
+        raise GovernanceError(
+            "generation-2 finalization deadline is not min(gate completion + one hour, "
+            "bundle expiry)"
+        )
+    preparation_time = _parse_utc(
+        _required_string(record, "attestation_preparation_started_at_utc"),
+        owner="generation-2 acceptance attestation_preparation_started_at_utc",
+    )
+    if preparation_time >= expected_time:
+        raise GovernanceError(
+            "generation-2 attestation preparation did not leave a live finalization window"
+        )
+    return expected_time
+
+
+def _validate_generation_2_finalization_freshness(
+    record: Mapping[str, Any],
+    *,
+    bundle: Mapping[str, Any],
+    observed_at: datetime,
+) -> datetime:
+    """Fail closed unless host-now remains inside the signed finalization window."""
+
+    if observed_at.tzinfo is None:
+        raise GovernanceError("generation-2 finalization host observation must be timezone-aware")
+    deadline = _validate_generation_2_finalization_deadline_binding(record, bundle=bundle)
+    preparation_time = _parse_utc(
+        _required_string(record, "attestation_preparation_started_at_utc"),
+        owner="generation-2 acceptance attestation_preparation_started_at_utc",
+    )
+    observed = observed_at.astimezone(UTC)
+    if observed < preparation_time:
+        raise GovernanceError(
+            "generation-2 finalization host observation predates attestation preparation"
+        )
+    if observed >= deadline:
+        raise GovernanceError("generation-2 attestation finalization deadline has expired")
+    return deadline
+
+
+def _utc_100ns_order_key(value: datetime) -> tuple[datetime, int]:
+    """Represent a timezone-aware instant without losing corrective 100 ns ordering."""
+
+    if value.tzinfo is None:
+        raise GovernanceError("generation-2 gate observation must be timezone-aware")
+    observed = value.astimezone(UTC)
+    return observed.replace(microsecond=0), observed.microsecond * 10
+
+
+def _corrective_authorization_verification_key(
+    corrective_authorization: Mapping[str, Any],
+) -> tuple[datetime, int]:
+    imported = _as_object(
+        corrective_authorization.get("import_verification"),
+        owner="corrective kickoff import verification",
+    )
+    return _parse_corrective_utc_100ns(
+        _required_string(imported, "verification_recorded_at_utc"),
+        owner="corrective kickoff verification_recorded_at_utc",
+    )
+
+
+def _validate_corrective_authorization_precedes_baseline(
+    *,
+    corrective_authorization: Mapping[str, Any],
+    baseline: Mapping[str, Any],
+) -> None:
+    """Reject a retroactive inventory that predates its signed authorization."""
+
+    authorization_observed = _corrective_authorization_verification_key(corrective_authorization)
+    inventory_started = _parse_corrective_utc_100ns(
+        _required_string(baseline, "inventory_started_at_utc"),
+        owner="generation-2 baseline inventory_started_at_utc",
+    )
+    if authorization_observed > inventory_started:
+        raise GovernanceError(
+            "generation-2 baseline inventory predates corrective authorization verification"
+        )
+
+
+def _validate_generation_2_bundle_gate_ordering(
+    *,
+    validation_started_time: datetime,
+    gate_time: datetime,
+    bundle: Mapping[str, Any],
+) -> tuple[datetime, datetime]:
+    """Validate the bundle's host observations through the sampled final gate."""
+
+    if bundle.get("format") != "agent-assure-governance-bundle/2":
+        raise GovernanceError("generation-2 gate requires a generation-2 governance bundle")
+    if validation_started_time.tzinfo is None or gate_time.tzinfo is None:
+        raise GovernanceError("generation-2 gate observations must be timezone-aware")
+    observed_start = validation_started_time.astimezone(UTC)
+    observed_gate = gate_time.astimezone(UTC)
+    issue_time, expiry_time = _validate_validity_interval(
+        _required_string(bundle, "issued_at_utc"),
+        _required_string(bundle, "valid_until_utc"),
+        owner="generation-2 governance bundle",
+    )
+    claim_prepared = _parse_utc(
+        _required_string(bundle, "claim_prepared_at_utc"),
+        owner="generation-2 governance bundle claim_prepared_at_utc",
+    )
+    import_evidence = _as_object(
+        bundle.get("signature_import_evidence"),
+        owner="generation-2 governance bundle signature import evidence",
+    )
+    verification_recorded = _parse_utc(
+        _required_string(import_evidence, "verification_recorded_at_utc"),
+        owner="generation-2 governance bundle verification_recorded_at_utc",
+    )
+    if not (
+        issue_time
+        <= claim_prepared
+        <= verification_recorded
+        <= observed_start
+        <= observed_gate
+        < expiry_time
+    ):
+        raise GovernanceError(
+            "generation-2 governance bundle observations violate "
+            "issue <= claim preparation <= import verification <= validation start "
+            "<= final gate < expiry"
+        )
+    return issue_time, expiry_time
+
+
+def _validate_generation_2_final_gate_validity(
+    *,
+    validation_started_time: datetime,
+    gate_time: datetime,
+    kickoff_records: Mapping[str, Mapping[str, Any]],
+    corrective_authorization: Mapping[str, Any],
+    forecast: Mapping[str, Any],
+    bundle: Mapping[str, Any],
+) -> None:
+    """Confirm every generation-2 predecessor at the exact sampled final gate."""
+
+    if validation_started_time.tzinfo is None or gate_time.tzinfo is None:
+        raise GovernanceError("generation-2 gate observations must be timezone-aware")
+    observed_start = validation_started_time.astimezone(UTC)
+    observed_gate = gate_time.astimezone(UTC)
+    if _corrective_authorization_verification_key(corrective_authorization) > _utc_100ns_order_key(
+        observed_start
+    ):
+        raise GovernanceError(
+            "corrective authorization verification occurs after generation-2 validation start"
+        )
+
+    for ticket_id, record in sorted(kickoff_records.items()):
+        owner = f"{ticket_id} kickoff"
+        issue_time, expiry_time = _validate_validity_interval(
+            _required_string(record, "issued_at_utc"),
+            _required_string(record, "valid_until_utc"),
+            owner=owner,
+        )
+        if not issue_time <= observed_start <= observed_gate < expiry_time:
+            raise GovernanceError(
+                f"{owner} is not current from validation start through the final gate observation"
+            )
+
+    if (
+        forecast.get("format") != "agent-assure-delivery-forecast/2"
+        or forecast.get("forecast_status") != "accepted"
+    ):
+        raise GovernanceError("generation-2 gate requires an accepted generation-2 forecast")
+    forecast_issue, forecast_expiry = _validate_validity_interval(
+        _required_string(forecast, "issued_at_utc"),
+        _required_string(forecast, "valid_until_utc"),
+        owner="generation-2 delivery forecast",
+    )
+    producer_envelope = _as_object(
+        forecast.get("signature_envelope"), owner="forecast producer signature"
+    )
+    acceptance_receipt = _as_object(
+        forecast.get("acceptance_receipt"), owner="forecast acceptance receipt"
+    )
+    acceptance_envelope = _as_object(
+        acceptance_receipt.get("signature_envelope"),
+        owner="forecast acceptance signature",
+    )
+    producer_evidence = _validate_forecast_v2_signature_import_evidence(
+        producer_envelope.get("verification_evidence"),
+        issued_at_utc=_required_string(forecast, "issued_at_utc"),
+        valid_until_utc=_required_string(forecast, "valid_until_utc"),
+    )
+    acceptance_evidence = _validate_forecast_v2_signature_import_evidence(
+        acceptance_envelope.get("verification_evidence"),
+        issued_at_utc=_required_string(forecast, "issued_at_utc"),
+        valid_until_utc=_required_string(forecast, "valid_until_utc"),
+    )
+    if producer_evidence != acceptance_evidence:
+        raise GovernanceError(
+            "forecast producer and acceptance import observations do not match at the gate"
+        )
+    forecast_import_completed = _parse_utc(
+        _required_string(producer_evidence, "import_verification_completed_at_utc"),
+        owner="forecast import verification completion observation",
+    )
+    if not (
+        forecast_issue
+        <= forecast_import_completed
+        <= observed_start
+        <= observed_gate
+        < forecast_expiry
+    ):
+        raise GovernanceError(
+            "generation-2 forecast observations violate import completion <= validation "
+            "start <= final gate < expiry"
+        )
+
+    _validate_generation_2_bundle_gate_ordering(
+        validation_started_time=observed_start,
+        gate_time=observed_gate,
+        bundle=bundle,
+    )
+
+
+def build_current_acceptance_attestation_v2(
+    snapshot: RoadmapSnapshot,
+    *,
+    repository_root: Path,
+    bundle: Mapping[str, Any],
+    live_repository_evidence: Mapping[str, Any],
+    validation_started_at: str,
+    gate_completed_at: str,
+    attestation_preparation_started_at: str,
+    signer_person_id: str,
+) -> dict[str, Any]:
+    """Build the generation-2 acceptance proof with truthful SSHSIG time semantics."""
+
+    closure_commit = _required_string(live_repository_evidence, "head_commit")
+    if GIT_COMMIT_PATTERN.fullmatch(closure_commit) is None:
+        raise GovernanceError("generation-2 closure commit is not a full Git object ID")
+    validation_started_time, gate_time, preparation_started_time = (
+        _validate_attestation_v2_event_times(
+            validation_started_at=validation_started_at,
+            gate_completed_at=gate_completed_at,
+            attestation_preparation_started_at=attestation_preparation_started_at,
+        )
+    )
+    bundle_issue, bundle_expiry = _validate_validity_interval(
+        _required_string(bundle, "issued_at_utc"),
+        _required_string(bundle, "valid_until_utc"),
+        owner="S1 generation-2 governance bundle",
+    )
+    if not (
+        bundle_issue
+        <= validation_started_time
+        <= gate_time
+        <= preparation_started_time
+        < bundle_expiry
+    ):
+        raise GovernanceError("generation-2 validation events must remain inside bundle validity")
+    finalization_deadline_at, finalization_deadline_time = (
+        _derive_generation_2_finalization_deadline(
+            gate_time=gate_time,
+            bundle=bundle,
+        )
+    )
+    if preparation_started_time >= finalization_deadline_time:
+        raise GovernanceError(
+            "generation-2 attestation preparation did not leave a live finalization window"
+        )
+    live_evidence = _validate_live_repository_evidence(
+        live_repository_evidence,
+        expected_closure_commit=closure_commit,
+        expected_branch_name=S1_CORRECTIVE_BRANCH_NAME,
+    )
+    result_commit = _required_string(bundle, "result_commit")
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("generation-2 bundle result commit is invalid")
+    bundle_digest = _required_string(bundle, "bundle_digest")
+    if SHA256_PATTERN.fullmatch(bundle_digest) is None:
+        raise GovernanceError("generation-2 bundle digest is invalid")
+    projection: dict[str, Any] = {
+        "format": CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT,
+        "spec_revision": SPEC_REVISION,
+        "release": "1.0.0a1",
+        "maturity": "governed-baseline",
+        "authorization_scope": "development_governance_only",
+        "independent_review_claimed": False,
+        "acceptance_generation": 2,
+        "supersedes_acceptance_generation": 1,
+        "predecessor_acceptance": _v1_predecessor_acceptance_binding(),
+        "acceptance_tag_name": S1_ACCEPTANCE_V2_TAG_NAME,
+        "closure_commit": closure_commit,
+        "result_commit": result_commit,
+        "bundle_digest": bundle_digest,
+        "full_roadmap_digest": snapshot.raw_digest,
+        "validation_started_at_utc": validation_started_at,
+        "gate_completed_at_utc": gate_completed_at,
+        "attestation_preparation_started_at_utc": attestation_preparation_started_at,
+        "finalization_deadline_at_utc": finalization_deadline_at,
+        "time_evidence": dict(ATTESTATION_V2_TIME_EVIDENCE),
+        "current_gate_result": "valid_current_closure",
+        "live_repository_evidence": live_evidence,
+        "validator_artifact": _artifact_evidence_from_commit(
+            repository_root,
+            closure_commit,
+            "scripts/v1_s1_governance.py",
+            kind="governance_validator",
+        ),
+        "launcher_artifact": _artifact_evidence_from_commit(
+            repository_root,
+            closure_commit,
+            "scripts/v1_s1_governance.ps1",
+            kind="governance_runtime_launcher",
+        ),
+        "signer_person_id": signer_person_id,
+    }
+    digest = domain_digest(CURRENT_ACCEPTANCE_ATTESTATION_V2_DOMAIN, projection)
+    return {
+        **projection,
+        "attestation_digest": digest,
+        "signature_envelope": _pending_attestation_v2_signature(
+            signer_person_id,
+            "repository_maintainer",
+            digest,
+        ),
+    }
+
+
+def _validate_executing_acceptance_artifacts(
+    record: Mapping[str, Any],
+    *,
+    repository_root: Path,
+) -> None:
+    """Bind a generation-2 historical result to the bytes doing the checking.
+
+    This closes the bootstrap evidence gap for the accepted host workflow: the
+    Python module currently executing must be the selected worktree's validator,
+    and both it and the external launcher on disk must equal the artifacts bound
+    into the signed tag.  It does not make an already-compromised Python process
+    a trust root; the reviewed external launcher and runtime bootstrap remain the
+    process-integrity boundary.
+    """
+
+    root = repository_root.resolve()
+    expected_validator_path = (root / "scripts/v1_s1_governance.py").resolve()
+    executing_validator_path = Path(__file__).resolve()
+    if _early_normalized_path(executing_validator_path) != _early_normalized_path(
+        expected_validator_path
+    ):
+        raise GovernanceError(
+            "generation-2 historical check is not executing the selected worktree validator"
+        )
+    expected_validator = _as_object(record.get("validator_artifact"), owner="validator_artifact")
+    observed_validator = _artifact_evidence(
+        root,
+        "scripts/v1_s1_governance.py",
+        kind="governance_validator",
+    )
+    if observed_validator != expected_validator:
+        raise GovernanceError(
+            "generation-2 executing validator bytes differ from the signed attestation"
+        )
+    expected_launcher = _as_object(record.get("launcher_artifact"), owner="launcher_artifact")
+    observed_launcher = _artifact_evidence(
+        root,
+        "scripts/v1_s1_governance.ps1",
+        kind="governance_runtime_launcher",
+    )
+    if observed_launcher != expected_launcher:
+        raise GovernanceError("generation-2 launcher bytes differ from the signed attestation")
+
+
+def _validate_historical_v2_checkout_state(
+    repository_root: Path,
+    *,
+    expected_closure_commit: str,
+) -> None:
+    """Require historical generation-2 execution at the exact clean C2 tree."""
+
+    head = _run_git(repository_root, ["rev-parse", "--verify", "HEAD^{commit}"])
+    if head.returncode != 0:
+        raise GovernanceError("unable to resolve HEAD for generation-2 historical checking")
+    observed_head = head.stdout.decode("ascii", errors="strict").strip()
+    if observed_head != expected_closure_commit:
+        raise GovernanceError(
+            "generation-2 historical checking requires HEAD at the exact closure commit"
+        )
+    status = _run_git(
+        repository_root,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+    )
+    if status.returncode != 0:
+        raise GovernanceError(
+            "unable to inspect worktree cleanliness for generation-2 historical checking"
+        )
+    if status.stdout:
+        changed_paths = " ".join(status.stdout.decode("utf-8", errors="replace").split())[
+            :MAX_GIT_DIAGNOSTIC_CHARS
+        ]
+        raise GovernanceError(
+            "generation-2 historical checking requires a clean closure worktree: " + changed_paths
+        )
+
+
 def _validate_current_acceptance_attestation(
     record: Mapping[str, Any],
     *,
@@ -5304,7 +12896,17 @@ def _validate_current_acceptance_attestation(
     expected_closure_commit: str,
     expected_roadmap_digest: str,
     allow_pending: bool,
+    require_executing_artifacts: bool = False,
 ) -> tuple[datetime, datetime | None]:
+    if record.get("format") == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+        return _validate_current_acceptance_attestation_v2(
+            record,
+            repository_root=repository_root,
+            expected_closure_commit=expected_closure_commit,
+            expected_roadmap_digest=expected_roadmap_digest,
+            allow_pending=allow_pending,
+            require_executing_artifacts=require_executing_artifacts,
+        )
     required = {
         "format",
         "spec_revision",
@@ -5330,7 +12932,7 @@ def _validate_current_acceptance_attestation(
     if set(record) != required:
         raise GovernanceError("current acceptance attestation has unexpected fields")
     exact: dict[str, object] = {
-        "format": "agent-assure-s1-current-acceptance-attestation/1",
+        "format": CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT,
         "spec_revision": SPEC_REVISION,
         "release": "1.0.0a1",
         "maturity": "governed-baseline",
@@ -5403,6 +13005,200 @@ def _validate_current_acceptance_attestation(
     return gate_time, signature_time
 
 
+def _validate_current_acceptance_attestation_v2(
+    record: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    expected_closure_commit: str,
+    expected_roadmap_digest: str,
+    allow_pending: bool,
+    require_executing_artifacts: bool,
+) -> tuple[datetime, datetime | None]:
+    """Validate generation 2 without representing preparation time as signing time."""
+
+    required = {
+        "format",
+        "spec_revision",
+        "release",
+        "maturity",
+        "authorization_scope",
+        "independent_review_claimed",
+        "acceptance_generation",
+        "supersedes_acceptance_generation",
+        "predecessor_acceptance",
+        "acceptance_tag_name",
+        "closure_commit",
+        "result_commit",
+        "bundle_digest",
+        "full_roadmap_digest",
+        "validation_started_at_utc",
+        "gate_completed_at_utc",
+        "attestation_preparation_started_at_utc",
+        "finalization_deadline_at_utc",
+        "time_evidence",
+        "current_gate_result",
+        "live_repository_evidence",
+        "validator_artifact",
+        "launcher_artifact",
+        "signer_person_id",
+        "attestation_digest",
+        "signature_envelope",
+    }
+    if set(record) != required:
+        raise GovernanceError("generation-2 acceptance attestation has unexpected fields")
+    exact: dict[str, object] = {
+        "format": CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT,
+        "spec_revision": SPEC_REVISION,
+        "release": "1.0.0a1",
+        "maturity": "governed-baseline",
+        "authorization_scope": "development_governance_only",
+        "independent_review_claimed": False,
+        "acceptance_generation": 2,
+        "supersedes_acceptance_generation": 1,
+        "predecessor_acceptance": _v1_predecessor_acceptance_binding(),
+        "acceptance_tag_name": S1_ACCEPTANCE_V2_TAG_NAME,
+        "closure_commit": expected_closure_commit,
+        "full_roadmap_digest": expected_roadmap_digest,
+        "time_evidence": ATTESTATION_V2_TIME_EVIDENCE,
+        "current_gate_result": "valid_current_closure",
+    }
+    for key, expected in exact.items():
+        if record.get(key) != expected:
+            raise GovernanceError(f"generation-2 acceptance attestation changed {key}")
+    if GIT_COMMIT_PATTERN.fullmatch(_required_string(record, "result_commit")) is None:
+        raise GovernanceError("generation-2 acceptance result commit is invalid")
+    if SHA256_PATTERN.fullmatch(_required_string(record, "bundle_digest")) is None:
+        raise GovernanceError("generation-2 acceptance bundle digest is invalid")
+    _validate_live_repository_evidence(
+        record.get("live_repository_evidence"),
+        expected_closure_commit=expected_closure_commit,
+        expected_branch_name=S1_CORRECTIVE_BRANCH_NAME,
+    )
+    validator = _as_object(record.get("validator_artifact"), owner="validator_artifact")
+    expected_validator = _artifact_evidence_from_commit(
+        repository_root,
+        expected_closure_commit,
+        "scripts/v1_s1_governance.py",
+        kind="governance_validator",
+    )
+    if validator != expected_validator:
+        raise GovernanceError("generation-2 acceptance validator artifact changed")
+    launcher = _as_object(record.get("launcher_artifact"), owner="launcher_artifact")
+    expected_launcher = _artifact_evidence_from_commit(
+        repository_root,
+        expected_closure_commit,
+        "scripts/v1_s1_governance.ps1",
+        kind="governance_runtime_launcher",
+    )
+    if launcher != expected_launcher:
+        raise GovernanceError("generation-2 acceptance launcher artifact changed")
+    if require_executing_artifacts:
+        _validate_historical_v2_checkout_state(
+            repository_root,
+            expected_closure_commit=expected_closure_commit,
+        )
+        _validate_executing_acceptance_artifacts(record, repository_root=repository_root)
+    expected_digest = domain_digest(
+        CURRENT_ACCEPTANCE_ATTESTATION_V2_DOMAIN,
+        _current_acceptance_attestation_projection(record),
+    )
+    if record.get("attestation_digest") != expected_digest:
+        raise GovernanceError("generation-2 acceptance attestation digest mismatch")
+    _validation_started_time, gate_time, preparation_started_time = (
+        _validate_attestation_v2_event_times(
+            validation_started_at=_required_string(record, "validation_started_at_utc"),
+            gate_completed_at=_required_string(record, "gate_completed_at_utc"),
+            attestation_preparation_started_at=_required_string(
+                record,
+                "attestation_preparation_started_at_utc",
+            ),
+        )
+    )
+    finalization_deadline_value = _required_string(
+        record,
+        "finalization_deadline_at_utc",
+    )
+    finalization_deadline_time = _parse_utc(
+        finalization_deadline_value,
+        owner="generation-2 acceptance finalization_deadline_at_utc",
+    )
+    if finalization_deadline_value != _canonical_utc_timestamp(finalization_deadline_time):
+        raise GovernanceError("generation-2 finalization deadline is not canonically rendered")
+    if not (
+        gate_time < finalization_deadline_time <= gate_time + MAX_ACCEPTANCE_ATTESTATION_DELAY
+        and preparation_started_time < finalization_deadline_time
+    ):
+        raise GovernanceError(
+            "generation-2 finalization deadline is outside the gate-to-finalization window"
+        )
+    signer_person_id = _required_string(record, "signer_person_id")
+    signed = _validate_attestation_v2_signature_envelope(
+        record.get("signature_envelope"),
+        expected_person_id=signer_person_id,
+        expected_subject_digest=expected_digest,
+        allow_pending=allow_pending,
+    )
+    return gate_time, preparation_started_time if signed else None
+
+
+def _validate_historical_attestation_bundle_time_evidence(
+    record: Mapping[str, Any],
+    *,
+    acceptance_generation: int,
+    gate_time: datetime,
+    attestation_evidence_time: datetime | None,
+    bundle: Mapping[str, Any],
+) -> None:
+    """Validate bundle-relative time evidence without upgrading SSHSIG semantics."""
+
+    if acceptance_generation == 2:
+        if attestation_evidence_time is None:
+            raise GovernanceError(
+                "signed generation-2 acceptance attestation lacks its preparation-start "
+                "host observation"
+            )
+        if record.get("time_evidence") != ATTESTATION_V2_TIME_EVIDENCE:
+            raise GovernanceError("generation-2 acceptance time semantics changed")
+        validation_started_time = _parse_utc(
+            _required_string(record, "validation_started_at_utc"),
+            owner="generation-2 acceptance validation_started_at_utc",
+        )
+        _bundle_issue, bundle_expiry = _validate_generation_2_bundle_gate_ordering(
+            validation_started_time=validation_started_time,
+            gate_time=gate_time,
+            bundle=bundle,
+        )
+        finalization_deadline = _validate_generation_2_finalization_deadline_binding(
+            record,
+            bundle=bundle,
+        )
+        if not gate_time <= attestation_evidence_time < bundle_expiry:
+            raise GovernanceError(
+                "generation-2 gate or preparation-start host observation is outside the "
+                "bundle validity interval"
+            )
+        if attestation_evidence_time >= finalization_deadline:
+            raise GovernanceError(
+                "generation-2 preparation-start observation is outside the signed "
+                "finalization window"
+            )
+        return
+    if acceptance_generation != 1:
+        raise GovernanceError("unsupported S1 acceptance generation")
+    bundle_issue, bundle_expiry = _validate_validity_interval(
+        _required_string(bundle, "issued_at_utc"),
+        _required_string(bundle, "valid_until_utc"),
+        owner="S1 governance bundle",
+    )
+    if attestation_evidence_time is None:
+        raise GovernanceError("signed current acceptance attestation lacks a trusted ordering time")
+    if not bundle_issue <= attestation_evidence_time < bundle_expiry:
+        raise GovernanceError(
+            "current acceptance attestation ordering evidence is outside the bundle "
+            "validity interval"
+        )
+
+
 def _write_current_acceptance_attestation_plan(
     plan_directory: Path,
     record: Mapping[str, Any],
@@ -5415,12 +13211,18 @@ def _write_current_acceptance_attestation_plan(
     if envelope.get("status") != "pending_human_signature":
         raise GovernanceError("current acceptance attestation plan must begin unsigned")
     envelope["status"] = "signed"
-    envelope["signed_at_utc"] = _required_string(record, "signature_requested_at_utc")
     envelope["signature"] = None
-    claim = _signature_claim_bytes(envelope)
+    record_format = record.get("format")
+    if record_format == CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT:
+        envelope["signed_at_utc"] = _required_string(record, "signature_requested_at_utc")
+        claim = _signature_claim_bytes(envelope)
+    elif record_format == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+        claim = _attestation_v2_signature_claim_bytes(envelope)
+    else:
+        raise GovernanceError("current acceptance attestation format is unsupported")
     parent = plan_directory.parent
     parent.mkdir(parents=True, exist_ok=True)
-    temporary = Path(tempfile.mkdtemp(prefix=f".{plan_directory.name}.", dir=parent))
+    temporary = Path(tempfile.mkdtemp(prefix=f"{plan_directory.name}-staging-", dir=parent))
     try:
         (temporary / "attestation.pending.json").write_bytes(
             _render_acceptance_attestation_bytes(record)
@@ -5450,12 +13252,6 @@ def _read_tagged_current_acceptance_attestation(
 ) -> dict[str, Any]:
     if GIT_COMMIT_PATTERN.fullmatch(tag_object) is None:
         raise GovernanceError("--acceptance-tag-object must be a full lowercase 40-hex object ID")
-    ref = _run_git(
-        repository_root,
-        ["rev-parse", "--verify", f"refs/tags/{S1_ACCEPTANCE_TAG_NAME}^{{tag}}"],
-    )
-    if ref.returncode != 0 or ref.stdout.decode("ascii", errors="strict").strip() != tag_object:
-        raise GovernanceError("the fixed S1 acceptance tag does not resolve to the selected object")
     object_type = _run_git(repository_root, ["cat-file", "-t", tag_object])
     if object_type.returncode != 0 or object_type.stdout.strip() != b"tag":
         raise GovernanceError("--acceptance-tag-object does not identify an annotated Git tag")
@@ -5476,7 +13272,10 @@ def _read_tagged_current_acceptance_attestation(
         raise GovernanceError("S1 acceptance tag has unexpected headers")
     if header_lines[0] != f"object {expected_closure_commit}":
         raise GovernanceError("S1 acceptance tag targets another closure commit")
-    if header_lines[1] != "type commit" or header_lines[2] != f"tag {S1_ACCEPTANCE_TAG_NAME}":
+    if header_lines[1] != "type commit" or not header_lines[2].startswith("tag "):
+        raise GovernanceError("S1 acceptance tag identity changed")
+    tag_name = header_lines[2].removeprefix("tag ")
+    if tag_name not in {S1_ACCEPTANCE_TAG_NAME, S1_ACCEPTANCE_V2_TAG_NAME}:
         raise GovernanceError("S1 acceptance tag identity changed")
     if re.fullmatch(r"tagger .+ <[^<>\r\n]+> [0-9]+ [+-][0-9]{4}", header_lines[3]) is None:
         raise GovernanceError("S1 acceptance tagger header is malformed")
@@ -5487,9 +13286,224 @@ def _read_tagged_current_acceptance_attestation(
     record = _as_object(parsed, owner="S1 acceptance tag message")
     if message != _render_acceptance_attestation_bytes(record):
         raise GovernanceError("S1 acceptance tag message is not the canonical rendered record")
+    expected_tag_name = {
+        CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT: S1_ACCEPTANCE_TAG_NAME,
+        CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT: S1_ACCEPTANCE_V2_TAG_NAME,
+    }.get(_required_string(record, "format"))
+    if expected_tag_name is None or tag_name != expected_tag_name:
+        raise GovernanceError("S1 acceptance tag identity changed")
+    if record.get("acceptance_tag_name") != expected_tag_name:
+        raise GovernanceError("S1 acceptance tag record names another tag")
+    ref = _run_git(
+        repository_root,
+        ["rev-parse", "--verify", f"refs/tags/{expected_tag_name}^{{tag}}"],
+    )
+    if ref.returncode != 0 or ref.stdout.decode("ascii", errors="strict").strip() != tag_object:
+        raise GovernanceError("the fixed S1 acceptance tag does not resolve to the selected object")
     return record
 
 
+def _validate_generation_1_predecessor_acceptance(
+    repository_root: Path,
+    *,
+    expected_roadmap_digest: str,
+) -> dict[str, Any]:
+    """Revalidate the immutable A1 ref and object before accepting generation 2.
+
+    Merely embedding A1's object ID in the generation-2 claim is insufficient:
+    the public, fixed predecessor ref could later be deleted or moved.  This
+    check requires that the ref still resolves to the exact annotated object,
+    that the object still peels to C1, that its canonical tag message is the
+    signed generation-1 attestation, and that the attestation itself verifies.
+    """
+
+    predecessor = _read_tagged_current_acceptance_attestation(
+        repository_root,
+        tag_object=S1_ACCEPTANCE_V1_TAG_OBJECT,
+        expected_closure_commit=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+    )
+    if predecessor.get("format") != CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT:
+        raise GovernanceError("generation-1 predecessor tag contains another format")
+    _gate_time, signature_time = _validate_current_acceptance_attestation(
+        predecessor,
+        repository_root=repository_root,
+        expected_closure_commit=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        expected_roadmap_digest=expected_roadmap_digest,
+        allow_pending=False,
+    )
+    if signature_time is None:
+        raise GovernanceError("generation-1 predecessor attestation is not signed")
+    return predecessor
+
+
+def _validate_generation_2_finalization_local_repository(
+    repository_root: Path,
+    *,
+    record: Mapping[str, Any],
+) -> None:
+    """Re-resolve the exact local refs and clean C2 identity without a new fetch."""
+
+    closure_commit = _required_string(record, "closure_commit")
+    signed_evidence = _validate_live_repository_evidence(
+        record.get("live_repository_evidence"),
+        expected_closure_commit=closure_commit,
+        expected_branch_name=S1_CORRECTIVE_BRANCH_NAME,
+    )
+    observed = validate_live_acceptance_repository(
+        repository_root,
+        fetch=False,
+        expected_branch_name=S1_CORRECTIVE_BRANCH_NAME,
+    )
+    if (
+        observed.get("fetch_performed") is not False
+        or observed.get("authoritative_remote_refs") != {}
+    ):
+        raise GovernanceError("generation-2 finalization local-ref check changed semantics")
+    for field in ("approved_remote_url", "branch_name", "head_commit", "local_refs"):
+        if observed.get(field) != signed_evidence.get(field):
+            raise GovernanceError(f"generation-2 finalization current repository changed {field}")
+
+
+def _revalidate_generation_2_finalization_state(
+    repository_root: Path,
+    *,
+    record: Mapping[str, Any],
+) -> str:
+    """Revalidate fresh live records, exact topology, clean C2, and local refs.
+
+    The clock readings are host observations only.  They bound when this
+    verifier is willing to publish or reuse the signed record; they do not
+    represent when OpenSSH produced the SSHSIG.
+    """
+
+    root = repository_root.resolve()
+    governance_root = (root / "docs/governance/v1").resolve()
+    roadmap_path = (root / "Agent_Assure_Implementation_Roadmap.md").resolve()
+    started_at = _parse_utc(
+        _canonical_host_utc_now(),
+        owner="generation-2 finalization validation start",
+    )
+    bundle = _read_json(governance_root / "governance-bundle.json")
+    if bundle.get("format") != "agent-assure-governance-bundle/2":
+        raise GovernanceError("generation-2 finalization requires the live generation-2 bundle")
+    if bundle.get("bundle_digest") != record.get("bundle_digest"):
+        raise GovernanceError("generation-2 finalization live bundle digest changed")
+    if bundle.get("result_commit") != record.get("result_commit"):
+        raise GovernanceError("generation-2 finalization live result commit changed")
+    _validate_generation_2_finalization_freshness(
+        record,
+        bundle=bundle,
+        observed_at=started_at,
+    )
+
+    snapshot, _catalog, _registry, baseline, _ledger, roster, roster_digest = (
+        _load_forecast_v2_workspace(
+            repository_root=root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=False,
+        )
+    )
+    if snapshot.raw_digest != record.get("full_roadmap_digest"):
+        raise GovernanceError("generation-2 finalization private roadmap digest changed")
+
+    signing_key = _read_json(governance_root / "maintainer-signing-key.json")
+    corrective_authorization = _read_json(governance_root / "corrective-kickoff-authorization.json")
+    kickoff_schema = _read_json(governance_root / "kickoff-authorization.schema.json")
+    kickoff_records: dict[str, dict[str, Any]] = {}
+    for ticket_id in ("V1-BOOT-01", "V1-BASE-01"):
+        kickoff = _read_json(governance_root / f"kickoff-authorization-{ticket_id.lower()}.json")
+        validate_kickoff_authorization(
+            snapshot,
+            kickoff,
+            kickoff_schema,
+            expected_ticket_id=ticket_id,
+            expected_roster_digest=roster_digest,
+            expected_person_id="acblabs",
+            allow_pending=False,
+            validation_time=started_at,
+        )
+        kickoff_records[ticket_id] = kickoff
+
+    forecast = _read_json(governance_root / "delivery-forecast.json")
+    completion_receipts = {
+        ticket_id: _read_json(governance_root / f"completion-receipt-{ticket_id.lower()}.json")
+        for ticket_id in ("V1-BOOT-01", "V1-BASE-01")
+    }
+    validate_governance_bundle(
+        snapshot,
+        bundle,
+        _read_json(governance_root / "governance-bundle.schema.json"),
+        repository_root=root,
+        roster=roster,
+        kickoff_records=kickoff_records,
+        completion_receipts=completion_receipts,
+        forecast=forecast,
+        signing_key=signing_key,
+        baseline_observations=baseline,
+        expected_person_id="acblabs",
+        expected_base_commit=PINNED_BASE_COMMIT,
+        allow_pending=False,
+        validation_time=started_at,
+        require_bundle_on_disk=True,
+        require_predecessors_on_disk=True,
+        require_current_closure=True,
+        require_closure=True,
+        expected_closure_commit=_required_string(record, "closure_commit"),
+    )
+
+    _validate_generation_2_finalization_local_repository(root, record=record)
+    _validate_s1_closure_checkout(
+        root,
+        result_commit=_required_string(bundle, "result_commit"),
+        bundle=bundle,
+        require_current_checkout=True,
+        expected_closure_commit=_required_string(record, "closure_commit"),
+    )
+    for relative, expected in (
+        ("governance-bundle.json", bundle),
+        (
+            "completion-receipt-v1-boot-01.json",
+            completion_receipts["V1-BOOT-01"],
+        ),
+        (
+            "completion-receipt-v1-base-01.json",
+            completion_receipts["V1-BASE-01"],
+        ),
+    ):
+        if _read_json(governance_root / relative) != expected:
+            raise GovernanceError(
+                "generation-2 finalization live closure record changed during revalidation"
+            )
+    completed_at = _parse_utc(
+        _canonical_host_utc_now(),
+        owner="generation-2 finalization validation completion",
+    )
+    if completed_at < started_at:
+        raise GovernanceError(
+            "generation-2 finalization host clock moved backwards during revalidation"
+        )
+    validation_started_time = _parse_utc(
+        _required_string(record, "validation_started_at_utc"),
+        owner="generation-2 acceptance validation_started_at_utc",
+    )
+    _validate_generation_2_final_gate_validity(
+        validation_started_time=validation_started_time,
+        gate_time=completed_at,
+        kickoff_records=kickoff_records,
+        corrective_authorization=corrective_authorization,
+        forecast=forecast,
+        bundle=bundle,
+    )
+    deadline = _validate_generation_2_finalization_freshness(
+        record,
+        bundle=bundle,
+        observed_at=completed_at,
+    )
+    return _canonical_utc_timestamp(deadline)
+
+
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def acceptance_attestation_finalize(args: argparse.Namespace) -> int:
     """Verify the eighth human SSHSIG and render the tag-contained attestation."""
@@ -5504,19 +13518,35 @@ def acceptance_attestation_finalize(args: argparse.Namespace) -> int:
     )
     if not plan_directory.is_dir():
         raise GovernanceError("current acceptance attestation plan must be a directory")
-    expected_names = {
+    output = plan_directory / "attestation.signed.json"
+    plan_input_names = {
         "attestation.pending.json",
         "attestation.claim",
         "attestation.claim.sig",
     }
     observed_names = {entry.name for entry in plan_directory.iterdir()}
-    if observed_names != expected_names:
+    if observed_names not in (
+        plan_input_names,
+        plan_input_names | {output.name},
+    ):
         raise GovernanceError("current acceptance attestation plan has missing or extra files")
-    for name in expected_names:
+    for name in plan_input_names:
         path = plan_directory / name
         if not path.is_file() or path.is_symlink():
             raise GovernanceError("current acceptance attestation plan contains a non-file")
+    output_already_present = output.name in observed_names
+    if output_already_present and (not output.is_file() or output.is_symlink()):
+        raise GovernanceError("signed current acceptance attestation is not a regular file")
     record = _read_json(plan_directory / "attestation.pending.json")
+    if record.get("format") == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+        enforced_plan_directory = _corrective_private_acceptance_path(
+            repository_root,
+            cast(str, args.plan_dir),
+            owner="generation-2 current acceptance attestation plan",
+            must_exist=True,
+        )
+        if enforced_plan_directory != plan_directory:
+            raise GovernanceError("generation-2 attestation plan path changed during validation")
     expected_digest = cast(str, args.expected_attestation_digest)
     if SHA256_PATTERN.fullmatch(expected_digest) is None:
         raise GovernanceError("--expected-attestation-digest must be a canonical SHA-256 digest")
@@ -5535,10 +13565,16 @@ def acceptance_attestation_finalize(args: argparse.Namespace) -> int:
     envelope = _as_object(record.get("signature_envelope"), owner="signature_envelope")
     signed_envelope = copy.deepcopy(envelope)
     signed_envelope["status"] = "signed"
-    signed_envelope["signed_at_utc"] = _required_string(record, "signature_requested_at_utc")
+    record_format = record.get("format")
+    if record_format == CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT:
+        signed_envelope["signed_at_utc"] = _required_string(record, "signature_requested_at_utc")
+        expected_claim = _signature_claim_bytes(signed_envelope)
+    elif record_format == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+        expected_claim = _attestation_v2_signature_claim_bytes(signed_envelope)
+    else:
+        raise GovernanceError("current acceptance attestation format is unsupported")
     armor = _canonical_sshsig_armor((plan_directory / "attestation.claim.sig").read_bytes())
     signed_envelope["signature"] = base64.b64encode(armor).decode("ascii")
-    expected_claim = _signature_claim_bytes(signed_envelope)
     if (plan_directory / "attestation.claim").read_bytes() != expected_claim:
         raise GovernanceError("current acceptance attestation claim changed after preparation")
     signed_record = copy.deepcopy(record)
@@ -5550,26 +13586,74 @@ def acceptance_attestation_finalize(args: argparse.Namespace) -> int:
         expected_roadmap_digest=_required_string(record, "full_roadmap_digest"),
         allow_pending=False,
     )
-    output = plan_directory / "attestation.signed.json"
     payload = _render_acceptance_attestation_bytes(signed_record)
-    try:
-        with output.open("xb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        _fsync_directory(plan_directory)
-    except OSError as exc:
-        raise GovernanceError(
-            f"unable to write signed current acceptance attestation: {exc}"
-        ) from exc
+    finalization_deadline: str | None = None
+
+    def publish_or_reuse_exact_payload() -> None:
+        if output_already_present:
+            try:
+                existing_payload = output.read_bytes()
+            except OSError as exc:
+                raise GovernanceError(
+                    f"unable to read existing signed current acceptance attestation: {exc}"
+                ) from exc
+            if existing_payload != payload:
+                raise GovernanceError(
+                    "existing signed current acceptance attestation differs from the "
+                    "reverified exact output"
+                )
+            return
+        try:
+            publication_staging = plan_directory.parent
+            if record_format == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+                publication_staging = _corrective_private_acceptance_path(
+                    repository_root,
+                    ".tmp/s1-acceptance/current-gate-v2-atomic-publication",
+                    owner="generation-2 attestation atomic publication staging",
+                    must_exist=None,
+                )
+                publication_staging.mkdir(parents=True, exist_ok=True)
+            _publish_new_file_atomically(
+                output,
+                payload,
+                staging_directory=publication_staging,
+            )
+        except OSError as exc:
+            raise GovernanceError(
+                f"unable to atomically publish signed current acceptance attestation: {exc}"
+            ) from exc
+
+    if record_format == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+        if output_already_present:
+            # Establish that this is an exact retry before spending trust in a
+            # current-state result, then read it again after revalidation to
+            # close an ordinary concurrent-replacement window.
+            publish_or_reuse_exact_payload()
+        finalization_deadline = _revalidate_generation_2_finalization_state(
+            repository_root,
+            record=signed_record,
+        )
+        publish_or_reuse_exact_payload()
+    else:
+        publish_or_reuse_exact_payload()
     print(
         json.dumps(
             {
-                "acceptance_tag_name": S1_ACCEPTANCE_TAG_NAME,
+                "acceptance_tag_name": (
+                    S1_ACCEPTANCE_V2_TAG_NAME
+                    if record_format == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT
+                    else S1_ACCEPTANCE_TAG_NAME
+                ),
                 "attestation_digest": expected_digest,
                 "closure_commit": closure_commit,
+                "idempotent_recovery": output_already_present,
                 "output": str(output),
                 "result": "verified_current_acceptance_attestation_ready_for_tag",
+                **(
+                    {"finalization_deadline_at_utc": finalization_deadline}
+                    if finalization_deadline is not None
+                    else {}
+                ),
             },
             sort_keys=True,
         )
@@ -5656,22 +13740,16 @@ def _read_json_from_commit(
 ) -> dict[str, Any]:
     if GIT_COMMIT_PATTERN.fullmatch(commit) is None:
         raise GovernanceError("historical closure commit must be a full 40-hex object ID")
-    tree_entry = _run_git(repository_root, ["ls-tree", commit, "--", relative_path])
-    fields = tree_entry.stdout.split(None, 3)
-    if (
-        tree_entry.returncode != 0
-        or len(fields) < 4
-        or fields[0] not in {b"100644", b"100755"}
-        or fields[1] != b"blob"
-    ):
-        raise GovernanceError(f"historical JSON is not a regular Git blob: {relative_path}")
-    committed = _run_git(repository_root, ["show", f"{commit}:{relative_path}"])
-    if committed.returncode != 0:
-        raise GovernanceError(f"unable to read historical JSON: {relative_path}")
-    if len(committed.stdout) > MAX_GOVERNANCE_JSON_BYTES:
+    committed = _read_commit_blob(
+        repository_root,
+        commit,
+        relative_path,
+        owner="historical JSON",
+    )
+    if len(committed) > MAX_GOVERNANCE_JSON_BYTES:
         raise GovernanceError(f"historical governance JSON exceeds 8 MiB: {relative_path}")
     try:
-        payload = committed.stdout.decode("utf-8")
+        payload = committed.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise GovernanceError(f"historical governance JSON is not UTF-8: {relative_path}") from exc
     if payload.startswith("\ufeff"):
@@ -5679,7 +13757,7 @@ def _read_json_from_commit(
     return _as_object(strict_json_loads(payload), owner=relative_path)
 
 
-def _historical_governance_json_paths() -> list[str]:
+def _historical_governance_json_paths(*, acceptance_generation: int = 1) -> list[str]:
     names = [
         "approval-roster.json",
         "approval-roster.schema.json",
@@ -5702,6 +13780,18 @@ def _historical_governance_json_paths() -> list[str]:
         "maintainer-signing-key.schema.json",
         "ticket-completion-receipt.schema.json",
     ]
+    if acceptance_generation == 2:
+        names.extend(
+            [
+                "corrective-kickoff-authorization.json",
+                "corrective-kickoff-authorization.schema.json",
+                "current-acceptance-attestation.schema.json",
+                "delivery-forecast.estimation-catalog.json",
+                "delivery-forecast.estimation-catalog.schema.json",
+            ]
+        )
+    elif acceptance_generation != 1:
+        raise GovernanceError("unsupported S1 acceptance generation")
     return [f"docs/governance/v1/{name}" for name in names]
 
 
@@ -5916,6 +14006,7 @@ def _predecessor_source_paths(governance_root: Path) -> list[Path]:
     return [governance_root / name for name in names]
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def acceptance_decision_template(args: argparse.Namespace) -> int:
     """Export a local-only, nonauthorizing human-decision worksheet."""
@@ -5936,7 +14027,7 @@ def acceptance_decision_template(args: argparse.Namespace) -> int:
         snapshot,
         roster,
         _read_json(governance_root / "approval-roster.schema.json"),
-        allow_pending=True,
+        allow_pending=False,
     )
     signing_key = _read_json(governance_root / "maintainer-signing-key.json")
     validate_maintainer_signing_key(
@@ -6383,6 +14474,7 @@ def _prepare_bundle_plan(
     )
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def acceptance_prepare(args: argparse.Namespace) -> int:
     """Build an immutable local signing plan without accessing a private key."""
@@ -6653,6 +14745,7 @@ def _validate_bundle_plan_targets(
     )
 
 
+@_require_frozen_runtime
 def acceptance_import(args: argparse.Namespace) -> int:
     """Verify SSHSIG files and perform one journaled, serialized phase install."""
 
@@ -6784,6 +14877,7 @@ def acceptance_import(args: argparse.Namespace) -> int:
     return 0
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def acceptance_result_paths(args: argparse.Namespace) -> int:
     """Write the exact NUL-delimited result-commit staging allowlist."""
@@ -6836,6 +14930,2815 @@ def acceptance_result_paths(args: argparse.Namespace) -> int:
     return 0
 
 
+_FORECAST_V2_GOVERNANCE_SOURCE_NAMES: Final[tuple[str, ...]] = (
+    "approval-roster.json",
+    "approval-roster.schema.json",
+    "baseline-observations.json",
+    "baseline-observations.schema.json",
+    "corrective-kickoff-authorization.json",
+    "corrective-kickoff-authorization.schema.json",
+    "delivery-forecast.aggregation-registry.json",
+    "delivery-forecast.aggregation-registry.schema.json",
+    "delivery-forecast.authoring-ledger.json",
+    "delivery-forecast.authoring-ledger.schema.json",
+    "delivery-forecast.estimation-catalog.json",
+    "delivery-forecast.estimation-catalog.schema.json",
+    "delivery-forecast.json",
+    "delivery-forecast.schema.json",
+    "maintainer-signing-key.json",
+    "maintainer-signing-key.schema.json",
+)
+
+
+def _forecast_v2_source_paths(
+    repository_root: Path, governance_root: Path, roadmap_path: Path
+) -> list[Path]:
+    """Return every record/schema consumed by either forecast-v2 ceremony phase."""
+
+    expected_governance_root = (repository_root / "docs/governance/v1").resolve()
+    if governance_root.resolve() != expected_governance_root:
+        raise GovernanceError("forecast-v2 governance directory must be docs/governance/v1")
+    return [
+        roadmap_path.resolve(),
+        *(expected_governance_root / name for name in _FORECAST_V2_GOVERNANCE_SOURCE_NAMES),
+    ]
+
+
+def _require_forecast_v2_plan_source_set(
+    repository_root: Path,
+    plan: Mapping[str, Any],
+    *,
+    expected_paths: Sequence[Path],
+) -> None:
+    """Reject omitted, substituted, or duplicated forecast-v2 plan sources."""
+
+    root = repository_root.resolve()
+    expected: set[str] = set()
+    for path in expected_paths:
+        try:
+            expected.add(path.resolve().relative_to(root).as_posix())
+        except ValueError as exc:
+            raise GovernanceError("forecast-v2 source leaves the repository root") from exc
+    observed: list[str] = []
+    for value in _as_array(plan.get("source_files"), owner="forecast-v2 plan source files"):
+        source = _as_object(value, owner="forecast-v2 plan source file")
+        observed.append(_required_string(source, "path"))
+    if len(observed) != len(set(observed)):
+        raise GovernanceError("forecast-v2 plan repeats a source file")
+    if set(observed) != expected:
+        raise GovernanceError("forecast-v2 plan source set is not exact")
+
+
+def _verify_forecast_v2_plan_sources(
+    repository_root: Path,
+    plan: Mapping[str, Any],
+    *,
+    expected_paths: Sequence[Path],
+) -> None:
+    """Reject an inexact source set or source bytes changed after preparation."""
+
+    _require_forecast_v2_plan_source_set(
+        repository_root,
+        plan,
+        expected_paths=expected_paths,
+    )
+    root = repository_root.resolve()
+    _verify_plan_sources(root, plan)
+
+
+def _load_forecast_v2_workspace(
+    *, repository_root: Path, governance_root: Path, roadmap_path: Path, allow_pending: bool
+) -> tuple[
+    RoadmapSnapshot,
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    dict[str, Any],
+    str,
+]:
+    if governance_root != (repository_root / "docs/governance/v1").resolve():
+        raise GovernanceError("forecast-v2 governance directory must be docs/governance/v1")
+    validate_local_only_roadmap(repository_root, roadmap_path)
+    snapshot = load_roadmap(roadmap_path)
+    signing_key = _read_json(governance_root / "maintainer-signing-key.json")
+    validate_maintainer_signing_key(
+        signing_key,
+        _read_json(governance_root / "maintainer-signing-key.schema.json"),
+        expected_person_id="acblabs",
+        allow_pending=False,
+    )
+    corrective_authorization = _read_json(governance_root / "corrective-kickoff-authorization.json")
+    validate_corrective_kickoff_authorization(
+        corrective_authorization,
+        _read_json(governance_root / "corrective-kickoff-authorization.schema.json"),
+        expected_roadmap_digest=snapshot.raw_digest,
+    )
+    baseline = _read_json(governance_root / "baseline-observations.json")
+    validate_baseline_observations(
+        snapshot,
+        baseline,
+        _read_json(governance_root / "baseline-observations.schema.json"),
+        repository_root=repository_root,
+    )
+    _validate_corrective_authorization_precedes_baseline(
+        corrective_authorization=corrective_authorization,
+        baseline=baseline,
+    )
+    catalog = _read_json(governance_root / "delivery-forecast.estimation-catalog.json")
+    validate_estimation_catalog_v2(
+        catalog,
+        _read_json(governance_root / "delivery-forecast.estimation-catalog.schema.json"),
+    )
+    registry = _read_json(governance_root / "delivery-forecast.aggregation-registry.json")
+    _validate_json_schema(
+        registry,
+        _read_json(governance_root / "delivery-forecast.aggregation-registry.schema.json"),
+        owner="generation-2 aggregation registry",
+    )
+    _resolve_aggregation_method_v2(registry)
+    ledger = _read_json(governance_root / "delivery-forecast.authoring-ledger.json")
+    validate_authoring_ledger_v2(
+        snapshot,
+        ledger,
+        _read_json(governance_root / "delivery-forecast.authoring-ledger.schema.json"),
+        catalog,
+        baseline_observations=baseline,
+        allow_pending=allow_pending,
+    )
+    roster = _read_json(governance_root / "approval-roster.json")
+    roster_digest, person_id = validate_approval_roster(
+        snapshot,
+        roster,
+        _read_json(governance_root / "approval-roster.schema.json"),
+        allow_pending=False,
+    )
+    if person_id != "acblabs":
+        raise GovernanceError("forecast-v2 workflow requires the frozen acblabs maintainer")
+    forecast = _read_json(governance_root / "delivery-forecast.json")
+    validate_forecast_v2(
+        snapshot,
+        ledger,
+        registry,
+        forecast,
+        _read_json(governance_root / "delivery-forecast.schema.json"),
+        approval_roster=roster,
+        approval_roster_digest_value=roster_digest,
+        allow_pending=allow_pending,
+    )
+    return snapshot, catalog, registry, baseline, ledger, roster, roster_digest
+
+
+def _write_forecast_v2_plan(
+    plan_directory: Path,
+    *,
+    plan: Mapping[str, Any],
+    claims: Mapping[str, bytes],
+) -> None:
+    plan_directory.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(
+        tempfile.mkdtemp(prefix=f"{plan_directory.name}-staging-", dir=plan_directory.parent)
+    )
+    try:
+        (temporary / "plan.json").write_bytes(_render_json_bytes(plan))
+        for name, payload in claims.items():
+            (temporary / name).write_bytes(payload)
+        temporary.replace(plan_directory)
+    except OSError as exc:
+        raise GovernanceError(f"unable to write forecast-v2 signature plan: {exc}") from exc
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary, ignore_errors=True)
+
+
+def _forecast_v2_sign_command(claim_path: Path) -> str:
+    return (
+        f'"{FROZEN_S1_EXECUTABLE_IDENTITIES["ssh-keygen"].path}" -Y sign '
+        '-f "<ABSOLUTE_PRIVATE_KEY_PATH>" '
+        f'-n "{SIGNATURE_NAMESPACE}" -O "hashalg=sha512" "{claim_path.resolve()}"'
+    )
+
+
+def _capture_forecast_v2_host_utc(
+    *,
+    owner: str,
+    not_before: Sequence[datetime] = (),
+    before: datetime | None = None,
+) -> str:
+    """Capture, then validate, an explicitly unattested host-UTC observation."""
+
+    value = _canonical_host_utc_now()
+    observed = _parse_utc(value, owner=owner)
+    if any(observed < lower for lower in not_before):
+        raise GovernanceError(f"{owner} is earlier than its required predecessor")
+    if before is not None and observed >= before:
+        raise GovernanceError(f"{owner} is outside the forecast validity interval")
+    return value
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def forecast_v2_decision_plan(args: argparse.Namespace) -> int:
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = Path(cast(str, args.governance_dir)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    snapshot, catalog, registry, baseline, ledger, _roster, roster_digest = (
+        _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=True,
+        )
+    )
+    if ledger.get("decision_evidence") is not None:
+        raise GovernanceError("forecast batch decision is already installed")
+    manifest = build_forecast_decision_manifest_v2(ledger)
+    envelope = _pending_signature_v2(
+        "acblabs", "repository_maintainer", manifest["manifest_digest"]
+    )
+    signed_shape = copy.deepcopy(envelope)
+    signed_shape["status"] = "signed"
+    claim = _signature_claim_bytes_v2(signed_shape)
+    source_paths = _forecast_v2_source_paths(repository_root, governance_root, roadmap_path)
+    projection = {
+        "format": "agent-assure-delivery-forecast-decision-signature-plan/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "none_until_verified_import",
+        "manifest": manifest,
+        "signature_envelope": envelope,
+        "claim_file": "decision.claim",
+        "claim_size_bytes": len(claim),
+        "claim_sha256": raw_digest(claim),
+        "source_files": [
+            _source_file_evidence(repository_root, path)
+            for path in sorted(source_paths, key=lambda value: _utf8_sort_key(str(value)))
+        ],
+        "expected_ready_inputs": {
+            "roadmap_digest": snapshot.raw_digest,
+            "catalog_digest": catalog["catalog_digest"],
+            "registry_digest": registry["registry_digest"],
+            "baseline_digest": baseline["observations_digest"],
+            "approval_roster_digest": roster_digest,
+        },
+    }
+    plan = {
+        **projection,
+        "plan_digest": domain_digest(FORECAST_DECISION_PLAN_V2_DOMAIN, projection),
+    }
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="forecast-v2 decision plan",
+        must_exist=False,
+    )
+    _write_forecast_v2_plan(plan_directory, plan=plan, claims={"decision.claim": claim})
+    print(
+        json.dumps(
+            {
+                "authorization_effect": "none_until_verified_import",
+                "manifest_digest": manifest["manifest_digest"],
+                "plan_digest": plan["plan_digest"],
+                "plan_directory": str(plan_directory.resolve()),
+                "sign_command": _forecast_v2_sign_command(plan_directory / "decision.claim"),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _read_forecast_v2_plan(
+    plan_directory: Path, *, expected_format: str, domain: str, expected_digest: str
+) -> dict[str, Any]:
+    if SHA256_PATTERN.fullmatch(expected_digest) is None:
+        raise GovernanceError("expected plan digest must be a canonical SHA-256 digest")
+    plan = _read_json(plan_directory / "plan.json")
+    if plan.get("format") != expected_format or plan.get("spec_revision") != SPEC_REVISION:
+        raise GovernanceError("forecast-v2 plan identity changed")
+    projection = {key: value for key, value in plan.items() if key != "plan_digest"}
+    calculated = domain_digest(domain, projection)
+    if plan.get("plan_digest") != calculated or calculated != expected_digest:
+        raise GovernanceError("forecast-v2 plan digest differs from the confirmed digest")
+    return plan
+
+
+def _require_forecast_v2_plan_files(plan_directory: Path, names: set[str]) -> None:
+    observed = {entry.name for entry in plan_directory.iterdir()}
+    if observed != names:
+        raise GovernanceError("forecast-v2 plan has missing or unexpected files")
+    for name in names:
+        path = plan_directory / name
+        if not path.is_file() or path.is_symlink():
+            raise GovernanceError("forecast-v2 plan contains a non-regular file")
+
+
+def _forecast_v2_import_projection(
+    *,
+    artifact_format: str,
+    authorization_effect: str,
+    plan_digest: str,
+    targets: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    if SHA256_PATTERN.fullmatch(plan_digest) is None:
+        raise GovernanceError("forecast-v2 import plan digest is invalid")
+    if not targets:
+        raise GovernanceError("forecast-v2 import artifact has no targets")
+    return {
+        "format": artifact_format,
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": authorization_effect,
+        "plan_digest": plan_digest,
+        "targets": [
+            {"path": path, "record": copy.deepcopy(dict(targets[path]))}
+            for path in sorted(targets, key=_utf8_sort_key)
+        ],
+    }
+
+
+def _build_forecast_v2_import_artifact(
+    *,
+    artifact_format: str,
+    authorization_effect: str,
+    plan_digest: str,
+    targets: Mapping[str, Mapping[str, Any]],
+    domain: str,
+) -> dict[str, Any]:
+    projection = _forecast_v2_import_projection(
+        artifact_format=artifact_format,
+        authorization_effect=authorization_effect,
+        plan_digest=plan_digest,
+        targets=targets,
+    )
+    return {
+        **projection,
+        "import_artifact_digest": domain_digest(domain, projection),
+    }
+
+
+def _read_forecast_v2_import_artifact(
+    path: Path,
+    *,
+    expected_format: str,
+    expected_authorization_effect: str,
+    expected_plan_digest: str,
+    expected_target_paths: set[str],
+    domain: str,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    artifact = _read_json(path)
+    if set(artifact) != {
+        "format",
+        "spec_revision",
+        "authorization_effect",
+        "plan_digest",
+        "targets",
+        "import_artifact_digest",
+    } or (
+        artifact.get("format") != expected_format
+        or artifact.get("spec_revision") != SPEC_REVISION
+        or artifact.get("authorization_effect") != expected_authorization_effect
+        or artifact.get("plan_digest") != expected_plan_digest
+    ):
+        raise GovernanceError("forecast-v2 import artifact identity changed")
+    targets: dict[str, dict[str, Any]] = {}
+    for value in _as_array(artifact.get("targets"), owner="forecast-v2 import targets"):
+        target = _as_object(value, owner="forecast-v2 import target")
+        if set(target) != {"path", "record"}:
+            raise GovernanceError("forecast-v2 import target is malformed")
+        relative = _required_string(target, "path")
+        if relative in targets:
+            raise GovernanceError("forecast-v2 import artifact repeats a target")
+        targets[relative] = copy.deepcopy(dict(_as_object(target.get("record"), owner=relative)))
+    if set(targets) != expected_target_paths:
+        raise GovernanceError("forecast-v2 import artifact target set changed")
+    projection = _forecast_v2_import_projection(
+        artifact_format=expected_format,
+        authorization_effect=expected_authorization_effect,
+        plan_digest=expected_plan_digest,
+        targets=targets,
+    )
+    if (
+        artifact.get("import_artifact_digest") != domain_digest(domain, projection)
+        or {key: value for key, value in artifact.items() if key != "import_artifact_digest"}
+        != projection
+    ):
+        raise GovernanceError("forecast-v2 import artifact digest mismatch")
+    return artifact, targets
+
+
+def _acceptance_target_payload_state(
+    repository_root: Path,
+    expected_payloads: Mapping[str, bytes],
+) -> tuple[bool, bool]:
+    matches: list[bool] = []
+    for relative, expected in expected_payloads.items():
+        target = _resolve_repository_path_without_links(
+            repository_root,
+            relative,
+            owner="acceptance import target",
+        )
+        matches.append(
+            target.is_file() and not target.is_symlink() and target.read_bytes() == expected
+        )
+    return all(matches), any(matches)
+
+
+@_require_frozen_runtime
+def forecast_v2_decision_import(args: argparse.Namespace) -> int:
+    """Verify, persist, recover, and atomically install the batch decision."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = Path(cast(str, args.governance_dir)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="forecast-v2 decision plan",
+        must_exist=True,
+    )
+    stable_import_path = plan_directory / "verified-decision-import.json"
+    base_names = {"plan.json", "decision.claim", "decision.claim.sig"}
+    observed_names = {entry.name for entry in plan_directory.iterdir()}
+    if observed_names not in (base_names, base_names | {stable_import_path.name}):
+        raise GovernanceError("forecast-v2 decision plan has missing or unexpected files")
+    _require_forecast_v2_plan_files(plan_directory, observed_names)
+    expected_plan_digest = cast(str, args.expected_plan_digest)
+    plan = _read_forecast_v2_plan(
+        plan_directory,
+        expected_format="agent-assure-delivery-forecast-decision-signature-plan/2",
+        domain=FORECAST_DECISION_PLAN_V2_DOMAIN,
+        expected_digest=expected_plan_digest,
+    )
+    _require_forecast_v2_plan_source_set(
+        repository_root,
+        plan,
+        expected_paths=_forecast_v2_source_paths(repository_root, governance_root, roadmap_path),
+    )
+    relative_targets = {
+        "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+        "docs/governance/v1/delivery-forecast.json",
+    }
+    prior = _acceptance_plan_target_prior_evidence(plan, expected_target_paths=relative_targets)
+
+    if stable_import_path.exists() or stable_import_path.is_symlink():
+        if not stable_import_path.is_file() or stable_import_path.is_symlink():
+            raise GovernanceError("forecast decision import artifact is not a regular file")
+        _artifact, imported_targets = _read_forecast_v2_import_artifact(
+            stable_import_path,
+            expected_format="agent-assure-delivery-forecast-decision-signature-import/2",
+            expected_authorization_effect="verified_decision_targets_may_be_installed",
+            expected_plan_digest=expected_plan_digest,
+            expected_target_paths=relative_targets,
+            domain=FORECAST_DECISION_IMPORT_V2_DOMAIN,
+        )
+    else:
+        imported_targets = {}
+
+    expected_next_payloads = {
+        relative: _render_json_bytes(record) for relative, record in imported_targets.items()
+    }
+
+    def validate_targets(
+        context: tuple[
+            RoadmapSnapshot,
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            str,
+        ],
+        targets: Mapping[str, Mapping[str, Any]],
+    ) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+        snapshot, catalog, registry, baseline, prior_ledger, roster, roster_digest = context
+        decided_ledger = targets["docs/governance/v1/delivery-forecast.authoring-ledger.json"]
+        ready_forecast = targets["docs/governance/v1/delivery-forecast.json"]
+        manifest = _as_object(plan.get("manifest"), owner="forecast decision manifest")
+        if manifest != build_forecast_decision_manifest_v2(prior_ledger):
+            raise GovernanceError("forecast decision manifest changed after preparation")
+        validate_authoring_ledger_v2(
+            snapshot,
+            decided_ledger,
+            _read_json(governance_root / "delivery-forecast.authoring-ledger.schema.json"),
+            catalog,
+            baseline_observations=baseline,
+            allow_pending=False,
+        )
+        expected_ready = build_forecast_v2(
+            snapshot,
+            decided_ledger,
+            registry,
+            approval_roster=roster,
+            approval_roster_digest_value=roster_digest,
+            issued_at=_required_string(ready_forecast, "issued_at_utc"),
+            valid_until=_required_string(ready_forecast, "valid_until_utc"),
+            trusted_time_basis=_required_string(ready_forecast, "trusted_time_basis"),
+        )
+        if ready_forecast != expected_ready:
+            raise GovernanceError("verified forecast decision import target changed")
+        validate_forecast_v2(
+            snapshot,
+            decided_ledger,
+            registry,
+            ready_forecast,
+            _read_json(governance_root / "delivery-forecast.schema.json"),
+            approval_roster=roster,
+            approval_roster_digest_value=roster_digest,
+            allow_pending=True,
+        )
+        return decided_ledger, ready_forecast
+
+    def finish(
+        decided_ledger: Mapping[str, Any],
+        ready_forecast: Mapping[str, Any],
+        *,
+        idempotent_recovery: bool,
+    ) -> int:
+        manifest = _as_object(plan.get("manifest"), owner="forecast decision manifest")
+        print(
+            json.dumps(
+                {
+                    "actual_signature_time_claimed": False,
+                    "decision_manifest_digest": manifest["manifest_digest"],
+                    "forecast_issued_at_utc": ready_forecast["issued_at_utc"],
+                    "forecast_status": "ready_for_signature",
+                    "forecast_valid_until_utc": ready_forecast["valid_until_utc"],
+                    "idempotent_recovery": idempotent_recovery,
+                    "ledger_digest": decided_ledger["ledger_digest"],
+                    "record_digest": ready_forecast["record_digest"],
+                    "result": "verified_itemized_batch_decision_installed",
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if (journal.exists() or journal.is_symlink()) and not imported_targets:
+            raise GovernanceError(
+                "forecast decision recovery requires its verified import artifact"
+            )
+        if imported_targets:
+            _recover_acceptance_transaction(
+                repository_root,
+                expected_plan_digest=expected_plan_digest,
+                expected_prior_evidence=prior,
+                expected_next_payloads=expected_next_payloads,
+            )
+            all_next, any_next = _acceptance_target_payload_state(
+                repository_root,
+                expected_next_payloads,
+            )
+            if all_next:
+                _verify_plan_sources_after_target_install(
+                    repository_root,
+                    plan,
+                    installed_target_paths=relative_targets,
+                )
+                current = _load_forecast_v2_workspace(
+                    repository_root=repository_root,
+                    governance_root=governance_root,
+                    roadmap_path=roadmap_path,
+                    allow_pending=True,
+                )
+                on_disk_targets = {
+                    relative: _read_json(repository_root / relative)
+                    for relative in relative_targets
+                }
+                if on_disk_targets != imported_targets:
+                    raise GovernanceError("installed forecast decision targets changed")
+                decided_ledger = on_disk_targets[
+                    "docs/governance/v1/delivery-forecast.authoring-ledger.json"
+                ]
+                ready_forecast = on_disk_targets["docs/governance/v1/delivery-forecast.json"]
+                # The loader already validates the post-install pair; bind it
+                # back to the persisted import artifact before reporting success.
+                if current[4] != decided_ledger:
+                    raise GovernanceError("installed forecast decision ledger changed")
+                still_all_next, _ = _acceptance_target_payload_state(
+                    repository_root,
+                    expected_next_payloads,
+                )
+                if not still_all_next:
+                    raise GovernanceError("forecast decision targets changed during validation")
+                return finish(
+                    decided_ledger,
+                    ready_forecast,
+                    idempotent_recovery=True,
+                )
+            if any_next:
+                raise GovernanceError(
+                    "forecast decision has a partial install without a recoverable transaction"
+                )
+
+        _verify_forecast_v2_plan_sources(
+            repository_root,
+            plan,
+            expected_paths=_forecast_v2_source_paths(
+                repository_root, governance_root, roadmap_path
+            ),
+        )
+        context = _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=True,
+        )
+        ledger = context[4]
+        if ledger.get("decision_evidence") is not None:
+            raise GovernanceError("forecast batch decision is already installed")
+        if not imported_targets:
+            manifest = _as_object(plan.get("manifest"), owner="forecast decision manifest")
+            if manifest != build_forecast_decision_manifest_v2(ledger):
+                raise GovernanceError("forecast decision manifest changed after preparation")
+            envelope = copy.deepcopy(
+                _as_object(plan.get("signature_envelope"), owner="forecast decision envelope")
+            )
+            envelope["status"] = "signed"
+            claim = (plan_directory / "decision.claim").read_bytes()
+            if (
+                len(claim) != _required_integer(plan, "claim_size_bytes")
+                or raw_digest(claim) != plan.get("claim_sha256")
+                or claim != _signature_claim_bytes_v2(envelope)
+            ):
+                raise GovernanceError("forecast decision claim changed after preparation")
+            signature_path = plan_directory / "decision.claim.sig"
+            envelope["signature"] = base64.b64encode(
+                _canonical_sshsig_armor(signature_path.read_bytes())
+            ).decode("ascii")
+            decided_ledger = _apply_forecast_decision_manifest_v2(
+                ledger,
+                manifest,
+                envelope,
+            )
+            issued_at = _capture_forecast_v2_host_utc(
+                owner="forecast decision import verification completion",
+                not_before=(
+                    _parse_utc(
+                        _required_string(ledger, "inventory_completed_at_utc"),
+                        owner="baseline inventory completion",
+                    ),
+                ),
+            )
+            valid_until = (
+                (
+                    _parse_utc(issued_at, owner="forecast decision import completion")
+                    + MAX_S1_VALIDITY
+                )
+                .isoformat(timespec="microseconds")
+                .replace("+00:00", "Z")
+            )
+            ready_forecast = build_forecast_v2(
+                context[0],
+                decided_ledger,
+                context[2],
+                approval_roster=context[5],
+                approval_roster_digest_value=context[6],
+                issued_at=issued_at,
+                valid_until=valid_until,
+                trusted_time_basis=(
+                    "maintainer-trusted host UTC; Windows Time attestation unavailable; "
+                    "OpenSSH SSHSIG carries no timestamp"
+                ),
+            )
+            imported_targets = {
+                "docs/governance/v1/delivery-forecast.authoring-ledger.json": decided_ledger,
+                "docs/governance/v1/delivery-forecast.json": ready_forecast,
+            }
+            validate_targets(context, imported_targets)
+            artifact = _build_forecast_v2_import_artifact(
+                artifact_format=("agent-assure-delivery-forecast-decision-signature-import/2"),
+                authorization_effect="verified_decision_targets_may_be_installed",
+                plan_digest=expected_plan_digest,
+                targets=imported_targets,
+                domain=FORECAST_DECISION_IMPORT_V2_DOMAIN,
+            )
+            _write_new_private_json(
+                stable_import_path,
+                artifact,
+                owner="forecast decision import artifact",
+            )
+            expected_next_payloads = {
+                relative: _render_json_bytes(record)
+                for relative, record in imported_targets.items()
+            }
+        else:
+            validate_targets(context, imported_targets)
+
+        target_records = {
+            repository_root / relative: record for relative, record in imported_targets.items()
+        }
+        _install_acceptance_targets(
+            repository_root,
+            target_records,
+            plan_digest=expected_plan_digest,
+            expected_prior_evidence=prior,
+        )
+        all_next, _ = _acceptance_target_payload_state(
+            repository_root,
+            expected_next_payloads,
+        )
+        if not all_next:
+            raise GovernanceError("forecast decision install postcondition failed")
+        _verify_plan_sources_after_target_install(
+            repository_root,
+            plan,
+            installed_target_paths=relative_targets,
+        )
+        post_context = _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=True,
+        )
+        decided_ledger = imported_targets[
+            "docs/governance/v1/delivery-forecast.authoring-ledger.json"
+        ]
+        ready_forecast = imported_targets["docs/governance/v1/delivery-forecast.json"]
+        if post_context[4] != decided_ledger:
+            raise GovernanceError("forecast decision post-install validation changed")
+        return finish(decided_ledger, ready_forecast, idempotent_recovery=False)
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def forecast_v2_signature_plan(args: argparse.Namespace) -> int:
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = Path(cast(str, args.governance_dir)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    snapshot, _catalog, registry, _baseline, ledger, roster, roster_digest = (
+        _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=True,
+        )
+    )
+    ready = _read_json(governance_root / "delivery-forecast.json")
+    if ready.get("forecast_status") != "ready_for_signature":
+        raise GovernanceError("forecast must have an imported batch decision before signing")
+    issue_time, expiry_time = _validate_validity_interval(
+        _required_string(ready, "issued_at_utc"),
+        _required_string(ready, "valid_until_utc"),
+        owner="forecast signature plan",
+    )
+    claim_preparation_started_at = _capture_forecast_v2_host_utc(
+        owner="claim preparation start observation",
+        not_before=(issue_time,),
+        before=expiry_time,
+    )
+    candidate = build_forecast_v2(
+        snapshot,
+        ledger,
+        registry,
+        approval_roster=roster,
+        approval_roster_digest_value=roster_digest,
+        issued_at=_required_string(ready, "issued_at_utc"),
+        valid_until=_required_string(ready, "valid_until_utc"),
+        trusted_time_basis=_required_string(ready, "trusted_time_basis"),
+        accepted_candidate=True,
+    )
+    producer = copy.deepcopy(
+        _as_object(candidate.get("signature_envelope"), owner="producer envelope")
+    )
+    producer["status"] = "signed"
+    receipt = _as_object(candidate.get("acceptance_receipt"), owner="acceptance receipt")
+    acceptance = copy.deepcopy(
+        _as_object(receipt.get("signature_envelope"), owner="acceptance envelope")
+    )
+    acceptance["status"] = "signed"
+    claims = {
+        "producer.claim": _signature_claim_bytes_v2(producer),
+        "acceptance-receipt.claim": _signature_claim_bytes_v2(acceptance),
+    }
+    source_paths = _forecast_v2_source_paths(repository_root, governance_root, roadmap_path)
+    projection = {
+        "format": "agent-assure-delivery-forecast-final-signature-plan/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "none_until_both_signatures_verify",
+        "time_evidence": {
+            "claim_preparation_started_at_utc": claim_preparation_started_at,
+            "clock_basis": "maintainer_host_utc_externally_unattested",
+            "sshsig_timestamp_capability": "none",
+            "actual_signature_time_claimed": False,
+            "import_verification_semantics": (
+                "internally_captured_completion_observation_must_be_not_before_claim_"
+                "preparation_start_and_within_forecast_validity"
+            ),
+        },
+        "candidate": candidate,
+        "claims": [
+            {
+                "claim_id": name.removesuffix(".claim"),
+                "claim_file": name,
+                "claim_size_bytes": len(payload),
+                "claim_sha256": raw_digest(payload),
+            }
+            for name, payload in claims.items()
+        ],
+        "source_files": [
+            _source_file_evidence(repository_root, path)
+            for path in sorted(source_paths, key=lambda value: _utf8_sort_key(str(value)))
+        ],
+    }
+    plan = {
+        **projection,
+        "plan_digest": domain_digest(FORECAST_SIGNATURE_PLAN_V2_DOMAIN, projection),
+    }
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="forecast-v2 final signature plan",
+        must_exist=False,
+    )
+    _write_forecast_v2_plan(plan_directory, plan=plan, claims=claims)
+    print(
+        json.dumps(
+            {
+                "actual_signature_time_claimed": False,
+                "acceptance_receipt_digest": receipt["receipt_digest"],
+                "claim_preparation_started_at_utc": claim_preparation_started_at,
+                "plan_digest": plan["plan_digest"],
+                "plan_directory": str(plan_directory.resolve()),
+                "producer_record_digest": candidate["record_digest"],
+                "sign_commands": [
+                    _forecast_v2_sign_command(plan_directory / "producer.claim"),
+                    _forecast_v2_sign_command(plan_directory / "acceptance-receipt.claim"),
+                ],
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+@_require_frozen_runtime
+def forecast_v2_signature_import(args: argparse.Namespace) -> int:
+    """Verify, persist, recover, and atomically install both final signatures."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = Path(cast(str, args.governance_dir)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="forecast-v2 final signature plan",
+        must_exist=True,
+    )
+    stable_import_path = plan_directory / "verified-final-signature-import.json"
+    base_names = {
+        "plan.json",
+        "producer.claim",
+        "producer.claim.sig",
+        "acceptance-receipt.claim",
+        "acceptance-receipt.claim.sig",
+    }
+    observed_names = {entry.name for entry in plan_directory.iterdir()}
+    if observed_names not in (base_names, base_names | {stable_import_path.name}):
+        raise GovernanceError("forecast-v2 final signature plan has unexpected files")
+    _require_forecast_v2_plan_files(plan_directory, observed_names)
+    expected_plan_digest = cast(str, args.expected_plan_digest)
+    plan = _read_forecast_v2_plan(
+        plan_directory,
+        expected_format="agent-assure-delivery-forecast-final-signature-plan/2",
+        domain=FORECAST_SIGNATURE_PLAN_V2_DOMAIN,
+        expected_digest=expected_plan_digest,
+    )
+    _require_forecast_v2_plan_source_set(
+        repository_root,
+        plan,
+        expected_paths=_forecast_v2_source_paths(repository_root, governance_root, roadmap_path),
+    )
+    relative_target = "docs/governance/v1/delivery-forecast.json"
+    relative_targets = {relative_target}
+    prior = _acceptance_plan_target_prior_evidence(
+        plan,
+        expected_target_paths=relative_targets,
+    )
+    time_evidence = _as_object(plan.get("time_evidence"), owner="signature time evidence")
+    if time_evidence != {
+        "claim_preparation_started_at_utc": time_evidence.get("claim_preparation_started_at_utc"),
+        "clock_basis": "maintainer_host_utc_externally_unattested",
+        "sshsig_timestamp_capability": "none",
+        "actual_signature_time_claimed": False,
+        "import_verification_semantics": (
+            "internally_captured_completion_observation_must_be_not_before_claim_"
+            "preparation_start_and_within_forecast_validity"
+        ),
+    }:
+        raise GovernanceError("forecast signature time semantics changed")
+    prepared = _parse_utc(
+        _required_string(time_evidence, "claim_preparation_started_at_utc"),
+        owner="claim preparation start observation",
+    )
+    if stable_import_path.exists() or stable_import_path.is_symlink():
+        if not stable_import_path.is_file() or stable_import_path.is_symlink():
+            raise GovernanceError("forecast final signature import artifact is not regular")
+        _artifact, imported_targets = _read_forecast_v2_import_artifact(
+            stable_import_path,
+            expected_format="agent-assure-delivery-forecast-final-signature-import/2",
+            expected_authorization_effect="verified_final_forecast_may_be_installed",
+            expected_plan_digest=expected_plan_digest,
+            expected_target_paths=relative_targets,
+            domain=FORECAST_SIGNATURE_IMPORT_V2_DOMAIN,
+        )
+    else:
+        imported_targets = {}
+    expected_next_payloads = {
+        relative: _render_json_bytes(record) for relative, record in imported_targets.items()
+    }
+
+    def validate_candidate(
+        context: tuple[
+            RoadmapSnapshot,
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            dict[str, Any],
+            str,
+        ],
+        ready: Mapping[str, Any],
+        candidate: Mapping[str, Any],
+        *,
+        require_signed: bool,
+    ) -> None:
+        snapshot, _catalog, registry, _baseline, ledger, roster, roster_digest = context
+        expected_candidate = build_forecast_v2(
+            snapshot,
+            ledger,
+            registry,
+            approval_roster=roster,
+            approval_roster_digest_value=roster_digest,
+            issued_at=_required_string(ready, "issued_at_utc"),
+            valid_until=_required_string(ready, "valid_until_utc"),
+            trusted_time_basis=_required_string(ready, "trusted_time_basis"),
+            accepted_candidate=True,
+        )
+        normalized = copy.deepcopy(dict(candidate))
+        normalized["signature_envelope"] = copy.deepcopy(expected_candidate["signature_envelope"])
+        normalized_receipt = _as_object(
+            normalized.get("acceptance_receipt"), owner="accepted forecast receipt"
+        )
+        expected_receipt = _as_object(
+            expected_candidate.get("acceptance_receipt"), owner="expected forecast receipt"
+        )
+        normalized_receipt["signature_envelope"] = copy.deepcopy(
+            expected_receipt["signature_envelope"]
+        )
+        if normalized != expected_candidate:
+            raise GovernanceError("accepted forecast import target changed after preparation")
+        if not require_signed:
+            return
+        validate_forecast_v2(
+            snapshot,
+            ledger,
+            registry,
+            candidate,
+            _read_json(governance_root / "delivery-forecast.schema.json"),
+            approval_roster=roster,
+            approval_roster_digest_value=roster_digest,
+            allow_pending=False,
+        )
+
+    def finish(candidate: Mapping[str, Any], *, idempotent_recovery: bool) -> int:
+        producer_evidence = _as_object(
+            _as_object(
+                candidate.get("signature_envelope"), owner="producer signature envelope"
+            ).get("verification_evidence"),
+            owner="producer signature verification evidence",
+        )
+        print(
+            json.dumps(
+                {
+                    "acceptance_receipt_digest": _as_object(
+                        candidate.get("acceptance_receipt"), owner="acceptance receipt"
+                    )["receipt_digest"],
+                    "actual_signature_time_claimed": False,
+                    "forecast_status": "accepted",
+                    "idempotent_recovery": idempotent_recovery,
+                    "import_verification_completed_at_utc": producer_evidence[
+                        "import_verification_completed_at_utc"
+                    ],
+                    "import_verification_started_at_utc": producer_evidence[
+                        "import_verification_started_at_utc"
+                    ],
+                    "record_digest": candidate["record_digest"],
+                    "result": "both_timestamp_free_signatures_verified_and_installed",
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if (journal.exists() or journal.is_symlink()) and not imported_targets:
+            raise GovernanceError(
+                "forecast final signature recovery requires its verified import artifact"
+            )
+        if imported_targets:
+            _recover_acceptance_transaction(
+                repository_root,
+                expected_plan_digest=expected_plan_digest,
+                expected_prior_evidence=prior,
+                expected_next_payloads=expected_next_payloads,
+            )
+            all_next, any_next = _acceptance_target_payload_state(
+                repository_root,
+                expected_next_payloads,
+            )
+            if all_next:
+                _verify_plan_sources_after_target_install(
+                    repository_root,
+                    plan,
+                    installed_target_paths=relative_targets,
+                )
+                current = _load_forecast_v2_workspace(
+                    repository_root=repository_root,
+                    governance_root=governance_root,
+                    roadmap_path=roadmap_path,
+                    allow_pending=False,
+                )
+                candidate = _read_json(repository_root / relative_target)
+                if candidate != imported_targets[relative_target]:
+                    raise GovernanceError("installed accepted forecast changed")
+                # The accepted loader proves all cryptographic and semantic
+                # invariants; bind its ledger and the target bytes once more.
+                if current[4].get("decision_evidence") is None:
+                    raise GovernanceError("accepted forecast lost its decision predecessor")
+                still_all_next, _ = _acceptance_target_payload_state(
+                    repository_root,
+                    expected_next_payloads,
+                )
+                if not still_all_next:
+                    raise GovernanceError("accepted forecast changed during validation")
+                return finish(candidate, idempotent_recovery=True)
+            if any_next:
+                raise GovernanceError(
+                    "forecast signature has a partial install without recovery evidence"
+                )
+
+        _verify_forecast_v2_plan_sources(
+            repository_root,
+            plan,
+            expected_paths=_forecast_v2_source_paths(
+                repository_root, governance_root, roadmap_path
+            ),
+        )
+        context = _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=True,
+        )
+        ready = _read_json(governance_root / "delivery-forecast.json")
+        if ready.get("forecast_status") != "ready_for_signature":
+            raise GovernanceError("forecast is not ready for its final signatures")
+        issue_time, expiry_time = _validate_validity_interval(
+            _required_string(ready, "issued_at_utc"),
+            _required_string(ready, "valid_until_utc"),
+            owner="forecast signature import",
+        )
+        if not imported_targets:
+            import_verification_started_at = _canonical_host_utc_now()
+            import_started = _parse_utc(
+                import_verification_started_at,
+                owner="import verification start observation",
+            )
+            if import_started < prepared or not issue_time <= import_started < expiry_time:
+                raise GovernanceError(
+                    "import verification start must follow claim preparation within validity"
+                )
+            candidate = copy.deepcopy(
+                _as_object(plan.get("candidate"), owner="accepted forecast candidate")
+            )
+            validate_candidate(context, ready, candidate, require_signed=False)
+            descriptors = {
+                _required_string(
+                    _as_object(value, owner="signature claim"), "claim_id"
+                ): _as_object(value, owner="signature claim")
+                for value in _as_array(plan.get("claims"), owner="signature claims")
+            }
+            if set(descriptors) != {"producer", "acceptance-receipt"}:
+                raise GovernanceError("final signature plan must contain exactly two claims")
+            envelopes = {
+                "producer": _as_object(
+                    candidate.get("signature_envelope"), owner="producer signature envelope"
+                ),
+                "acceptance-receipt": _as_object(
+                    _as_object(candidate.get("acceptance_receipt"), owner="acceptance receipt").get(
+                        "signature_envelope"
+                    ),
+                    owner="acceptance receipt signature envelope",
+                ),
+            }
+            expected_subject_digests = {
+                "producer": _required_string(candidate, "record_digest"),
+                "acceptance-receipt": _required_string(
+                    _as_object(candidate.get("acceptance_receipt"), owner="acceptance receipt"),
+                    "receipt_digest",
+                ),
+            }
+            for claim_id in ("producer", "acceptance-receipt"):
+                descriptor = descriptors[claim_id]
+                claim_path = plan_directory / _required_string(descriptor, "claim_file")
+                payload = claim_path.read_bytes()
+                envelope = envelopes[claim_id]
+                envelope["status"] = "signed"
+                if (
+                    len(payload) != _required_integer(descriptor, "claim_size_bytes")
+                    or raw_digest(payload) != descriptor.get("claim_sha256")
+                    or payload != _signature_claim_bytes_v2(envelope)
+                ):
+                    raise GovernanceError(f"{claim_id} claim changed after preparation")
+                signature_path = claim_path.with_name(claim_path.name + ".sig")
+                envelope["signature"] = base64.b64encode(
+                    _canonical_sshsig_armor(signature_path.read_bytes())
+                ).decode("ascii")
+                _validate_signature_envelope_v2(
+                    envelope,
+                    expected_person_id="acblabs",
+                    expected_role=(
+                        "technical_lead" if claim_id == "producer" else "repository_maintainer"
+                    ),
+                    expected_subject_digest=expected_subject_digests[claim_id],
+                    allow_pending=False,
+                    owner=f"forecast {claim_id} preliminary import",
+                    expected_verification_evidence=None,
+                )
+            import_verification_completed_at = _capture_forecast_v2_host_utc(
+                owner="import verification completion observation",
+                not_before=(import_started,),
+                before=expiry_time,
+            )
+            verification_evidence = _forecast_v2_signature_import_evidence(
+                signature_plan_digest=expected_plan_digest,
+                claim_preparation_started_at_utc=_required_string(
+                    time_evidence, "claim_preparation_started_at_utc"
+                ),
+                import_verification_started_at_utc=import_verification_started_at,
+                import_verification_completed_at_utc=import_verification_completed_at,
+                issued_at_utc=_required_string(ready, "issued_at_utc"),
+                valid_until_utc=_required_string(ready, "valid_until_utc"),
+            )
+            for envelope in envelopes.values():
+                envelope["verification_evidence"] = copy.deepcopy(verification_evidence)
+            validate_candidate(context, ready, candidate, require_signed=True)
+            imported_targets = {relative_target: candidate}
+            artifact = _build_forecast_v2_import_artifact(
+                artifact_format="agent-assure-delivery-forecast-final-signature-import/2",
+                authorization_effect="verified_final_forecast_may_be_installed",
+                plan_digest=expected_plan_digest,
+                targets=imported_targets,
+                domain=FORECAST_SIGNATURE_IMPORT_V2_DOMAIN,
+            )
+            _write_new_private_json(
+                stable_import_path,
+                artifact,
+                owner="forecast final signature import artifact",
+            )
+            expected_next_payloads = {relative_target: _render_json_bytes(candidate)}
+        else:
+            candidate = imported_targets[relative_target]
+            validate_candidate(context, ready, candidate, require_signed=True)
+
+        _install_acceptance_targets(
+            repository_root,
+            {governance_root / "delivery-forecast.json": candidate},
+            plan_digest=expected_plan_digest,
+            expected_prior_evidence=prior,
+        )
+        all_next, _ = _acceptance_target_payload_state(
+            repository_root,
+            expected_next_payloads,
+        )
+        if not all_next:
+            raise GovernanceError("forecast final signature install postcondition failed")
+        _verify_plan_sources_after_target_install(
+            repository_root,
+            plan,
+            installed_target_paths=relative_targets,
+        )
+        _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=False,
+        )
+        return finish(candidate, idempotent_recovery=False)
+
+
+def _corrective_v2_source_paths(
+    repository_root: Path,
+    roadmap_path: Path,
+    *,
+    extra_paths: Sequence[Path] = (),
+) -> list[Path]:
+    """Return every mutable source whose bytes a corrective plan consumes."""
+
+    governance_root = (repository_root / "docs/governance/v1").resolve()
+    paths = set(_forecast_v2_source_paths(repository_root, governance_root, roadmap_path))
+    relative_paths = {
+        path
+        for ticket_id in ("V1-BASE-01", "V1-BOOT-01")
+        for path, _kind in _completion_review_paths_v2(ticket_id)
+    }
+    relative_paths.update(
+        {
+            "docs/governance/v1/approval-roster.json",
+            "docs/governance/v1/approval-roster.schema.json",
+            "docs/governance/v1/completion-report-v1-base-01.md",
+            "docs/governance/v1/completion-report-v1-boot-01.md",
+            *S1_CORRECTIVE_CLOSURE_PATHS,
+        }
+    )
+    paths.update(repository_root / path for path in relative_paths)
+    paths.update(path.resolve() for path in extra_paths)
+    return sorted(paths, key=lambda value: _utf8_sort_key(str(value)))
+
+
+def _require_corrective_v2_plan_source_set(
+    repository_root: Path,
+    roadmap_path: Path,
+    plan: Mapping[str, Any],
+    *,
+    expected_private_extra_count: int,
+) -> None:
+    """Require the full corrective trust/review basis plus exact private inputs."""
+
+    root = repository_root.resolve()
+    required = {
+        path.resolve().relative_to(root).as_posix()
+        for path in _corrective_v2_source_paths(root, roadmap_path)
+    }
+    observed = [
+        _required_string(
+            _as_object(value, owner="corrective plan source file"),
+            "path",
+        )
+        for value in _as_array(plan.get("source_files"), owner="corrective plan source files")
+    ]
+    if len(observed) != len(set(observed)):
+        raise GovernanceError("corrective plan repeats a source file")
+    observed_set = set(observed)
+    extras = observed_set - required
+    if not required <= observed_set or len(extras) != expected_private_extra_count:
+        raise GovernanceError("corrective plan source set is not exact")
+    for relative in extras:
+        _require_corrective_local_only_path(
+            relative,
+            owner="corrective private plan source",
+        )
+
+
+_FORECAST_V2_FINAL_DOC_START: Final = "<!-- agent-assure:forecast-v2-final:start -->"
+_FORECAST_V2_FINAL_DOC_END: Final = "<!-- agent-assure:forecast-v2-final:end -->"
+
+
+def _forecast_v2_final_documentation_block(
+    ledger: Mapping[str, Any], forecast: Mapping[str, Any]
+) -> str:
+    if ledger.get("decision_evidence") is None:
+        raise GovernanceError("final forecast documentation requires imported human decisions")
+    if forecast.get("forecast_status") != "accepted":
+        raise GovernanceError("final forecast documentation requires an accepted forecast")
+    ledger_digest = _required_string(ledger, "ledger_digest")
+    forecast_digest = _required_string(forecast, "record_digest")
+    if (
+        SHA256_PATTERN.fullmatch(ledger_digest) is None
+        or SHA256_PATTERN.fullmatch(forecast_digest) is None
+    ):
+        raise GovernanceError("final forecast documentation digest is not canonical")
+    return "\n".join(
+        (
+            _FORECAST_V2_FINAL_DOC_START,
+            (
+                "- Generation-2 authoring ledger status: `human_decisions_imported`; "
+                f"digest: `{ledger_digest}`."
+            ),
+            (f"- Generation-2 delivery forecast status: `accepted`; digest: `{forecast_digest}`."),
+            _FORECAST_V2_FINAL_DOC_END,
+        )
+    )
+
+
+def _validate_forecast_v2_final_documentation(
+    repository_root: Path,
+    *,
+    ledger: Mapping[str, Any],
+    forecast: Mapping[str, Any],
+) -> None:
+    """Require both governed documents to name the installed final artifacts."""
+
+    expected = _forecast_v2_final_documentation_block(ledger, forecast)
+    for relative in (
+        "docs/governance/v1/README.md",
+        "docs/adr/0016-v1-repository-map.md",
+    ):
+        path = repository_root / relative
+        if not path.is_file() or path.is_symlink():
+            raise GovernanceError(f"final forecast documentation is not a regular file: {relative}")
+        text = path.read_text(encoding="utf-8")
+        if (
+            text.count(_FORECAST_V2_FINAL_DOC_START) != 1
+            or text.count(_FORECAST_V2_FINAL_DOC_END) != 1
+            or expected not in text
+        ):
+            raise GovernanceError(
+                "final accepted ledger/forecast status and digest are not documented "
+                f"exactly in {relative}"
+            )
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def forecast_v2_documentation_check(args: argparse.Namespace) -> int:
+    """Validate final forecast records and their exact pre-R2 documentation."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = Path(cast(str, args.governance_dir)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    snapshot, _catalog, registry, _baseline, ledger, roster, roster_digest = (
+        _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=False,
+        )
+    )
+    forecast = _read_json(governance_root / "delivery-forecast.json")
+    validate_forecast_v2(
+        snapshot,
+        ledger,
+        registry,
+        forecast,
+        _read_json(governance_root / "delivery-forecast.schema.json"),
+        approval_roster=roster,
+        approval_roster_digest_value=roster_digest,
+        allow_pending=False,
+    )
+    _validate_forecast_v2_final_documentation(
+        repository_root,
+        ledger=ledger,
+        forecast=forecast,
+    )
+    print(
+        json.dumps(
+            {
+                "forecast_status": forecast["forecast_status"],
+                "ledger_digest": ledger["ledger_digest"],
+                "record_digest": forecast["record_digest"],
+                "result": "valid_final_forecast_documentation",
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _load_corrective_v2_workspace(
+    *,
+    repository_root: Path,
+    governance_root: Path,
+    roadmap_path: Path,
+    result_commit: str,
+    allow_materialized_closure: bool = False,
+) -> dict[str, Any]:
+    """Validate clean R2 and load the complete generation-2 closure context."""
+
+    if allow_materialized_closure:
+        state = _post_r2_repository_state(repository_root)
+        if state.get("head_commit") != result_commit:
+            raise GovernanceError("materialized corrective closure is not based on exact R2")
+        _validate_corrective_closure_worktree(
+            repository_root,
+            result_commit=result_commit,
+        )
+    else:
+        _require_clean_corrective_result_checkout(
+            repository_root,
+            result_commit=result_commit,
+            owner="generation-2 corrective closure workflow",
+        )
+        _validate_generation_1_closure_placeholders(repository_root, governance_root)
+    snapshot, _catalog, _registry, baseline, ledger, _roster, workspace_roster_digest = (
+        _load_forecast_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            allow_pending=False,
+        )
+    )
+    roster = _read_json(governance_root / "approval-roster.json")
+    roster_digest, person_id = validate_approval_roster(
+        snapshot,
+        roster,
+        _read_json(governance_root / "approval-roster.schema.json"),
+        allow_pending=False,
+    )
+    if roster_digest != workspace_roster_digest:
+        raise GovernanceError("corrective closure approval roster digest changed")
+    authorization = _load_corrective_authorization_from_result(
+        snapshot,
+        repository_root,
+        result_commit,
+    )
+    change_control = _corrective_change_control(
+        repository_root,
+        result_commit=result_commit,
+        corrective_authorization=authorization,
+    )
+    forecast = _read_json(governance_root / "delivery-forecast.json")
+    if _forecast_binding_v2(forecast, require_accepted=True)["forecast_status"] != ("accepted"):
+        raise GovernanceError("corrective closure forecast is not accepted")
+    return {
+        "snapshot": snapshot,
+        "baseline": baseline,
+        "ledger": ledger,
+        "roster": roster,
+        "roster_digest": roster_digest,
+        "person_id": person_id,
+        "authorization": authorization,
+        "change_control": change_control,
+        "forecast": forecast,
+    }
+
+
+def _write_corrective_v2_plan(
+    plan_directory: Path,
+    *,
+    plan: Mapping[str, Any],
+    claims: Mapping[str, bytes],
+) -> None:
+    if plan_directory.exists() or plan_directory.is_symlink():
+        raise GovernanceError("corrective signature plan directory already exists")
+    plan_directory.parent.mkdir(parents=True, exist_ok=True)
+    temporary = Path(
+        tempfile.mkdtemp(prefix=f"{plan_directory.name}-staging-", dir=plan_directory.parent)
+    )
+    try:
+        (temporary / "plan.json").write_bytes(_render_json_bytes(plan))
+        for name, payload in claims.items():
+            if Path(name).name != name or not name.endswith(".claim"):
+                raise GovernanceError("corrective plan claim name is not canonical")
+            (temporary / name).write_bytes(payload)
+        temporary.replace(plan_directory)
+    except OSError as exc:
+        raise GovernanceError(f"unable to write corrective signature plan: {exc}") from exc
+    finally:
+        if temporary.exists():
+            shutil.rmtree(temporary, ignore_errors=True)
+
+
+def _read_corrective_v2_plan(
+    plan_directory: Path,
+    *,
+    expected_format: str,
+    domain: str,
+    expected_digest: str,
+    expected_fields: set[str],
+) -> dict[str, Any]:
+    if SHA256_PATTERN.fullmatch(expected_digest) is None:
+        raise GovernanceError("expected corrective plan digest is not canonical SHA-256")
+    plan = _read_json(plan_directory / "plan.json")
+    if set(plan) != expected_fields | {"plan_digest"}:
+        raise GovernanceError("corrective signature plan has missing or unexpected fields")
+    if (
+        plan.get("format") != expected_format
+        or plan.get("spec_revision") != SPEC_REVISION
+        or plan.get("authorization_effect") != "none_until_verified_import"
+    ):
+        raise GovernanceError("corrective signature plan identity changed")
+    projection = {key: value for key, value in plan.items() if key != "plan_digest"}
+    calculated = domain_digest(domain, projection)
+    if plan.get("plan_digest") != calculated or calculated != expected_digest:
+        raise GovernanceError("corrective signature plan differs from the human-confirmed digest")
+    return plan
+
+
+def _require_corrective_v2_plan_files(
+    plan_directory: Path,
+    *,
+    expected_names: set[str],
+) -> None:
+    if not plan_directory.is_dir() or plan_directory.is_symlink():
+        raise GovernanceError("corrective signature plan must be a regular directory")
+    observed = {entry.name for entry in plan_directory.iterdir()}
+    if observed != expected_names:
+        raise GovernanceError("corrective signature plan has missing or unexpected files")
+    for name in expected_names:
+        path = plan_directory / name
+        if not path.is_file() or path.is_symlink():
+            raise GovernanceError("corrective signature plan contains a non-regular file")
+
+
+def _corrective_v2_claim_descriptor(
+    *,
+    claim_id: str,
+    target_path: str,
+    target_record: Mapping[str, Any],
+) -> tuple[dict[str, Any], bytes]:
+    if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,63}", claim_id) is None:
+        raise GovernanceError(f"invalid corrective claim id: {claim_id}")
+    envelope = _as_object(
+        target_record.get("signature_envelope"),
+        owner=f"{claim_id} signature envelope",
+    )
+    subject_field = (
+        "receipt_digest"
+        if target_record.get("format") == "agent-assure-ticket-completion-receipt/2"
+        else "bundle_digest"
+    )
+    subject_digest = _required_string(target_record, subject_field)
+    if envelope != _pending_signature_v2(
+        _required_string(target_record, "issuer_person_id"),
+        _required_string(target_record, "issuer_role"),
+        subject_digest,
+    ):
+        raise GovernanceError(f"{claim_id} target envelope is not the exact pending v2 shape")
+    payload = _signature_claim_bytes_v2(envelope)
+    claim_file = f"{claim_id}.claim"
+    return (
+        {
+            "claim_id": claim_id,
+            "target_path": target_path,
+            "claim_file": claim_file,
+            "claim_size_bytes": len(payload),
+            "claim_sha256": raw_digest(payload),
+            "signer_person_id": _required_string(envelope, "signer_person_id"),
+            "signer_role": _required_string(envelope, "signer_role"),
+            "subject_digest": subject_digest,
+        },
+        payload,
+    )
+
+
+def _corrective_v2_plan_targets(plan: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    targets: dict[str, dict[str, Any]] = {}
+    for value in _as_array(plan.get("targets"), owner="corrective plan targets"):
+        target = _as_object(value, owner="corrective plan target")
+        if set(target) != {"path", "record"}:
+            raise GovernanceError("corrective plan target descriptor is malformed")
+        path = _required_string(target, "path")
+        if path in targets:
+            raise GovernanceError("corrective plan repeats a target path")
+        targets[path] = copy.deepcopy(_as_object(target.get("record"), owner=path))
+    return targets
+
+
+def _materialize_corrective_v2_plan_targets(
+    plan_directory: Path,
+    plan: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    targets = _corrective_v2_plan_targets(plan)
+    expected_signature_paths: set[Path] = set()
+    observed_claim_ids: set[str] = set()
+    for value in _as_array(plan.get("claims"), owner="corrective plan claims"):
+        claim = _as_object(value, owner="corrective plan claim")
+        required = {
+            "claim_id",
+            "target_path",
+            "claim_file",
+            "claim_size_bytes",
+            "claim_sha256",
+            "signer_person_id",
+            "signer_role",
+            "subject_digest",
+        }
+        if set(claim) != required:
+            raise GovernanceError("corrective plan claim descriptor is malformed")
+        claim_id = _required_string(claim, "claim_id")
+        if claim_id in observed_claim_ids:
+            raise GovernanceError("corrective plan repeats a claim id")
+        observed_claim_ids.add(claim_id)
+        target_path = _required_string(claim, "target_path")
+        if target_path not in targets:
+            raise GovernanceError("corrective claim targets a missing record")
+        claim_name = _required_string(claim, "claim_file")
+        if Path(claim_name).name != claim_name or claim_name != f"{claim_id}.claim":
+            raise GovernanceError("corrective claim file name is not canonical")
+        claim_path = plan_directory / claim_name
+        payload = claim_path.read_bytes()
+        if len(payload) != _required_integer(claim, "claim_size_bytes") or raw_digest(
+            payload
+        ) != claim.get("claim_sha256"):
+            raise GovernanceError(f"corrective claim changed after preparation: {claim_id}")
+        record = targets[target_path]
+        envelope = _as_object(
+            record.get("signature_envelope"),
+            owner=f"{claim_id} signature envelope",
+        )
+        if envelope.get("status") != "pending_human_signature":
+            raise GovernanceError("corrective plan target signature is no longer pending")
+        if payload != _signature_claim_bytes_v2(envelope):
+            raise GovernanceError("corrective claim no longer matches its target envelope")
+        signature_path = plan_directory / f"{claim_name}.sig"
+        expected_signature_paths.add(signature_path.resolve())
+        if not signature_path.is_file() or signature_path.is_symlink():
+            raise GovernanceError(f"missing human SSHSIG: {signature_path.name}")
+        envelope["status"] = "signed"
+        envelope["signature"] = base64.b64encode(
+            _canonical_sshsig_armor(signature_path.read_bytes())
+        ).decode("ascii")
+        _validate_signature_envelope_v2(
+            envelope,
+            expected_person_id=_required_string(claim, "signer_person_id"),
+            expected_role=_required_string(claim, "signer_role"),
+            expected_subject_digest=_required_string(claim, "subject_digest"),
+            allow_pending=False,
+            owner=claim_id,
+        )
+    actual_signature_paths = {path.resolve() for path in plan_directory.glob("*.claim.sig")}
+    if actual_signature_paths != expected_signature_paths:
+        raise GovernanceError("corrective plan contains missing or unexpected SSHSIG files")
+    return targets
+
+
+def _validate_corrective_receipt_plan_candidate(
+    snapshot: RoadmapSnapshot,
+    record: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    ticket_id: str,
+    roster: Mapping[str, Any],
+    person_id: str,
+    result_commit: str,
+    corrective_authorization: Mapping[str, Any],
+    forecast: Mapping[str, Any],
+) -> None:
+    if record.get("receipt_status") != "accepted_for_development":
+        raise GovernanceError(f"{ticket_id} corrective plan is not an acceptance candidate")
+    post_value = record.get("post_result_verification")
+    post_evidence = (
+        None
+        if post_value is None
+        else _as_object(post_value, owner=f"{ticket_id} post-R2 suite evidence")
+    )
+    expected = _ticket_completion_receipt_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        ticket_id=ticket_id,
+        roster=roster,
+        person_id=person_id,
+        result_commit=result_commit,
+        corrective_authorization=corrective_authorization,
+        forecast=forecast,
+        claim_prepared_at=_required_string(record, "claim_prepared_at_utc"),
+        status="accepted_for_development",
+        post_result_verification=post_evidence,
+    )
+    if _ticket_receipt_projection(record) != expected:
+        raise GovernanceError(f"{ticket_id} corrective plan candidate changed")
+    digest = domain_digest(TICKET_RECEIPT_V2_DOMAIN, expected)
+    if record.get("receipt_digest") != digest:
+        raise GovernanceError(f"{ticket_id} corrective plan digest mismatch")
+    if record.get("signature_envelope") != _pending_signature_v2(
+        person_id,
+        "repository_maintainer",
+        digest,
+    ):
+        raise GovernanceError(f"{ticket_id} corrective plan envelope changed")
+    if record.get("signature_import_evidence") != _pending_signature_import_evidence():
+        raise GovernanceError(f"{ticket_id} corrective plan import evidence is not pending")
+
+
+def _corrective_receipt_import_projection(
+    *,
+    receipt_plan_digest: str,
+    result_commit: str,
+    bundle_validity: Mapping[str, Any],
+    targets: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    expected_paths = {
+        "docs/governance/v1/completion-receipt-v1-base-01.json",
+        "docs/governance/v1/completion-receipt-v1-boot-01.json",
+    }
+    if set(targets) != expected_paths:
+        raise GovernanceError("corrective receipt import target set is not exact")
+    if SHA256_PATTERN.fullmatch(receipt_plan_digest) is None:
+        raise GovernanceError("corrective receipt import plan digest is invalid")
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("corrective receipt import result commit is invalid")
+    validity = dict(bundle_validity)
+    if set(validity) != {"issued_at_utc", "valid_until_utc"}:
+        raise GovernanceError("corrective receipt import validity is malformed")
+    _validate_validity_interval(
+        _required_string(validity, "issued_at_utc"),
+        _required_string(validity, "valid_until_utc"),
+        owner="corrective receipt import bundle validity",
+    )
+    return {
+        "format": "agent-assure-s1-corrective-receipt-signature-import/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "signed_receipts_verified_not_installed",
+        "receipt_plan_digest": receipt_plan_digest,
+        "result_commit": result_commit,
+        "bundle_validity": validity,
+        "targets": [
+            {"path": path, "record": copy.deepcopy(dict(targets[path]))}
+            for path in sorted(targets, key=_utf8_sort_key)
+        ],
+    }
+
+
+def _build_corrective_receipt_import_artifact(
+    *,
+    receipt_plan_digest: str,
+    result_commit: str,
+    bundle_validity: Mapping[str, Any],
+    targets: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    projection = _corrective_receipt_import_projection(
+        receipt_plan_digest=receipt_plan_digest,
+        result_commit=result_commit,
+        bundle_validity=bundle_validity,
+        targets=targets,
+    )
+    return {
+        **projection,
+        "import_artifact_digest": domain_digest(
+            CORRECTIVE_RECEIPT_IMPORT_V2_DOMAIN,
+            projection,
+        ),
+    }
+
+
+def _read_corrective_receipt_import_artifact(
+    path: Path,
+    *,
+    expected_plan_digest: str,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    artifact = _read_json(path)
+    required = {
+        "format",
+        "spec_revision",
+        "authorization_effect",
+        "receipt_plan_digest",
+        "result_commit",
+        "bundle_validity",
+        "targets",
+        "import_artifact_digest",
+    }
+    if set(artifact) != required:
+        raise GovernanceError("corrective receipt import artifact is malformed")
+    if (
+        artifact.get("format") != "agent-assure-s1-corrective-receipt-signature-import/2"
+        or artifact.get("spec_revision") != SPEC_REVISION
+        or artifact.get("authorization_effect") != "signed_receipts_verified_not_installed"
+        or artifact.get("receipt_plan_digest") != expected_plan_digest
+    ):
+        raise GovernanceError("corrective receipt import artifact identity changed")
+    targets = _corrective_v2_plan_targets(artifact)
+    projection = _corrective_receipt_import_projection(
+        receipt_plan_digest=_required_string(artifact, "receipt_plan_digest"),
+        result_commit=_required_string(artifact, "result_commit"),
+        bundle_validity=_as_object(
+            artifact.get("bundle_validity"), owner="corrective bundle validity"
+        ),
+        targets=targets,
+    )
+    digest = domain_digest(CORRECTIVE_RECEIPT_IMPORT_V2_DOMAIN, projection)
+    if artifact.get("import_artifact_digest") != digest:
+        raise GovernanceError("corrective receipt import artifact digest mismatch")
+    if {key: value for key, value in artifact.items() if key != "import_artifact_digest"} != (
+        projection
+    ):
+        raise GovernanceError("corrective receipt import artifact differs from its projection")
+    return artifact, targets
+
+
+def _write_new_private_json(path: Path, value: Mapping[str, Any], *, owner: str) -> None:
+    """Publish one immutable local JSON artifact without exposing partial bytes.
+
+    The payload is fully flushed in the acceptance staging root and then linked
+    into place.  A retry after publication is idempotent only when the target is
+    the exact canonical payload; an incomplete or conflicting target fails
+    closed and is never removed automatically.
+    """
+
+    payload = _render_json_bytes(value)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() or path.is_symlink():
+        if not path.is_file() or path.is_symlink() or path.read_bytes() != payload:
+            raise GovernanceError(f"refusing to overwrite existing {owner}")
+        return
+    acceptance_root: Path | None = None
+    for candidate in path.parents:
+        if candidate.name == "s1-acceptance" and candidate.parent.name == ".tmp":
+            acceptance_root = candidate
+            break
+    if acceptance_root is None:
+        raise GovernanceError(f"{owner} is outside the acceptance staging root")
+    repository_root = acceptance_root.parents[1]
+    staging_directory = _resolve_repository_path_without_links(
+        repository_root,
+        ".tmp/s1-acceptance/correction-v2-atomic-publication",
+        owner="corrective atomic publication staging",
+    )
+    staging_directory.mkdir(parents=True, exist_ok=True)
+    try:
+        _publish_new_file_atomically(
+            path,
+            payload,
+            staging_directory=staging_directory,
+        )
+    except FileExistsError as exc:
+        if path.is_file() and not path.is_symlink() and path.read_bytes() == payload:
+            return
+        raise GovernanceError(f"refusing to overwrite existing {owner}") from exc
+    except OSError as exc:
+        raise GovernanceError(f"unable to write {owner}: {exc}") from exc
+
+
+def _validate_corrective_bundle_plan_candidate(
+    snapshot: RoadmapSnapshot,
+    bundle: Mapping[str, Any],
+    *,
+    repository_root: Path,
+    roster: Mapping[str, Any],
+    completion_receipts: Mapping[str, Mapping[str, Any]],
+    forecast: Mapping[str, Any],
+    baseline_observations: Mapping[str, Any],
+    corrective_authorization: Mapping[str, Any],
+    person_id: str,
+    result_commit: str,
+) -> None:
+    if bundle.get("bundle_status") != "accepted_for_development":
+        raise GovernanceError("corrective bundle plan is not an acceptance candidate")
+    expected = _governance_bundle_v2_projection(
+        snapshot,
+        repository_root=repository_root,
+        roster=roster,
+        completion_receipts=completion_receipts,
+        forecast=forecast,
+        baseline_observations=baseline_observations,
+        corrective_authorization=corrective_authorization,
+        person_id=person_id,
+        result_commit=result_commit,
+        issued_at=_required_string(bundle, "issued_at_utc"),
+        valid_until=_required_string(bundle, "valid_until_utc"),
+        claim_prepared_at=_required_string(bundle, "claim_prepared_at_utc"),
+        status="accepted_for_development",
+    )
+    if _bundle_projection(bundle) != expected:
+        raise GovernanceError("corrective bundle plan candidate changed")
+    digest = domain_digest(BUNDLE_V2_DOMAIN, expected)
+    if bundle.get("bundle_digest") != digest:
+        raise GovernanceError("corrective bundle plan digest mismatch")
+    if bundle.get("signature_envelope") != _pending_signature_v2(
+        person_id,
+        "repository_maintainer",
+        digest,
+    ):
+        raise GovernanceError("corrective bundle plan envelope changed")
+    if bundle.get("signature_import_evidence") != _pending_signature_import_evidence():
+        raise GovernanceError("corrective bundle plan import evidence is not pending")
+
+
+def _validate_corrective_closure_worktree(
+    repository_root: Path,
+    *,
+    result_commit: str,
+) -> dict[str, str]:
+    completed = _run_git(
+        repository_root,
+        ["diff", "--name-status", "--no-renames", result_commit, "--"],
+    )
+    if completed.returncode != 0:
+        raise GovernanceError("unable to inspect the materialized C2 worktree")
+    changes: dict[str, str] = {}
+    for raw_line in completed.stdout.decode("utf-8", errors="strict").splitlines():
+        fields = raw_line.split("\t")
+        if len(fields) != 2 or fields[0] not in {"A", "M"}:
+            raise GovernanceError("materialized C2 contains a forbidden change status")
+        status, path = fields
+        if path in changes:
+            raise GovernanceError("materialized C2 repeats a changed path")
+        changes[path] = status
+    if set(changes) != S1_CORRECTIVE_CLOSURE_PATHS:
+        raise GovernanceError("materialized C2 does not change exactly the three closure files")
+    untracked = _run_git(
+        repository_root,
+        ["ls-files", "--others", "--exclude-standard"],
+    )
+    if untracked.returncode != 0 or untracked.stdout:
+        raise GovernanceError("materialized C2 worktree contains unignored untracked files")
+    return changes
+
+
+@_require_frozen_runtime
+def corrective_v2_suite_capture(args: argparse.Namespace) -> int:
+    """Run and preserve the exact clean-R2 full-suite evidence."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    result_commit = cast(str, args.result_commit)
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("--result-commit must be a full lowercase 40-hex commit ID")
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if journal.exists() or journal.is_symlink():
+            raise GovernanceError(
+                "post-R2 suite capture cannot start with an incomplete acceptance import"
+            )
+        context = _load_corrective_v2_workspace(
+            repository_root=repository_root,
+            governance_root=governance_root,
+            roadmap_path=roadmap_path,
+            result_commit=result_commit,
+        )
+    evidence_directory = cast(str, args.evidence_dir)
+    record = capture_post_r2_suite_evidence(
+        repository_root,
+        roadmap_path=roadmap_path,
+        result_commit=result_commit,
+        corrective_authorization=cast(Mapping[str, Any], context["authorization"]),
+        evidence_directory=evidence_directory,
+    )
+    # Do not hold the acceptance lock while pytest runs: governance tests must
+    # be able to acquire it in child processes.  Reacquire it at the boundary
+    # and fail closed if a concurrent import began or changed clean R2.
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if journal.exists() or journal.is_symlink():
+            raise GovernanceError(
+                "post-R2 suite capture ended with an incomplete acceptance import"
+            )
+        _require_clean_corrective_result_checkout(
+            repository_root,
+            result_commit=result_commit,
+            owner="post-R2 suite capture postcondition",
+        )
+    evidence_path = _corrective_private_acceptance_path(
+        repository_root,
+        Path(evidence_directory) / "post-r2-suite-evidence.json",
+        owner="post-R2 suite evidence",
+        must_exist=True,
+    )
+    print(
+        json.dumps(
+            {
+                "authorization_effect": "none",
+                "evidence_digest": record["evidence_digest"],
+                "evidence_path": str(evidence_path),
+                "pytest_totals": record["execution"]["pytest_totals"],
+                "result": "clean_r2_full_suite_evidence_captured",
+                "result_commit": result_commit,
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def corrective_v2_receipt_plan(args: argparse.Namespace) -> int:
+    """Prepare the two timestamp-free replacement receipt claims."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    result_commit = cast(str, args.result_commit)
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("--result-commit must be a full lowercase 40-hex commit ID")
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="corrective receipt signature plan",
+        must_exist=False,
+    )
+    evidence_path = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.post_r2_evidence),
+        owner="post-R2 suite evidence source",
+        must_exist=True,
+    )
+    context = _load_corrective_v2_workspace(
+        repository_root=repository_root,
+        governance_root=governance_root,
+        roadmap_path=roadmap_path,
+        result_commit=result_commit,
+    )
+    _validate_forecast_v2_final_documentation(
+        repository_root,
+        ledger=cast(Mapping[str, Any], context["ledger"]),
+        forecast=cast(Mapping[str, Any], context["forecast"]),
+    )
+    validate_post_r2_suite_evidence_source(
+        evidence_path,
+        expected_result_commit=result_commit,
+        expected_repository_root=repository_root,
+        require_passed=True,
+    )
+    issued_at = _canonical_host_utc_now()
+    valid_until = (
+        (_parse_utc(issued_at, owner="corrective bundle validity start") + MAX_S1_VALIDITY)
+        .isoformat(timespec="microseconds")
+        .replace("+00:00", "Z")
+    )
+    roster = cast(Mapping[str, Any], context["roster"])
+    person_id = cast(str, context["person_id"])
+    roster_digest = cast(str, context["roster_digest"])
+    receipts = {
+        "V1-BASE-01": build_ticket_completion_receipt_v2(
+            cast(RoadmapSnapshot, context["snapshot"]),
+            repository_root=repository_root,
+            ticket_id="V1-BASE-01",
+            roster_digest=roster_digest,
+            person_id=person_id,
+            result_commit=result_commit,
+            status="accepted_for_development",
+        ),
+        "V1-BOOT-01": build_ticket_completion_receipt_v2(
+            cast(RoadmapSnapshot, context["snapshot"]),
+            repository_root=repository_root,
+            ticket_id="V1-BOOT-01",
+            roster_digest=roster_digest,
+            person_id=person_id,
+            result_commit=result_commit,
+            post_r2_suite_evidence_path=evidence_path,
+            status="accepted_for_development",
+        ),
+    }
+    target_by_ticket = {
+        ticket_id: f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+        for ticket_id in receipts
+    }
+    targets = {target_by_ticket[ticket_id]: record for ticket_id, record in receipts.items()}
+    claims: list[dict[str, Any]] = []
+    claim_payloads: dict[str, bytes] = {}
+    for ticket_id in ("V1-BASE-01", "V1-BOOT-01"):
+        _validate_corrective_receipt_plan_candidate(
+            cast(RoadmapSnapshot, context["snapshot"]),
+            receipts[ticket_id],
+            repository_root=repository_root,
+            ticket_id=ticket_id,
+            roster=roster,
+            person_id=person_id,
+            result_commit=result_commit,
+            corrective_authorization=cast(Mapping[str, Any], context["authorization"]),
+            forecast=cast(Mapping[str, Any], context["forecast"]),
+        )
+        claim_id = f"completion-{ticket_id.removeprefix('V1-').lower()}"
+        descriptor, payload = _corrective_v2_claim_descriptor(
+            claim_id=claim_id,
+            target_path=target_by_ticket[ticket_id],
+            target_record=receipts[ticket_id],
+        )
+        claims.append(descriptor)
+        claim_payloads[cast(str, descriptor["claim_file"])] = payload
+    source_paths = _corrective_v2_source_paths(
+        repository_root,
+        roadmap_path,
+        extra_paths=(evidence_path,),
+    )
+    projection = {
+        "format": "agent-assure-s1-corrective-receipt-signature-plan/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "none_until_verified_import",
+        "result_commit": result_commit,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "bundle_validity": {
+            "issued_at_utc": issued_at,
+            "valid_until_utc": valid_until,
+        },
+        "post_r2_suite_evidence_digest": _required_string(
+            _as_object(
+                receipts["V1-BOOT-01"].get("post_result_verification"),
+                owner="BOOT post-R2 suite evidence",
+            ),
+            "evidence_digest",
+        ),
+        "targets": [
+            {"path": path, "record": targets[path]} for path in sorted(targets, key=_utf8_sort_key)
+        ],
+        "claims": claims,
+        "source_files": [_source_file_evidence(repository_root, path) for path in source_paths],
+    }
+    plan = {
+        **projection,
+        "plan_digest": domain_digest(CORRECTIVE_RECEIPT_PLAN_V2_DOMAIN, projection),
+    }
+    _write_corrective_v2_plan(
+        plan_directory,
+        plan=plan,
+        claims=claim_payloads,
+    )
+    print(
+        json.dumps(
+            {
+                "actual_signature_time_claimed": False,
+                "authorization_effect": "none_until_verified_import",
+                "bundle_validity": projection["bundle_validity"],
+                "plan_digest": plan["plan_digest"],
+                "plan_directory": str(plan_directory),
+                "receipt_digests": {
+                    ticket_id: receipts[ticket_id]["receipt_digest"]
+                    for ticket_id in sorted(receipts)
+                },
+                "sign_commands": [
+                    _forecast_v2_sign_command(plan_directory / claim_name)
+                    for claim_name in sorted(claim_payloads, key=_utf8_sort_key)
+                ],
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def corrective_v2_receipt_import(args: argparse.Namespace) -> int:
+    """Verify both receipt SSHSIGs and persist only a local import artifact."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="corrective receipt signature plan",
+        must_exist=True,
+    )
+    output_path = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.output),
+        owner="corrective receipt import artifact",
+        must_exist=None,
+    )
+    _require_corrective_v2_plan_files(
+        plan_directory,
+        expected_names={
+            "plan.json",
+            "completion-base-01.claim",
+            "completion-base-01.claim.sig",
+            "completion-boot-01.claim",
+            "completion-boot-01.claim.sig",
+        },
+    )
+    expected_fields = {
+        "format",
+        "spec_revision",
+        "authorization_effect",
+        "result_commit",
+        "corrective_authorization_claim_digest",
+        "bundle_validity",
+        "post_r2_suite_evidence_digest",
+        "targets",
+        "claims",
+        "source_files",
+    }
+    expected_plan_digest = cast(str, args.expected_plan_digest)
+    plan = _read_corrective_v2_plan(
+        plan_directory,
+        expected_format="agent-assure-s1-corrective-receipt-signature-plan/2",
+        domain=CORRECTIVE_RECEIPT_PLAN_V2_DOMAIN,
+        expected_digest=expected_plan_digest,
+        expected_fields=expected_fields,
+    )
+    _require_corrective_v2_plan_source_set(
+        repository_root,
+        roadmap_path,
+        plan,
+        expected_private_extra_count=1,
+    )
+    if plan.get("corrective_authorization_claim_digest") != CORRECTIVE_KICKOFF_CLAIM_DIGEST:
+        raise GovernanceError("corrective receipt plan authorization digest changed")
+    _verify_plan_sources(repository_root, plan)
+    result_commit = _required_string(plan, "result_commit")
+    context = _load_corrective_v2_workspace(
+        repository_root=repository_root,
+        governance_root=governance_root,
+        roadmap_path=roadmap_path,
+        result_commit=result_commit,
+    )
+    pending_targets = _corrective_v2_plan_targets(plan)
+    expected_target_paths = {
+        "docs/governance/v1/completion-receipt-v1-base-01.json",
+        "docs/governance/v1/completion-receipt-v1-boot-01.json",
+    }
+    if set(pending_targets) != expected_target_paths:
+        raise GovernanceError("corrective receipt plan target set is not exact")
+    for ticket_id in ("V1-BASE-01", "V1-BOOT-01"):
+        path = f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+        _validate_corrective_receipt_plan_candidate(
+            cast(RoadmapSnapshot, context["snapshot"]),
+            pending_targets[path],
+            repository_root=repository_root,
+            ticket_id=ticket_id,
+            roster=cast(Mapping[str, Any], context["roster"]),
+            person_id=cast(str, context["person_id"]),
+            result_commit=result_commit,
+            corrective_authorization=cast(Mapping[str, Any], context["authorization"]),
+            forecast=cast(Mapping[str, Any], context["forecast"]),
+        )
+    receipt_schema = _read_json(governance_root / "ticket-completion-receipt.schema.json")
+
+    def validate_imported_targets(
+        imported_targets: Mapping[str, Mapping[str, Any]],
+    ) -> None:
+        if set(imported_targets) != expected_target_paths:
+            raise GovernanceError("corrective receipt import target set is not exact")
+        for ticket_id in ("V1-BASE-01", "V1-BOOT-01"):
+            path = f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+            validate_ticket_completion_receipt_v2(
+                cast(RoadmapSnapshot, context["snapshot"]),
+                imported_targets[path],
+                receipt_schema,
+                repository_root=repository_root,
+                expected_ticket_id=ticket_id,
+                expected_roster_digest=cast(str, context["roster_digest"]),
+                expected_corrective_authorization_digest=CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+                expected_person_id=cast(str, context["person_id"]),
+                expected_result_parent=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+                allow_pending=False,
+            )
+
+    if output_path.exists() or output_path.is_symlink():
+        if not output_path.is_file() or output_path.is_symlink():
+            raise GovernanceError("corrective receipt import artifact is not a regular file")
+        artifact, existing_targets = _read_corrective_receipt_import_artifact(
+            output_path,
+            expected_plan_digest=expected_plan_digest,
+        )
+        if artifact.get("result_commit") != result_commit or artifact.get(
+            "bundle_validity"
+        ) != plan.get("bundle_validity"):
+            raise GovernanceError("corrective receipt import artifact changed plan bindings")
+        validate_imported_targets(existing_targets)
+        print(
+            json.dumps(
+                {
+                    "actual_signature_time_claimed": False,
+                    "authorization_effect": "signed_receipts_verified_not_installed",
+                    "idempotent_recovery": True,
+                    "import_artifact_digest": artifact["import_artifact_digest"],
+                    "output": str(output_path),
+                    "receipt_plan_digest": expected_plan_digest,
+                    "result": "both_replacement_receipts_verified_locally",
+                    "result_commit": result_commit,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    signed_targets = _materialize_corrective_v2_plan_targets(plan_directory, plan)
+    imported_targets: dict[str, dict[str, Any]] = {
+        path: record_v2_signature_import_observation(record)
+        for path, record in signed_targets.items()
+    }
+    validate_imported_targets(imported_targets)
+    artifact = _build_corrective_receipt_import_artifact(
+        receipt_plan_digest=expected_plan_digest,
+        result_commit=result_commit,
+        bundle_validity=_as_object(plan.get("bundle_validity"), owner="corrective bundle validity"),
+        targets=imported_targets,
+    )
+    _write_new_private_json(
+        output_path,
+        artifact,
+        owner="corrective receipt import artifact",
+    )
+    print(
+        json.dumps(
+            {
+                "actual_signature_time_claimed": False,
+                "authorization_effect": "signed_receipts_verified_not_installed",
+                "idempotent_recovery": False,
+                "import_artifact_digest": artifact["import_artifact_digest"],
+                "output": str(output_path),
+                "receipt_plan_digest": expected_plan_digest,
+                "result": "both_replacement_receipts_verified_locally",
+                "result_commit": result_commit,
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+def _corrective_closure_import_projection(
+    *,
+    bundle_plan_digest: str,
+    result_commit: str,
+    targets: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    if set(targets) != S1_CORRECTIVE_CLOSURE_PATHS:
+        raise GovernanceError("corrective closure import target set is not exact")
+    if SHA256_PATTERN.fullmatch(bundle_plan_digest) is None:
+        raise GovernanceError("corrective closure import plan digest is invalid")
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("corrective closure import result commit is invalid")
+    return {
+        "format": "agent-assure-s1-corrective-closure-signature-import/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "verified_closure_ready_for_atomic_install",
+        "bundle_plan_digest": bundle_plan_digest,
+        "result_commit": result_commit,
+        "targets": [
+            {"path": path, "record": copy.deepcopy(dict(targets[path]))}
+            for path in sorted(targets, key=_utf8_sort_key)
+        ],
+    }
+
+
+def _build_corrective_closure_import_artifact(
+    *,
+    bundle_plan_digest: str,
+    result_commit: str,
+    targets: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    projection = _corrective_closure_import_projection(
+        bundle_plan_digest=bundle_plan_digest,
+        result_commit=result_commit,
+        targets=targets,
+    )
+    return {
+        **projection,
+        "import_artifact_digest": domain_digest(
+            CORRECTIVE_CLOSURE_IMPORT_V2_DOMAIN,
+            projection,
+        ),
+    }
+
+
+def _read_corrective_closure_import_artifact(
+    path: Path,
+    *,
+    expected_plan_digest: str,
+    expected_result_commit: str,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    artifact = _read_json(path)
+    required = {
+        "format",
+        "spec_revision",
+        "authorization_effect",
+        "bundle_plan_digest",
+        "result_commit",
+        "targets",
+        "import_artifact_digest",
+    }
+    if set(artifact) != required:
+        raise GovernanceError("corrective closure import artifact is malformed")
+    if (
+        artifact.get("format") != "agent-assure-s1-corrective-closure-signature-import/2"
+        or artifact.get("spec_revision") != SPEC_REVISION
+        or artifact.get("authorization_effect") != "verified_closure_ready_for_atomic_install"
+        or artifact.get("bundle_plan_digest") != expected_plan_digest
+        or artifact.get("result_commit") != expected_result_commit
+    ):
+        raise GovernanceError("corrective closure import artifact identity changed")
+    targets = _corrective_v2_plan_targets(artifact)
+    projection = _corrective_closure_import_projection(
+        bundle_plan_digest=expected_plan_digest,
+        result_commit=expected_result_commit,
+        targets=targets,
+    )
+    digest = domain_digest(CORRECTIVE_CLOSURE_IMPORT_V2_DOMAIN, projection)
+    if artifact.get("import_artifact_digest") != digest:
+        raise GovernanceError("corrective closure import artifact digest mismatch")
+    if {key: value for key, value in artifact.items() if key != "import_artifact_digest"} != (
+        projection
+    ):
+        raise GovernanceError("corrective closure import artifact differs from its projection")
+    return artifact, targets
+
+
+def _corrective_target_payload_state(
+    repository_root: Path,
+    expected_payloads: Mapping[str, bytes],
+) -> tuple[bool, bool]:
+    matches: list[bool] = []
+    for relative, payload in expected_payloads.items():
+        path = _resolve_repository_path_without_links(
+            repository_root,
+            relative,
+            owner="corrective closure installed target",
+        )
+        matches.append(path.is_file() and not path.is_symlink() and path.read_bytes() == payload)
+    return all(matches), any(matches)
+
+
+def _verify_corrective_plan_sources_after_install(
+    repository_root: Path,
+    plan: Mapping[str, Any],
+) -> None:
+    non_target_sources = [
+        value
+        for value in _as_array(plan.get("source_files"), owner="corrective source files")
+        if _required_string(_as_object(value, owner="corrective source file"), "path")
+        not in S1_CORRECTIVE_CLOSURE_PATHS
+    ]
+    filtered = {**plan, "source_files": non_target_sources}
+    _verify_plan_sources(repository_root, filtered)
+
+
+def _validate_materialized_corrective_closure(
+    *,
+    repository_root: Path,
+    governance_root: Path,
+    context: Mapping[str, Any],
+    targets: Mapping[str, Mapping[str, Any]],
+    validation_time: datetime,
+) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
+    completion_receipts = {
+        ticket_id: dict(targets[f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"])
+        for ticket_id in ("V1-BASE-01", "V1-BOOT-01")
+    }
+    bundle = dict(targets["docs/governance/v1/governance-bundle.json"])
+    validate_governance_bundle_v2(
+        cast(RoadmapSnapshot, context["snapshot"]),
+        bundle,
+        _read_json(governance_root / "governance-bundle.schema.json"),
+        repository_root=repository_root,
+        roster=cast(Mapping[str, Any], context["roster"]),
+        completion_receipts=completion_receipts,
+        forecast=cast(Mapping[str, Any], context["forecast"]),
+        baseline_observations=cast(Mapping[str, Any], context["baseline"]),
+        expected_person_id=cast(str, context["person_id"]),
+        expected_result_parent=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        allow_pending=False,
+        validation_time=validation_time,
+        require_current_closure=False,
+        require_closure=False,
+        expected_closure_commit=None,
+    )
+    return bundle, completion_receipts
+
+
+@_require_frozen_runtime
+@_guard_acceptance_reader
+def corrective_v2_bundle_plan(args: argparse.Namespace) -> int:
+    """Prepare the timestamp-free bundle claim over both verified receipts."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    result_commit = cast(str, args.result_commit)
+    if GIT_COMMIT_PATTERN.fullmatch(result_commit) is None:
+        raise GovernanceError("--result-commit must be a full lowercase 40-hex commit ID")
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="corrective bundle signature plan",
+        must_exist=False,
+    )
+    receipt_import_path = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.receipt_import),
+        owner="corrective receipt import artifact",
+        must_exist=True,
+    )
+    expected_receipt_plan_digest = cast(str, args.expected_receipt_plan_digest)
+    receipt_artifact, receipt_targets = _read_corrective_receipt_import_artifact(
+        receipt_import_path,
+        expected_plan_digest=expected_receipt_plan_digest,
+    )
+    if receipt_artifact.get("result_commit") != result_commit:
+        raise GovernanceError("corrective receipt import targets another R2")
+    context = _load_corrective_v2_workspace(
+        repository_root=repository_root,
+        governance_root=governance_root,
+        roadmap_path=roadmap_path,
+        result_commit=result_commit,
+    )
+    completion_receipts = {
+        ticket_id: receipt_targets[
+            f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+        ]
+        for ticket_id in ("V1-BASE-01", "V1-BOOT-01")
+    }
+    receipt_schema = _read_json(governance_root / "ticket-completion-receipt.schema.json")
+    for ticket_id, receipt in completion_receipts.items():
+        validate_ticket_completion_receipt_v2(
+            cast(RoadmapSnapshot, context["snapshot"]),
+            receipt,
+            receipt_schema,
+            repository_root=repository_root,
+            expected_ticket_id=ticket_id,
+            expected_roster_digest=cast(str, context["roster_digest"]),
+            expected_corrective_authorization_digest=CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+            expected_person_id=cast(str, context["person_id"]),
+            expected_result_parent=S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            allow_pending=False,
+        )
+    validity = _as_object(
+        receipt_artifact.get("bundle_validity"), owner="corrective bundle validity"
+    )
+    bundle = build_governance_bundle_v2(
+        cast(RoadmapSnapshot, context["snapshot"]),
+        repository_root=repository_root,
+        roster=cast(Mapping[str, Any], context["roster"]),
+        completion_receipts=completion_receipts,
+        forecast=cast(Mapping[str, Any], context["forecast"]),
+        baseline_observations=cast(Mapping[str, Any], context["baseline"]),
+        person_id=cast(str, context["person_id"]),
+        result_commit=result_commit,
+        issued_at=_required_string(validity, "issued_at_utc"),
+        valid_until=_required_string(validity, "valid_until_utc"),
+        status="accepted_for_development",
+    )
+    _validate_corrective_bundle_plan_candidate(
+        cast(RoadmapSnapshot, context["snapshot"]),
+        bundle,
+        repository_root=repository_root,
+        roster=cast(Mapping[str, Any], context["roster"]),
+        completion_receipts=completion_receipts,
+        forecast=cast(Mapping[str, Any], context["forecast"]),
+        baseline_observations=cast(Mapping[str, Any], context["baseline"]),
+        corrective_authorization=cast(Mapping[str, Any], context["authorization"]),
+        person_id=cast(str, context["person_id"]),
+        result_commit=result_commit,
+    )
+    bundle_path = "docs/governance/v1/governance-bundle.json"
+    targets = {**receipt_targets, bundle_path: bundle}
+    descriptor, claim = _corrective_v2_claim_descriptor(
+        claim_id="governance-bundle",
+        target_path=bundle_path,
+        target_record=bundle,
+    )
+    source_paths = _corrective_v2_source_paths(
+        repository_root,
+        roadmap_path,
+        extra_paths=(receipt_import_path,),
+    )
+    projection = {
+        "format": "agent-assure-s1-corrective-bundle-signature-plan/2",
+        "spec_revision": SPEC_REVISION,
+        "authorization_effect": "none_until_verified_import",
+        "result_commit": result_commit,
+        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "receipt_plan_digest": expected_receipt_plan_digest,
+        "receipt_import_artifact_digest": _required_string(
+            receipt_artifact, "import_artifact_digest"
+        ),
+        "targets": [
+            {"path": path, "record": targets[path]} for path in sorted(targets, key=_utf8_sort_key)
+        ],
+        "claims": [descriptor],
+        "source_files": [_source_file_evidence(repository_root, path) for path in source_paths],
+    }
+    plan = {
+        **projection,
+        "plan_digest": domain_digest(CORRECTIVE_BUNDLE_PLAN_V2_DOMAIN, projection),
+    }
+    _write_corrective_v2_plan(
+        plan_directory,
+        plan=plan,
+        claims={"governance-bundle.claim": claim},
+    )
+    print(
+        json.dumps(
+            {
+                "actual_signature_time_claimed": False,
+                "authorization_effect": "none_until_verified_import",
+                "bundle_digest": bundle["bundle_digest"],
+                "plan_digest": plan["plan_digest"],
+                "plan_directory": str(plan_directory),
+                "receipt_import_artifact_digest": receipt_artifact["import_artifact_digest"],
+                "sign_command": _forecast_v2_sign_command(
+                    plan_directory / "governance-bundle.claim"
+                ),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0
+
+
+@_require_frozen_runtime
+def corrective_v2_bundle_import(args: argparse.Namespace) -> int:
+    """Verify the bundle SSHSIG and atomically install exactly the C2 records."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    plan_directory = _corrective_private_acceptance_path(
+        repository_root,
+        cast(str, args.plan_dir),
+        owner="corrective bundle signature plan",
+        must_exist=True,
+    )
+    stable_import_path = plan_directory / "verified-closure-import.json"
+    base_plan_names = {
+        "plan.json",
+        "governance-bundle.claim",
+        "governance-bundle.claim.sig",
+    }
+    observed_names = {entry.name for entry in plan_directory.iterdir()}
+    allowed_name_sets = (
+        base_plan_names,
+        base_plan_names | {stable_import_path.name},
+    )
+    if observed_names not in allowed_name_sets:
+        raise GovernanceError("corrective bundle plan has missing or unexpected files")
+    _require_corrective_v2_plan_files(
+        plan_directory,
+        expected_names=observed_names,
+    )
+    expected_fields = {
+        "format",
+        "spec_revision",
+        "authorization_effect",
+        "result_commit",
+        "corrective_authorization_claim_digest",
+        "receipt_plan_digest",
+        "receipt_import_artifact_digest",
+        "targets",
+        "claims",
+        "source_files",
+    }
+    expected_plan_digest = cast(str, args.expected_plan_digest)
+    plan = _read_corrective_v2_plan(
+        plan_directory,
+        expected_format="agent-assure-s1-corrective-bundle-signature-plan/2",
+        domain=CORRECTIVE_BUNDLE_PLAN_V2_DOMAIN,
+        expected_digest=expected_plan_digest,
+        expected_fields=expected_fields,
+    )
+    _require_corrective_v2_plan_source_set(
+        repository_root,
+        roadmap_path,
+        plan,
+        expected_private_extra_count=1,
+    )
+    result_commit = _required_string(plan, "result_commit")
+    if plan.get("corrective_authorization_claim_digest") != CORRECTIVE_KICKOFF_CLAIM_DIGEST:
+        raise GovernanceError("corrective bundle plan authorization digest changed")
+    planned_targets = _corrective_v2_plan_targets(plan)
+    if set(planned_targets) != S1_CORRECTIVE_CLOSURE_PATHS:
+        raise GovernanceError("corrective bundle plan target set is not exact")
+    expected_prior_evidence = _acceptance_plan_target_prior_evidence(
+        plan,
+        expected_target_paths=set(S1_CORRECTIVE_CLOSURE_PATHS),
+    )
+
+    if stable_import_path.exists() or stable_import_path.is_symlink():
+        if not stable_import_path.is_file() or stable_import_path.is_symlink():
+            raise GovernanceError("corrective closure import artifact is not a regular file")
+        _artifact, closure_targets = _read_corrective_closure_import_artifact(
+            stable_import_path,
+            expected_plan_digest=expected_plan_digest,
+            expected_result_commit=result_commit,
+        )
+    else:
+        _verify_plan_sources(repository_root, plan)
+        materialized = _materialize_corrective_v2_plan_targets(plan_directory, plan)
+        bundle_path = "docs/governance/v1/governance-bundle.json"
+        materialized[bundle_path] = record_v2_signature_import_observation(
+            materialized[bundle_path]
+        )
+        artifact = _build_corrective_closure_import_artifact(
+            bundle_plan_digest=expected_plan_digest,
+            result_commit=result_commit,
+            targets=materialized,
+        )
+        _write_new_private_json(
+            stable_import_path,
+            artifact,
+            owner="corrective closure import artifact",
+        )
+        closure_targets = materialized
+
+    expected_next_payloads = {
+        relative: _render_json_bytes(record) for relative, record in closure_targets.items()
+    }
+
+    def finish(*, bundle: Mapping[str, Any], idempotent_recovery: bool) -> int:
+        changes = _validate_corrective_closure_worktree(
+            repository_root,
+            result_commit=result_commit,
+        )
+        print(
+            json.dumps(
+                {
+                    "actual_signature_time_claimed": False,
+                    "authorization_effect": "verified_closure_records_installed",
+                    "bundle_digest": bundle["bundle_digest"],
+                    "changed_paths": changes,
+                    "idempotent_recovery": idempotent_recovery,
+                    "installed_records": {
+                        relative: {
+                            "sha256": raw_digest(_render_json_bytes(record)),
+                            "size_bytes": len(_render_json_bytes(record)),
+                        }
+                        for relative, record in sorted(
+                            closure_targets.items(),
+                            key=lambda item: _utf8_sort_key(item[0]),
+                        )
+                    },
+                    "plan_digest": expected_plan_digest,
+                    "result": "three_c2_records_atomically_installed_not_committed",
+                    "result_commit": result_commit,
+                },
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    with _acceptance_import_lock(repository_root):
+        _recover_acceptance_transaction(
+            repository_root,
+            expected_plan_digest=expected_plan_digest,
+            expected_prior_evidence=expected_prior_evidence,
+            expected_next_payloads=expected_next_payloads,
+        )
+        all_next, any_next = _corrective_target_payload_state(
+            repository_root,
+            expected_next_payloads,
+        )
+        if all_next:
+            _verify_corrective_plan_sources_after_install(repository_root, plan)
+            context = _load_corrective_v2_workspace(
+                repository_root=repository_root,
+                governance_root=governance_root,
+                roadmap_path=roadmap_path,
+                result_commit=result_commit,
+                allow_materialized_closure=True,
+            )
+            validation_time = _parse_utc(
+                _canonical_host_utc_now(),
+                owner="corrective closure idempotent recovery validation",
+            )
+            bundle, _receipts = _validate_materialized_corrective_closure(
+                repository_root=repository_root,
+                governance_root=governance_root,
+                context=context,
+                targets=closure_targets,
+                validation_time=validation_time,
+            )
+            still_all_next, _ = _corrective_target_payload_state(
+                repository_root,
+                expected_next_payloads,
+            )
+            if not still_all_next:
+                raise GovernanceError(
+                    "corrective closure target bytes changed during idempotent validation"
+                )
+            return finish(bundle=bundle, idempotent_recovery=True)
+        if any_next:
+            raise GovernanceError(
+                "corrective closure has a partial install without a recoverable transaction"
+            )
+    _verify_plan_sources(repository_root, plan)
+    context = _load_corrective_v2_workspace(
+        repository_root=repository_root,
+        governance_root=governance_root,
+        roadmap_path=roadmap_path,
+        result_commit=result_commit,
+    )
+    validation_time = _parse_utc(
+        _canonical_host_utc_now(), owner="corrective closure import validation"
+    )
+    bundle, _receipts = _validate_materialized_corrective_closure(
+        repository_root=repository_root,
+        governance_root=governance_root,
+        context=context,
+        targets=closure_targets,
+        validation_time=validation_time,
+    )
+    output_records = {
+        _resolve_repository_path_without_links(
+            repository_root,
+            relative,
+            owner="corrective closure target",
+        ): record
+        for relative, record in closure_targets.items()
+    }
+    with _acceptance_import_lock(repository_root):
+        _recover_acceptance_transaction(
+            repository_root,
+            expected_plan_digest=expected_plan_digest,
+            expected_prior_evidence=expected_prior_evidence,
+            expected_next_payloads=expected_next_payloads,
+        )
+        _verify_plan_sources(repository_root, plan)
+        _require_clean_corrective_result_checkout(
+            repository_root,
+            result_commit=result_commit,
+            owner="corrective closure atomic install",
+        )
+        _install_acceptance_targets(
+            repository_root,
+            output_records,
+            plan_digest=expected_plan_digest,
+            expected_prior_evidence=expected_prior_evidence,
+        )
+        all_next, _ = _corrective_target_payload_state(
+            repository_root,
+            expected_next_payloads,
+        )
+        if not all_next:
+            raise GovernanceError("corrective closure target bytes changed after atomic install")
+        return finish(bundle=bundle, idempotent_recovery=False)
+
+
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def generate_draft(args: argparse.Namespace) -> int:
     roadmap = Path(cast(str, args.roadmap))
@@ -6964,6 +17867,7 @@ def generate_draft(args: argparse.Namespace) -> int:
     return 0
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def assemble_draft(args: argparse.Namespace) -> int:
     """Assemble pending completion receipts and the noninstallable S1 object."""
@@ -7172,15 +18076,33 @@ def assemble_draft(args: argparse.Namespace) -> int:
     return 0
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def check(args: argparse.Namespace) -> int:
     repository_root = Path(cast(str, args.repository_root)).resolve()
     root = Path(cast(str, args.governance_dir)).resolve()
+    acceptance_generation_value = getattr(args, "acceptance_generation", None)
+    if acceptance_generation_value is not None and (
+        type(acceptance_generation_value) is not int or acceptance_generation_value not in {1, 2}
+    ):
+        raise GovernanceError("--acceptance-generation must be 1 or 2")
+    requested_acceptance_generation: int | None = acceptance_generation_value
+    live_acceptance_generation = requested_acceptance_generation or 1
+    effective_acceptance_generation = live_acceptance_generation
     closure_commit_value = getattr(args, "closure_commit", None)
     acceptance_tag_object_value = getattr(args, "acceptance_tag_object", None)
     attestation_plan_dir_value = getattr(args, "attestation_plan_dir", None)
     attestation_signed_at_value = getattr(args, "attestation_signed_at", None)
     commitment_time_value = getattr(args, "commitment_time", None)
+    deprecated_event_inputs = {
+        "--gate-checked-at": getattr(args, "gate_checked_at", None),
+        "--plan-created-at": getattr(args, "plan_created_at", None),
+        "--claim-prepared-at": getattr(args, "claim_prepared_at", None),
+    }
+    if any(value is not None for value in deprecated_event_inputs.values()):
+        raise GovernanceError(
+            "generation-2 event times are captured internally and cannot be supplied by callers"
+        )
     if closure_commit_value is not None and not isinstance(closure_commit_value, str):
         raise GovernanceError("--closure-commit must be a full 40-hex Git commit ID")
     closure_commit: str | None = closure_commit_value
@@ -7190,6 +18112,8 @@ def check(args: argparse.Namespace) -> int:
         raise GovernanceError(
             "--allow-pending cannot be combined with --accept-now or --historical"
         )
+    if args.allow_pending and live_acceptance_generation == 2 and commitment_time_value is not None:
+        raise GovernanceError("generation-2 --allow-pending does not accept --commitment-time")
     if not args.allow_pending and bool(args.accept_now) == bool(args.historical):
         raise GovernanceError(
             "strict checking requires exactly one of --accept-now or --historical"
@@ -7219,13 +18143,28 @@ def check(args: argparse.Namespace) -> int:
         raise GovernanceError("--acceptance-tag-object is valid only with --historical")
     attestation_plan_directory: Path | None = None
     if args.accept_now:
-        if commitment_time_value is None:
-            raise GovernanceError("--accept-now requires --commitment-time")
         if not isinstance(attestation_plan_dir_value, str):
             raise GovernanceError("--accept-now requires --attestation-plan-dir")
-        if not isinstance(attestation_signed_at_value, str):
-            raise GovernanceError("--accept-now requires --attestation-signed-at")
-        attestation_plan_directory = _private_acceptance_path(
+        if live_acceptance_generation == 1:
+            if commitment_time_value is None:
+                raise GovernanceError("--accept-now requires --commitment-time")
+            if not isinstance(attestation_signed_at_value, str):
+                raise GovernanceError("--accept-now requires --attestation-signed-at")
+        else:
+            if commitment_time_value is not None:
+                raise GovernanceError(
+                    "generation-2 --accept-now captures its commitment time internally"
+                )
+            if attestation_signed_at_value is not None:
+                raise GovernanceError(
+                    "generation-2 --accept-now does not accept --attestation-signed-at"
+                )
+        acceptance_path_resolver = (
+            _corrective_private_acceptance_path
+            if live_acceptance_generation == 2
+            else _private_acceptance_path
+        )
+        attestation_plan_directory = acceptance_path_resolver(
             repository_root,
             attestation_plan_dir_value,
             owner="current acceptance attestation plan",
@@ -7233,6 +18172,11 @@ def check(args: argparse.Namespace) -> int:
         )
     elif attestation_plan_dir_value is not None or attestation_signed_at_value is not None:
         raise GovernanceError("acceptance attestation preparation requires --accept-now")
+    validation_started_at_value = (
+        _canonical_host_utc_now()
+        if live_acceptance_generation == 2 and (args.accept_now or args.allow_pending)
+        else None
+    )
     roadmap_path = Path(cast(str, args.roadmap))
     validate_local_only_roadmap(repository_root, roadmap_path)
     snapshot = load_roadmap(roadmap_path)
@@ -7240,6 +18184,7 @@ def check(args: argparse.Namespace) -> int:
     commitment_time: datetime | None = None
     historical_attestation: dict[str, Any] | None = None
     historical_attestation_signature_time: datetime | None = None
+    historical_attestation_preparation_time: datetime | None = None
     historical_records: dict[str, dict[str, Any]] | None = None
     if closure_commit is not None:
         _validate_git_history_safety(repository_root)
@@ -7253,16 +18198,50 @@ def check(args: argparse.Namespace) -> int:
             tag_object=acceptance_tag_object_value,
             expected_closure_commit=closure_commit,
         )
-        commitment_time, historical_attestation_signature_time = (
-            _validate_current_acceptance_attestation(
-                historical_attestation,
-                repository_root=repository_root,
-                expected_closure_commit=closure_commit,
-                expected_roadmap_digest=snapshot.raw_digest,
-                allow_pending=False,
-            )
+        historical_acceptance_generation = (
+            2
+            if historical_attestation.get("format") == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT
+            else 1
         )
-        historical_paths = _historical_governance_json_paths()
+        effective_acceptance_generation = historical_acceptance_generation
+        if (
+            requested_acceptance_generation is not None
+            and requested_acceptance_generation != historical_acceptance_generation
+        ):
+            raise GovernanceError(
+                "--acceptance-generation does not match the selected acceptance tag"
+            )
+        if historical_acceptance_generation == 2:
+            _validate_generation_1_predecessor_acceptance(
+                repository_root,
+                expected_roadmap_digest=snapshot.raw_digest,
+            )
+        if historical_attestation.get("format") == CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT:
+            historical_attestation_schema = _read_json_from_commit(
+                repository_root,
+                closure_commit,
+                "docs/governance/v1/current-acceptance-attestation.schema.json",
+            )
+            _validate_json_schema(
+                historical_attestation,
+                historical_attestation_schema,
+                owner="generation-2 current acceptance attestation",
+            )
+        commitment_time, attestation_evidence_time = _validate_current_acceptance_attestation(
+            historical_attestation,
+            repository_root=repository_root,
+            expected_closure_commit=closure_commit,
+            expected_roadmap_digest=snapshot.raw_digest,
+            allow_pending=False,
+            require_executing_artifacts=True,
+        )
+        if historical_acceptance_generation == 2:
+            historical_attestation_preparation_time = attestation_evidence_time
+        else:
+            historical_attestation_signature_time = attestation_evidence_time
+        historical_paths = _historical_governance_json_paths(
+            acceptance_generation=historical_acceptance_generation
+        )
         if len(historical_paths) != len(set(historical_paths)):
             raise GovernanceError("historical governance path contract contains duplicates")
         historical_records = {
@@ -7278,24 +18257,79 @@ def check(args: argparse.Namespace) -> int:
             raise GovernanceError(f"historical record set is missing {relative}")
         return dict(historical_records[relative])
 
+    live_repository_evidence: dict[str, Any] | None = None
+    gate_completed_at_value: str | None = None
+    attestation_preparation_started_at_value: str | None = None
+    if args.accept_now:
+        live_repository_evidence = validate_live_acceptance_repository(
+            repository_root,
+            fetch=True,
+            expected_branch_name=(
+                S1_CORRECTIVE_BRANCH_NAME if live_acceptance_generation == 2 else S1_BRANCH_NAME
+            ),
+        )
+
     roster = read_governance_record("approval-roster.json")
     roster_schema = read_governance_record("approval-roster.schema.json")
     roster_digest, person_id = validate_approval_roster(
         snapshot, roster, roster_schema, allow_pending=bool(args.allow_pending)
     )
     if historical_attestation is None:
+        live_commitment_time_value = (
+            validation_started_at_value
+            if live_acceptance_generation == 2 and (args.accept_now or args.allow_pending)
+            else commitment_time_value
+        )
         commitment_time = (
-            _parse_utc(cast(str, commitment_time_value), owner="--commitment-time")
-            if commitment_time_value is not None
+            _parse_utc(
+                cast(str, live_commitment_time_value),
+                owner=(
+                    "internally captured generation-2 validation start"
+                    if live_acceptance_generation == 2 and (args.accept_now or args.allow_pending)
+                    else "--commitment-time"
+                ),
+            )
+            if live_commitment_time_value is not None
             else None
         )
     if not args.allow_pending and commitment_time is None:
-        raise GovernanceError("strict checking requires --commitment-time")
-    live_repository_evidence: dict[str, Any] | None = None
-    if args.accept_now:
-        live_repository_evidence = validate_live_acceptance_repository(repository_root, fetch=True)
+        raise GovernanceError(
+            "strict generation-2 checking failed to capture validation start"
+            if args.accept_now and live_acceptance_generation == 2
+            else "strict checking requires --commitment-time"
+        )
     signing_key = read_governance_record("maintainer-signing-key.json")
     baseline = read_governance_record("baseline-observations.json")
+    corrective_authorization: dict[str, Any] | None = None
+    if effective_acceptance_generation == 2:
+        signing_key_schema = read_governance_record("maintainer-signing-key.schema.json")
+        validate_maintainer_signing_key(
+            signing_key,
+            signing_key_schema,
+            expected_person_id=person_id,
+            allow_pending=bool(args.allow_pending),
+        )
+        corrective_authorization = read_governance_record("corrective-kickoff-authorization.json")
+        corrective_authorization_schema = read_governance_record(
+            "corrective-kickoff-authorization.schema.json"
+        )
+        validate_corrective_kickoff_authorization(
+            corrective_authorization,
+            corrective_authorization_schema,
+            expected_roadmap_digest=snapshot.raw_digest,
+        )
+        _corrective_authorized_paths(corrective_authorization)
+        baseline_schema = read_governance_record("baseline-observations.schema.json")
+        validate_baseline_observations(
+            snapshot,
+            baseline,
+            baseline_schema,
+            repository_root=repository_root,
+        )
+        _validate_corrective_authorization_precedes_baseline(
+            corrective_authorization=corrective_authorization,
+            baseline=baseline,
+        )
     kickoff_schema = read_governance_record("kickoff-authorization.schema.json")
     kickoff_records: dict[str, dict[str, Any]] = {}
     for ticket_id in ("V1-BOOT-01", "V1-BASE-01"):
@@ -7314,109 +18348,254 @@ def check(args: argparse.Namespace) -> int:
     registry = read_governance_record("delivery-forecast.aggregation-registry.json")
     registry_schema = read_governance_record("delivery-forecast.aggregation-registry.schema.json")
     _validate_json_schema(registry, registry_schema, owner="aggregation method registry")
-    _resolve_aggregation_method(registry)
     ledger = read_governance_record("delivery-forecast.authoring-ledger.json")
     ledger_schema = read_governance_record("delivery-forecast.authoring-ledger.schema.json")
-    validate_authoring_ledger(
-        snapshot,
-        ledger,
-        ledger_schema,
-        expected_person_id=person_id,
-        baseline_observations=baseline,
-    )
     forecast = read_governance_record("delivery-forecast.json")
     schema = read_governance_record("delivery-forecast.schema.json")
-    validate_forecast(
-        snapshot,
-        ledger,
-        registry,
-        forecast,
-        schema,
-        expected_person_id=person_id,
-        approval_roster_digest_value=roster_digest,
-        allow_pending=bool(args.allow_pending),
-        commitment_time=commitment_time,
-    )
-    completion_schema = read_governance_record("ticket-completion-receipt.schema.json")
-    completion_receipts: dict[str, dict[str, Any]] = {}
-    for ticket_id in ("V1-BOOT-01", "V1-BASE-01"):
-        receipt = read_governance_record(f"completion-receipt-{ticket_id.lower()}.json")
-        validate_ticket_completion_receipt(
+    if registry.get("format") == "agent-assure-delivery-forecast-aggregation-registry/2":
+        catalog = read_governance_record("delivery-forecast.estimation-catalog.json")
+        catalog_schema = read_governance_record("delivery-forecast.estimation-catalog.schema.json")
+        validate_estimation_catalog_v2(catalog, catalog_schema)
+        _resolve_aggregation_method_v2(registry)
+        validate_authoring_ledger_v2(
             snapshot,
-            receipt,
-            completion_schema,
+            ledger,
+            ledger_schema,
+            catalog,
+            baseline_observations=baseline,
+            allow_pending=bool(args.allow_pending),
+        )
+        validate_forecast_v2(
+            snapshot,
+            ledger,
+            registry,
+            forecast,
+            schema,
+            approval_roster=roster,
+            approval_roster_digest_value=roster_digest,
+            allow_pending=bool(args.allow_pending),
+        )
+    else:
+        _resolve_aggregation_method(registry)
+        validate_authoring_ledger(
+            snapshot,
+            ledger,
+            ledger_schema,
+            expected_person_id=person_id,
+            baseline_observations=baseline,
+        )
+        validate_forecast(
+            snapshot,
+            ledger,
+            registry,
+            forecast,
+            schema,
+            expected_person_id=person_id,
+            approval_roster_digest_value=roster_digest,
+            allow_pending=bool(args.allow_pending),
+            commitment_time=commitment_time,
+        )
+    completion_schema = read_governance_record("ticket-completion-receipt.schema.json")
+    completion_receipts = {
+        ticket_id: read_governance_record(f"completion-receipt-{ticket_id.lower()}.json")
+        for ticket_id in ("V1-BOOT-01", "V1-BASE-01")
+    }
+    bundle = read_governance_record("governance-bundle.json")
+    bundle_schema = read_governance_record("governance-bundle.schema.json")
+    generation_2_placeholder_state = (
+        bool(args.allow_pending)
+        and live_acceptance_generation == 2
+        and historical_records is None
+        and bundle.get("format") == "agent-assure-governance-bundle/1"
+        and all(
+            receipt.get("format") == "agent-assure-ticket-completion-receipt/1"
+            for receipt in completion_receipts.values()
+        )
+    )
+    if generation_2_placeholder_state:
+        placeholders = _validate_generation_1_closure_placeholders(
+            repository_root,
+            root,
+        )
+        expected_receipts = {
+            ticket_id: placeholders[
+                f"docs/governance/v1/completion-receipt-{ticket_id.lower()}.json"
+            ]
+            for ticket_id in ("V1-BOOT-01", "V1-BASE-01")
+        }
+        if (
+            completion_receipts != expected_receipts
+            or bundle != placeholders["docs/governance/v1/governance-bundle.json"]
+        ):
+            raise GovernanceError("generation-1 closure placeholder records changed")
+    else:
+        formats = {
+            bundle.get("format"),
+            *(receipt.get("format") for receipt in completion_receipts.values()),
+        }
+        if (
+            live_acceptance_generation == 2
+            and historical_records is None
+            and formats
+            != {
+                "agent-assure-governance-bundle/2",
+                "agent-assure-ticket-completion-receipt/2",
+            }
+        ):
+            raise GovernanceError(
+                "generation-2 closure is mixed; require either exact C1 placeholders "
+                "or all v2 records"
+            )
+        for ticket_id, receipt in completion_receipts.items():
+            validate_ticket_completion_receipt(
+                snapshot,
+                receipt,
+                completion_schema,
+                repository_root=repository_root,
+                expected_ticket_id=ticket_id,
+                expected_roster_digest=roster_digest,
+                expected_kickoff_digest=_required_string(
+                    kickoff_records[ticket_id], "authorization_digest"
+                ),
+                expected_person_id=person_id,
+                expected_base_commit=PINNED_BASE_COMMIT,
+                allow_pending=bool(args.allow_pending),
+                validation_time=commitment_time,
+                expected_kickoff_record=kickoff_records[ticket_id],
+            )
+        bundle_validation_time = commitment_time
+        if bundle.get("format") == "agent-assure-governance-bundle/2" and (
+            bundle_validation_time is None
+        ):
+            bundle_validation_time = _parse_utc(
+                _canonical_host_utc_now(),
+                owner="generation-2 nonaccepting validation observation",
+            )
+        validate_governance_bundle(
+            snapshot,
+            bundle,
+            bundle_schema,
             repository_root=repository_root,
-            expected_ticket_id=ticket_id,
-            expected_roster_digest=roster_digest,
-            expected_kickoff_digest=_required_string(
-                kickoff_records[ticket_id], "authorization_digest"
-            ),
+            roster=roster,
+            kickoff_records=kickoff_records,
+            completion_receipts=completion_receipts,
+            forecast=forecast,
+            signing_key=signing_key,
+            baseline_observations=baseline,
             expected_person_id=person_id,
             expected_base_commit=PINNED_BASE_COMMIT,
             allow_pending=bool(args.allow_pending),
-            validation_time=commitment_time,
-            expected_kickoff_record=kickoff_records[ticket_id],
+            validation_time=bundle_validation_time,
+            require_bundle_on_disk=historical_records is None,
+            require_predecessors_on_disk=historical_records is None,
+            require_current_closure=bool(args.accept_now),
+            require_closure=not bool(args.allow_pending),
+            historical_records=historical_records,
+            expected_closure_commit=closure_commit,
         )
-        completion_receipts[ticket_id] = receipt
-    bundle = read_governance_record("governance-bundle.json")
-    bundle_schema = read_governance_record("governance-bundle.schema.json")
-    validate_governance_bundle(
-        snapshot,
-        bundle,
-        bundle_schema,
-        repository_root=repository_root,
-        roster=roster,
-        kickoff_records=kickoff_records,
-        completion_receipts=completion_receipts,
-        forecast=forecast,
-        signing_key=signing_key,
-        baseline_observations=baseline,
-        expected_person_id=person_id,
-        expected_base_commit=PINNED_BASE_COMMIT,
-        allow_pending=bool(args.allow_pending),
-        validation_time=commitment_time,
-        require_bundle_on_disk=historical_records is None,
-        require_predecessors_on_disk=historical_records is None,
-        require_current_closure=bool(args.accept_now),
-        historical_records=historical_records,
-        expected_closure_commit=closure_commit,
-    )
+    if args.accept_now and live_acceptance_generation == 2:
+        if corrective_authorization is None or commitment_time is None:
+            raise GovernanceError("generation-2 gate predecessor inputs are incomplete")
+        gate_completed_at_value = _canonical_host_utc_now()
+        gate_completion_time = _parse_utc(
+            gate_completed_at_value,
+            owner="internally captured generation-2 gate completion",
+        )
+        _validate_generation_2_final_gate_validity(
+            validation_started_time=commitment_time,
+            gate_time=gate_completion_time,
+            kickoff_records=kickoff_records,
+            corrective_authorization=corrective_authorization,
+            forecast=forecast,
+            bundle=bundle,
+        )
+        attestation_preparation_started_at_value = _canonical_host_utc_now()
+        commitment_time = gate_completion_time
+    elif historical_attestation is not None and historical_acceptance_generation == 2:
+        if corrective_authorization is None or commitment_time is None:
+            raise GovernanceError("generation-2 historical gate inputs are incomplete")
+        historical_validation_started = _parse_utc(
+            _required_string(historical_attestation, "validation_started_at_utc"),
+            owner="generation-2 acceptance validation_started_at_utc",
+        )
+        _validate_generation_2_final_gate_validity(
+            validation_started_time=historical_validation_started,
+            gate_time=commitment_time,
+            kickoff_records=kickoff_records,
+            corrective_authorization=corrective_authorization,
+            forecast=forecast,
+            bundle=bundle,
+        )
+
     attestation_plan: dict[str, Any] | None = None
     if historical_attestation is not None:
+        if commitment_time is None:
+            raise GovernanceError(
+                "signed current acceptance attestation lacks a validated gate time"
+            )
         if historical_attestation.get("bundle_digest") != bundle.get("bundle_digest"):
             raise GovernanceError("signed current acceptance attestation binds another bundle")
         if historical_attestation.get("result_commit") != bundle.get("result_commit"):
             raise GovernanceError("signed current acceptance attestation binds another result")
         if historical_attestation.get("signer_person_id") != person_id:
             raise GovernanceError("signed current acceptance attestation uses another maintainer")
-        if historical_attestation_signature_time is None:
-            raise GovernanceError("signed current acceptance attestation lacks a signature time")
-        bundle_issue, bundle_expiry = _validate_validity_interval(
-            _required_string(bundle, "issued_at_utc"),
-            _required_string(bundle, "valid_until_utc"),
-            owner="S1 governance bundle",
-        )
-        if not bundle_issue <= historical_attestation_signature_time < bundle_expiry:
-            raise GovernanceError(
-                "signed current acceptance attestation is outside the bundle validity interval"
-            )
-    elif args.accept_now:
-        if (
-            live_repository_evidence is None
-            or commitment_time_value is None
-            or not isinstance(attestation_signed_at_value, str)
-            or attestation_plan_directory is None
-        ):
-            raise GovernanceError("current acceptance attestation inputs are incomplete")
-        attestation = build_current_acceptance_attestation(
-            snapshot,
-            repository_root=repository_root,
+        _validate_historical_attestation_bundle_time_evidence(
+            historical_attestation,
+            acceptance_generation=historical_acceptance_generation,
+            gate_time=commitment_time,
+            attestation_evidence_time=(
+                historical_attestation_preparation_time
+                if historical_acceptance_generation == 2
+                else historical_attestation_signature_time
+            ),
             bundle=bundle,
-            live_repository_evidence=live_repository_evidence,
-            gate_checked_at=cast(str, commitment_time_value),
-            signature_requested_at=attestation_signed_at_value,
-            signer_person_id=person_id,
         )
+    elif args.accept_now:
+        if live_repository_evidence is None or attestation_plan_directory is None:
+            raise GovernanceError("current acceptance attestation inputs are incomplete")
+        if live_acceptance_generation == 1:
+            if commitment_time_value is None or not isinstance(attestation_signed_at_value, str):
+                raise GovernanceError("current acceptance attestation inputs are incomplete")
+            attestation = build_current_acceptance_attestation(
+                snapshot,
+                repository_root=repository_root,
+                bundle=bundle,
+                live_repository_evidence=live_repository_evidence,
+                gate_checked_at=cast(str, commitment_time_value),
+                signature_requested_at=attestation_signed_at_value,
+                signer_person_id=person_id,
+            )
+        else:
+            if not all(
+                isinstance(value, str)
+                for value in (
+                    validation_started_at_value,
+                    gate_completed_at_value,
+                    attestation_preparation_started_at_value,
+                )
+            ):
+                raise GovernanceError("current acceptance attestation inputs are incomplete")
+            attestation = build_current_acceptance_attestation_v2(
+                snapshot,
+                repository_root=repository_root,
+                bundle=bundle,
+                live_repository_evidence=live_repository_evidence,
+                validation_started_at=cast(str, validation_started_at_value),
+                gate_completed_at=cast(str, gate_completed_at_value),
+                attestation_preparation_started_at=cast(
+                    str,
+                    attestation_preparation_started_at_value,
+                ),
+                signer_person_id=person_id,
+            )
+            attestation_schema = read_governance_record(
+                "current-acceptance-attestation.schema.json"
+            )
+            _validate_json_schema(
+                attestation,
+                attestation_schema,
+                owner="generation-2 current acceptance attestation",
+            )
         _validate_current_acceptance_attestation(
             attestation,
             repository_root=repository_root,
@@ -7466,16 +18645,33 @@ def check(args: argparse.Namespace) -> int:
     return 0
 
 
+@_require_frozen_runtime
 @_guard_acceptance_reader
 def acceptance_preflight(args: argparse.Namespace) -> int:
     """Re-resolve mutable Git facts before the human acceptance ceremony."""
 
     repository_root = Path(cast(str, args.repository_root)).resolve()
-    validate_live_acceptance_repository(repository_root, fetch=bool(args.fetch))
+    acceptance_generation_value = getattr(args, "acceptance_generation", None)
+    if acceptance_generation_value is not None and (
+        type(acceptance_generation_value) is not int or acceptance_generation_value not in {1, 2}
+    ):
+        raise GovernanceError("--acceptance-generation must be 1 or 2")
+    acceptance_generation = acceptance_generation_value or 1
+    branch_name = S1_CORRECTIVE_BRANCH_NAME if acceptance_generation == 2 else S1_BRANCH_NAME
+    acceptance_tag_name = (
+        S1_ACCEPTANCE_V2_TAG_NAME if acceptance_generation == 2 else S1_ACCEPTANCE_TAG_NAME
+    )
+    validate_live_acceptance_repository(
+        repository_root,
+        fetch=bool(args.fetch),
+        expected_branch_name=branch_name,
+    )
     print(
         json.dumps(
             {
-                "branch": S1_BRANCH_NAME,
+                "acceptance_generation": acceptance_generation,
+                "acceptance_tag_name": acceptance_tag_name,
+                "branch": branch_name,
                 "fetch_performed": bool(args.fetch),
                 "origin": APPROVED_ORIGIN_URL,
                 "origin_main_commit": PINNED_BASE_COMMIT,
@@ -7491,6 +18687,119 @@ def acceptance_preflight(args: argparse.Namespace) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    corrective_suite = subparsers.add_parser(
+        "corrective-v2-suite-capture",
+        help="Run the exact full suite at clean R2 and preserve local raw evidence",
+    )
+    corrective_suite.add_argument("--roadmap", required=True)
+    corrective_suite.add_argument("--governance-dir", required=True)
+    corrective_suite.add_argument("--result-commit", required=True)
+    corrective_suite.add_argument(
+        "--evidence-dir",
+        default=POST_R2_SUITE_EVIDENCE_DIRECTORY,
+    )
+    corrective_suite.add_argument("--repository-root", default=".")
+    corrective_suite.set_defaults(handler=corrective_v2_suite_capture)
+
+    corrective_receipt_plan = subparsers.add_parser(
+        "corrective-v2-receipt-plan",
+        help="Prepare timestamp-free BASE and BOOT replacement receipt claims",
+    )
+    corrective_receipt_plan.add_argument("--roadmap", required=True)
+    corrective_receipt_plan.add_argument("--governance-dir", required=True)
+    corrective_receipt_plan.add_argument("--result-commit", required=True)
+    corrective_receipt_plan.add_argument("--post-r2-evidence", required=True)
+    corrective_receipt_plan.add_argument("--plan-dir", required=True)
+    corrective_receipt_plan.add_argument("--repository-root", default=".")
+    corrective_receipt_plan.set_defaults(handler=corrective_v2_receipt_plan)
+
+    corrective_receipt_import = subparsers.add_parser(
+        "corrective-v2-receipt-import",
+        help="Verify both receipt SSHSIGs into a local, non-installed artifact",
+    )
+    corrective_receipt_import.add_argument("--roadmap", required=True)
+    corrective_receipt_import.add_argument("--governance-dir", required=True)
+    corrective_receipt_import.add_argument("--plan-dir", required=True)
+    corrective_receipt_import.add_argument("--expected-plan-digest", required=True)
+    corrective_receipt_import.add_argument("--output", required=True)
+    corrective_receipt_import.add_argument("--repository-root", default=".")
+    corrective_receipt_import.set_defaults(handler=corrective_v2_receipt_import)
+
+    corrective_bundle_plan = subparsers.add_parser(
+        "corrective-v2-bundle-plan",
+        help="Prepare the timestamp-free generation-2 governance-bundle claim",
+    )
+    corrective_bundle_plan.add_argument("--roadmap", required=True)
+    corrective_bundle_plan.add_argument("--governance-dir", required=True)
+    corrective_bundle_plan.add_argument("--result-commit", required=True)
+    corrective_bundle_plan.add_argument("--receipt-import", required=True)
+    corrective_bundle_plan.add_argument("--expected-receipt-plan-digest", required=True)
+    corrective_bundle_plan.add_argument("--plan-dir", required=True)
+    corrective_bundle_plan.add_argument("--repository-root", default=".")
+    corrective_bundle_plan.set_defaults(handler=corrective_v2_bundle_plan)
+
+    corrective_bundle_import = subparsers.add_parser(
+        "corrective-v2-bundle-import",
+        help="Verify the bundle SSHSIG and atomically install only the three C2 records",
+    )
+    corrective_bundle_import.add_argument("--roadmap", required=True)
+    corrective_bundle_import.add_argument("--governance-dir", required=True)
+    corrective_bundle_import.add_argument("--plan-dir", required=True)
+    corrective_bundle_import.add_argument("--expected-plan-digest", required=True)
+    corrective_bundle_import.add_argument("--repository-root", default=".")
+    corrective_bundle_import.set_defaults(handler=corrective_v2_bundle_import)
+
+    forecast_decision_plan = subparsers.add_parser(
+        "forecast-v2-decision-plan",
+        help="Prepare one timestamp-free itemized 68-row/121-occurrence decision claim",
+    )
+    forecast_decision_plan.add_argument("--roadmap", required=True)
+    forecast_decision_plan.add_argument("--governance-dir", required=True)
+    forecast_decision_plan.add_argument("--plan-dir", required=True)
+    forecast_decision_plan.add_argument("--repository-root", default=".")
+    forecast_decision_plan.set_defaults(handler=forecast_v2_decision_plan)
+
+    forecast_decision_import = subparsers.add_parser(
+        "forecast-v2-decision-import",
+        help="Verify and install the one signed generation-2 batch decision",
+    )
+    forecast_decision_import.add_argument("--roadmap", required=True)
+    forecast_decision_import.add_argument("--governance-dir", required=True)
+    forecast_decision_import.add_argument("--plan-dir", required=True)
+    forecast_decision_import.add_argument("--expected-plan-digest", required=True)
+    forecast_decision_import.add_argument("--repository-root", default=".")
+    forecast_decision_import.set_defaults(handler=forecast_v2_decision_import)
+
+    forecast_signature_plan = subparsers.add_parser(
+        "forecast-v2-signature-plan",
+        help="Prepare timestamp-free producer and acceptance-receipt SSHSIG claims",
+    )
+    forecast_signature_plan.add_argument("--roadmap", required=True)
+    forecast_signature_plan.add_argument("--governance-dir", required=True)
+    forecast_signature_plan.add_argument("--plan-dir", required=True)
+    forecast_signature_plan.add_argument("--repository-root", default=".")
+    forecast_signature_plan.set_defaults(handler=forecast_v2_signature_plan)
+
+    forecast_signature_import = subparsers.add_parser(
+        "forecast-v2-signature-import",
+        help="Verify and install both timestamp-free final forecast signatures",
+    )
+    forecast_signature_import.add_argument("--roadmap", required=True)
+    forecast_signature_import.add_argument("--governance-dir", required=True)
+    forecast_signature_import.add_argument("--plan-dir", required=True)
+    forecast_signature_import.add_argument("--expected-plan-digest", required=True)
+    forecast_signature_import.add_argument("--repository-root", default=".")
+    forecast_signature_import.set_defaults(handler=forecast_v2_signature_import)
+
+    forecast_documentation_check = subparsers.add_parser(
+        "forecast-v2-documentation-check",
+        help="Validate exact final forecast status/digests in README and ADR before R2",
+    )
+    forecast_documentation_check.add_argument("--roadmap", required=True)
+    forecast_documentation_check.add_argument("--governance-dir", required=True)
+    forecast_documentation_check.add_argument("--repository-root", default=".")
+    forecast_documentation_check.set_defaults(handler=forecast_v2_documentation_check)
+
     generate = subparsers.add_parser("generate-draft", help="Generate the reviewable S1 forecast")
     generate.add_argument("--roadmap", required=True)
     generate.add_argument("--output", required=True)
@@ -7624,6 +18933,15 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Perform the mandatory authoritative fetch and remote-ref check for acceptance",
     )
+    validate.add_argument(
+        "--acceptance-generation",
+        type=int,
+        choices=(1, 2),
+        help=(
+            "Acceptance generation to prepare or require; omitted live checks preserve "
+            "generation 1 and historical checks infer the signed tag generation"
+        ),
+    )
     validate.add_argument("--commitment-time")
     validate.add_argument(
         "--attestation-plan-dir",
@@ -7646,18 +18964,51 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fetch origin/main and tags before resolving the acceptance refs",
     )
+    preflight.add_argument(
+        "--acceptance-generation",
+        type=int,
+        choices=(1, 2),
+        help="Acceptance generation whose governed branch and fixed tag are being prepared",
+    )
     preflight.set_defaults(handler=acceptance_preflight)
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _main_has_active_runtime_bootstrap() -> bool:
+    """Detect unsupported invocation, not hostile mutation inside this process.
+
+    Code already executing in this interpreter can mutate Python objects and is
+    outside this guard's threat boundary.  Process integrity comes from the
+    external reviewed launcher and the import-before-use bootstrap above.  This
+    check prevents ordinary imports, ``-m`` execution, displaced entry points,
+    and a removed/reordered import guard from being mistaken for that workflow.
+    """
+
     runtime_guard = _BOOTSTRAPPED_RUNTIME_GUARD
-    if (
-        __name__ != "__main__"
-        or runtime_guard is None
-        or not sys.meta_path
-        or sys.meta_path[0] is not runtime_guard
-    ):
+    if __name__ != "__main__" or type(runtime_guard) is not _GovernanceRuntimeImportGuard:
+        return False
+    if not sys.meta_path or sys.meta_path[0] is not runtime_guard:
+        return False
+    if sum(candidate is runtime_guard for candidate in sys.meta_path) != 1:
+        return False
+    script_path = Path(__file__).resolve()
+    try:
+        entry_path = Path(sys.argv[0]).resolve(strict=True)
+        site_packages = runtime_guard._site_packages.resolve(strict=True)
+    except OSError:
+        return False
+    expected_site_packages = script_path.parent.parent / ".venv/Lib/site-packages"
+    return (
+        __spec__ is None
+        and _early_normalized_path(entry_path) == _early_normalized_path(script_path)
+        and _early_normalized_path(site_packages) == _early_normalized_path(expected_site_packages)
+        and bool(sys.path)
+        and _early_normalized_path(sys.path[-1]) == _early_normalized_path(site_packages)
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    if not _main_has_active_runtime_bootstrap():
         print(
             "v1 S1 governance error: commands require successful frozen runtime bootstrap",
             file=sys.stderr,

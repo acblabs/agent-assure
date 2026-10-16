@@ -1,0 +1,163 @@
+{
+  "format": "agent-assure-s1-corrective-kickoff-authorization/1",
+  "spec_revision": "6.5",
+  "acceptance_generation": 2,
+  "authorization_status": "authorized",
+  "authorization_kind": "prospective_corrective_implementation",
+  "authorization_effect": "corrective_s1_development_governance_only",
+  "signed_claim": {
+    "acceptance_generation": 2,
+    "authorization_effect": "corrective_s1_development_governance_only",
+    "authorization_kind": "prospective_corrective_implementation",
+    "authorized_operations": [
+      "Create a linear corrective result commit R2 as the direct non-merge child of C1 and a closure commit C2 as the direct non-merge child of R2.",
+      "Reobserve baseline facts after this authorization, implement and test the bounded corrective controls, and prepare unsigned human-decision and signature plans.",
+      "Produce machine-authored bottom-up work-breakdown proposals for all 68 ticket rows and 121 release occurrences; no proposal is a human estimate decision.",
+      "After separate explicit human decisions and signatures, create the fixed annotated successor tag agent-assure-s1-1.0.0a1-acceptance-v2.",
+      "Perform read-only local and authoritative-remote verification needed by the acceptance gate; publication and push remain forbidden."
+    ],
+    "authorized_person_id": "acblabs",
+    "authorized_role": "repository_maintainer",
+    "corrective_findings": [
+      "FORECAST_ANCHORING_NONCONFORMANCE",
+      "HUMAN_DECISION_PROVENANCE_REMEDIATION",
+      "DECLARED_SIGNING_TIME_SEMANTICS",
+      "PROSPECTIVE_KICKOFF_ORDERING",
+      "VALIDATOR_EXECUTABLE_BINDING",
+      "WINDOWS_LONG_PATH_GIT_DIAGNOSTICS",
+      "POST_AMENDMENT_TEST_EVIDENCE",
+      "S1_SCOPE_MAP_ALIGNMENT",
+      "QUANTILE_INTERPRETATION_WORDING",
+      "WINDOWS_GOVERNANCE_CI_COVERAGE"
+    ],
+    "evidence": {
+      "external_review_raw_sha256": "sha256:a6c83aa9e741e3a7f46660e3c27ed9a3a7bb9a76608ea878e5260658191ee80b",
+      "external_review_size_bytes": 14917,
+      "roadmap_raw_sha256": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+      "roadmap_size_bytes": 2390013
+    },
+    "expected_topology": {
+      "corrective_closure_parent": "R2",
+      "corrective_result_parent": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+      "shape": "C1 -> R2 -> C2",
+      "successor_tag_name": "agent-assure-s1-1.0.0a1-acceptance-v2"
+    },
+    "forbidden_operations": [
+      "Do not amend, reset, delete, move, replace, or force-update B, R1, C1, A1, or the generation-1 tag.",
+      "Do not begin or represent any S2 work before generation-2 historical validation succeeds.",
+      "Do not push, publish, open a remote pull request, or create a package/release distribution.",
+      "Do not read, copy, export, or use the maintainer private key; only the human maintainer may sign prepared exact claim bytes.",
+      "Do not add, stage, commit, copy into tracked artifacts, or otherwise version the private roadmap or local ceremony directories.",
+      "Do not synthesize human estimate decisions, rationales, review assertions, or signature times from this blanket corrective authorization.",
+      "Do not claim an observed or externally trusted signing time without independently verifiable time evidence."
+    ],
+    "format": "agent-assure-s1-corrective-kickoff-claim/1",
+    "human_decision_boundaries": [
+      "This kickoff authorizes bounded corrective engineering only; it approves no ticket estimate, occurrence estimate, WBS, rationale, completion conclusion, bundle, or final acceptance.",
+      "Every one of the 68 ticket rows and 121 occurrences requires a separately presented human decision over digest-bound bottom-up evidence.",
+      "Every SSHSIG remains a human-only operation over exact prepared bytes with a separately confirmed digest."
+    ],
+    "local_only_path_prefixes": [
+      ".tmp/s1-acceptance/correction-v2-",
+      ".tmp/s1-acceptance/phase-v2-",
+      ".tmp/s1-acceptance/current-gate-v2-"
+    ],
+    "nonce": "e394ad15-1826-4412-b724-dcd8ad5e2584",
+    "plan_created_at_utc": "2026-10-16T01:43:22.8465418Z",
+    "roadmap_policy": {
+      "all_embedded_estimates_are_stale_not_committable": true,
+      "all_rows_and_occurrences_require_reestimated_after_inventory": true,
+      "expanded_contracts_must_not_be_anchored_to_displayed_values": true,
+      "minimum_explicit_expanded_ticket_ids": [
+        "V1-BASE-06",
+        "V1-REL-02"
+      ]
+    },
+    "spec_revision": "6.5",
+    "superseded_acceptance": {
+      "acceptance_tag_name": "agent-assure-s1-1.0.0a1-acceptance",
+      "bundle_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+      "closure_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+      "forecast_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+      "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+      "tag_object": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
+    },
+    "supersession_semantics": {
+      "generation_1_objects_remain_immutable_historical_evidence": true,
+      "generation_1_status": "noncurrent_for_s2_planning_due_to_forecast_nonconformance",
+      "generation_2_must_pass_current_and_historical_validation_before_s2": true
+    },
+    "time_semantics": {
+      "actual_signature_time_claimed": false,
+      "independent_time_attestation": "none",
+      "plan_created_at_basis": "maintainer-host UTC observed by the preparation process; externally unattested",
+      "sshsig_timestamp_capability": "none"
+    },
+    "tracked_allowed_paths": [
+      ".github/workflows/ci.yml",
+      "Makefile",
+      "docs/adr/0016-v1-repository-map.md",
+      "docs/governance/v1/README.md",
+      "docs/governance/v1/baseline-observations.json",
+      "docs/governance/v1/baseline-observations.schema.json",
+      "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "docs/governance/v1/completion-report-v1-base-01.md",
+      "docs/governance/v1/completion-report-v1-boot-01.md",
+      "docs/governance/v1/corrective-kickoff-authorization.json",
+      "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+      "docs/governance/v1/current-acceptance-attestation.schema.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+      "docs/governance/v1/delivery-forecast.json",
+      "docs/governance/v1/delivery-forecast.schema.json",
+      "docs/governance/v1/governance-bundle.json",
+      "docs/governance/v1/governance-bundle.schema.json",
+      "docs/governance/v1/ticket-completion-receipt.schema.json",
+      "mkdocs.yml",
+      "scripts/v1_s1_governance.ps1",
+      "scripts/v1_s1_governance.py",
+      "tests/integration/test_v1_s1_historical_check.py",
+      "tests/unit/governance/test_v1_s1_governance.py",
+      "tests/unit/release/test_coverage_gate.py"
+    ]
+  },
+  "signed_claim_artifact": {
+    "serialization_profile": "utf8-json-sorted-keys-indent-2-lf-terminal-lf",
+    "size_bytes": 6712,
+    "sha256": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+  },
+  "signature_evidence": {
+    "profile": "openssh-sshsig-ed25519/v1",
+    "status": "verified",
+    "namespace": "agent-assure-governance-v1",
+    "signed_payload_encoding": "exact-signed-claim-bytes",
+    "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
+    "signature_algorithm": "ssh-ed25519",
+    "message_hash_algorithm": "sha512",
+    "signer_person_id": "acblabs",
+    "signer_role": "repository_maintainer",
+    "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "signature_file_size_bytes": 326,
+    "signature_file_sha256": "sha256:45061258f3fbf6aef505da516fde568f72d9ace36a3c04ea2c8546b25e21912b",
+    "signature_time_status": "unavailable_sshsig_has_no_timestamp",
+    "armored_signature_base64": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQU4vT1czdmxTaHlWMGhvVGdOZC9Vb0MyM1A0U1ExT2pHcFoKeThhWVd1UnlMdXFQcEZrOWE1bDRDUE1KVDB5Mi9RUUZ2b3hJaHhBVFRPVzMxUkQvMGVEdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  },
+  "import_verification": {
+    "verification_recorded_at_utc": "2026-10-16T01:59:45.581725Z",
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "actual_signature_time_claimed": false,
+    "verification_time_status": "host_observation_recorded_after_verification_not_signature_time",
+    "verification_sequence": "signature_verified_before_corrective_branch_creation_and_tracked_edits",
+    "verification_result": "valid_exact_payload_key_and_namespace",
+    "verified_namespace": "agent-assure-governance-v1",
+    "predecessor_head_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "predecessor_tag_name": "agent-assure-s1-1.0.0a1-acceptance",
+    "predecessor_tag_object": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb",
+    "roadmap_digest_at_import": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+  }
+}

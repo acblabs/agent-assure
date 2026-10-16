@@ -1,25 +1,34 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acblabs.github.io/agent-assure/governance/v1/delivery-forecast.schema.json",
-  "title": "Agent Assure S1 delivery forecast",
+  "title": "Agent Assure bottom-up delivery forecast",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "contract_id",
+    "format",
     "spec_revision",
     "forecast_status",
+    "proposal_authority",
+    "human_review_status",
     "full_roadmap_digest",
     "sorted_ticket_set_digest",
     "dependency_graph_digest",
     "release_train_digest",
+    "corrective_authorization_claim_digest",
+    "baseline_observations_digest",
+    "estimation_catalog_digest",
     "aggregation_method_registry_digest",
     "authoring_ledger_digest",
     "approval_roster_digest",
+    "file_scope_observation",
     "issued_at_utc",
     "valid_until_utc",
     "trusted_time_basis",
     "producer_person_id",
     "producer_role",
+    "proposal_preparer_kind",
+    "portfolio_scenarios",
     "portfolio_aggregate",
     "rows",
     "record_digest",
@@ -28,26 +37,39 @@
   ],
   "properties": {
     "contract_id": { "const": "delivery-forecast/v1" },
+    "format": { "const": "agent-assure-delivery-forecast/2" },
     "spec_revision": { "const": "6.5" },
-    "forecast_status": {
-      "enum": ["proposed", "ready_for_acceptance", "accepted"]
-    },
+    "forecast_status": { "enum": ["proposed_pending_explicit_human_review", "ready_for_signature", "accepted"] },
+    "proposal_authority": { "const": "machine_authored_nonbinding" },
+    "human_review_status": { "enum": ["pending_explicit_human_review", "complete"] },
     "full_roadmap_digest": { "$ref": "#/$defs/digest" },
     "sorted_ticket_set_digest": { "$ref": "#/$defs/digest" },
     "dependency_graph_digest": { "$ref": "#/$defs/digest" },
     "release_train_digest": { "$ref": "#/$defs/digest" },
+    "corrective_authorization_claim_digest": { "$ref": "#/$defs/digest" },
+    "baseline_observations_digest": { "$ref": "#/$defs/digest" },
+    "estimation_catalog_digest": { "$ref": "#/$defs/digest" },
     "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
     "authoring_ledger_digest": { "$ref": "#/$defs/digest" },
     "approval_roster_digest": { "$ref": "#/$defs/digest" },
-    "issued_at_utc": { "$ref": "#/$defs/utc" },
-    "valid_until_utc": { "$ref": "#/$defs/utc" },
-    "trusted_time_basis": { "$ref": "#/$defs/nonempty" },
-    "producer_person_id": { "$ref": "#/$defs/nonempty" },
-    "producer_role": { "const": "technical_lead" },
-    "portfolio_aggregate": { "$ref": "#/$defs/portfolio" },
+    "file_scope_observation": { "$ref": "#/$defs/fileScopeObservation" },
+    "issued_at_utc": { "$ref": "#/$defs/nullableUtc" },
+    "valid_until_utc": { "$ref": "#/$defs/nullableUtc" },
+    "trusted_time_basis": { "$ref": "#/$defs/nullableText" },
+    "producer_person_id": { "$ref": "#/$defs/nullableId" },
+    "producer_role": { "oneOf": [{ "const": "technical_lead" }, { "type": "null" }] },
+    "proposal_preparer_kind": { "const": "llm_implementation_agent" },
+    "portfolio_scenarios": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/scenario" }
+    },
+    "portfolio_aggregate": { "$ref": "#/$defs/aggregate" },
     "rows": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 256,
       "items": { "$ref": "#/$defs/row" }
     },
     "record_digest": { "$ref": "#/$defs/digest" },
@@ -57,63 +79,236 @@
   "allOf": [
     {
       "if": {
+        "properties": { "forecast_status": { "const": "proposed_pending_explicit_human_review" } },
+        "required": ["forecast_status"]
+      },
+      "then": {
+        "properties": {
+          "human_review_status": { "const": "pending_explicit_human_review" },
+          "issued_at_utc": { "type": "null" },
+          "valid_until_utc": { "type": "null" },
+          "trusted_time_basis": { "type": "null" },
+          "producer_person_id": { "type": "null" },
+          "producer_role": { "type": "null" },
+          "rows": { "items": { "$ref": "#/$defs/pendingRowState" } },
+          "signature_envelope": { "$ref": "#/$defs/pendingSignatureState" },
+          "acceptance_receipt": { "$ref": "#/$defs/pendingReceiptState" }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": { "forecast_status": { "const": "ready_for_signature" } },
+        "required": ["forecast_status"]
+      },
+      "then": {
+        "properties": {
+          "human_review_status": { "const": "complete" },
+          "issued_at_utc": { "$ref": "#/$defs/utc" },
+          "valid_until_utc": { "$ref": "#/$defs/utc" },
+          "trusted_time_basis": { "$ref": "#/$defs/nonempty" },
+          "producer_person_id": { "const": "acblabs" },
+          "producer_role": { "const": "technical_lead" },
+          "rows": { "items": { "$ref": "#/$defs/decidedRowState" } },
+          "signature_envelope": { "$ref": "#/$defs/pendingSignatureState" },
+          "acceptance_receipt": { "$ref": "#/$defs/pendingReceiptState" }
+        }
+      }
+    },
+    {
+      "if": {
         "properties": { "forecast_status": { "const": "accepted" } },
         "required": ["forecast_status"]
       },
       "then": {
         "properties": {
+          "human_review_status": { "const": "complete" },
+          "issued_at_utc": { "$ref": "#/$defs/utc" },
+          "valid_until_utc": { "$ref": "#/$defs/utc" },
+          "trusted_time_basis": { "$ref": "#/$defs/nonempty" },
+          "producer_person_id": { "const": "acblabs" },
+          "producer_role": { "const": "technical_lead" },
+          "rows": { "items": { "$ref": "#/$defs/decidedRowState" } },
           "signature_envelope": {
-            "properties": { "status": { "const": "signed" } }
+            "allOf": [
+              { "$ref": "#/$defs/signedSignatureState" },
+              { "properties": { "signer_person_id": { "const": "acblabs" }, "signer_role": { "const": "technical_lead" } } }
+            ]
           },
-          "acceptance_receipt": {
-            "properties": {
-              "receipt_status": { "const": "accepted_for_development" },
-              "signature_envelope": {
-                "properties": { "status": { "const": "signed" } }
-              }
-            }
-          }
+          "acceptance_receipt": { "$ref": "#/$defs/acceptedReceiptState" }
         }
       }
     }
   ],
   "$defs": {
-    "digest": {
-      "type": "string",
-      "pattern": "^sha256:[0-9a-f]{64}$"
-    },
-    "nonempty": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 1000
-    },
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 256 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 2000 },
     "utc": {
       "type": "string",
       "format": "date-time",
       "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$"
     },
-    "stringSet": {
+    "nullableUtc": { "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }] },
+    "nullableId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+    "nullableText": { "oneOf": [{ "$ref": "#/$defs/nonempty" }, { "type": "null" }] },
+    "stringArray": {
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/nonempty" }
     },
+    "hours": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "nullableHours": { "oneOf": [{ "$ref": "#/$defs/hours" }, { "type": "null" }] },
+    "fileScopeObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_count",
+        "resolved_ticket_count",
+        "unresolved_ticket_count",
+        "evidence_basis",
+        "interpretation",
+        "estimate_status",
+        "rebaseline_trigger"
+      ],
+      "properties": {
+        "ticket_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "resolved_ticket_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "unresolved_ticket_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "evidence_basis": { "const": "roadmap_resolved_allowed_files_cardinality" },
+        "interpretation": { "const": "unresolved_scope_not_zero_implementation_work" },
+        "estimate_status": { "const": "nonbinding_placeholders_pending_dispatch_scope_resolution" },
+        "rebaseline_trigger": { "const": "resolve_approved_file_scope_at_ticket_dispatch_and_reestimate_when_concrete_surface_count_differs" }
+      }
+    },
+    "pendingRowState": {
+      "type": "object",
+      "properties": {
+        "trusted_issue_time": { "type": "null" },
+        "decision_status": { "const": "pending_explicit_human_review" },
+        "execution_estimates": {
+          "items": {
+            "type": "object",
+            "properties": {
+              "p50_effort_hours": { "type": "null" },
+              "p90_effort_hours": { "type": "null" },
+              "reviewer_effort_hours": { "type": "null" },
+              "selected_p50_effort_hours": { "type": "null" },
+              "selected_p90_effort_hours": { "type": "null" },
+              "selected_reviewer_effort_hours": { "type": "null" },
+              "decision_status": { "const": "pending_explicit_human_review" }
+            }
+          }
+        }
+      }
+    },
+    "decidedRowState": {
+      "type": "object",
+      "properties": {
+        "trusted_issue_time": { "$ref": "#/$defs/utc" },
+        "decision_status": { "const": "human_accepted" },
+        "execution_estimates": {
+          "items": {
+            "type": "object",
+            "properties": {
+              "p50_effort_hours": { "$ref": "#/$defs/hours" },
+              "p90_effort_hours": { "$ref": "#/$defs/hours" },
+              "reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+              "selected_p50_effort_hours": { "$ref": "#/$defs/hours" },
+              "selected_p90_effort_hours": { "$ref": "#/$defs/hours" },
+              "selected_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+              "decision_status": { "enum": ["human_accepted", "human_adjusted"] }
+            }
+          }
+        }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_count",
+        "occurrence_count",
+        "aggregate_p50_effort_hours",
+        "aggregate_p90_effort_hours",
+        "aggregate_reviewer_effort_hours",
+        "aggregate_method_id",
+        "aggregate_method_definition_digest",
+        "elapsed_wait_included"
+      ],
+      "properties": {
+        "scenario_id": { "enum": ["stable_core_committed", "optional_profile_planned"] },
+        "ticket_count": { "type": "integer", "minimum": 0, "maximum": 256 },
+        "occurrence_count": { "type": "integer", "minimum": 0, "maximum": 4096 },
+        "aggregate_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "aggregate_method_id": { "const": "comonotonic-quantile-sum/v1" },
+        "aggregate_method_definition_digest": { "$ref": "#/$defs/digest" },
+        "elapsed_wait_included": { "const": false }
+      }
+    },
+    "scenario": {
+      "allOf": [
+        { "$ref": "#/$defs/aggregate" },
+        {
+          "type": "object",
+          "required": ["scenario_id"],
+          "properties": {
+            "scenario_id": { "enum": ["stable_core_committed", "optional_profile_planned"] }
+          }
+        }
+      ]
+    },
     "execution": {
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "occurrence_id",
         "sprint",
         "release",
+        "scenario_class",
+        "derivation_disposition",
+        "workload_vector_digest",
+        "proposal_digest",
+        "proposed_p50_effort_hours",
+        "proposed_p90_effort_hours",
+        "proposed_reviewer_effort_hours",
         "p50_effort_hours",
         "p90_effort_hours",
-        "reviewer_effort_hours"
+        "reviewer_effort_hours",
+        "selected_p50_effort_hours",
+        "selected_p90_effort_hours",
+        "selected_reviewer_effort_hours",
+        "maximum_single_known_wait_hours",
+        "serial_sum_known_wait_hours",
+        "unquantified_wait_dependency_count",
+        "elapsed_wait_included",
+        "decision_status"
       ],
       "properties": {
+        "occurrence_id": { "$ref": "#/$defs/id" },
         "sprint": { "type": "string", "pattern": "^S[1-9][0-9]*$" },
         "release": { "$ref": "#/$defs/nonempty" },
-        "p50_effort_hours": { "$ref": "#/$defs/hours" },
-        "p90_effort_hours": { "$ref": "#/$defs/hours" },
-        "reviewer_effort_hours": { "$ref": "#/$defs/hours" }
+        "scenario_class": { "enum": ["stable_core_committed", "optional_profile_planned"] },
+        "derivation_disposition": { "const": "reestimated_after_inventory" },
+        "workload_vector_digest": { "$ref": "#/$defs/digest" },
+        "proposal_digest": { "$ref": "#/$defs/digest" },
+        "proposed_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "proposed_p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "proposed_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
+        "p50_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "p90_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "reviewer_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "selected_p50_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "selected_p90_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "selected_reviewer_effort_hours": { "$ref": "#/$defs/nullableHours" },
+        "maximum_single_known_wait_hours": { "$ref": "#/$defs/hours" },
+        "serial_sum_known_wait_hours": { "$ref": "#/$defs/hours" },
+        "unquantified_wait_dependency_count": { "type": "integer", "minimum": 0 },
+        "elapsed_wait_included": { "const": false },
+        "decision_status": { "enum": ["pending_explicit_human_review", "human_accepted", "human_adjusted", "human_rejected"] }
       }
     },
     "row": {
@@ -122,6 +317,8 @@
       "required": [
         "ticket_id",
         "estimate_scope",
+        "prior_disposition",
+        "derivation_disposition",
         "planned_execution_count",
         "execution_estimates",
         "aggregate_p50_effort_hours",
@@ -135,30 +332,118 @@
         "risk_assumptions",
         "current_status",
         "trusted_issue_time",
-        "rebaseline_status"
+        "elapsed_wait_included",
+        "proposal_epistemic_status",
+        "decision_status"
       ],
       "properties": {
         "ticket_id": { "type": "string", "pattern": "^V1-[A-Z0-9]+-[0-9]{2}$" },
         "estimate_scope": { "$ref": "#/$defs/nonempty" },
-        "planned_execution_count": { "type": "integer", "minimum": 1 },
-        "execution_estimates": {
-          "type": "array",
-          "minItems": 1,
-          "items": { "$ref": "#/$defs/execution" }
-        },
+        "prior_disposition": { "const": "stale_not_used_as_anchor" },
+        "derivation_disposition": { "const": "reestimated_after_inventory" },
+        "planned_execution_count": { "type": "integer", "minimum": 1, "maximum": 64 },
+        "execution_estimates": { "type": "array", "minItems": 1, "maxItems": 64, "items": { "$ref": "#/$defs/execution" } },
         "aggregate_p50_effort_hours": { "$ref": "#/$defs/hours" },
         "aggregate_p90_effort_hours": { "$ref": "#/$defs/hours" },
         "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
         "aggregate_method_id": { "const": "comonotonic-quantile-sum/v1" },
         "aggregate_method_definition_digest": { "$ref": "#/$defs/digest" },
-        "aggregate_dependence_assumptions": { "$ref": "#/$defs/stringSet" },
+        "aggregate_dependence_assumptions": { "$ref": "#/$defs/stringArray" },
         "confidence": { "enum": ["low", "medium", "high"] },
-        "dependency_assumptions": { "$ref": "#/$defs/stringSet" },
-        "risk_assumptions": { "$ref": "#/$defs/stringSet" },
+        "dependency_assumptions": { "$ref": "#/$defs/stringArray" },
+        "risk_assumptions": { "$ref": "#/$defs/stringArray" },
         "current_status": { "enum": ["not_started", "in_progress", "blocked", "done"] },
-        "trusted_issue_time": { "$ref": "#/$defs/utc" },
-        "rebaseline_status": {
-          "enum": ["pending_maintainer_confirmation", "confirmed"]
+        "trusted_issue_time": { "$ref": "#/$defs/nullableUtc" },
+        "elapsed_wait_included": { "const": false },
+        "proposal_epistemic_status": {
+          "enum": [
+            "uncalibrated_machine_proposal_pending_human_review",
+            "human_adopted_subjective_planning_quantiles_unresolved_scope_rebaseline_required"
+          ]
+        },
+        "decision_status": { "enum": ["pending_explicit_human_review", "human_accepted", "human_rejected"] }
+      }
+    },
+    "pendingSignatureState": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "pending_human_signature" },
+        "signer_person_id": { "type": "null" },
+        "signer_role": { "type": "null" },
+        "signature": { "type": "null" },
+        "verification_evidence": { "type": "null" }
+      }
+    },
+    "signedSignatureState": {
+      "type": "object",
+      "properties": {
+        "status": { "const": "signed" },
+        "signer_person_id": { "$ref": "#/$defs/id" },
+        "signer_role": { "$ref": "#/$defs/id" },
+        "signature": { "type": "string", "minLength": 1 },
+        "verification_evidence": { "$ref": "#/$defs/signatureImportEvidence" }
+      }
+    },
+    "pendingReceiptState": {
+      "type": "object",
+      "properties": {
+        "receipt_status": { "const": "pending_explicit_human_review" },
+        "issuer_person_id": { "type": "null" },
+        "issuer_role": { "type": "null" },
+        "decision": { "type": "null" },
+        "receipt_digest": { "type": "null" },
+        "signature_envelope": { "type": "null" }
+      }
+    },
+    "acceptedReceiptState": {
+      "type": "object",
+      "properties": {
+        "receipt_status": { "const": "accepted_for_development" },
+        "issuer_person_id": { "const": "acblabs" },
+        "issuer_role": { "const": "repository_maintainer" },
+        "decision": { "const": "accept" },
+        "receipt_digest": { "$ref": "#/$defs/digest" },
+        "signature_envelope": {
+          "allOf": [
+            { "$ref": "#/$defs/signedSignatureState" },
+            { "properties": { "signer_person_id": { "const": "acblabs" }, "signer_role": { "const": "repository_maintainer" } } }
+          ]
+        }
+      }
+    },
+    "signatureImportEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "signature_plan_digest",
+        "claim_preparation_started_at_utc",
+        "import_verification_started_at_utc",
+        "import_verification_completed_at_utc",
+        "clock_basis",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed",
+        "verification_result",
+        "signature_claim_binding",
+        "durable_integrity_binding"
+      ],
+      "properties": {
+        "status": { "const": "verified_after_signature_import" },
+        "signature_plan_digest": { "$ref": "#/$defs/digest" },
+        "claim_preparation_started_at_utc": { "$ref": "#/$defs/utc" },
+        "import_verification_started_at_utc": { "$ref": "#/$defs/utc" },
+        "import_verification_completed_at_utc": { "$ref": "#/$defs/utc" },
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "sshsig_timestamp_capability": { "const": "none" },
+        "actual_signature_time_claimed": { "const": false },
+        "verification_result": {
+          "const": "both_signatures_valid_exact_payload_key_and_namespace"
+        },
+        "signature_claim_binding": {
+          "const": "excluded_post_signature_observation_not_in_sshsig_claim"
+        },
+        "durable_integrity_binding": {
+          "const": "corrective_closure_artifact_inventory_and_acceptance_attestation"
         }
       }
     },
@@ -175,49 +460,32 @@
         "signer_role",
         "subject_digest",
         "public_key_fingerprint",
-        "signed_at_utc",
-        "signature"
+        "signature",
+        "verification_evidence"
       ],
       "properties": {
         "profile": { "const": "openssh-sshsig-ed25519/v1" },
         "status": { "enum": ["pending_human_signature", "signed"] },
         "namespace": { "const": "agent-assure-governance-v1" },
-        "signed_payload_encoding": {
-          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v1"
-        },
-        "signature_encoding": {
-          "const": "base64-canonical-lf-openssh-sshsig-armored"
-        },
-        "signer_person_id": { "$ref": "#/$defs/nonempty" },
-        "signer_role": { "$ref": "#/$defs/nonempty" },
+        "signed_payload_encoding": { "const": "agent-assure-domain-separated-rfc8785-signature-claim/v2" },
+        "signature_encoding": { "const": "base64-canonical-lf-openssh-sshsig-armored" },
+        "signer_person_id": { "$ref": "#/$defs/nullableId" },
+        "signer_role": { "$ref": "#/$defs/nullableId" },
         "subject_digest": { "$ref": "#/$defs/digest" },
-        "public_key_fingerprint": {
-          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
-        },
-        "signed_at_utc": {
-          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
-        },
-        "signature": {
-          "type": ["string", "null"],
-          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
-          "maxLength": 8192
+        "public_key_fingerprint": { "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k" },
+        "signature": { "type": ["string", "null"], "maxLength": 8192 },
+        "verification_evidence": {
+          "oneOf": [
+            { "$ref": "#/$defs/signatureImportEvidence" },
+            { "type": "null" }
+          ]
         }
       },
       "allOf": [
         {
-          "if": { "properties": { "status": { "const": "signed" } } },
-          "then": {
-            "properties": {
-              "signature": { "type": "string", "minLength": 1 },
-              "signed_at_utc": { "$ref": "#/$defs/utc" }
-            }
-          },
-          "else": {
-            "properties": {
-              "signature": { "type": "null" },
-              "signed_at_utc": { "type": "null" }
-            }
-          }
+          "if": { "properties": { "status": { "const": "signed" } }, "required": ["status"] },
+          "then": { "$ref": "#/$defs/signedSignatureState" },
+          "else": { "$ref": "#/$defs/pendingSignatureState" }
         }
       ]
     },
@@ -229,129 +497,99 @@
         "receipt_status",
         "subject_contract_id",
         "subject_record_digest",
-        "bound_source_digests",
+        "approval_mode",
+        "competence_basis",
+        "allowed_operations",
+        "exclusions",
+        "conflicts",
+        "review_evidence",
+        "limitations",
         "issuer_person_id",
         "issuer_role",
-        "approval_mode",
-        "approval_roster_digest",
-        "independence_claimed",
-        "authorization_effect",
-        "author_reviewer_relationship",
-        "accepted_competence",
-        "conflicts",
-        "issued_at_utc",
-        "validity_context",
-        "review_evidence",
-        "allowed_operations",
-        "limitations",
+        "decision",
         "receipt_digest",
         "signature_envelope"
       ],
       "properties": {
         "receipt_type": { "const": "development_design_acceptance" },
-        "receipt_status": {
-          "enum": ["pending_human_acceptance", "accepted_for_development"]
-        },
+        "receipt_status": { "enum": ["pending_explicit_human_review", "accepted_for_development", "rejected"] },
         "subject_contract_id": { "const": "delivery-forecast/v1" },
         "subject_record_digest": { "$ref": "#/$defs/digest" },
-        "bound_source_digests": {
+        "approval_mode": { "const": "maintainer_development" },
+        "competence_basis": {
+          "const": {
+            "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+            "issuer_person_id": "acblabs",
+            "issuer_role_assignments": ["repository_maintainer", "technical_lead"],
+            "issuer_competence_scopes": [
+              "planning_governance:s1",
+              "repository_maintenance:bounded_development",
+              "technical_direction:s1"
+            ]
+          }
+        },
+        "allowed_operations": {
+          "const": [
+            "use_as_a_nonbinding_development_planning_baseline",
+            "rebaseline_at_dispatch_after_concrete_file_scope_resolution"
+          ]
+        },
+        "exclusions": {
+          "const": [
+            "no_runtime_release_deployment_qualification_or_method_admission_authority",
+            "no_calendar_delivery_commitment_or_distribution_free_probability_bound",
+            "no_independent_review_claim"
+          ]
+        },
+        "conflicts": {
+          "const": {
+            "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
+            "issuer_person_id": "acblabs",
+            "issuer_conflict_disclosures": [
+              "Sole human owner and development acceptor for S1",
+              "Cannot issue an independent-review receipt for self-authored or LLM-authored work accepted under this identity",
+              "Repository-configured handle; legal identity is not asserted by this record"
+            ],
+            "independence_limitation": "NO_INDEPENDENT_REVIEW"
+          }
+        },
+        "review_evidence": {
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "full_roadmap_digest",
-            "sorted_ticket_set_digest",
-            "dependency_graph_digest",
-            "release_train_digest",
-            "aggregation_method_registry_digest",
-            "authoring_ledger_digest"
+            "decision_manifest_digest",
+            "authoring_ledger_digest",
+            "estimation_catalog_digest",
+            "approval_roster_digest",
+            "ticket_row_count",
+            "execution_occurrence_count"
           ],
           "properties": {
-            "full_roadmap_digest": { "$ref": "#/$defs/digest" },
-            "sorted_ticket_set_digest": { "$ref": "#/$defs/digest" },
-            "dependency_graph_digest": { "$ref": "#/$defs/digest" },
-            "release_train_digest": { "$ref": "#/$defs/digest" },
-            "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
-            "authoring_ledger_digest": { "$ref": "#/$defs/digest" }
-          }
-        },
-        "issuer_person_id": { "$ref": "#/$defs/nonempty" },
-        "issuer_role": { "const": "repository_maintainer" },
-        "approval_mode": { "const": "maintainer_development" },
-        "approval_roster_digest": { "$ref": "#/$defs/digest" },
-        "independence_claimed": { "const": false },
-        "authorization_effect": { "const": "none" },
-        "author_reviewer_relationship": {
-          "const": "same_person_maintainer_development_self_acceptance"
-        },
-        "accepted_competence": { "$ref": "#/$defs/stringSet" },
-        "conflicts": { "$ref": "#/$defs/stringSet" },
-        "issued_at_utc": { "$ref": "#/$defs/utc" },
-        "validity_context": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["not_before_utc", "not_after_utc", "half_open_interval"],
-          "properties": {
-            "not_before_utc": { "$ref": "#/$defs/utc" },
-            "not_after_utc": { "$ref": "#/$defs/utc" },
-            "half_open_interval": { "const": true }
-          }
-        },
-        "review_evidence": { "$ref": "#/$defs/stringSet" },
-        "allowed_operations": { "$ref": "#/$defs/stringSet" },
-        "limitations": { "$ref": "#/$defs/stringSet" },
-        "receipt_digest": { "$ref": "#/$defs/digest" },
-        "signature_envelope": { "$ref": "#/$defs/signature" }
-      },
-      "allOf": [
-        {
-          "if": {
-            "properties": {
-              "receipt_status": { "const": "accepted_for_development" }
+            "decision_manifest_digest": {
+              "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }]
             },
-            "required": ["receipt_status"]
-          },
-          "then": {
-            "properties": {
-              "signature_envelope": {
-                "properties": { "status": { "const": "signed" } }
-              }
-            }
-          },
-          "else": {
-            "properties": {
-              "signature_envelope": {
-                "properties": { "status": { "const": "pending_human_signature" } }
-              }
-            }
+            "authoring_ledger_digest": { "$ref": "#/$defs/digest" },
+            "estimation_catalog_digest": { "$ref": "#/$defs/digest" },
+            "approval_roster_digest": {
+              "const": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5"
+            },
+            "ticket_row_count": { "const": 68 },
+            "execution_occurrence_count": { "const": 121 }
           }
-        }
-      ]
-    },
-    "hours": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 9007199254740991
-    },
-    "portfolio": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "ticket_count",
-        "occurrence_count",
-        "aggregate_p50_effort_hours",
-        "aggregate_p90_effort_hours",
-        "aggregate_reviewer_effort_hours",
-        "aggregate_method_id",
-        "aggregate_method_definition_digest"
-      ],
-      "properties": {
-        "ticket_count": { "type": "integer", "minimum": 1, "maximum": 256 },
-        "occurrence_count": { "type": "integer", "minimum": 1, "maximum": 4096 },
-        "aggregate_p50_effort_hours": { "$ref": "#/$defs/hours" },
-        "aggregate_p90_effort_hours": { "$ref": "#/$defs/hours" },
-        "aggregate_reviewer_effort_hours": { "$ref": "#/$defs/hours" },
-        "aggregate_method_id": { "const": "comonotonic-quantile-sum/v1" },
-        "aggregate_method_definition_digest": { "$ref": "#/$defs/digest" }
+        },
+        "limitations": {
+          "const": [
+            "all_estimates_are_subjective_planning_quantiles_from_uncalibrated_unit_rates",
+            "all_68_ticket_file_scopes_are_unresolved_and_require_dispatch_rebaselining",
+            "elapsed_waits_resource_capacity_parallelism_and_calendar_critical_path_are_not_modeled",
+            "openssh_sshsig_contains_no_timestamp_and_no_actual_signature_time_is_claimed"
+          ]
+        },
+        "issuer_person_id": { "$ref": "#/$defs/nullableId" },
+        "issuer_role": { "$ref": "#/$defs/nullableId" },
+        "decision": { "oneOf": [{ "enum": ["accept", "reject"] }, { "type": "null" }] },
+        "receipt_digest": { "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "signature_envelope": { "oneOf": [{ "$ref": "#/$defs/signature" }, { "type": "null" }] }
       }
     }
   }

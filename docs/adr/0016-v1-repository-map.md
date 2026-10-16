@@ -135,11 +135,13 @@ reuse boundary. `RunRecordV04` does not exist and must not be invented.
 The OTel lock declares a local snapshot identity; this record does not upgrade
 it to an independently verified upstream commit.
 
-## Owned file map and dispatch gates
+## Repository map and dispatch gates
 
-The following exact existing roots are the permitted extension surfaces.
-Creating a new file under one of them still requires the owning ticket's
-accepted design and file-scope receipt. S1 itself changes none of them.
+The following table is an architectural inventory of verified existing anchors,
+not an exhaustive path allowlist and not authority to edit them. An omitted
+existing path is not thereby "unauthorized." Concrete edit authority comes from
+the owning ticket's accepted design and exact file-scope receipt. S1 itself
+changes none of these production paths.
 
 | Work area | Existing/owned paths | Gate before production edit |
 | --- | --- | --- |
@@ -154,13 +156,21 @@ accepted design and file-scope receipt. S1 itself changes none of them.
 | Framework integrations | `src/agent_assure/adapters/`, `docs/integrations/`, optional lock files | Exact adapter ticket and qualification boundary |
 | OTLP/MCP import | `src/agent_assure/telemetry/`, `streaming/`, the two verified `compat/` files | Import/schema design acceptance |
 | Reporting and OSCAL | `src/agent_assure/reporting/`, downstream manifest resources | Packet finalization first; OSCAL cannot strengthen evidence |
-| Formal/intervention research | Existing `runner/` and `mutation/` boundaries; any new root requires an explicit map amendment | ADR 0015 amendment or intervention design receipt |
+| Formal/intervention research | Existing `runner/` and `mutation/` boundaries; an omitted or new root must be called out in the accepted ticket scope | ADR 0015 amendment or intervention design receipt |
 | Public CLI | `src/agent_assure/cli/main.py` and a ticket-owned command module | Exact command authority and compatibility tests |
-| S1 governance only | `docs/governance/v1/`, this ADR, `scripts/v1_s1_governance.ps1`, `scripts/v1_s1_governance.py`, governance tests | S1 maintainer-development scope |
+| S1 governance only | `docs/governance/v1/`, this ADR, `.github/workflows/ci.yml`, `Makefile`, `mkdocs.yml`, both `scripts/v1_s1_governance.*` entry points, governance tests, and `tests/unit/release/test_coverage_gate.py` | Prospectively signed, exact S1 maintainer-development file scope |
 
-This map reserves roots; it does not authorize cross-ticket edits or silently
-approve semantics. An unmapped production root requires an `ADR-V1-MAP`
-amendment.
+This map identifies likely ownership and review gates; it does not authorize
+cross-ticket edits or silently approve semantics. If implementation needs an
+omitted or new production root, the ticket must identify that path explicitly
+and explain its ownership before the edit. Amend this ADR when the omission
+changes the architecture; a path-list omission alone is not a claim that the
+path is forbidden.
+
+For the corrective generation, the authoritative bounded list is
+`tracked_allowed_paths` in the prospectively signed
+`docs/governance/v1/corrective-kickoff-authorization.json`. That list, rather
+than this summary table, determines whether an `R2` path was authorized.
 
 ## CLI reservation
 
@@ -258,11 +268,13 @@ The domains and projections are:
 | `sorted_ticket_set_digest` | `agent-assure:roadmap-ticket-set/v1`; sorted ticket IDs |
 | `dependency_graph_digest` | `agent-assure:roadmap-dependency-graph/v1`; ticket-sorted dependency rows |
 | `release_train_digest` | `agent-assure:roadmap-release-train/v1`; complete release-train object, preserving array order |
-| method digest | `agent-assure:delivery-forecast-aggregation-method/v1`; method definition excluding its digest |
-| aggregation registry | `agent-assure:delivery-forecast-aggregation-registry/v1`; registry excluding its digest |
-| authoring ledger | `agent-assure:delivery-forecast-authoring-ledger/v1`; ledger excluding its digest |
-| forecast record | `agent-assure:delivery-forecast/v1`; record excluding `record_digest`, `signature_envelope`, and `acceptance_receipt` |
-| acceptance receipt | `agent-assure:governance-receipt/v1`; receipt excluding its digest and signature |
+| method digest | `agent-assure:delivery-forecast-aggregation-method/v2`; method definition excluding its digest |
+| aggregation registry | `agent-assure:delivery-forecast-aggregation-registry/v2`; registry excluding its digest |
+| estimation catalog | `agent-assure:delivery-forecast-estimation-catalog/v1`; catalog excluding `catalog_digest` |
+| authoring ledger | `agent-assure:delivery-forecast-authoring-ledger/v2`; ledger excluding its digest |
+| forecast decision manifest | `agent-assure:delivery-forecast-decision-manifest/v2`; exact ordered manifest excluding `manifest_digest` |
+| forecast record | `agent-assure:delivery-forecast/v2`; record excluding `record_digest`, `signature_envelope`, and `acceptance_receipt` |
+| forecast acceptance receipt | `agent-assure:delivery-forecast-acceptance-receipt/v2`; exact accepted receipt excluding its digest and signature |
 | baseline observations | `agent-assure:baseline-observations/v1`; observations excluding their digest |
 | kickoff/completion/bundle | their versioned `agent-assure:*` domains; semantic projection excluding digest and signature envelope |
 
@@ -278,49 +290,109 @@ chronology without misrepresenting it as an additional dependency edge.
 ### Effort authoring
 
 One focused-engineer day is exactly eight accountable effort hours. Effort is
-not wall-clock duration or unattended LLM runtime. For a repeated
-`ticket_completion` scope, the roadmap's integer-hour total prior is split by
-`divmod(total_hours, occurrence_count)`: each occurrence receives the quotient
-and the first remainder occurrences in release-train order receive one extra
-hour. Per-execution scopes receive one proposal per declared occurrence. Every
-occurrence must then be explicitly marked
-`affirmatively_reconfirmed_after_inventory` or
-`reestimated_after_inventory` by the accountable maintainer; pending proposals
-cannot authorize S2 commitment.
+not wall-clock duration or unattended LLM runtime. Every roadmap estimate whose
+basis is `provisional_before_V1-BASE-01` is
+`STALE_NOT_COMMITTABLE`: it may not seed a work-unit count, an occurrence
+allocation, or an effort value. Generation 2 therefore requires all 68 ticket
+rows and all 121 ordered occurrences to use
+`reestimated_after_inventory`; mechanical reconfirmation is invalid.
 
-The aggregation method is `comonotonic-quantile-sum/v1`, definition digest
-`sha256:46bf522f3a3809085bb411835fb495e4b78349a808b12bd584a4c2f1fc4a29df`.
-Its one-entry immutable registry digest is
-`sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3`.
-For a shared latent severity rank, occurrence efforts are comonotonic, so the
-sum's modeled P50 and P90 are the sums of occurrence P50s and P90s. Reviewer
-effort is also additive. This is a tail-aligned planning model, not a
-distribution-free bound, confidence interval, or calendar forecast. It makes
+The versioned `bottom-up-wbs/1` estimation catalog produces machine-authored,
+nonbinding proposals. Each proposal binds the roadmap item and inventory
+digests, repository anchors, a workload vector, and atomic work items covering
+design, implementation, structured contracts, verification, fixtures/vectors,
+documentation, CI/release operations, and review where applicable. For
+`ticket_completion`, each source acceptance criterion is assigned exactly once
+across the ticket lifecycle's occurrences. For repeated-execution scopes, every
+criterion is covered exactly once per occurrence. Each declared work package is
+assigned exactly once to its declared sprint, and every release-train occurrence
+has one digest-bound anchor. Omissions and duplicate coverage fail closed.
+Component P50, P90, and reviewer P50 person-hours are
+checked integer sums of the versioned work-unit catalog. Elapsed waiting or
+exposure time remains separate from accountable effort. The human maintainer
+must review every row and occurrence, record a specific rationale, and sign the
+digest-bound decisions; the generator cannot infer that judgment.
+
+The aggregation method remains `comonotonic-quantile-sum/v1` version `1.1.0`,
+represented by `agent-assure-delivery-forecast-aggregation-method/2` with
+definition digest
+`sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7`.
+The `/2` registry digest is
+`sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6`.
+The `agent-assure-delivery-forecast-estimation-catalog/1` digest is
+`sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439`.
+The pending generation-2 authoring-ledger digest is
+`sha256:c65573f5b9045c08b926e739c1e4491fc038bc203df80454697a23c36d4d9fbf`,
+and the pending forecast record digest is
+`sha256:66d1e5a2b29f0405bbd4ef0c10c74d17c7930fd5c7f93a9140b0abc0438d0220`.
+Ledger and forecast records use format generation `/2`; the external planning
+contract remains `delivery-forecast/v1`.
+
+This block is an enforced handoff, not a claim that the pending proposal has
+already been accepted. After the human imports, both lines must be updated to
+the exact installed statuses and digests; generation-2 receipt planning fails
+until this block and the governance README agree with those files.
+
+<!-- agent-assure:forecast-v2-final:start -->
+- Generation-2 authoring ledger status: `human_decisions_imported`; digest: `sha256:825e811fa5a0dc841e8f8a316b4fb5be1183dc5793bce90506928237ad7020ca`.
+- Generation-2 delivery forecast status: `accepted`; digest: `sha256:61858dd4aaa04ee6dc202fba8384a2b264e9374e24eed7c7936793e331068b5b`.
+<!-- agent-assure:forecast-v2-final:end -->
+
+For a shared latent severity rank, occurrence efforts are comonotonic (full
+positive rank dependence), so the sum's modeled P50 and P90 are the sums of
+occurrence P50s and P90s. Reviewer effort is also additive. The model gives no
+diversification credit. It is not a distribution-free upper bound, confidence
+interval, or calendar forecast. It makes
 the dependence assumption explicit and avoids unsupported Monte Carlo or
 copula precision from only two input quantiles.
 
-The authoring ledger is cryptographically bound to the baseline-observations
-digest and inventory-completion time. Its issue time cannot predate that
-inventory, and a confirmation cannot predate the inventory or postdate the
-ledger issue. Forecast, kickoff, completion, and bundle validity intervals are
-half-open and cannot exceed 30 days. Each forecast row preserves its earliest
-actual row/occurrence confirmation time (or the ledger issue time while wholly
-pending), and forecast expiry cannot exceed 30 days after the oldest such row
-time. A fresh wrapper therefore cannot renew stale estimate decisions. The
-initially checked-in forecast and ledger are proposals. Their estimates,
-assumptions, trusted-time basis, and
-unsigned envelopes have no acceptance effect. Windows Time attestation was
-unavailable (`w32tm` service not started), so S1 uses maintainer-trusted host
-UTC only if the maintainer explicitly accepts that development-governance time
-basis.
+The generation-2 authoring ledger is cryptographically bound to the corrective
+authorization, baseline observation, roadmap, release-train, ticket-set,
+estimation-catalog, and inventory-completion evidence. Its machine proposal has
+no human decision or confirmation time: all human-controlled fields remain null
+until the maintainer reviews one exact, ordered batch manifest itemizing all 68
+rows and all 121 occurrences. One timestamp-free SSHSIG binds every coverage,
+workload-vector, WBS, proposal, selected-value, status, and rationale field; no
+per-item review time is invented. After verified import, the estimates are
+described as human-adopted subjective planning quantiles, not empirically
+calibrated values, and unresolved file scope still requires dispatch
+rebaselining. Forecast, kickoff, completion, and bundle validity
+intervals are half-open and cannot exceed 30 days, and a fresh wrapper cannot
+renew stale decisions. The initially checked-in forecast and ledger remain
+nonbinding proposals; their estimates, assumptions, null trusted-time basis,
+and unsigned envelopes have no acceptance effect. Windows Time attestation was
+unavailable (`w32tm` service not started), so host UTC can be used only if the
+maintainer explicitly accepts that limited development-governance basis.
+
+Forecast development acceptance derives competence and conflicts from the
+exact frozen approval roster, not from key possession or generic prose. The
+receipt binds roster digest
+`sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5`,
+the `acblabs` identity, both staffed roles, all three declared competence
+scopes, all three conflict disclosures, and `NO_INDEPENDENT_REVIEW`. Both the
+schema and semantic recomputation reject a changed or incomplete binding.
 
 Every signed record uses Ed25519 OpenSSH SSHSIG with namespace
 `agent-assure-governance-v1`, SHA-512 message hashing, canonical 70-column LF
 armor, and canonical outer base64. The signed bytes are a domain-separated RFC
-8785 claim binding signer ID, role, subject digest, public-key fingerprint, and
-signature time. The repository-local public key is TOFU metadata: successful
-verification proves possession of that key, not legal identity, independence,
-or qualification.
+8785 claim binding signer ID, role, subject digest, and public-key fingerprint.
+Generation-1 envelopes also bind a signer-declared `signed_at_utc`. SSHSIG
+itself contains no trusted timestamp, so verification proves possession of the
+key and integrity of the declaration, not when the signature operation
+occurred, legal identity, independence, or qualification. Generation-2
+current-acceptance and forecast envelopes deliberately omit a signature time.
+Forecast claim-preparation start and import-verification completion are
+captured at their truthful boundaries as externally unattested host-UTC
+operational observations; import-verification start is captured as well. After
+both exact claims verify, all three observations are persisted identically in
+the producer and acceptance envelopes. Validation enforces
+`issue <= preparation <= import start <= import completion < expiry`. None is
+represented as the signature time, and the evidence explicitly remains outside
+the SSHSIG claim. The subsequent corrective closure inventory and signed
+current-acceptance attestation bind the installed forecast bytes, forming the
+durable integrity boundary for that post-signature evidence. The records state
+that SSHSIG has no timestamp capability and that no actual signature time is
+claimed.
 
 ## Seed allocation
 
@@ -359,7 +431,9 @@ proof that the downstream contracts already exist.
   initial release-bearing support is the exact lock identity.
 - A simulated probabilistic aggregate was rejected because two quantiles do
   not identify occurrence distributions or dependence. The selected model is
-  explicit, deterministic, and deliberately conservative about dependence.
+  explicit and deterministic: it assumes full positive rank dependence and
+  gives no diversification credit. No distribution-free bound interpretation
+  is claimed.
 - LLM-generated estimates and machine-prepared signature claims are not human
   decisions or signatures. The governance program has no private-key input and
   cannot sign; only the maintainer can review and externally sign a claim.
@@ -376,7 +450,8 @@ occurrence proposals, and successful structural/digest validation. This is a
 non-accepting state.
 
 Development-record acceptance is a human-only, three-phase signing ceremony
-with seven SSHSIGs. A final eighth SSHSIG attests the live closure gate. The
+with seven SSHSIGs. A final eighth SSHSIG binds the human's live-closure-gate
+declaration; it does not independently timestamp the gate or signature. The
 governance program may prepare canonical claims, verify public-key signatures,
 and install verified record batches under a process lock with a plan-bound
 recovery journal, but it never reads or uses the private key and never signs on
@@ -394,9 +469,10 @@ established. The steps are ordered:
    governance-bundle claim.
 4. At clean closure `C`, the validator performs the isolated authoritative
    remote check and prepares a current-gate attestation. The maintainer reviews
-   it and externally signs its claim within one hour; the verified signed
-   record becomes the exact message of fixed annotated tag
-   `agent-assure-s1-1.0.0a1-acceptance`.
+   it and declares a signing time within the one-hour policy window before
+   externally signing its claim; the SSHSIG does not independently prove the
+   operation time. The verified signed record becomes the exact message of the
+   fixed annotated tag `agent-assure-s1-1.0.0a1-acceptance`.
 
 `R` must be the direct, non-merge child of pinned base
 `3b060f4da94f4d0d80e7ae507580fce82ef9bf96`. Its base-to-result diff must
@@ -418,9 +494,10 @@ strict `--accept-now` checking fails unless `--fetch-authoritative-refs` and a
 new local attestation plan are supplied. That check prepares evidence but does
 not itself claim acceptance. Later historical checking requires the explicit
 full 40-hex `C` and annotated-tag object, derives commitment time from the
-embedded human SSHSIG, reads the governed records from `C`, and proves that `C`
-is the unique valid closure on the current `HEAD` lineage. A caller cannot
-replace the signed time with a convenient historical timestamp. Exact frozen,
+human's signed declaration, reads the governed records from `C`, and proves
+that `C` is the unique valid closure on the current `HEAD` lineage. A caller
+cannot replace the signed declaration with a convenient historical timestamp,
+but this is not independent timestamping. Exact frozen,
 absolute launcher, interpreter, and tool identities, isolated launcher ceremony
 commands, claim names, tag construction, and staging pathspecs are specified in
 the governance README.
@@ -437,7 +514,62 @@ the three nonauthorizing qualification-plan limitations in
 During pre-acceptance preparation, the machine-authored S1 proposal was
 implemented and structurally testable while every accountable human approval
 and signature remained pending. That preparation-state statement is historical
-and does not attempt to mirror mutable status. Acceptance exists only if the
-signed records, exact `R`/`C` Git scopes, and signed fixed-tag attestation pass
-the historical strict validator. A pending draft authorizes no production
-feature edit or S2 commitment.
+and does not attempt to mirror mutable status. Generation-1 acceptance could be
+evaluated only if the signed records, exact `R`/`C` Git scopes, and signed
+fixed-tag attestation passed the historical strict validator; the corrective
+section below now governs current status. A pending draft authorizes no
+production feature edit or S2 commitment.
+
+## Corrective generation
+
+An acceptance audit found that generation 1 was not a suitable current basis
+for S2: every forecast occurrence retained a stale roadmap prior, and the
+closure also lacked sufficiently explicit time-evidence, verifier-bootstrap,
+long-path diagnostic, and post-amendment verification controls. This does not
+rewrite the original evidence. Result `R1`
+`038b1a8c80fc419106eecd43f4a70b14ba026106`, closure `C1`
+`6165bc6436aada6cbeb4fc4119eafa9b5dfdb000`, tag object
+`1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb`, and tag
+`agent-assure-s1-1.0.0a1-acceptance` remain immutable historical objects.
+
+The corrective kickoff claim with digest
+`sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60`
+was imported and verified before the corrective branch was created and before
+tracked corrective edits began. It prospectively authorizes only the bounded
+engineering scope; it is not a retrospective authorization or a substitute for
+the later per-estimate decisions, completion conclusions, or signatures.
+
+The only current successor topology is linear: `C1 -> R2 -> C2`. `R2` is a
+direct, non-merge corrective result; `C2` is its direct, non-merge signed
+closure. The generation-2 fixed tag is
+`agent-assure-s1-1.0.0a1-acceptance-v2`, and its message uses
+`agent-assure-s1-current-acceptance-attestation/2`. Generation 2 requires all
+68 ticket rows and all 121 ordered occurrences to be re-estimated after
+inventory from obligation-covering work breakdowns rather than mechanically
+reconfirming stale priors.
+
+The generation-2 attestation signs a finalization deadline equal to the earlier
+of gate completion plus one hour and bundle expiry. Before first publication,
+and again before reporting idempotent reuse, the finalizer requires host now to
+remain inside that half-open window and revalidates the live signed records,
+exact clean `C2` topology, and pinned local refs. This is a bounded validator
+freshness rule, not an SSHSIG signing-time claim; OpenSSH provides no such
+timestamp.
+
+The historical `101 passed` unit-test observations in the ticket reports remain
+truthful records of their original run, not evidence that `R2` passed. The
+replacement BOOT completion receipt binds a fresh post-amendment run to exact
+`R2`, including command, host-unattested start/completion observations, outcome
+counts, exit code, and observation basis. Windows CI additionally exercises
+governance units, long-path blob reads, and synthetic-roadmap historical
+validation without receiving the private roadmap. Hosted CI is not evidence of
+the accepted maintainer host or its clock.
+
+Historical verification of generation 2 uses a clean detached worktree at
+`C2`. An external PowerShell precheck compares the launcher and validator file
+hashes with the v2 attestation-bound values before executing either, and the
+validator then checks its executing file and launcher bytes against the regular
+Git blobs at `C2`. A program's self-reported hash and its Python `main()` import
+guard are consistency and misuse controls, not a security boundary or trust
+root. S2 remains prohibited until the replacement signatures, `C2`, fixed v2
+tag object, and this generation-aware historical validation all succeed.

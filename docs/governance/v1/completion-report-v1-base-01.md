@@ -24,6 +24,12 @@ mutable acceptance status: only the signed completion receipt, signed bundle,
 exact closure commit `C`, and verified signed fixed-tag attestation can
 establish an eventual accepted state.
 
+Corrective note: the generation-1 report remains evidence of what was prepared
+and run at that time; it is not the current S2 acceptance basis. Generation 2
+re-estimates all 68 rows and 121 occurrences after inventory and binds the
+replacement evidence through the linear successor `C1 -> R2 -> C2` and fixed
+tag `agent-assure-s1-1.0.0a1-acceptance-v2`.
+
 ## Prepared evidence
 
 The initial stage delivers a machine-validated inventory and forecast proposal:
@@ -59,8 +65,11 @@ The initial stage delivers a machine-validated inventory and forecast proposal:
   registry digest
   `sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3`.
   Portfolio proposals total 5,480 P50 effort hours, 9,008 P90 effort hours,
-  and 2,056 P50 reviewer hours. These are additive effort quantiles under the
-  declared shared-rank model, not calendar promises or confidence bounds.
+  and 2,056 P50 reviewer hours. These are additive effort quantiles under full
+  positive rank dependence (comonotonicity), with no diversification credit.
+  They are not calendar promises, confidence bounds, or distribution-free
+  upper bounds. These generation-1 values were derived from stale priors and
+  are not valid inputs to S2 planning.
 - Semantic seeds `AUTH-003`, `TEMP-006`, `TRUST-001`, `STAT-010`, `IO-001`,
   `GOV-011`, and `GOV-012` are allocated to exact downstream conversion owners;
   no production fixture is claimed at S1.
@@ -115,6 +124,13 @@ Working directory: repository root on Windows; Python `3.12.13` in `.venv`.
   command limit; exit 124. The runner emitted no buffered failure summary, and
   no full-suite or aggregate `make` pass is claimed.
 
+The `101 passed` count above is the exact historical generation-1 result. It
+does not cover the corrective code at `R2` and must not be presented as a
+post-amendment result. Generation-2 closure requires a fresh run against exact
+`R2`; its command, subject commit, host-unattested start/completion observations,
+collected/passed/skipped/failed counts, exit code, and observation basis are
+recorded in the replacement BOOT completion receipt and bound by the bundle.
+
 ## Verification and limitations
 
 The preparation-time focused suite covers strict JSON and RFC 8785, digest
@@ -141,6 +157,11 @@ unavailable, and the recorded full repository test run timed out. Permanent
 scope limitation: S1 does not qualify LangGraph, Google ADK, a statistical
 method, a profile, or a release.
 
+Generation-1 `signed_at_utc` values are signer-declared, host-unattested times;
+SSHSIG proves claim integrity and key possession but supplies no timestamp. The
+generation-2 current-acceptance envelope therefore claims no actual signature
+time.
+
 ## Acceptance receipt
 
 Purpose: `development_design_acceptance`. The initial proposal names `acblabs`
@@ -151,9 +172,10 @@ base/result commits, competence/conflicts, validity interval, and allowed
 operations. The governance tool prepares claims and verifies externally
 created signatures; it cannot access a private key or sign for the human.
 
-`R` must have exactly the 29-path net scope enumerated in the governance README.
-Direct-child closure `C` must have exactly the two signed completion receipts
-and `governance-bundle.json`. Pending status or signature is non-accepting. A valid
-development receipt plus strict `R`/`C` and signed-tag validation may permit use
-of the map and accepted forecast for S2 planning; neither can substitute for
-independent qualification, method admission, or release authorization.
+The generation-1 `R` had exactly the 29-path net scope enumerated in the
+governance README, and its direct-child `C` contained the two signed completion
+receipts and `governance-bundle.json`. Those immutable objects remain
+historical. Only replacement evidence plus strict generation-2 `R2`/`C2` and
+v2 signed-tag validation may permit use of the corrected map and forecast for
+S2 planning; none can substitute for independent qualification, method
+admission, or release authorization.

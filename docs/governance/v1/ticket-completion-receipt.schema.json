@@ -1,14 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://acblabs.github.io/agent-assure/governance/v1/ticket-completion-receipt.schema.json",
-  "title": "Agent Assure S1 ticket completion receipt",
+  "title": "Agent Assure S1 corrective ticket completion receipt",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "format",
     "spec_revision",
+    "acceptance_generation",
     "receipt_purpose",
     "receipt_status",
+    "replacement_for",
+    "corrective_authorization_claim_digest",
+    "corrective_authorization",
     "subject_ticket_id",
     "subject_dispatch_kind",
     "subject_stage",
@@ -16,36 +20,49 @@
     "subject_report",
     "reviewed_artifacts",
     "reviewed_artifact_set_digest",
+    "review_evidence",
     "approval_roster_digest",
-    "kickoff_authorization_digest",
-    "base_commit",
-    "result_commit",
+    "forecast_evidence",
+    "change_control",
+    "post_result_verification",
     "issuer_person_id",
     "issuer_role",
     "owner_role",
+    "reviewer_role",
+    "issuer_competence_scopes",
+    "issuer_conflicts",
+    "issuer_mode",
     "approval_mode",
     "author_reviewer_relationship",
     "independence_claimed",
+    "independence_basis",
     "authorization_effect",
-    "accepted_competence",
-    "conflicts",
-    "issued_at_utc",
-    "valid_until_utc",
+    "time_evidence",
+    "claim_prepared_at_utc",
+    "validity_context",
     "allowed_operations",
+    "exclusions",
     "limitations",
     "receipt_digest",
-    "signature_envelope"
+    "signature_envelope",
+    "signature_import_evidence"
   ],
   "properties": {
-    "format": { "const": "agent-assure-ticket-completion-receipt/1" },
+    "format": { "const": "agent-assure-ticket-completion-receipt/2" },
     "spec_revision": { "const": "6.5" },
+    "acceptance_generation": { "const": 2 },
     "receipt_purpose": { "const": "development_design_acceptance" },
     "receipt_status": {
       "enum": ["pending_human_acceptance", "accepted_for_development"]
     },
-    "subject_ticket_id": { "enum": ["V1-BOOT-01", "V1-BASE-01"] },
-    "subject_dispatch_kind": { "enum": ["kickoff", "inventory"] },
-    "subject_stage": { "const": "S1-governed-baseline" },
+    "replacement_for": { "$ref": "#/$defs/replacement" },
+    "corrective_authorization_claim_digest": {
+      "const": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+    },
+    "corrective_authorization": { "$ref": "#/$defs/correctiveAuthorization" },
+    "subject_ticket_id": { "enum": ["V1-BASE-01", "V1-BOOT-01"] },
+    "subject_dispatch_kind": { "enum": ["inventory", "kickoff"] },
+    "subject_stage": { "const": "S1-governed-baseline-corrective-generation-2" },
     "subject_roadmap_digest": { "$ref": "#/$defs/digest" },
     "subject_report": { "$ref": "#/$defs/artifact" },
     "reviewed_artifacts": {
@@ -55,38 +72,93 @@
       "items": { "$ref": "#/$defs/artifact" }
     },
     "reviewed_artifact_set_digest": { "$ref": "#/$defs/digest" },
+    "review_evidence": { "$ref": "#/$defs/reviewEvidence" },
     "approval_roster_digest": { "$ref": "#/$defs/digest" },
-    "kickoff_authorization_digest": { "$ref": "#/$defs/digest" },
-    "base_commit": { "$ref": "#/$defs/gitCommit" },
-    "result_commit": {
-      "oneOf": [{ "$ref": "#/$defs/gitCommit" }, { "type": "null" }]
+    "forecast_evidence": { "$ref": "#/$defs/forecastEvidence" },
+    "change_control": { "$ref": "#/$defs/changeControl" },
+    "post_result_verification": {
+      "oneOf": [{ "$ref": "#/$defs/postR2Evidence" }, { "type": "null" }]
     },
     "issuer_person_id": { "$ref": "#/$defs/id" },
     "issuer_role": { "const": "repository_maintainer" },
     "owner_role": { "const": "technical_lead" },
+    "reviewer_role": { "const": "repository_maintainer" },
+    "issuer_competence_scopes": { "$ref": "#/$defs/stringSet" },
+    "issuer_conflicts": { "$ref": "#/$defs/stringSet" },
+    "issuer_mode": { "const": "maintainer_development" },
     "approval_mode": { "const": "maintainer_development" },
     "author_reviewer_relationship": {
       "const": "same_person_maintainer_development_self_acceptance"
     },
     "independence_claimed": { "const": false },
+    "independence_basis": {
+      "const": "same_person_maintainer_development_self_acceptance_with_recorded_conflicts"
+    },
     "authorization_effect": { "const": "none" },
-    "accepted_competence": { "$ref": "#/$defs/stringSet" },
-    "conflicts": { "$ref": "#/$defs/stringSet" },
-    "issued_at_utc": { "$ref": "#/$defs/utc" },
-    "valid_until_utc": { "$ref": "#/$defs/utc" },
+    "time_evidence": { "$ref": "#/$defs/timeEvidence" },
+    "claim_prepared_at_utc": { "$ref": "#/$defs/utc" },
+    "validity_context": {
+      "const": {
+        "kind": "bounded_by_generation_2_governance_bundle",
+        "standalone_currentness_claimed": false,
+        "current_acceptance_requires_current_bundle": true
+      }
+    },
     "allowed_operations": { "$ref": "#/$defs/stringSet" },
-    "limitations": { "$ref": "#/$defs/stringSet" },
+    "exclusions": {
+      "const": [
+        "independent_review",
+        "method_admission",
+        "qualification",
+        "pilot_authorization",
+        "release_authorization",
+        "deployment_authorization",
+        "runtime_authorization"
+      ]
+    },
+    "limitations": {
+      "const": [
+        "NO_INDEPENDENT_REVIEW",
+        "SSHSIG contains no signing timestamp; no actual signing time is claimed.",
+        "No method admission, qualification, pilot, release, deployment, or runtime authorization is granted."
+      ]
+    },
     "receipt_digest": { "$ref": "#/$defs/digest" },
-    "signature_envelope": { "$ref": "#/$defs/signature" }
+    "signature_envelope": { "$ref": "#/$defs/signature" },
+    "signature_import_evidence": { "$ref": "#/$defs/signatureImportEvidence" }
   },
   "allOf": [
     {
       "if": {
-        "properties": { "receipt_status": { "const": "accepted_for_development" } },
-        "required": ["receipt_status"]
+        "properties": { "subject_ticket_id": { "const": "V1-BASE-01" } },
+        "required": ["subject_ticket_id"]
       },
-      "then": { "properties": { "result_commit": { "$ref": "#/$defs/gitCommit" } } },
-      "else": { "properties": { "result_commit": { "type": "null" } } }
+      "then": {
+        "properties": {
+          "subject_dispatch_kind": { "const": "inventory" },
+          "post_result_verification": { "type": "null" },
+          "replacement_for": {
+            "properties": {
+              "receipt_digest": {
+                "const": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e"
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "subject_dispatch_kind": { "const": "kickoff" },
+          "post_result_verification": { "$ref": "#/$defs/postR2Evidence" },
+          "replacement_for": {
+            "properties": {
+              "receipt_digest": {
+                "const": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a"
+              }
+            }
+          }
+        }
+      }
     },
     {
       "if": {
@@ -97,6 +169,9 @@
         "properties": {
           "signature_envelope": {
             "properties": { "status": { "const": "signed" } }
+          },
+          "signature_import_evidence": {
+            "properties": { "status": { "const": "verified_after_import" } }
           }
         }
       },
@@ -104,6 +179,9 @@
         "properties": {
           "signature_envelope": {
             "properties": { "status": { "const": "pending_human_signature" } }
+          },
+          "signature_import_evidence": {
+            "properties": { "status": { "const": "pending_signature_import" } }
           }
         }
       }
@@ -113,7 +191,7 @@
     "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
     "gitCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "id": { "type": "string", "minLength": 1, "maxLength": 128 },
-    "nonempty": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 4096 },
     "utc": {
       "type": "string",
       "format": "date-time",
@@ -126,20 +204,644 @@
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/nonempty" }
     },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+    },
     "artifact": {
       "type": "object",
       "additionalProperties": false,
       "required": ["path", "kind", "size_bytes", "sha256"],
       "properties": {
-        "path": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 512,
-          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
-        },
+        "path": { "$ref": "#/$defs/path" },
         "kind": { "$ref": "#/$defs/id" },
         "size_bytes": { "type": "integer", "minimum": 0, "maximum": 16777216 },
         "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "changeArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "kind", "change_status", "size_bytes", "sha256"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "kind": { "$ref": "#/$defs/id" },
+        "change_status": { "enum": ["A", "M"] },
+        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 16777216 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "replacement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_generation",
+        "receipt_format",
+        "receipt_digest",
+        "closure_commit",
+        "disposition",
+        "nonconformance"
+      ],
+      "properties": {
+        "acceptance_generation": { "const": 1 },
+        "receipt_format": { "const": "agent-assure-ticket-completion-receipt/1" },
+        "receipt_digest": { "$ref": "#/$defs/digest" },
+        "closure_commit": { "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000" },
+        "disposition": { "const": "superseded_nonconforming" },
+        "nonconformance": { "const": "generation_1_forecast_and_provenance_findings" }
+      }
+    },
+    "correctiveAuthorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_digest",
+        "authorization_status",
+        "authorization_kind",
+        "authorization_effect",
+        "authorized_person_id",
+        "authorized_role"
+      ],
+      "properties": {
+        "claim_digest": {
+          "const": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+        },
+        "authorization_status": { "const": "authorized" },
+        "authorization_kind": { "const": "prospective_corrective_implementation" },
+        "authorization_effect": { "const": "corrective_s1_development_governance_only" },
+        "authorized_person_id": { "$ref": "#/$defs/id" },
+        "authorized_role": { "const": "repository_maintainer" }
+      }
+    },
+    "reviewEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_method",
+        "llm_implementation_handoff_disclosed",
+        "subject_report_sha256",
+        "reviewed_artifact_set_digest",
+        "result_artifact_set_digest",
+        "post_r2_suite_evidence_digest"
+      ],
+      "properties": {
+        "review_method": { "const": "accountable_human_maintainer_self_acceptance" },
+        "llm_implementation_handoff_disclosed": { "const": true },
+        "subject_report_sha256": { "$ref": "#/$defs/digest" },
+        "reviewed_artifact_set_digest": { "$ref": "#/$defs/digest" },
+        "result_artifact_set_digest": { "$ref": "#/$defs/digest" },
+        "post_r2_suite_evidence_digest": {
+          "oneOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }]
+        }
+      }
+    },
+    "forecastEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "forecast_format",
+        "forecast_status",
+        "human_review_status",
+        "forecast_record_digest",
+        "estimation_catalog_digest",
+        "aggregation_method_registry_digest",
+        "authoring_ledger_digest",
+        "forecast_acceptance_status",
+        "forecast_acceptance_receipt_digest"
+      ],
+      "properties": {
+        "forecast_format": { "const": "agent-assure-delivery-forecast/2" },
+        "forecast_status": { "$ref": "#/$defs/id" },
+        "human_review_status": { "$ref": "#/$defs/id" },
+        "forecast_record_digest": { "$ref": "#/$defs/digest" },
+        "estimation_catalog_digest": { "$ref": "#/$defs/digest" },
+        "aggregation_method_registry_digest": { "$ref": "#/$defs/digest" },
+        "authoring_ledger_digest": { "$ref": "#/$defs/digest" },
+        "forecast_acceptance_status": { "$ref": "#/$defs/id" },
+        "forecast_acceptance_receipt_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "changeControl": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "result_parent_commit",
+        "result_commit",
+        "authorized_change_paths",
+        "authorized_change_paths_digest",
+        "result_artifact_inventory",
+        "result_artifact_set_digest"
+      ],
+      "properties": {
+        "result_parent_commit": { "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000" },
+        "result_commit": { "$ref": "#/$defs/gitCommit" },
+        "authorized_change_paths": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/path" }
+        },
+        "authorized_change_paths_digest": { "$ref": "#/$defs/digest" },
+        "result_artifact_inventory": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 128,
+          "items": { "$ref": "#/$defs/changeArtifact" }
+        },
+        "result_artifact_set_digest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "timeEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clock_basis", "sshsig_timestamp_capability", "actual_signature_time_claimed"],
+      "properties": {
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "sshsig_timestamp_capability": { "const": "none" },
+        "actual_signature_time_claimed": { "const": false }
+      }
+    },
+    "repositoryState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "head_commit",
+        "clean",
+        "status_command",
+        "status_stdout_size_bytes",
+        "status_stdout_sha256"
+      ],
+      "properties": {
+        "head_commit": { "$ref": "#/$defs/gitCommit" },
+        "clean": { "const": true },
+        "status_command": {
+          "const": ["git", "status", "--porcelain=v1", "--untracked-files=all"]
+        },
+        "status_stdout_size_bytes": { "const": 0 },
+        "status_stdout_sha256": {
+          "const": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        }
+      }
+    },
+    "streamEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["file_name", "size_bytes", "sha256"],
+      "properties": {
+        "file_name": { "enum": ["pytest.stdout.bin", "pytest.stderr.bin"] },
+        "size_bytes": { "type": "integer", "minimum": 0, "maximum": 268435456 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "postR2Evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "acceptance_generation",
+        "subject_result_parent_commit",
+        "subject_result_commit",
+        "corrective_authorization_claim_digest",
+        "governance_sources",
+        "repository_test_surface",
+        "command",
+        "time_evidence",
+        "repository_precondition",
+        "repository_postcondition",
+        "execution",
+        "evidence_digest"
+      ],
+      "properties": {
+        "format": { "const": "agent-assure-s1-post-r2-suite-evidence/3" },
+        "acceptance_generation": { "const": 2 },
+        "subject_result_parent_commit": {
+          "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+        },
+        "subject_result_commit": { "$ref": "#/$defs/gitCommit" },
+        "corrective_authorization_claim_digest": {
+          "const": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+        },
+        "governance_sources": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "size_bytes", "sha256"],
+            "properties": {
+              "path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+              "size_bytes": { "type": "integer", "minimum": 1, "maximum": 268435456 },
+              "sha256": { "$ref": "#/$defs/digest" }
+            }
+          }
+        },
+        "repository_test_surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "subject_result_commit",
+            "directory_roots",
+            "tracked_root_files",
+            "root_config_paths",
+            "cache_policy",
+            "local_exclude",
+            "file_count",
+            "size_bytes",
+            "sha256"
+          ],
+          "properties": {
+            "format": { "const": "agent-assure-s1-post-r2-test-surface/1" },
+            "subject_result_commit": { "$ref": "#/$defs/gitCommit" },
+            "directory_roots": {
+              "const": [".githooks", ".github", "compat", "docs", "evidence", "examples", "mappings", "paper", "schemas", "scripts", "src", "tests", "third_party"]
+            },
+            "tracked_root_files": {
+              "const": [".dockerignore", ".gitattributes", ".gitignore", ".gitleaks.toml", ".gitleaksignore", "CHANGELOG.md", "CITATION.cff", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", "FEATURES.md", "LICENSE", "Makefile", "README.md", "SECURITY.md", "THIRD_PARTY_NOTICES.md", "mkdocs.yml", "pyproject.toml", "requirements-adk.lock", "requirements-langgraph.lock", "requirements-min.constraints.txt", "requirements-min.lock", "requirements-otel.lock", "requirements.lock"]
+            },
+            "root_config_paths": {
+              "const": [".coveragerc", "conftest.py", "mkdocs.yml", "pyproject.toml", "pytest.ini", "pytest.toml", "setup.cfg", "sitecustomize.py", "tox.ini", "usercustomize.py"]
+            },
+            "cache_policy": {
+              "const": {
+                "excluded_directory_name": "__pycache__",
+                "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
+                "forbidden_direct_file_suffixes": [".pyc", ".pyo"]
+              }
+            },
+            "local_exclude": {
+              "const": {
+                "path": ".git/info/exclude",
+                "size_bytes": 2368,
+                "sha256": "sha256:7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"
+              }
+            },
+            "file_count": { "type": "integer", "minimum": 1 },
+            "size_bytes": { "type": "integer", "minimum": 1 },
+            "sha256": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "command": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "argv",
+            "working_directory",
+            "environment",
+            "python_executable",
+            "descendant_runtime",
+            "bootstrap_input",
+            "bytecode_policy",
+            "test_runtime"
+          ],
+          "properties": {
+            "argv": {
+              "type": "array",
+              "minItems": 29,
+              "maxItems": 29,
+              "items": { "type": "string", "minLength": 1, "maxLength": 65536 }
+            },
+            "working_directory": { "type": "string", "minLength": 1, "maxLength": 4096 },
+            "environment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "COMSPEC",
+                "GIT_CONFIG_COUNT",
+                "GIT_CONFIG_GLOBAL",
+                "GIT_CONFIG_KEY_0",
+                "GIT_CONFIG_KEY_1",
+                "GIT_CONFIG_NOSYSTEM",
+                "GIT_CONFIG_VALUE_0",
+                "GIT_CONFIG_VALUE_1",
+                "GIT_TERMINAL_PROMPT",
+                "HOME",
+                "HOMEDRIVE",
+                "HOMEPATH",
+                "HYPOTHESIS_STORAGE_DIRECTORY",
+                "NO_COLOR",
+                "NoDefaultCurrentDirectoryInExePath",
+                "PATH",
+                "PATHEXT",
+                "PROCESSOR_ARCHITECTURE",
+                "PYTHONNOUSERSITE",
+                "PYTHONPYCACHEPREFIX",
+                "PYTHONSAFEPATH",
+                "PYTHONDONTWRITEBYTECODE",
+                "PYTHONUTF8",
+                "PY_COLORS",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD",
+                "SYSTEMROOT",
+                "TEMP",
+                "TMP",
+                "USERPROFILE",
+                "WINDIR"
+              ],
+              "properties": {
+                "COMSPEC": { "const": "C:\\Windows\\System32\\cmd.exe" },
+                "GIT_CONFIG_COUNT": { "const": "2" },
+                "GIT_CONFIG_GLOBAL": { "const": "NUL" },
+                "GIT_CONFIG_KEY_0": { "const": "core.autocrlf" },
+                "GIT_CONFIG_KEY_1": { "const": "safe.directory" },
+                "GIT_CONFIG_NOSYSTEM": { "const": "1" },
+                "GIT_CONFIG_VALUE_0": { "const": "true" },
+                "GIT_CONFIG_VALUE_1": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "GIT_TERMINAL_PROMPT": { "const": "0" },
+                "HOME": { "const": "C:\\Users\\user" },
+                "HOMEDRIVE": { "const": "C:" },
+                "HOMEPATH": { "const": "\\Users\\user" },
+                "HYPOTHESIS_STORAGE_DIRECTORY": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "NO_COLOR": { "const": "1" },
+                "NoDefaultCurrentDirectoryInExePath": { "const": "1" },
+                "PATH": { "type": "string", "minLength": 1, "maxLength": 32768 },
+                "PATHEXT": { "const": ".COM;.EXE;.BAT;.CMD" },
+                "PROCESSOR_ARCHITECTURE": { "const": "AMD64" },
+                "PYTHONNOUSERSITE": { "const": "1" },
+                "PYTHONPYCACHEPREFIX": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "PYTHONSAFEPATH": { "const": "1" },
+                "PYTHONDONTWRITEBYTECODE": { "const": "1" },
+                "PYTHONUTF8": { "const": "1" },
+                "PY_COLORS": { "const": "0" },
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": { "const": "1" },
+                "SYSTEMROOT": { "const": "C:\\Windows" },
+                "TEMP": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "TMP": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "USERPROFILE": { "const": "C:\\Users\\user" },
+                "WINDIR": { "const": "C:\\Windows" }
+              }
+            },
+            "python_executable": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["absolute_path", "size_bytes", "sha256"],
+              "properties": {
+                "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+                "sha256": { "$ref": "#/$defs/digest" }
+              }
+            },
+            "descendant_runtime": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "format",
+                "root",
+                "derivation",
+                "tree_policy",
+                "python_executable",
+                "pyvenv_configuration",
+                "authenticated_paths",
+                "startup_guard"
+              ],
+              "properties": {
+                "format": { "const": "agent-assure-s1-post-r2-descendant-runtime/1" },
+                "root": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "derivation": { "const": "fresh_exact_files_from_authenticated_base_and_test_runtime" },
+                "tree_policy": { "const": "exact_regular_files_no_reparse_points" },
+                "python_executable": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["absolute_path", "relative_path", "size_bytes", "sha256"],
+                  "properties": {
+                    "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "relative_path": { "const": "Scripts/python.exe" },
+                    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1073741824 },
+                    "sha256": { "$ref": "#/$defs/digest" }
+                  }
+                },
+                "pyvenv_configuration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["absolute_path", "relative_path", "size_bytes", "sha256"],
+                  "properties": {
+                    "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "relative_path": { "const": "pyvenv.cfg" },
+                    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+                    "sha256": { "$ref": "#/$defs/digest" }
+                  }
+                },
+                "authenticated_paths": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["absolute_path", "relative_path", "size_bytes", "sha256"],
+                  "properties": {
+                    "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "relative_path": { "const": "Lib/site-packages/00_agent_assure_s1_paths.pth" },
+                    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+                    "sha256": { "$ref": "#/$defs/digest" }
+                  }
+                },
+                "startup_guard": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["absolute_path", "relative_path", "size_bytes", "sha256"],
+                  "properties": {
+                    "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "relative_path": { "const": "Lib/site-packages/sitecustomize.py" },
+                    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+                    "sha256": { "$ref": "#/$defs/digest" }
+                  }
+                }
+              }
+            },
+            "bootstrap_input": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["transport", "size_bytes", "sha256"],
+              "properties": {
+                "transport": { "const": "python_stdin_utf8" },
+                "size_bytes": { "type": "integer", "minimum": 1 },
+                "sha256": { "$ref": "#/$defs/digest" }
+              }
+            },
+            "bytecode_policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "basetemp",
+                "basetemp_precondition",
+                "pycache_prefix",
+                "pycache_prefix_precondition",
+                "main_process_write_policy",
+                "descendant_read_policy",
+                "descendant_write_policy",
+                "descendant_guard_bypass_policy",
+                "pycache_prefix_postcondition",
+                "repository_cache_policy",
+                "repository_direct_bytecode_policy",
+                "site_packages_cache_policy",
+                "site_packages_direct_bytecode_policy"
+              ],
+              "properties": {
+                "basetemp": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "basetemp_precondition": { "const": "fresh_unique_and_absent_immediately_before_spawn" },
+                "pycache_prefix": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                "pycache_prefix_precondition": { "const": "absent_immediately_before_spawn" },
+                "main_process_write_policy": { "const": "disabled_by_-B" },
+                "descendant_read_policy": { "const": "explicit_fresh_prefix_injected_at_recursive_Popen_boundary" },
+                "descendant_write_policy": { "const": "explicit_-B_injected_at_recursive_Popen_boundary" },
+                "descendant_guard_bypass_policy": { "const": "sitecustomize_fails_closed_without_exact_cli_policy" },
+                "pycache_prefix_postcondition": { "const": "absent_after_suite_execution" },
+                "repository_cache_policy": { "const": "source_adjacent___pycache___ignored_via_fresh_prefix" },
+                "repository_direct_bytecode_policy": { "const": "reject_pyc_and_pyo" },
+                "site_packages_cache_policy": { "const": "excluded_inert___pycache___only" },
+                "site_packages_direct_bytecode_policy": { "const": "reject_pyc_and_pyo" }
+              }
+            },
+            "test_runtime": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "format",
+                "pyvenv_configuration",
+                "site_packages_inventory",
+                "base_runtime"
+              ],
+              "properties": {
+                "format": { "const": "agent-assure-s1-post-r2-test-runtime/2" },
+                "pyvenv_configuration": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["absolute_path", "relative_path", "size_bytes", "sha256"],
+                  "properties": {
+                    "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "relative_path": { "const": ".venv/pyvenv.cfg" },
+                    "size_bytes": { "type": "integer", "minimum": 1, "maximum": 1048576 },
+                    "sha256": { "$ref": "#/$defs/digest" }
+                  }
+                },
+                "site_packages_inventory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "format",
+                    "relative_root",
+                    "exclusion_policy",
+                    "file_count",
+                    "size_bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "format": {
+                      "const": "agent-assure-s1-post-r2-test-runtime-inventory/1"
+                    },
+                    "relative_root": { "const": ".venv/Lib/site-packages" },
+                    "exclusion_policy": {
+                      "const": {
+                        "directory_names": ["__pycache__"],
+                        "forbidden_direct_file_suffixes": [".pyc", ".pyo"],
+                        "reason": "cache_directories_inert_under_fresh_pycache_prefix"
+                      }
+                    },
+                    "file_count": { "const": 5473 },
+                    "size_bytes": { "const": 92718636 },
+                    "sha256": { "const": "sha256:a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c" }
+                  }
+                },
+                "base_runtime": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["root", "python_executable", "python_dll", "inventory"],
+                  "properties": {
+                    "root": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                    "python_executable": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["absolute_path", "size_bytes", "sha256"],
+                      "properties": {
+                        "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                        "size_bytes": { "type": "integer", "minimum": 1 },
+                        "sha256": { "$ref": "#/$defs/digest" }
+                      }
+                    },
+                    "python_dll": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["absolute_path", "size_bytes", "sha256"],
+                      "properties": {
+                        "absolute_path": { "type": "string", "minLength": 1, "maxLength": 4096 },
+                        "size_bytes": { "type": "integer", "minimum": 1 },
+                        "sha256": { "$ref": "#/$defs/digest" }
+                      }
+                    },
+                    "inventory": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["file_count", "size_bytes", "sha256"],
+                      "properties": {
+                        "file_count": { "type": "integer", "minimum": 1 },
+                        "size_bytes": { "type": "integer", "minimum": 1 },
+                        "sha256": { "$ref": "#/$defs/digest" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "time_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "clock_basis",
+            "sshsig_timestamp_capability",
+            "actual_signature_time_claimed",
+            "started_at_utc",
+            "completed_at_utc"
+          ],
+          "properties": {
+            "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+            "sshsig_timestamp_capability": { "const": "none" },
+            "actual_signature_time_claimed": { "const": false },
+            "started_at_utc": { "$ref": "#/$defs/utc" },
+            "completed_at_utc": { "$ref": "#/$defs/utc" }
+          }
+        },
+        "repository_precondition": { "$ref": "#/$defs/repositoryState" },
+        "repository_postcondition": { "$ref": "#/$defs/repositoryState" },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["exit_code", "outcome", "pytest_totals", "stdout", "stderr"],
+          "properties": {
+            "exit_code": { "type": "integer", "minimum": 0, "maximum": 255 },
+            "outcome": {
+              "enum": ["passed", "failed", "interrupted", "internal_error", "usage_error", "no_tests_collected", "unexpected_exit"]
+            },
+            "pytest_totals": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"],
+              "properties": {
+                "collected": { "type": "integer", "minimum": 1 },
+                "passed": { "type": "integer", "minimum": 0 },
+                "failed": { "type": "integer", "minimum": 0 },
+                "skipped": { "type": "integer", "minimum": 0 },
+                "xfailed": { "type": "integer", "minimum": 0 },
+                "xpassed": { "type": "integer", "minimum": 0 },
+                "errors": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "stdout": {
+              "allOf": [
+                { "$ref": "#/$defs/streamEvidence" },
+                { "properties": { "file_name": { "const": "pytest.stdout.bin" } } }
+              ]
+            },
+            "stderr": {
+              "allOf": [
+                { "$ref": "#/$defs/streamEvidence" },
+                { "properties": { "file_name": { "const": "pytest.stderr.bin" } } }
+              ]
+            }
+          }
+        },
+        "evidence_digest": { "$ref": "#/$defs/digest" }
       }
     },
     "signature": {
@@ -155,7 +857,6 @@
         "signer_role",
         "subject_digest",
         "public_key_fingerprint",
-        "signed_at_utc",
         "signature"
       ],
       "properties": {
@@ -163,19 +864,14 @@
         "status": { "enum": ["pending_human_signature", "signed"] },
         "namespace": { "const": "agent-assure-governance-v1" },
         "signed_payload_encoding": {
-          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v1"
+          "const": "agent-assure-domain-separated-rfc8785-signature-claim/v2"
         },
-        "signature_encoding": {
-          "const": "base64-canonical-lf-openssh-sshsig-armored"
-        },
+        "signature_encoding": { "const": "base64-canonical-lf-openssh-sshsig-armored" },
         "signer_person_id": { "$ref": "#/$defs/id" },
-        "signer_role": { "$ref": "#/$defs/id" },
+        "signer_role": { "const": "repository_maintainer" },
         "subject_digest": { "$ref": "#/$defs/digest" },
         "public_key_fingerprint": {
           "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
-        },
-        "signed_at_utc": {
-          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
         },
         "signature": {
           "type": ["string", "null"],
@@ -189,16 +885,50 @@
             "properties": { "status": { "const": "signed" } },
             "required": ["status"]
           },
+          "then": { "properties": { "signature": { "type": "string", "minLength": 1 } } },
+          "else": { "properties": { "signature": { "type": "null" } } }
+        }
+      ]
+    },
+    "signatureImportEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "verification_recorded_at_utc",
+        "clock_basis",
+        "sshsig_timestamp_capability",
+        "actual_signature_time_claimed",
+        "verification_result"
+      ],
+      "properties": {
+        "status": { "enum": ["pending_signature_import", "verified_after_import"] },
+        "verification_recorded_at_utc": {
+          "oneOf": [{ "$ref": "#/$defs/utc" }, { "type": "null" }]
+        },
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "sshsig_timestamp_capability": { "const": "none" },
+        "actual_signature_time_claimed": { "const": false },
+        "verification_result": {
+          "enum": [null, "valid_exact_payload_key_and_namespace"]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "verified_after_import" } },
+            "required": ["status"]
+          },
           "then": {
             "properties": {
-              "signed_at_utc": { "$ref": "#/$defs/utc" },
-              "signature": { "type": "string", "minLength": 1 }
+              "verification_recorded_at_utc": { "$ref": "#/$defs/utc" },
+              "verification_result": { "const": "valid_exact_payload_key_and_namespace" }
             }
           },
           "else": {
             "properties": {
-              "signed_at_utc": { "type": "null" },
-              "signature": { "type": "null" }
+              "verification_recorded_at_utc": { "type": "null" },
+              "verification_result": { "type": "null" }
             }
           }
         }

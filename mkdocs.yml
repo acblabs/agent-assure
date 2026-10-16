@@ -28,7 +28,7 @@ nav:
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
-  - V1 S1 governance baseline: governance/v1/README.md
+  - V1 S1 governance and corrective baseline: governance/v1/README.md
   - Privacy model: privacy_model.md
   - Threat model: threat_model.md
   - Security correction containment: security_release_containment.md
