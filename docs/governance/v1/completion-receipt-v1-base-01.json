@@ -1,161 +1,434 @@
 {
-  "format": "agent-assure-ticket-completion-receipt/1",
+  "format": "agent-assure-ticket-completion-receipt/2",
   "spec_revision": "6.5",
+  "acceptance_generation": 2,
   "receipt_purpose": "development_design_acceptance",
   "receipt_status": "accepted_for_development",
+  "replacement_for": {
+    "acceptance_generation": 1,
+    "receipt_format": "agent-assure-ticket-completion-receipt/1",
+    "receipt_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e",
+    "closure_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "disposition": "superseded_nonconforming",
+    "nonconformance": "generation_1_forecast_and_provenance_findings"
+  },
+  "corrective_authorization_claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+  "corrective_authorization": {
+    "claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+    "authorization_status": "authorized",
+    "authorization_kind": "prospective_corrective_implementation",
+    "authorization_effect": "corrective_s1_development_governance_only",
+    "authorized_person_id": "acblabs",
+    "authorized_role": "repository_maintainer"
+  },
   "subject_ticket_id": "V1-BASE-01",
   "subject_dispatch_kind": "inventory",
-  "subject_stage": "S1-governed-baseline",
+  "subject_stage": "S1-governed-baseline-corrective-generation-2",
   "subject_roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
   "subject_report": {
     "path": "docs/governance/v1/completion-report-v1-base-01.md",
     "kind": "completion_report",
-    "size_bytes": 9233,
-    "sha256": "sha256:e0dd2fec610dc1b80c2b4e2b6208d99a9673ede6945725e1316b636b3c2f08a7"
+    "size_bytes": 10508,
+    "sha256": "sha256:e1c341efdb70b643ed3b5636495fedc9af773ddbb32e6c7adb602cb1c99ab644"
   },
   "reviewed_artifacts": [
     {
-      "path": ".github/workflows/ci.yml",
-      "kind": "continuous_integration",
-      "size_bytes": 19043,
-      "sha256": "sha256:2204da21dde696faf3761a3e2c79a6f0a3d6f46448cafca117deac60da276ffb"
-    },
-    {
       "path": "docs/adr/0016-v1-repository-map.md",
       "kind": "decision_record",
-      "size_bytes": 26567,
-      "sha256": "sha256:8dc87704c7d818496c6538158d1ccf68e0b09f035b634a00e1862e32a5e3e959"
+      "size_bytes": 35398,
+      "sha256": "sha256:890e78f733d278cab50ee7da2669cd4e6113cd43fb0402d7d1962993019c22e8"
+    },
+    {
+      "path": "docs/governance/v1/README.md",
+      "kind": "governance_documentation",
+      "size_bytes": 66260,
+      "sha256": "sha256:f48f7fa8071dee1599d25bf9feb7276dcfe6029139d59ffb0b1c504bd9904c88"
     },
     {
       "path": "docs/governance/v1/baseline-observations.json",
       "kind": "planning_evidence",
-      "size_bytes": 7399,
-      "sha256": "sha256:23838cd87a16ee7aa34f9ac85ee7d354806dcfdfeef883075735fabf339d275a"
+      "size_bytes": 7888,
+      "sha256": "sha256:5d043a1e7e9f7734c1bfe9d55b37ba1cfb3b0a6bb7a48044b795096ef2c57985"
     },
     {
       "path": "docs/governance/v1/baseline-observations.schema.json",
       "kind": "planning_schema",
-      "size_bytes": 10195,
-      "sha256": "sha256:1ef367cdd16dbf23530cc7a64e000f0fc9c95f6415badb9a280dae16ef0b57f6"
+      "size_bytes": 11302,
+      "sha256": "sha256:2f2639c12344d84a719cb1f25c407bec074682c1fe9b25ffc3209af275dd3f8c"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
       "kind": "planning_method_registry",
-      "size_bytes": 2470,
-      "sha256": "sha256:7c89be101993caca413de465d8233b420dc5d3022cf352ea89f295cbbbc74fad"
+      "size_bytes": 3366,
+      "sha256": "sha256:687622f6edf8bedc16d0b14a3126805cccdfcd73dd563f4f5ce445c128afd454"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
       "kind": "planning_schema",
-      "size_bytes": 3784,
-      "sha256": "sha256:cc5a03f97e14e5a364a8a2368461b0563f43701d1940c727525271c275acb680"
+      "size_bytes": 5229,
+      "sha256": "sha256:fe26890f9f053be9cc2c2782af2fe50e25f1ff7a99e6525ec02dc67d132994d1"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
       "kind": "planning_evidence",
-      "size_bytes": 199415,
-      "sha256": "sha256:5952c397bc9b1576b15930584afe95bee2817e810a4b85bf34aa247779c222ee"
+      "size_bytes": 1052627,
+      "sha256": "sha256:93506b106041e4ae09fb8c857745bd07a76557a48b4aea7900960d5ab8681823"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
       "kind": "planning_schema",
-      "size_bytes": 6054,
-      "sha256": "sha256:44e314bcc12b11c2c5a7dc20721d95e966310269ec7f85ec293644f6c85d9602"
+      "size_bytes": 18072,
+      "sha256": "sha256:e1a9ec7f91830129a82ae3343a11f7044d2963fd8457363687288cb0066e1f0f"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+      "kind": "planning_method_catalog",
+      "size_bytes": 20010,
+      "sha256": "sha256:64dfa1bd30a3da051b92bfc2a00a5581ee8e71a7aa2deaa4360670d08bd1f94d"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+      "kind": "planning_schema",
+      "size_bytes": 9888,
+      "sha256": "sha256:f35777e10f3257da91b0505c3bf90cc8e155b7ab556f8e0ba2352a2881acb1bf"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.json",
       "kind": "planning_evidence",
-      "size_bytes": 149962,
-      "sha256": "sha256:2b9e8cdca2989b7a4ac3fd997d177ab8b38aaef07b3f2c5e46ec85e4634426bf"
+      "size_bytes": 248536,
+      "sha256": "sha256:1ed3756302a133d0a574806643c7bd55441c687938a0df1a82387764cdec826d"
     },
     {
       "path": "docs/governance/v1/delivery-forecast.schema.json",
       "kind": "planning_schema",
-      "size_bytes": 12392,
-      "sha256": "sha256:99ce77a42abd251e05b97b4298911539fa8128bf56505fd4d71299dae24883ac"
-    },
-    {
-      "path": "docs/governance/v1/kickoff-authorization-v1-base-01.json",
-      "kind": "kickoff_authorization",
-      "size_bytes": 3092,
-      "sha256": "sha256:c7b4e5ae96b29d1185d7a1115885e8971d070a55551fa6e992fc733f225b5f82"
-    },
-    {
-      "path": "scripts/v1_s1_governance.ps1",
-      "kind": "governance_runtime_launcher",
-      "size_bytes": 8074,
-      "sha256": "sha256:2326befebe522a45fdb7d0cf98ed4e5ec8badde2acf08ed1a14c64bf0981e368"
+      "size_bytes": 24670,
+      "sha256": "sha256:549152d5af4d3f98a80d8d1e141a1b84e09bf66effbfd88e93b8dfecee725599"
     },
     {
       "path": "scripts/v1_s1_governance.py",
       "kind": "governance_validator",
-      "size_bytes": 338471,
-      "sha256": "sha256:b21ef9e3f0c98b925138f631267697c7b09061286edf5e8b38ff80cec314b6cd"
+      "size_bytes": 817128,
+      "sha256": "sha256:1c292252b87400f63585ad899996dfe4d751d27c24769182238bfb29a8d3e27f"
     },
     {
       "path": "tests/integration/test_v1_s1_historical_check.py",
       "kind": "integration_verification",
-      "size_bytes": 19917,
-      "sha256": "sha256:cbc2253051b17994f4c9a28619375aede6d425a716a6d3294c1288fe47dba223"
+      "size_bytes": 54195,
+      "sha256": "sha256:026d0db5fa2e8b50f7e06cac486be9db35e625803b9dfaeb04c9e2677a5fc070"
     },
     {
       "path": "tests/unit/governance/test_v1_s1_governance.py",
       "kind": "verification",
-      "size_bytes": 88056,
-      "sha256": "sha256:57a30c613d59f9f38a5fc7708ef977efa82e640b9bfa95b1bda21f29703d0ed3"
-    },
-    {
-      "path": "tests/unit/release/test_coverage_gate.py",
-      "kind": "continuous_integration_verification",
-      "size_bytes": 23973,
-      "sha256": "sha256:76c94eff67d94fd52cbf1b48281a3390e727c79aba2f0005cc5de486f0402793"
+      "size_bytes": 315636,
+      "sha256": "sha256:41f34b7118337106ce301302fb3c05abba857406705fc155249f8557463becd3"
     }
   ],
-  "reviewed_artifact_set_digest": "sha256:10e8219cfe17873d97180a1c608ad5d4186c27180e7a4556e38928f0a701b2a0",
+  "reviewed_artifact_set_digest": "sha256:5c4948d8eaa175328e47b4de93ae68404fd8ab9de1149a29726b108a4e30002f",
+  "review_evidence": {
+    "review_method": "accountable_human_maintainer_self_acceptance",
+    "llm_implementation_handoff_disclosed": true,
+    "subject_report_sha256": "sha256:e1c341efdb70b643ed3b5636495fedc9af773ddbb32e6c7adb602cb1c99ab644",
+    "reviewed_artifact_set_digest": "sha256:5c4948d8eaa175328e47b4de93ae68404fd8ab9de1149a29726b108a4e30002f",
+    "result_artifact_set_digest": "sha256:a085be39998eaafba37cbc47a8f3bd5cd58c7a2ccd2f34e9aaa004d9a92b7175",
+    "post_r2_suite_evidence_digest": null
+  },
   "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
-  "kickoff_authorization_digest": "sha256:c74d95486b7f930b4c58daa0f3699286d37ad59582140a64c78cfb0bc4dc2d00",
-  "base_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
-  "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+  "forecast_evidence": {
+    "forecast_format": "agent-assure-delivery-forecast/2",
+    "forecast_status": "accepted",
+    "human_review_status": "complete",
+    "forecast_record_digest": "sha256:61858dd4aaa04ee6dc202fba8384a2b264e9374e24eed7c7936793e331068b5b",
+    "estimation_catalog_digest": "sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439",
+    "aggregation_method_registry_digest": "sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6",
+    "authoring_ledger_digest": "sha256:825e811fa5a0dc841e8f8a316b4fb5be1183dc5793bce90506928237ad7020ca",
+    "forecast_acceptance_status": "accepted_for_development",
+    "forecast_acceptance_receipt_digest": "sha256:db8ac7e5fd565bf1dced1e3320e6cb58505260c171f4171be2a5857471da9266"
+  },
+  "change_control": {
+    "result_parent_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+    "authorized_change_paths": [
+      ".github/workflows/ci.yml",
+      "Makefile",
+      "docs/adr/0016-v1-repository-map.md",
+      "docs/governance/v1/README.md",
+      "docs/governance/v1/baseline-observations.json",
+      "docs/governance/v1/baseline-observations.schema.json",
+      "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "docs/governance/v1/completion-report-v1-base-01.md",
+      "docs/governance/v1/completion-report-v1-boot-01.md",
+      "docs/governance/v1/corrective-kickoff-authorization.json",
+      "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+      "docs/governance/v1/current-acceptance-attestation.schema.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+      "docs/governance/v1/delivery-forecast.json",
+      "docs/governance/v1/delivery-forecast.schema.json",
+      "docs/governance/v1/governance-bundle.json",
+      "docs/governance/v1/governance-bundle.schema.json",
+      "docs/governance/v1/ticket-completion-receipt.schema.json",
+      "mkdocs.yml",
+      "scripts/v1_s1_governance.ps1",
+      "scripts/v1_s1_governance.py",
+      "tests/integration/test_v1_s1_historical_check.py",
+      "tests/unit/governance/test_v1_s1_governance.py",
+      "tests/unit/release/test_coverage_gate.py"
+    ],
+    "authorized_change_paths_digest": "sha256:fc93b7b9e201dca21ef7bd481f2f60fff5a8edc95be4b0ab43aff7a7e7acd2c8",
+    "result_artifact_inventory": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 23905,
+        "sha256": "sha256:cf0ad2566fdb93036587121eea7b31d082ca6ab8b56b191b97ebfe574a7a9df0"
+      },
+      {
+        "path": "Makefile",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 6399,
+        "sha256": "sha256:9006db71fb4070cb05dafe28c62583e1210d98d788aeadf67bb33c98d22f2cec"
+      },
+      {
+        "path": "docs/adr/0016-v1-repository-map.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 35398,
+        "sha256": "sha256:890e78f733d278cab50ee7da2669cd4e6113cd43fb0402d7d1962993019c22e8"
+      },
+      {
+        "path": "docs/governance/v1/README.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 66260,
+        "sha256": "sha256:f48f7fa8071dee1599d25bf9feb7276dcfe6029139d59ffb0b1c504bd9904c88"
+      },
+      {
+        "path": "docs/governance/v1/baseline-observations.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 7888,
+        "sha256": "sha256:5d043a1e7e9f7734c1bfe9d55b37ba1cfb3b0a6bb7a48044b795096ef2c57985"
+      },
+      {
+        "path": "docs/governance/v1/baseline-observations.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 11302,
+        "sha256": "sha256:2f2639c12344d84a719cb1f25c407bec074682c1fe9b25ffc3209af275dd3f8c"
+      },
+      {
+        "path": "docs/governance/v1/completion-report-v1-base-01.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 10508,
+        "sha256": "sha256:e1c341efdb70b643ed3b5636495fedc9af773ddbb32e6c7adb602cb1c99ab644"
+      },
+      {
+        "path": "docs/governance/v1/completion-report-v1-boot-01.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 9743,
+        "sha256": "sha256:6ac1e497c8c52410e2560806f5ed0e7f88d3fc214dd5e77c702251a2f15ba03d"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.json",
+        "kind": "governance_record",
+        "change_status": "A",
+        "size_bytes": 9555,
+        "sha256": "sha256:6976180e6eb59a6d0761fc6bda62bdbdb42c73f48ff41993382e349db76c09c5"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 11726,
+        "sha256": "sha256:a328e7ca1f490d68c2d3f4f0d824f2b2d993b23c7e366fdb7a23a9bd04d0979f"
+      },
+      {
+        "path": "docs/governance/v1/current-acceptance-attestation.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 7953,
+        "sha256": "sha256:cd7493e34ed0c5293876cced1de2d2851dd91f0ed58beb3d00634bd8a7cbf7b5"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 3366,
+        "sha256": "sha256:687622f6edf8bedc16d0b14a3126805cccdfcd73dd563f4f5ce445c128afd454"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 5229,
+        "sha256": "sha256:fe26890f9f053be9cc2c2782af2fe50e25f1ff7a99e6525ec02dc67d132994d1"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 1052627,
+        "sha256": "sha256:93506b106041e4ae09fb8c857745bd07a76557a48b4aea7900960d5ab8681823"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 18072,
+        "sha256": "sha256:e1a9ec7f91830129a82ae3343a11f7044d2963fd8457363687288cb0066e1f0f"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+        "kind": "governance_record",
+        "change_status": "A",
+        "size_bytes": 20010,
+        "sha256": "sha256:64dfa1bd30a3da051b92bfc2a00a5581ee8e71a7aa2deaa4360670d08bd1f94d"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 9888,
+        "sha256": "sha256:f35777e10f3257da91b0505c3bf90cc8e155b7ab556f8e0ba2352a2881acb1bf"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 248536,
+        "sha256": "sha256:1ed3756302a133d0a574806643c7bd55441c687938a0df1a82387764cdec826d"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 24670,
+        "sha256": "sha256:549152d5af4d3f98a80d8d1e141a1b84e09bf66effbfd88e93b8dfecee725599"
+      },
+      {
+        "path": "docs/governance/v1/governance-bundle.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 38272,
+        "sha256": "sha256:0de1a7ec445231eb1ee7c2b74c5759b4b0480f58822b70e37e2c0faca957ae6b"
+      },
+      {
+        "path": "docs/governance/v1/ticket-completion-receipt.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 38060,
+        "sha256": "sha256:556211a0ab8c2cbb5abf6cabead9af76ba3ed32e25ba0b7e9f8724b00750ecc1"
+      },
+      {
+        "path": "mkdocs.yml",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 2881,
+        "sha256": "sha256:cafd37f7868674ae70914ef572466ef79557a0834fc289cb9fc9d3226774f07a"
+      },
+      {
+        "path": "scripts/v1_s1_governance.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 817128,
+        "sha256": "sha256:1c292252b87400f63585ad899996dfe4d751d27c24769182238bfb29a8d3e27f"
+      },
+      {
+        "path": "tests/integration/test_v1_s1_historical_check.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 54195,
+        "sha256": "sha256:026d0db5fa2e8b50f7e06cac486be9db35e625803b9dfaeb04c9e2677a5fc070"
+      },
+      {
+        "path": "tests/unit/governance/test_v1_s1_governance.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 315636,
+        "sha256": "sha256:41f34b7118337106ce301302fb3c05abba857406705fc155249f8557463becd3"
+      }
+    ],
+    "result_artifact_set_digest": "sha256:a085be39998eaafba37cbc47a8f3bd5cd58c7a2ccd2f34e9aaa004d9a92b7175"
+  },
+  "post_result_verification": null,
   "issuer_person_id": "acblabs",
   "issuer_role": "repository_maintainer",
   "owner_role": "technical_lead",
-  "approval_mode": "maintainer_development",
-  "author_reviewer_relationship": "same_person_maintainer_development_self_acceptance",
-  "independence_claimed": false,
-  "authorization_effect": "none",
-  "accepted_competence": [
+  "reviewer_role": "repository_maintainer",
+  "issuer_competence_scopes": [
     "planning_governance:s1",
     "repository_maintenance:bounded_development",
     "technical_direction:s1"
   ],
-  "conflicts": [
-    "Sole maintainer self-acceptance; no independence is claimed.",
-    "LLM-authored implementation evidence requires accountable human review."
+  "issuer_conflicts": [
+    "Sole human owner and development acceptor for S1",
+    "Cannot issue an independent-review receipt for self-authored or LLM-authored work accepted under this identity",
+    "Repository-configured handle; legal identity is not asserted by this record"
   ],
-  "issued_at_utc": "2026-10-15T21:40:54Z",
-  "valid_until_utc": "2026-11-14T20:16:36Z",
+  "issuer_mode": "maintainer_development",
+  "approval_mode": "maintainer_development",
+  "author_reviewer_relationship": "same_person_maintainer_development_self_acceptance",
+  "independence_claimed": false,
+  "independence_basis": "same_person_maintainer_development_self_acceptance_with_recorded_conflicts",
+  "authorization_effect": "none",
+  "time_evidence": {
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": false
+  },
+  "claim_prepared_at_utc": "2026-10-16T19:09:47.557621Z",
+  "validity_context": {
+    "kind": "bounded_by_generation_2_governance_bundle",
+    "standalone_currentness_claimed": false,
+    "current_acceptance_requires_current_bundle": true
+  },
   "allowed_operations": [
     "Use the accepted repository map to resolve later ticket file scopes.",
     "Commit to S2 only while the separately accepted delivery forecast is current.",
     "Draft later design records without treating S1 as method or release admission."
   ],
+  "exclusions": [
+    "independent_review",
+    "method_admission",
+    "qualification",
+    "pilot_authorization",
+    "release_authorization",
+    "deployment_authorization",
+    "runtime_authorization"
+  ],
   "limitations": [
     "NO_INDEPENDENT_REVIEW",
-    "No method admission, qualification, pilot, release, deployment, or runtime authorization.",
-    "Pending status or signature is non-accepting."
+    "SSHSIG contains no signing timestamp; no actual signing time is claimed.",
+    "No method admission, qualification, pilot, release, deployment, or runtime authorization is granted."
   ],
-  "receipt_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e",
+  "receipt_digest": "sha256:6f263eb3ceba792e7c1a81171c6a12561f4fdfe5f349941dc22b123ca5a8639e",
   "signature_envelope": {
     "profile": "openssh-sshsig-ed25519/v1",
     "status": "signed",
     "namespace": "agent-assure-governance-v1",
-    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v2",
     "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
     "signer_person_id": "acblabs",
     "signer_role": "repository_maintainer",
-    "subject_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e",
+    "subject_digest": "sha256:6f263eb3ceba792e7c1a81171c6a12561f4fdfe5f349941dc22b123ca5a8639e",
     "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
-    "signed_at_utc": "2026-10-15T21:40:54Z",
-    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQXlqS2FsU2hTZ2tNaGpjMjg0a1dqMVQzM1MwUmtQaGVMOVgKOVg0Z2EyeVdEVitCOVhTOWJyY3l3M1VVd01IZWxRTjZUdDRYSUNrKzNlSUVvUEhvRWtCdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQWJaMlplc3pyaTdNOE1QOUxNNWprSmdlMnpYTkd0c0ZLeFEKRHB2Vkt1Z2VEN3k0Y3c5RnZJWnVWOWYvNjRMQXhUWThUVGFQRUlqRUdaYVJraEozTTBDQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  },
+  "signature_import_evidence": {
+    "status": "verified_after_import",
+    "verification_recorded_at_utc": "2026-10-17T01:59:13.820301Z",
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": false,
+    "verification_result": "valid_exact_payload_key_and_namespace"
   }
 }

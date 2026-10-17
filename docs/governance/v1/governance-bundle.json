@@ -1,11 +1,12 @@
 {
-  "format": "agent-assure-governance-bundle/1",
+  "format": "agent-assure-governance-bundle/2",
   "spec_revision": "6.5",
+  "acceptance_generation": 2,
   "bundle_status": "accepted_for_development",
   "sprint": "S1",
   "release": "1.0.0a1",
   "train": "stable-1.0",
-  "maturity": "governed-baseline",
+  "maturity": "governed-baseline-corrective-generation-2",
   "artifact_kind": "governance-bundle",
   "source_ticket_ids": [
     "V1-BOOT-01",
@@ -15,272 +16,667 @@
   "installability": "none",
   "distribution_channels": [],
   "package_version": null,
-  "base_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
-  "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+  "result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+  "predecessor_acceptance": {
+    "acceptance_generation": 1,
+    "disposition": "superseded_nonconforming",
+    "noncurrent_reason": "forecast_and_governance_provenance_nonconformance",
+    "tag_name": "agent-assure-s1-1.0.0a1-acceptance",
+    "tag_object": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb",
+    "baseline_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
+    "result_commit": "038b1a8c80fc419106eecd43f4a70b14ba026106",
+    "closure_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "bundle_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+    "forecast_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
+    "objects_remain_immutable": true
+  },
+  "corrective_authorization_claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+  "corrective_authorization": {
+    "claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+    "authorization_status": "authorized",
+    "authorization_kind": "prospective_corrective_implementation",
+    "authorization_effect": "corrective_s1_development_governance_only",
+    "authorized_person_id": "acblabs",
+    "authorized_role": "repository_maintainer"
+  },
   "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
   "approval_roster_digest": "sha256:3959beb1e485be1d030540585e7d1cbd77e4b93fd487a5ae4ba7f8a98a3a1ca5",
   "signed_decisions": {
     "roster_selection_status": "approved",
-    "signing_key_status": "confirmed_by_human",
-    "signing_key_record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a",
-    "kickoff_authorizations": [
-      {
-        "ticket_id": "V1-BASE-01",
-        "authorization_status": "authorized",
-        "authorization_digest": "sha256:c74d95486b7f930b4c58daa0f3699286d37ad59582140a64c78cfb0bc4dc2d00"
-      },
-      {
-        "ticket_id": "V1-BOOT-01",
-        "authorization_status": "authorized",
-        "authorization_digest": "sha256:766fda6100d1e7be901f218f1fbb43ecd2b31e91426cc422dae7e90d5732a0f8"
-      }
-    ],
     "ticket_completion_receipts": [
       {
         "ticket_id": "V1-BASE-01",
+        "receipt_format": "agent-assure-ticket-completion-receipt/2",
         "receipt_status": "accepted_for_development",
-        "receipt_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e"
+        "receipt_digest": "sha256:6f263eb3ceba792e7c1a81171c6a12561f4fdfe5f349941dc22b123ca5a8639e",
+        "superseded_receipt_digest": "sha256:3a0a1a36586023147ea0e3cf7cf23d619bfc283da25445f5f72169eaf5226d1e"
       },
       {
         "ticket_id": "V1-BOOT-01",
+        "receipt_format": "agent-assure-ticket-completion-receipt/2",
         "receipt_status": "accepted_for_development",
-        "receipt_digest": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a"
+        "receipt_digest": "sha256:1205f4bc8c2f2b88276e082f5a2a67841ecdca9b527295c27d6391660452dcda",
+        "superseded_receipt_digest": "sha256:ae5bf055cdd56292dec33422877a1fddce4a297b34879e5d58441ff8fa63c32a"
       }
     ]
+  },
+  "planning_evidence": {
+    "baseline_observations_digest": "sha256:46cb9163440a4e00cb22691f79da8ab2eb72e92e3e96dda5e06c4051ee23489a",
+    "forecast_format": "agent-assure-delivery-forecast/2",
+    "forecast_status": "accepted",
+    "human_review_status": "complete",
+    "forecast_record_digest": "sha256:61858dd4aaa04ee6dc202fba8384a2b264e9374e24eed7c7936793e331068b5b",
+    "estimation_catalog_digest": "sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439",
+    "aggregation_method_registry_digest": "sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6",
+    "authoring_ledger_digest": "sha256:825e811fa5a0dc841e8f8a316b4fb5be1183dc5793bce90506928237ad7020ca",
+    "forecast_acceptance_status": "accepted_for_development",
+    "forecast_acceptance_receipt_digest": "sha256:db8ac7e5fd565bf1dced1e3320e6cb58505260c171f4171be2a5857471da9266"
+  },
+  "change_control": {
+    "result_parent_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+    "authorized_change_paths": [
+      ".github/workflows/ci.yml",
+      "Makefile",
+      "docs/adr/0016-v1-repository-map.md",
+      "docs/governance/v1/README.md",
+      "docs/governance/v1/baseline-observations.json",
+      "docs/governance/v1/baseline-observations.schema.json",
+      "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "docs/governance/v1/completion-report-v1-base-01.md",
+      "docs/governance/v1/completion-report-v1-boot-01.md",
+      "docs/governance/v1/corrective-kickoff-authorization.json",
+      "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+      "docs/governance/v1/current-acceptance-attestation.schema.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+      "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+      "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+      "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+      "docs/governance/v1/delivery-forecast.json",
+      "docs/governance/v1/delivery-forecast.schema.json",
+      "docs/governance/v1/governance-bundle.json",
+      "docs/governance/v1/governance-bundle.schema.json",
+      "docs/governance/v1/ticket-completion-receipt.schema.json",
+      "mkdocs.yml",
+      "scripts/v1_s1_governance.ps1",
+      "scripts/v1_s1_governance.py",
+      "tests/integration/test_v1_s1_historical_check.py",
+      "tests/unit/governance/test_v1_s1_governance.py",
+      "tests/unit/release/test_coverage_gate.py"
+    ],
+    "authorized_change_paths_digest": "sha256:fc93b7b9e201dca21ef7bd481f2f60fff5a8edc95be4b0ab43aff7a7e7acd2c8",
+    "result_artifact_inventory": [
+      {
+        "path": ".github/workflows/ci.yml",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 23905,
+        "sha256": "sha256:cf0ad2566fdb93036587121eea7b31d082ca6ab8b56b191b97ebfe574a7a9df0"
+      },
+      {
+        "path": "Makefile",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 6399,
+        "sha256": "sha256:9006db71fb4070cb05dafe28c62583e1210d98d788aeadf67bb33c98d22f2cec"
+      },
+      {
+        "path": "docs/adr/0016-v1-repository-map.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 35398,
+        "sha256": "sha256:890e78f733d278cab50ee7da2669cd4e6113cd43fb0402d7d1962993019c22e8"
+      },
+      {
+        "path": "docs/governance/v1/README.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 66260,
+        "sha256": "sha256:f48f7fa8071dee1599d25bf9feb7276dcfe6029139d59ffb0b1c504bd9904c88"
+      },
+      {
+        "path": "docs/governance/v1/baseline-observations.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 7888,
+        "sha256": "sha256:5d043a1e7e9f7734c1bfe9d55b37ba1cfb3b0a6bb7a48044b795096ef2c57985"
+      },
+      {
+        "path": "docs/governance/v1/baseline-observations.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 11302,
+        "sha256": "sha256:2f2639c12344d84a719cb1f25c407bec074682c1fe9b25ffc3209af275dd3f8c"
+      },
+      {
+        "path": "docs/governance/v1/completion-report-v1-base-01.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 10508,
+        "sha256": "sha256:e1c341efdb70b643ed3b5636495fedc9af773ddbb32e6c7adb602cb1c99ab644"
+      },
+      {
+        "path": "docs/governance/v1/completion-report-v1-boot-01.md",
+        "kind": "governance_documentation",
+        "change_status": "M",
+        "size_bytes": 9743,
+        "sha256": "sha256:6ac1e497c8c52410e2560806f5ed0e7f88d3fc214dd5e77c702251a2f15ba03d"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.json",
+        "kind": "governance_record",
+        "change_status": "A",
+        "size_bytes": 9555,
+        "sha256": "sha256:6976180e6eb59a6d0761fc6bda62bdbdb42c73f48ff41993382e349db76c09c5"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 11726,
+        "sha256": "sha256:a328e7ca1f490d68c2d3f4f0d824f2b2d993b23c7e366fdb7a23a9bd04d0979f"
+      },
+      {
+        "path": "docs/governance/v1/current-acceptance-attestation.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 7953,
+        "sha256": "sha256:cd7493e34ed0c5293876cced1de2d2851dd91f0ed58beb3d00634bd8a7cbf7b5"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 3366,
+        "sha256": "sha256:687622f6edf8bedc16d0b14a3126805cccdfcd73dd563f4f5ce445c128afd454"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 5229,
+        "sha256": "sha256:fe26890f9f053be9cc2c2782af2fe50e25f1ff7a99e6525ec02dc67d132994d1"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 1052627,
+        "sha256": "sha256:93506b106041e4ae09fb8c857745bd07a76557a48b4aea7900960d5ab8681823"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 18072,
+        "sha256": "sha256:e1a9ec7f91830129a82ae3343a11f7044d2963fd8457363687288cb0066e1f0f"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+        "kind": "governance_record",
+        "change_status": "A",
+        "size_bytes": 20010,
+        "sha256": "sha256:64dfa1bd30a3da051b92bfc2a00a5581ee8e71a7aa2deaa4360670d08bd1f94d"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+        "kind": "governance_schema",
+        "change_status": "A",
+        "size_bytes": 9888,
+        "sha256": "sha256:f35777e10f3257da91b0505c3bf90cc8e155b7ab556f8e0ba2352a2881acb1bf"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.json",
+        "kind": "governance_record",
+        "change_status": "M",
+        "size_bytes": 248536,
+        "sha256": "sha256:1ed3756302a133d0a574806643c7bd55441c687938a0df1a82387764cdec826d"
+      },
+      {
+        "path": "docs/governance/v1/delivery-forecast.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 24670,
+        "sha256": "sha256:549152d5af4d3f98a80d8d1e141a1b84e09bf66effbfd88e93b8dfecee725599"
+      },
+      {
+        "path": "docs/governance/v1/governance-bundle.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 38272,
+        "sha256": "sha256:0de1a7ec445231eb1ee7c2b74c5759b4b0480f58822b70e37e2c0faca957ae6b"
+      },
+      {
+        "path": "docs/governance/v1/ticket-completion-receipt.schema.json",
+        "kind": "governance_schema",
+        "change_status": "M",
+        "size_bytes": 38060,
+        "sha256": "sha256:556211a0ab8c2cbb5abf6cabead9af76ba3ed32e25ba0b7e9f8724b00750ecc1"
+      },
+      {
+        "path": "mkdocs.yml",
+        "kind": "repository_integration",
+        "change_status": "M",
+        "size_bytes": 2881,
+        "sha256": "sha256:cafd37f7868674ae70914ef572466ef79557a0834fc289cb9fc9d3226774f07a"
+      },
+      {
+        "path": "scripts/v1_s1_governance.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 817128,
+        "sha256": "sha256:1c292252b87400f63585ad899996dfe4d751d27c24769182238bfb29a8d3e27f"
+      },
+      {
+        "path": "tests/integration/test_v1_s1_historical_check.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 54195,
+        "sha256": "sha256:026d0db5fa2e8b50f7e06cac486be9db35e625803b9dfaeb04c9e2677a5fc070"
+      },
+      {
+        "path": "tests/unit/governance/test_v1_s1_governance.py",
+        "kind": "verification_or_validator",
+        "change_status": "M",
+        "size_bytes": 315636,
+        "sha256": "sha256:41f34b7118337106ce301302fb3c05abba857406705fc155249f8557463becd3"
+      }
+    ],
+    "result_artifact_set_digest": "sha256:a085be39998eaafba37cbc47a8f3bd5cd58c7a2ccd2f34e9aaa004d9a92b7175"
+  },
+  "post_result_verification": {
+    "format": "agent-assure-s1-post-r2-suite-evidence/3",
+    "acceptance_generation": 2,
+    "subject_result_parent_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "subject_result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+    "corrective_authorization_claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+    "governance_sources": [
+      {
+        "path": "Agent_Assure_Implementation_Roadmap.md",
+        "size_bytes": 2390013,
+        "sha256": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.json",
+        "size_bytes": 9555,
+        "sha256": "sha256:6976180e6eb59a6d0761fc6bda62bdbdb42c73f48ff41993382e349db76c09c5"
+      },
+      {
+        "path": "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+        "size_bytes": 11726,
+        "sha256": "sha256:a328e7ca1f490d68c2d3f4f0d824f2b2d993b23c7e366fdb7a23a9bd04d0979f"
+      }
+    ],
+    "repository_test_surface": {
+      "format": "agent-assure-s1-post-r2-test-surface/1",
+      "subject_result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+      "directory_roots": [
+        ".githooks",
+        ".github",
+        "compat",
+        "docs",
+        "evidence",
+        "examples",
+        "mappings",
+        "paper",
+        "schemas",
+        "scripts",
+        "src",
+        "tests",
+        "third_party"
+      ],
+      "tracked_root_files": [
+        ".dockerignore",
+        ".gitattributes",
+        ".gitignore",
+        ".gitleaks.toml",
+        ".gitleaksignore",
+        "CHANGELOG.md",
+        "CITATION.cff",
+        "CODE_OF_CONDUCT.md",
+        "CONTRIBUTING.md",
+        "FEATURES.md",
+        "LICENSE",
+        "Makefile",
+        "README.md",
+        "SECURITY.md",
+        "THIRD_PARTY_NOTICES.md",
+        "mkdocs.yml",
+        "pyproject.toml",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-min.constraints.txt",
+        "requirements-min.lock",
+        "requirements-otel.lock",
+        "requirements.lock"
+      ],
+      "root_config_paths": [
+        ".coveragerc",
+        "conftest.py",
+        "mkdocs.yml",
+        "pyproject.toml",
+        "pytest.ini",
+        "pytest.toml",
+        "setup.cfg",
+        "sitecustomize.py",
+        "tox.ini",
+        "usercustomize.py"
+      ],
+      "cache_policy": {
+        "excluded_directory_name": "__pycache__",
+        "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
+        "forbidden_direct_file_suffixes": [
+          ".pyc",
+          ".pyo"
+        ]
+      },
+      "local_exclude": {
+        "path": ".git/info/exclude",
+        "size_bytes": 2368,
+        "sha256": "sha256:7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"
+      },
+      "file_count": 3128,
+      "size_bytes": 28293475,
+      "sha256": "sha256:c1832decf3f2de4fd18667461b3a0d9a66a483e36c1efc9e8761aa6d123d140f"
+    },
+    "command": {
+      "argv": [
+        "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+        "-I",
+        "-S",
+        "-B",
+        "-X",
+        "utf8",
+        "-X",
+        "pycache_prefix=C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest\\python-bytecode-cache",
+        "-",
+        "C:\\Users\\user\\.antigravity-ide\\agent-assure",
+        "C:\\Users\\user\\.antigravity-ide\\agent-assure\\src",
+        "C:\\Users\\user\\.antigravity-ide\\agent-assure\\.venv\\Lib\\site-packages",
+        "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest\\python-bytecode-cache",
+        "3128",
+        "28293475",
+        "sha256:c1832decf3f2de4fd18667461b3a0d9a66a483e36c1efc9e8761aa6d123d140f",
+        "--verbosity=-1",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "pytest_socket",
+        "-p",
+        "_hypothesis_pytestplugin",
+        "-p",
+        "pytest_cov.plugin",
+        "--color=no",
+        "--hypothesis-seed=0",
+        "--basetemp",
+        "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest"
+      ],
+      "working_directory": "C:\\Users\\user\\.antigravity-ide\\agent-assure",
+      "environment": {
+        "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+        "GIT_CONFIG_COUNT": "2",
+        "GIT_CONFIG_GLOBAL": "NUL",
+        "GIT_CONFIG_KEY_0": "core.autocrlf",
+        "GIT_CONFIG_KEY_1": "safe.directory",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_VALUE_0": "true",
+        "GIT_CONFIG_VALUE_1": "C:\\Users\\user\\.antigravity-ide\\agent-assure",
+        "GIT_TERMINAL_PROMPT": "0",
+        "HOME": "C:\\Users\\user",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": "\\Users\\user",
+        "HYPOTHESIS_STORAGE_DIRECTORY": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest\\hypothesis",
+        "NO_COLOR": "1",
+        "NoDefaultCurrentDirectoryInExePath": "1",
+        "PATH": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime\\Scripts;C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none;C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\DLLs;C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "PROCESSOR_ARCHITECTURE": "AMD64",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONPYCACHEPREFIX": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest\\python-bytecode-cache",
+        "PYTHONSAFEPATH": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONUTF8": "1",
+        "PY_COLORS": "0",
+        "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+        "SYSTEMROOT": "C:\\Windows",
+        "TEMP": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\temp",
+        "TMP": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\temp",
+        "USERPROFILE": "C:\\Users\\user",
+        "WINDIR": "C:\\Windows"
+      },
+      "python_executable": {
+        "absolute_path": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+        "size_bytes": 91648,
+        "sha256": "sha256:88b9e780cfdc38597c7f53e20f7165262befa28d9a5e9470360d349e172ecf37"
+      },
+      "descendant_runtime": {
+        "format": "agent-assure-s1-post-r2-descendant-runtime/1",
+        "root": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime",
+        "derivation": "fresh_exact_files_from_authenticated_base_and_test_runtime",
+        "tree_policy": "exact_regular_files_no_reparse_points",
+        "python_executable": {
+          "absolute_path": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime\\Scripts\\python.exe",
+          "relative_path": "Scripts/python.exe",
+          "size_bytes": 91648,
+          "sha256": "sha256:88b9e780cfdc38597c7f53e20f7165262befa28d9a5e9470360d349e172ecf37"
+        },
+        "pyvenv_configuration": {
+          "absolute_path": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime\\pyvenv.cfg",
+          "relative_path": "pyvenv.cfg",
+          "size_bytes": 276,
+          "sha256": "sha256:7e2975e1e53274539841b89c989b23151c31ffd97d0d06c598c589677bd8df4f"
+        },
+        "authenticated_paths": {
+          "absolute_path": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime\\Lib\\site-packages\\00_agent_assure_s1_paths.pth",
+          "relative_path": "Lib/site-packages/00_agent_assure_s1_paths.pth",
+          "size_bytes": 160,
+          "sha256": "sha256:ee906e70a657d447d7898d602324b25f3b27fa443ba07adb513cfaa31e8d3ae1"
+        },
+        "startup_guard": {
+          "absolute_path": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\descendant-runtime\\Lib\\site-packages\\sitecustomize.py",
+          "relative_path": "Lib/site-packages/sitecustomize.py",
+          "size_bytes": 19394,
+          "sha256": "sha256:0da767a880191afa0e4101c3fc220f7fa45e10a4cb2b342c4dadbf18f50b5703"
+        }
+      },
+      "bootstrap_input": {
+        "transport": "python_stdin_utf8",
+        "size_bytes": 33997,
+        "sha256": "sha256:09074c868dd2430aa759de7383633c302812d8546fac822c502944c2f1c53b3c"
+      },
+      "bytecode_policy": {
+        "basetemp": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest",
+        "basetemp_precondition": "fresh_unique_and_absent_immediately_before_spawn",
+        "pycache_prefix": "C:\\tmp\\agent-assure-s1-post-r2-process-temp-zee638nu\\pytest\\python-bytecode-cache",
+        "pycache_prefix_precondition": "absent_immediately_before_spawn",
+        "main_process_write_policy": "disabled_by_-B",
+        "descendant_read_policy": "explicit_fresh_prefix_injected_at_recursive_Popen_boundary",
+        "descendant_write_policy": "explicit_-B_injected_at_recursive_Popen_boundary",
+        "descendant_guard_bypass_policy": "sitecustomize_fails_closed_without_exact_cli_policy",
+        "pycache_prefix_postcondition": "absent_after_suite_execution",
+        "repository_cache_policy": "source_adjacent___pycache___ignored_via_fresh_prefix",
+        "repository_direct_bytecode_policy": "reject_pyc_and_pyo",
+        "site_packages_cache_policy": "excluded_inert___pycache___only",
+        "site_packages_direct_bytecode_policy": "reject_pyc_and_pyo"
+      },
+      "test_runtime": {
+        "format": "agent-assure-s1-post-r2-test-runtime/2",
+        "pyvenv_configuration": {
+          "absolute_path": "C:\\Users\\user\\.antigravity-ide\\agent-assure\\.venv\\pyvenv.cfg",
+          "relative_path": ".venv/pyvenv.cfg",
+          "size_bytes": 197,
+          "sha256": "sha256:04a79763f83cb685327d2c584ac99bd36c10901ef3ace98bc63bce4ddcb264b5"
+        },
+        "site_packages_inventory": {
+          "format": "agent-assure-s1-post-r2-test-runtime-inventory/1",
+          "relative_root": ".venv/Lib/site-packages",
+          "exclusion_policy": {
+            "directory_names": [
+              "__pycache__"
+            ],
+            "forbidden_direct_file_suffixes": [
+              ".pyc",
+              ".pyo"
+            ],
+            "reason": "cache_directories_inert_under_fresh_pycache_prefix"
+          },
+          "file_count": 5473,
+          "size_bytes": 92718636,
+          "sha256": "sha256:a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c"
+        },
+        "base_runtime": {
+          "root": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none",
+          "python_executable": {
+            "absolute_path": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+            "size_bytes": 91648,
+            "sha256": "sha256:88b9e780cfdc38597c7f53e20f7165262befa28d9a5e9470360d349e172ecf37"
+          },
+          "python_dll": {
+            "absolute_path": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python312.dll",
+            "size_bytes": 6969856,
+            "sha256": "sha256:cf1be428af1ee607d8015e27411912276b9b02815a080457a1ece46c59d9b314"
+          },
+          "inventory": {
+            "file_count": 2766,
+            "size_bytes": 54224916,
+            "sha256": "sha256:4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152"
+          }
+        }
+      }
+    },
+    "time_evidence": {
+      "clock_basis": "maintainer_host_utc_externally_unattested",
+      "sshsig_timestamp_capability": "none",
+      "actual_signature_time_claimed": false,
+      "started_at_utc": "2026-10-16T17:52:11.924267Z",
+      "completed_at_utc": "2026-10-16T19:08:26.500366Z"
+    },
+    "repository_precondition": {
+      "head_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+      "clean": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "status_stdout_size_bytes": 0,
+      "status_stdout_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "repository_postcondition": {
+      "head_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+      "clean": true,
+      "status_command": [
+        "git",
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all"
+      ],
+      "status_stdout_size_bytes": 0,
+      "status_stdout_sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "execution": {
+      "exit_code": 0,
+      "outcome": "passed",
+      "pytest_totals": {
+        "collected": 6564,
+        "passed": 6491,
+        "failed": 0,
+        "skipped": 73,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0
+      },
+      "stdout": {
+        "file_name": "pytest.stdout.bin",
+        "size_bytes": 7499,
+        "sha256": "sha256:1f63cbf5850df3d5a71fa2b3f3d11b34af81685da8bb0e89096ddf408d782c2b"
+      },
+      "stderr": {
+        "file_name": "pytest.stderr.bin",
+        "size_bytes": 0,
+        "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    },
+    "evidence_digest": "sha256:bb11ae69b1a5791ed817fe23e23fd755a00a03182d34b8b3d39e8eb236ece5fe"
+  },
+  "artifact_inventory": [
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "kind": "completion_receipt",
+      "size_bytes": 19282,
+      "sha256": "sha256:1ea21efefcb32d615734f84d0a56b63d373bdaa829018db9523ac9d195b5770d"
+    },
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "kind": "completion_receipt",
+      "size_bytes": 30751,
+      "sha256": "sha256:45330151f43b1ed7d8ee993d1e5349f8577721b45d1d663b4ff6b4ec4bf3901d"
+    }
+  ],
+  "artifact_set_digest": "sha256:ff8f52cf9003ba380fbb85917537d5150c5570dc9c7d6d24e308f3f880a8c35e",
+  "expected_closure": {
+    "result_parent_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "result_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+    "closure_parent_commit": "022c44ca11b170d5843aa57a7b33fba9cd0ad38d",
+    "closure_changed_paths": [
+      "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "docs/governance/v1/governance-bundle.json"
+    ],
+    "closure_change_statuses": [
+      "A",
+      "M"
+    ],
+    "successor_acceptance_generation": 2,
+    "successor_tag_name": "agent-assure-s1-1.0.0a1-acceptance-v2"
   },
   "compatibility_note": {
     "baseline_package_version": "0.7.0",
     "baseline_writer_schema_version": "0.6.6",
     "production_behavior_changed": false,
     "installable_artifact_emitted": false,
-    "note": "S1 adds planning governance only; package and writer identities remain separate and unchanged."
+    "note": "Generation 2 replaces only S1 planning-governance acceptance; package and writer identities remain unchanged."
   },
   "known_limitations": [
     "NO_INDEPENDENT_REVIEW",
-    "Windows Time attestation was unavailable; host UTC requires explicit maintainer acceptance.",
-    "No method, profile, qualification, release, deployment, or runtime authorization is granted.",
-    "The repository-local public key declaration is TOFU metadata, not independent identity proof.",
-    "The full repository pytest suite timed out during baseline inspection and is not claimed as passing."
+    "SSHSIG contains no signing timestamp; no actual signing time is claimed.",
+    "No method, profile, qualification, release, deployment, or runtime authorization is granted."
   ],
-  "planning_evidence": {
-    "baseline_observations_digest": "sha256:41a433296c91d119a4f5a73fff039e17df80ccf9bfdf33c6605ed8def5fbf197",
-    "full_repository_pytest_outcome": "timed_out",
-    "forecast_status": "accepted",
-    "forecast_record_digest": "sha256:e151679546b1a2d9f62a179052c97ba61ed6b249b05d69c11f23220287b56460",
-    "forecast_acceptance_receipt_status": "accepted_for_development",
-    "forecast_acceptance_receipt_digest": "sha256:948b5fbbd3dee6ef031de5588954c6b36c1fea44a894fedd7f901006da2c67c1",
-    "aggregation_method_registry_digest": "sha256:67f74a2a8f66c7ccb43d29dd1d224a823789659816eed3af2220a64f1973aca3",
-    "authoring_ledger_digest": "sha256:339ca4d1de0245e0563654beb9857d5baf8f972c02d690fab61a5f60e9dacf50",
-    "ticket_count": 68,
-    "occurrence_count": 121
-  },
-  "artifact_inventory": [
-    {
-      "path": ".github/workflows/ci.yml",
-      "kind": "continuous_integration",
-      "size_bytes": 19043,
-      "sha256": "sha256:2204da21dde696faf3761a3e2c79a6f0a3d6f46448cafca117deac60da276ffb"
-    },
-    {
-      "path": "Makefile",
-      "kind": "build_integration",
-      "size_bytes": 5885,
-      "sha256": "sha256:7630a249b0d6a16d0c79d2c40380418151659703c3c048d095da1ecd4641e102"
-    },
-    {
-      "path": "docs/adr/0016-v1-repository-map.md",
-      "kind": "decision_record",
-      "size_bytes": 26567,
-      "sha256": "sha256:8dc87704c7d818496c6538158d1ccf68e0b09f035b634a00e1862e32a5e3e959"
-    },
-    {
-      "path": "docs/governance/v1/README.md",
-      "kind": "governance_documentation",
-      "size_bytes": 23549,
-      "sha256": "sha256:d71e612b817d2671a0d118f11d4d53bc9664c984c0fcf6108629698db19bba05"
-    },
-    {
-      "path": "docs/governance/v1/approval-roster.json",
-      "kind": "decision_record",
-      "size_bytes": 10036,
-      "sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
-    },
-    {
-      "path": "docs/governance/v1/approval-roster.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 3003,
-      "sha256": "sha256:80e4077d7d07658c9a55c1f89903ecdfb87b37b2942faec8f5e122c7e6dc30c8"
-    },
-    {
-      "path": "docs/governance/v1/baseline-observations.json",
-      "kind": "planning_evidence",
-      "size_bytes": 7399,
-      "sha256": "sha256:23838cd87a16ee7aa34f9ac85ee7d354806dcfdfeef883075735fabf339d275a"
-    },
-    {
-      "path": "docs/governance/v1/baseline-observations.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 10195,
-      "sha256": "sha256:1ef367cdd16dbf23530cc7a64e000f0fc9c95f6415badb9a280dae16ef0b57f6"
-    },
-    {
-      "path": "docs/governance/v1/completion-receipt-v1-base-01.json",
-      "kind": "completion_receipt",
-      "size_bytes": 7180,
-      "sha256": "sha256:7e37bc9a508834ad9f94d056da51001482f277552d5c8efc3776f77ab4b8fb48"
-    },
-    {
-      "path": "docs/governance/v1/completion-receipt-v1-boot-01.json",
-      "kind": "completion_receipt",
-      "size_bytes": 5210,
-      "sha256": "sha256:ae634a7c2b5262575d6a4efb6d8c7416959bc8280957eb040aa12f388dfb8df6"
-    },
-    {
-      "path": "docs/governance/v1/completion-report-v1-base-01.md",
-      "kind": "completion_report",
-      "size_bytes": 9233,
-      "sha256": "sha256:e0dd2fec610dc1b80c2b4e2b6208d99a9673ede6945725e1316b636b3c2f08a7"
-    },
-    {
-      "path": "docs/governance/v1/completion-report-v1-boot-01.md",
-      "kind": "completion_report",
-      "size_bytes": 8638,
-      "sha256": "sha256:12546eb05f0ae89ceee8e317b054da3d4923b335b8565833767ae36c3c9256f9"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
-      "kind": "planning_method_registry",
-      "size_bytes": 2470,
-      "sha256": "sha256:7c89be101993caca413de465d8233b420dc5d3022cf352ea89f295cbbbc74fad"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 3784,
-      "sha256": "sha256:cc5a03f97e14e5a364a8a2368461b0563f43701d1940c727525271c275acb680"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
-      "kind": "planning_evidence",
-      "size_bytes": 199415,
-      "sha256": "sha256:5952c397bc9b1576b15930584afe95bee2817e810a4b85bf34aa247779c222ee"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.authoring-ledger.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 6054,
-      "sha256": "sha256:44e314bcc12b11c2c5a7dc20721d95e966310269ec7f85ec293644f6c85d9602"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.json",
-      "kind": "planning_evidence",
-      "size_bytes": 149962,
-      "sha256": "sha256:2b9e8cdca2989b7a4ac3fd997d177ab8b38aaef07b3f2c5e46ec85e4634426bf"
-    },
-    {
-      "path": "docs/governance/v1/delivery-forecast.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 12392,
-      "sha256": "sha256:99ce77a42abd251e05b97b4298911539fa8128bf56505fd4d71299dae24883ac"
-    },
-    {
-      "path": "docs/governance/v1/governance-bundle.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 12172,
-      "sha256": "sha256:44d286e3db0689f2b33f29805396a0808b027a89e7e70eaff5537fb49d6c7cbd"
-    },
-    {
-      "path": "docs/governance/v1/kickoff-authorization-v1-base-01.json",
-      "kind": "kickoff_authorization",
-      "size_bytes": 3092,
-      "sha256": "sha256:c7b4e5ae96b29d1185d7a1115885e8971d070a55551fa6e992fc733f225b5f82"
-    },
-    {
-      "path": "docs/governance/v1/kickoff-authorization-v1-boot-01.json",
-      "kind": "kickoff_authorization",
-      "size_bytes": 3048,
-      "sha256": "sha256:b8f3cff124ff422110e94263f1fbcf448870418734c6847c1ac5c28bd9184e16"
-    },
-    {
-      "path": "docs/governance/v1/kickoff-authorization.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 5723,
-      "sha256": "sha256:8d8b8084a0d45414e1d08528b3b6119cf0276aafe004c747bfd21eddff226a4a"
-    },
-    {
-      "path": "docs/governance/v1/maintainer-signing-key.json",
-      "kind": "governance_trust_key",
-      "size_bytes": 1207,
-      "sha256": "sha256:12f6925ae7327050928861fee8ad02664b12614ef29f5e1b36d4c4783b4ae0e3"
-    },
-    {
-      "path": "docs/governance/v1/maintainer-signing-key.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 2489,
-      "sha256": "sha256:e9685ac2a2fb61bc5923a2df016152c5f12be0899e38b10eae76b61cc12446d9"
-    },
-    {
-      "path": "docs/governance/v1/ticket-completion-receipt.schema.json",
-      "kind": "planning_schema",
-      "size_bytes": 6906,
-      "sha256": "sha256:def83fcf397a76f3ce1e69db9f88dee78e8ea1afa4ffe4c5d62a26ab915ffe02"
-    },
-    {
-      "path": "mkdocs.yml",
-      "kind": "documentation_integration",
-      "size_bytes": 2866,
-      "sha256": "sha256:f31ab6ed7c88747dbf513ec2d88776c49e612e3750572e5e8299f5090d3938aa"
-    },
-    {
-      "path": "scripts/v1_s1_governance.ps1",
-      "kind": "governance_runtime_launcher",
-      "size_bytes": 8074,
-      "sha256": "sha256:2326befebe522a45fdb7d0cf98ed4e5ec8badde2acf08ed1a14c64bf0981e368"
-    },
-    {
-      "path": "scripts/v1_s1_governance.py",
-      "kind": "governance_validator",
-      "size_bytes": 338471,
-      "sha256": "sha256:b21ef9e3f0c98b925138f631267697c7b09061286edf5e8b38ff80cec314b6cd"
-    },
-    {
-      "path": "tests/integration/test_v1_s1_historical_check.py",
-      "kind": "integration_verification",
-      "size_bytes": 19917,
-      "sha256": "sha256:cbc2253051b17994f4c9a28619375aede6d425a716a6d3294c1288fe47dba223"
-    },
-    {
-      "path": "tests/unit/governance/test_v1_s1_governance.py",
-      "kind": "verification",
-      "size_bytes": 88056,
-      "sha256": "sha256:57a30c613d59f9f38a5fc7708ef977efa82e640b9bfa95b1bda21f29703d0ed3"
-    },
-    {
-      "path": "tests/unit/release/test_coverage_gate.py",
-      "kind": "continuous_integration_verification",
-      "size_bytes": 23973,
-      "sha256": "sha256:76c94eff67d94fd52cbf1b48281a3390e727c79aba2f0005cc5de486f0402793"
-    }
-  ],
-  "artifact_set_digest": "sha256:c177e2f939a363d8f07a0f8e9508777f0666bee7427fec859082e5b2019478d8",
   "issuer_person_id": "acblabs",
   "issuer_role": "repository_maintainer",
   "approval_mode": "maintainer_development",
   "independence_claimed": false,
-  "issued_at_utc": "2026-10-15T21:42:43Z",
-  "valid_until_utc": "2026-11-14T20:16:36Z",
-  "bundle_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+  "time_evidence": {
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": false
+  },
+  "issued_at_utc": "2026-10-16T19:09:47.223318Z",
+  "valid_until_utc": "2026-11-15T19:09:47.223318Z",
+  "claim_prepared_at_utc": "2026-10-17T01:59:49.506146Z",
+  "bundle_digest": "sha256:5ccd860754526fdf596b2caa81714339dfaf2167e0c1000983258c00c880e008",
   "signature_envelope": {
     "profile": "openssh-sshsig-ed25519/v1",
     "status": "signed",
     "namespace": "agent-assure-governance-v1",
-    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v1",
+    "signed_payload_encoding": "agent-assure-domain-separated-rfc8785-signature-claim/v2",
     "signature_encoding": "base64-canonical-lf-openssh-sshsig-armored",
     "signer_person_id": "acblabs",
     "signer_role": "repository_maintainer",
-    "subject_digest": "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82",
+    "subject_digest": "sha256:5ccd860754526fdf596b2caa81714339dfaf2167e0c1000983258c00c880e008",
     "public_key_fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
-    "signed_at_utc": "2026-10-15T21:42:43Z",
-    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQU9KN25BMzdjNUdNeHF1ak5GZ1BHbVE5NFRDNnRSVXovNnoKWUowZFR4dnhIQUN1c1cvNkZ0bEp3cy9UQmMrMG5Jb1F0QlBaZDNGb2ZMOHdZMndFQUJCdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+    "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQUVZZUZlcUtMRnRIVXhpYmtLNVZMNG0vUEV3ajNWNzhDZ0EKNzQ1Y2tNdDJnVXlmR1dhcmJwUWZtUjhRZFZTYmIzNGJZaVNLMmlKSCtpSTRFNWQvcWxCQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo="
+  },
+  "signature_import_evidence": {
+    "status": "verified_after_import",
+    "verification_recorded_at_utc": "2026-10-17T02:01:35.659306Z",
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": false,
+    "verification_result": "valid_exact_payload_key_and_namespace"
   }
 }
