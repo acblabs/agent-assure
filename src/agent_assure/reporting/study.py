@@ -42,7 +42,10 @@ from agent_assure.schema.study import (
     StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.study.analysis import StudyConditionEvidence, analyze_real_model_study
-from agent_assure.study_artifact_serialization import published_model_json_bytes
+from agent_assure.study_artifact_serialization import (
+    _published_payload_json_bytes,
+    published_model_json_bytes,
+)
 from agent_assure.study_execution_review import validate_study_execution_review
 from agent_assure.study_limits import (
     MAX_STUDY_BUNDLE_FILES,
@@ -1011,7 +1014,10 @@ def _unchanged_safe_runset(value: RunSet) -> RunSet:
 def _safe_model_json_text(model: BaseModel) -> str:
     payload = model.model_dump(mode="json", warnings="error")
     _assert_persisted_payload_safe(payload, owner="study evidence")
-    return published_model_json_bytes(model).decode("utf-8")
+    # Every caller supplies a model projected at this writer's admission
+    # boundary. Revalidating here would repeat nested journal digest and
+    # lifecycle checks solely to recover the same canonical bytes.
+    return _published_payload_json_bytes(payload).decode("utf-8")
 
 
 def _assert_text_safe(value: str) -> None:

@@ -31,6 +31,13 @@ PERSON_ID = "H1"
 ISSUED_AT = "2026-10-15T15:00:00Z"
 INVENTORY_COMPLETED_AT = "2026-10-15T14:00:00Z"
 VALID_UNTIL = "2026-11-14T15:00:00Z"
+SYNTHETIC_LEGACY_V3_GIT_EXCLUDE_BYTES = (
+    b"# Hermetic synthetic legacy-v3 local-exclude policy.\n"
+    b"/Agent_Assure_Implementation_Roadmap.md\n"
+    b"/.venv/\n"
+    b"/.tmp/\n"
+    b"/synthetic-legacy-v3-only/\n"
+)
 
 
 def _host_test_tool_identities() -> dict[str, governance.TrustedExecutableIdentity]:
@@ -73,7 +80,91 @@ def _digest(byte: str) -> str:
     return f"sha256:{byte * 64}"
 
 
-def _minimal_snapshot() -> governance.RoadmapSnapshot:
+def _independent_python_test_executable() -> str:
+    """Return a Python process whose launch policy will not rewrite the test probe.
+
+    The governed full-suite process installs a recursive launch guard around its
+    descendant interpreter.  A few tests below intentionally compare raw
+    CPython behavior or execute a separately generated bootstrap, so allowing
+    that outer guard to rewrite their argv would test the outer run instead of
+    the probe.  The guard contract already treats the frozen base interpreter
+    as an independent absolute executable; ordinary test runs retain their
+    current interpreter for cross-platform coverage.
+    """
+
+    guard = getattr(subprocess, "_agent_assure_s1_post_r2_launch_guard", None)
+    if guard is None:
+        return sys.executable
+    assert guard == (
+        sys.executable,
+        sys.pycache_prefix,
+    ), "the governed test harness marker does not match this interpreter"
+    executable = governance._FROZEN_PYTHON_EXECUTABLE
+    assert executable.is_file(), "the governed test harness requires its frozen base Python"
+    assert executable.is_absolute()
+    assert os.path.normcase(str(executable.resolve())) != os.path.normcase(
+        str(Path(sys.executable).resolve())
+    )
+    return str(executable)
+
+
+def _install_synthetic_legacy_v3_git_exclude_policy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> bytes:
+    """Replace only the in-memory legacy pin for hermetic synthetic tests."""
+
+    payload = SYNTHETIC_LEGACY_V3_GIT_EXCLUDE_BYTES
+    monkeypatch.setattr(governance, "POST_R2_GIT_EXCLUDE_SIZE_BYTES", len(payload))
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_GIT_EXCLUDE_SHA256",
+        hashlib.sha256(payload).hexdigest(),
+    )
+    return payload
+
+
+def _install_synthetic_legacy_v3_git_exclude_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+) -> bytes:
+    """Use sentinel bytes while retaining schema-pinned historical metadata."""
+
+    payload = SYNTHETIC_LEGACY_V3_GIT_EXCLUDE_BYTES
+    historical_evidence = {
+        "path": ".git/info/exclude",
+        "size_bytes": governance.POST_R2_GIT_EXCLUDE_SIZE_BYTES,
+        "sha256": "sha256:" + governance.POST_R2_GIT_EXCLUDE_SHA256,
+    }
+    original = governance._post_r2_git_exclude_evidence
+
+    def synthetic_evidence(
+        repository_root: Path,
+        *,
+        legacy_v3_policy: bool = False,
+    ) -> dict[str, Any]:
+        if not legacy_v3_policy:
+            return original(repository_root, legacy_v3_policy=False)
+        exclude = repository_root / ".git" / "info" / "exclude"
+        try:
+            observed = exclude.read_bytes()
+        except OSError as exc:
+            raise governance.GovernanceError(
+                "synthetic post-R2 .git/info/exclude cannot be read"
+            ) from exc
+        if observed != payload:
+            raise governance.GovernanceError("synthetic post-R2 .git/info/exclude policy changed")
+        return copy.deepcopy(historical_evidence)
+
+    monkeypatch.setattr(governance, "_post_r2_git_exclude_evidence", synthetic_evidence)
+    return payload
+
+
+class _SyntheticCaptureRecord(dict[str, Any]):
+    def __init__(self, value: dict[str, Any], *, reused: bool) -> None:
+        super().__init__(value)
+        self.reused = reused
+
+
+def _minimal_snapshot(*, raw_digest: str | None = None) -> governance.RoadmapSnapshot:
     ticket = {
         "id": "V1-TEST-01",
         "title": "Exercise the governance calculations",
@@ -98,7 +189,7 @@ def _minimal_snapshot() -> governance.RoadmapSnapshot:
         ]
     }
     return governance.RoadmapSnapshot(
-        raw_digest=_digest("1"),
+        raw_digest=raw_digest or _digest("1"),
         tickets=(ticket,),
         release_train=release_train,
         approval_roster_template={},
@@ -1333,6 +1424,54 @@ def test_read_commit_blob_surfaces_bounded_cat_file_diagnostics(
     assert len(message) < governance.MAX_GIT_DIAGNOSTIC_CHARS + 100
 
 
+def test_shared_git_subprocess_policy_neutralizes_excludes_and_attributes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    hooks_directory = tmp_path / "hooks"
+    hooks_directory.mkdir()
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "2")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.excludesFile")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "hostile-excludes"))
+    monkeypatch.setenv("GIT_CONFIG_KEY_1", "core.attributesFile")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_1", str(tmp_path / "hostile-attributes"))
+    monkeypatch.setenv("GIT_ATTR_NOSYSTEM", "0")
+
+    environment = governance._governance_subprocess_environment()
+    prefix = governance._git_invocation_prefix("trusted-git", hooks_directory)
+
+    assert environment["GIT_ATTR_NOSYSTEM"] == "1"
+    assert environment["GIT_CONFIG_GLOBAL"] == os.devnull
+    assert environment["GIT_CONFIG_SYSTEM"] == os.devnull
+    assert "GIT_CONFIG_COUNT" not in environment
+    assert "GIT_CONFIG_KEY_0" not in environment
+    assert "GIT_CONFIG_VALUE_0" not in environment
+    assert prefix == [
+        "trusted-git",
+        "--no-replace-objects",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "-c",
+        "core.excludesFile=",
+        "-c",
+        "core.attributesFile=",
+        "-c",
+        f"core.hooksPath={hooks_directory.resolve()}",
+        "-c",
+        "credential.helper=",
+        "-c",
+        "http.proxy=",
+        "-c",
+        "http.sslVerify=true",
+        "-c",
+        "protocol.allow=never",
+        "-c",
+        "protocol.https.allow=always",
+    ]
+
+
 def _closure_bundle() -> dict[str, Any]:
     receipts = {
         "docs/governance/v1/completion-receipt-v1-base-01.json": {"ticket_id": "V1-BASE-01"},
@@ -1594,22 +1733,53 @@ def test_corrective_result_topology_rejects_unsigned_path_and_non_direct_child(
         )
 
 
-def _post_r2_evidence_fixture(
+def test_post_v2_control_topology_binds_a_proper_nonmerge_descendant_of_c2(
     tmp_path: Path,
-    result_commit: str,
     monkeypatch: pytest.MonkeyPatch,
-) -> tuple[Path, dict[str, Any]]:
-    root = tmp_path.resolve()
-    evidence_root = tmp_path / governance.POST_R2_SUITE_EVIDENCE_DIRECTORY
-    evidence_root.mkdir(parents=True)
-    stdout = (
-        b"....                                                                     [100%]\n"
-        b"4 passed, 1 skipped, 1 xfailed in 1.25s\n"
+) -> None:
+    repository = tmp_path / "repository"
+    _initialize_git_repository(repository)
+    artifact = repository / "control.txt"
+    artifact.write_text("base\n", encoding="utf-8")
+    base = _commit_all(repository, "base")
+    artifact.write_text("accepted generation two\n", encoding="utf-8")
+    c2 = _commit_all(repository, "C2")
+    artifact.write_text("post-v2 controls\n", encoding="utf-8")
+    subject = _commit_all(repository, "post-v2 controls")
+    monkeypatch.setattr(governance, "S1_ACCEPTANCE_V2_CLOSURE_COMMIT", c2)
+
+    assert governance._post_v2_control_topology(
+        repository,
+        subject_commit=subject,
+    ) == {
+        "scope": "post_v2_control_verification_only",
+        "authorization_effect": "none",
+        "history_policy": "full_history_without_replacements_grafts_or_alternates/v1",
+        "immutable_acceptance_v2_closure_commit": c2,
+        "relationship": "proper_non_merge_descendant",
+        "subject_commit": subject,
+        "subject_parent_commit": c2,
+    }
+    with pytest.raises(governance.GovernanceError, match="proper descendant"):
+        governance._post_v2_control_topology(repository, subject_commit=c2)
+    with pytest.raises(governance.GovernanceError, match="does not descend"):
+        governance._post_v2_control_topology(repository, subject_commit=base)
+
+    alternate_repository = tmp_path / "alternate-repository"
+    _initialize_git_repository(alternate_repository)
+    alternates = repository / ".git/objects/info/alternates"
+    alternates.write_text(
+        (alternate_repository / ".git/objects").resolve().as_posix() + "\n",
+        encoding="utf-8",
     )
-    stderr = b""
-    (evidence_root / "pytest.stdout.bin").write_bytes(stdout)
-    (evidence_root / "pytest.stderr.bin").write_bytes(stderr)
-    runtime_root = (tmp_path / "synthetic-base-runtime").resolve()
+    with pytest.raises(governance.GovernanceError, match="alternate object stores"):
+        governance._post_v2_control_topology(repository, subject_commit=subject)
+
+
+def _install_synthetic_frozen_runtime(
+    runtime_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[Path, Path]:
     runtime_root.mkdir(parents=True)
     python_file = runtime_root / "python.exe"
     python_dll = runtime_root / "python312.dll"
@@ -1634,6 +1804,38 @@ def _post_r2_evidence_fixture(
     monkeypatch.setattr(governance, "_FROZEN_BASE_RUNTIME_FILE_COUNT", base_count)
     monkeypatch.setattr(governance, "_FROZEN_BASE_RUNTIME_SIZE_BYTES", base_size)
     monkeypatch.setattr(governance, "_FROZEN_BASE_RUNTIME_SHA256", base_digest)
+    return python_file, python_dll
+
+
+def _post_r2_evidence_fixture(
+    tmp_path: Path,
+    result_commit: str,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    legacy_v3_policy: bool = True,
+    subject_parent_commit: str | None = None,
+) -> tuple[Path, dict[str, Any]]:
+    root = tmp_path.resolve()
+    local_exclude_bytes = (
+        _install_synthetic_legacy_v3_git_exclude_fixture(monkeypatch)
+        if legacy_v3_policy
+        else governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES
+    )
+    evidence_root = tmp_path / (
+        governance.POST_R2_SUITE_EVIDENCE_DIRECTORY
+        if legacy_v3_policy
+        else ".tmp/s1-acceptance/post-v2-control-fixture"
+    )
+    evidence_root.mkdir(parents=True)
+    stdout = (
+        b"....                                                                     [100%]\n"
+        b"4 passed, 1 skipped, 1 xfailed in 1.25s\n"
+    )
+    stderr = b""
+    (evidence_root / "pytest.stdout.bin").write_bytes(stdout)
+    (evidence_root / "pytest.stderr.bin").write_bytes(stderr)
+    runtime_root = (tmp_path / "synthetic-base-runtime").resolve()
+    _install_synthetic_frozen_runtime(runtime_root, monkeypatch)
     (tmp_path / ".venv").mkdir()
     (tmp_path / ".venv" / "pyvenv.cfg").write_bytes(b"home = synthetic-base\n")
     site_packages = tmp_path / ".venv" / "Lib" / "site-packages" / "pytest"
@@ -1675,29 +1877,53 @@ def _post_r2_evidence_fixture(
     (governance_directory / "corrective-kickoff-authorization.schema.json").write_bytes(
         b'{"synthetic":"schema"}\n'
     )
-    governance_sources = governance._post_r2_governance_source_evidence(
-        tmp_path,
-        roadmap,
+    governance_sources = (
+        governance._post_r2_governance_source_evidence(tmp_path, roadmap)
+        if legacy_v3_policy
+        else governance._post_v2_control_source_evidence(tmp_path, roadmap)
     )
     git_info = tmp_path / ".git" / "info"
     git_info.mkdir(parents=True, exist_ok=True)
-    (git_info / "exclude").write_bytes((ROOT / ".git" / "info" / "exclude").read_bytes())
-    test_surface = {
-        "format": "agent-assure-s1-post-r2-test-surface/1",
+    (git_info / "exclude").write_bytes(local_exclude_bytes)
+    test_surface: dict[str, Any] = {
+        "format": (
+            "agent-assure-s1-post-r2-test-surface/1"
+            if legacy_v3_policy
+            else "agent-assure-s1-post-r2-test-surface/2"
+        ),
         "subject_result_commit": result_commit,
         "directory_roots": list(governance.POST_R2_TEST_AFFECTING_DIRECTORIES),
         "tracked_root_files": list(governance.POST_R2_TRACKED_ROOT_FILES),
-        "root_config_paths": list(governance.POST_R2_ROOT_TEST_CONFIG_PATHS),
+        "root_config_paths": list(
+            governance._post_r2_root_test_config_paths(legacy_v3_policy=legacy_v3_policy)
+        ),
         "cache_policy": {
             "excluded_directory_name": "__pycache__",
             "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
             "forbidden_direct_file_suffixes": [".pyc", ".pyo"],
         },
-        "local_exclude": governance._post_r2_git_exclude_evidence(root),
+        "local_exclude": governance._post_r2_git_exclude_evidence(
+            root,
+            legacy_v3_policy=legacy_v3_policy,
+        ),
         "file_count": 1,
         "size_bytes": 1,
         "sha256": _digest("c"),
     }
+    if not legacy_v3_policy:
+        test_surface["root_import_policy"] = {
+            "repository_root_on_initial_python_path": False,
+            "forbidden_file_suffixes": list(governance.POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES),
+            "allowed_local_root_entries": list(
+                governance.POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES
+            ),
+            "unexpected_top_level_entries": "rejected",
+            "top_level_reparse_points": "rejected",
+        }
+        test_surface["local_attributes"] = {
+            "path": ".git/info/attributes",
+            "status": "absent",
+        }
     monkeypatch.setattr(
         governance,
         "_post_r2_test_surface_evidence",
@@ -1714,6 +1940,7 @@ def _post_r2_evidence_fixture(
         root,
         basetemp_path,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     state = {
         "head_commit": result_commit,
@@ -1723,11 +1950,15 @@ def _post_r2_evidence_fixture(
         "status_stdout_sha256": governance.raw_digest(b""),
     }
     projection: dict[str, Any] = {
-        "format": "agent-assure-s1-post-r2-suite-evidence/3",
-        "acceptance_generation": 2,
-        "subject_result_parent_commit": governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
-        "subject_result_commit": result_commit,
-        "corrective_authorization_claim_digest": governance.CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "format": (
+            "agent-assure-s1-post-r2-suite-evidence/3"
+            if legacy_v3_policy
+            else "agent-assure-s1-post-r2-suite-evidence/4"
+        ),
+        "acceptance_generation": 2 if legacy_v3_policy else None,
+        "corrective_authorization_claim_digest": (
+            governance.CORRECTIVE_KICKOFF_CLAIM_DIGEST if legacy_v3_policy else None
+        ),
         "governance_sources": governance_sources,
         "repository_test_surface": test_surface,
         "command": {
@@ -1744,13 +1975,18 @@ def _post_r2_evidence_fixture(
                 root,
                 basetemp=basetemp_path,
                 process_temp=process_temp,
+                legacy_v3_policy=legacy_v3_policy,
             ),
             "bootstrap_input": governance._post_r2_bootstrap_input(
                 root,
                 basetemp=basetemp_path,
                 process_temp=process_temp,
+                legacy_v3_policy=legacy_v3_policy,
             )[1],
-            "bytecode_policy": governance._post_r2_bytecode_policy(basetemp_path),
+            "bytecode_policy": governance._post_r2_bytecode_policy(
+                basetemp_path,
+                legacy_v3_policy=legacy_v3_policy,
+            ),
             "test_runtime": test_runtime,
         },
         "time_evidence": {
@@ -1784,15 +2020,476 @@ def _post_r2_evidence_fixture(
             },
         },
     }
+    if legacy_v3_policy:
+        projection.update(
+            {
+                "subject_result_parent_commit": governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+                "subject_result_commit": result_commit,
+            }
+        )
+    else:
+        if subject_parent_commit is None:
+            subject_parent_commit = "b" * 40
+        projection["control_basis"] = {
+            "scope": "post_v2_control_verification_only",
+            "authorization_effect": "none",
+            "history_policy": "full_history_without_replacements_grafts_or_alternates/v1",
+            "immutable_acceptance_v2_closure_commit": governance.S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+            "relationship": "proper_non_merge_descendant",
+            "subject_commit": result_commit,
+            "subject_parent_commit": subject_parent_commit,
+        }
     record = {
         **projection,
         "evidence_digest": governance.domain_digest(
-            governance.POST_R2_SUITE_EVIDENCE_DOMAIN, projection
+            (
+                governance.POST_R2_SUITE_EVIDENCE_DOMAIN
+                if legacy_v3_policy
+                else governance.POST_R2_SUITE_EVIDENCE_V4_DOMAIN
+            ),
+            projection,
         ),
     }
-    evidence_path = evidence_root / "post-r2-suite-evidence.json"
+    evidence_path = evidence_root / (
+        "post-r2-suite-evidence.json" if legacy_v3_policy else "post-v2-control-suite-evidence.json"
+    )
     governance._write_json(evidence_path, record)
     return evidence_path, record
+
+
+def test_post_v2_control_capture_preserves_a_fresh_failed_run_with_nonacceptance_basis(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = (tmp_path / "repository").resolve()
+    repository.mkdir()
+    evidence_root = repository / ".tmp/s1-acceptance/post-v2-control-fresh-failed-suite"
+    basetemp = tmp_path / "external-process-temp/synthetic-basetemp"
+    subject_commit = "a" * 40
+    subject_parent_commit = "b" * 40
+    topology = {
+        "scope": "post_v2_control_verification_only",
+        "authorization_effect": "none",
+        "history_policy": "full_history_without_replacements_grafts_or_alternates/v1",
+        "immutable_acceptance_v2_closure_commit": governance.S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+        "relationship": "proper_non_merge_descendant",
+        "subject_commit": subject_commit,
+        "subject_parent_commit": subject_parent_commit,
+    }
+    state = {
+        "head_commit": subject_commit,
+        "clean": True,
+        "status_command": ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        "status_stdout_size_bytes": 0,
+        "status_stdout_sha256": governance.raw_digest(b""),
+    }
+    test_runtime = {
+        "base_runtime": {
+            "python_executable": {
+                "absolute_path": str(repository / "synthetic-python.exe"),
+                "size_bytes": 1,
+                "sha256": _digest("1"),
+            }
+        }
+    }
+    test_surface = {"file_count": 1, "size_bytes": 1, "sha256": _digest("2")}
+    completed = subprocess.CompletedProcess(
+        ["pytest"],
+        1,
+        stdout=b"1 failed in 0.01s\n",
+        stderr=b"",
+    )
+    ordering: list[str] = []
+    original_publish = governance._publish_post_r2_suite_evidence_directory
+
+    def inspect_topology(*_args: Any, **_kwargs: Any) -> dict[str, str]:
+        ordering.append("topology")
+        return copy.deepcopy(topology)
+
+    def validate_roadmap(*_args: Any, **_kwargs: Any) -> None:
+        ordering.append("roadmap_check_ignore")
+
+    def preflight_metadata(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        ordering.append("metadata_preflight")
+        return {}
+
+    def inspect_repository_state(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        ordering.append("git_status")
+        return copy.deepcopy(state)
+
+    def validate_embedded(
+        record: dict[str, Any],
+        **kwargs: Any,
+    ) -> dict[str, Any]:
+        ordering.append("embedded_validation")
+        assert kwargs == {
+            "expected_subject_commit": subject_commit,
+            "expected_subject_parent_commit": subject_parent_commit,
+            "require_passed": False,
+        }
+        assert record["execution"]["exit_code"] == 1
+        assert record["execution"]["outcome"] == "failed"
+        return copy.deepcopy(record)
+
+    def publish(evidence_directory: Path, **kwargs: Any) -> None:
+        ordering.append("publish")
+        original_publish(evidence_directory, **kwargs)
+
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_topology",
+        inspect_topology,
+    )
+    monkeypatch.setattr(governance, "validate_local_only_roadmap", validate_roadmap)
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_source_evidence",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        preflight_metadata,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_repository_state",
+        inspect_repository_state,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_private_path",
+        lambda _root, value, **_kwargs: Path(value).resolve(),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_test_runtime_evidence",
+        lambda *_args, **_kwargs: copy.deepcopy(test_runtime),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_test_surface_evidence",
+        lambda *_args, **_kwargs: copy.deepcopy(test_surface),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_execute_post_r2_pytest",
+        lambda *_args, **_kwargs: (
+            basetemp,
+            ["pytest"],
+            {},
+            {},
+            {},
+            "2026-10-15T15:00:00Z",
+            completed,
+            "2026-10-15T15:00:01Z",
+        ),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_validate_embedded_post_v2_control_suite_evidence",
+        validate_embedded,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_publish_post_r2_suite_evidence_directory",
+        publish,
+    )
+
+    captured = governance.capture_post_v2_control_suite_evidence(
+        repository,
+        roadmap_path=repository / "Agent_Assure_Implementation_Roadmap.md",
+        subject_commit=subject_commit,
+        evidence_directory=evidence_root,
+    )
+
+    assert captured.reused is False
+    assert captured["format"] == "agent-assure-s1-post-r2-suite-evidence/4"
+    assert captured["acceptance_generation"] is None
+    assert captured["corrective_authorization_claim_digest"] is None
+    assert captured["control_basis"] == topology
+    assert ordering[:5] == [
+        "metadata_preflight",
+        "topology",
+        "roadmap_check_ignore",
+        "metadata_preflight",
+        "git_status",
+    ]
+    assert captured["execution"]["exit_code"] == 1
+    assert captured["execution"]["outcome"] == "failed"
+    assert captured["execution"]["pytest_totals"] == {
+        "collected": 1,
+        "passed": 0,
+        "failed": 1,
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0,
+    }
+    assert ordering.index("embedded_validation") < ordering.index("publish")
+    assert (evidence_root / "post-v2-control-suite-evidence.json").is_file()
+    assert (evidence_root / "pytest.stdout.bin").read_bytes() == completed.stdout
+    assert (evidence_root / "pytest.stderr.bin").read_bytes() == completed.stderr
+
+
+def _install_post_v2_capture_fixture(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    completed: subprocess.CompletedProcess[bytes],
+) -> tuple[Path, Path, str, str, list[str]]:
+    subject_commit = "a" * 40
+    subject_parent_commit = "b" * 40
+    _fixture_path, fixture = _post_r2_evidence_fixture(
+        tmp_path,
+        subject_commit,
+        monkeypatch,
+        legacy_v3_policy=False,
+        subject_parent_commit=subject_parent_commit,
+    )
+    repository = tmp_path.resolve()
+    evidence_root = repository / ".tmp/s1-acceptance/post-v2-control-capture-under-test"
+    topology = copy.deepcopy(fixture["control_basis"])
+    governance_sources = copy.deepcopy(fixture["governance_sources"])
+    state = copy.deepcopy(fixture["repository_precondition"])
+    test_runtime = copy.deepcopy(fixture["command"]["test_runtime"])
+    test_surface = copy.deepcopy(fixture["repository_test_surface"])
+    command = copy.deepcopy(fixture["command"])
+    basetemp = Path(command["argv"][-1])
+    ordering: list[str] = []
+    original_validate = governance._validate_embedded_post_v2_control_suite_evidence
+    original_publish = governance._publish_post_r2_suite_evidence_directory
+
+    def validate_embedded(record: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
+        ordering.append("embedded_validation")
+        return original_validate(record, **kwargs)
+
+    def publish(evidence_directory: Path, **kwargs: Any) -> None:
+        ordering.append("publish")
+        original_publish(evidence_directory, **kwargs)
+
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_topology",
+        lambda *_args, **_kwargs: copy.deepcopy(topology),
+    )
+    monkeypatch.setattr(governance, "validate_local_only_roadmap", lambda *_args: None)
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_private_path",
+        lambda _root, value, **_kwargs: Path(value).resolve(),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_source_evidence",
+        lambda *_args, **_kwargs: copy.deepcopy(governance_sources),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_repository_state",
+        lambda *_args, **_kwargs: copy.deepcopy(state),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_test_runtime_evidence",
+        lambda *_args, **_kwargs: copy.deepcopy(test_runtime),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_test_surface_evidence",
+        lambda *_args, **_kwargs: copy.deepcopy(test_surface),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_execute_post_r2_pytest",
+        lambda *_args, **_kwargs: (
+            basetemp,
+            copy.deepcopy(command["argv"]),
+            copy.deepcopy(command["environment"]),
+            copy.deepcopy(command["descendant_runtime"]),
+            copy.deepcopy(command["bootstrap_input"]),
+            "2026-10-15T15:00:00Z",
+            completed,
+            "2026-10-15T15:00:01Z",
+        ),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_validate_embedded_post_v2_control_suite_evidence",
+        validate_embedded,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_publish_post_r2_suite_evidence_directory",
+        publish,
+    )
+    return repository, evidence_root, subject_commit, subject_parent_commit, ordering
+
+
+def test_post_v2_control_capture_publishes_valid_failed_evidence_after_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        ["pytest"],
+        1,
+        stdout=b"3 passed, 1 failed, 1 skipped, 1 xfailed in 0.01s\n",
+        stderr=b"",
+    )
+    repository, evidence_root, subject_commit, _parent_commit, ordering = (
+        _install_post_v2_capture_fixture(
+            tmp_path,
+            monkeypatch,
+            completed=completed,
+        )
+    )
+
+    captured = governance.capture_post_v2_control_suite_evidence(
+        repository,
+        roadmap_path=repository / "Agent_Assure_Implementation_Roadmap.md",
+        subject_commit=subject_commit,
+        evidence_directory=evidence_root,
+    )
+
+    assert captured.reused is False
+    assert captured["execution"]["outcome"] == "failed"
+    assert captured["execution"]["pytest_totals"]["failed"] == 1
+    assert ordering == ["embedded_validation", "publish"]
+    assert (evidence_root / "post-v2-control-suite-evidence.json").is_file()
+
+
+def test_post_v2_control_capture_cannot_publish_deselected_totals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        ["pytest"],
+        0,
+        stdout=b"1 passed, 1 deselected in 0.01s\n",
+        stderr=b"",
+    )
+    repository, evidence_root, subject_commit, _parent_commit, ordering = (
+        _install_post_v2_capture_fixture(
+            tmp_path,
+            monkeypatch,
+            completed=completed,
+        )
+    )
+
+    with pytest.raises(governance.GovernanceError, match="collected count"):
+        governance.capture_post_v2_control_suite_evidence(
+            repository,
+            roadmap_path=repository / "Agent_Assure_Implementation_Roadmap.md",
+            subject_commit=subject_commit,
+            evidence_directory=evidence_root,
+        )
+
+    assert ordering == ["embedded_validation"]
+    assert not evidence_root.exists()
+
+
+def test_post_v2_control_capture_cannot_publish_errors_only_totals(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    completed = subprocess.CompletedProcess(
+        ["pytest"],
+        1,
+        stdout=b"1 error in 0.01s\n",
+        stderr=b"",
+    )
+    repository, evidence_root, subject_commit, _parent_commit, ordering = (
+        _install_post_v2_capture_fixture(
+            tmp_path,
+            monkeypatch,
+            completed=completed,
+        )
+    )
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match=r"reports no collected tests; .*stdout_size_bytes=.*stdout_sha256=sha256:",
+    ):
+        governance.capture_post_v2_control_suite_evidence(
+            repository,
+            roadmap_path=repository / "Agent_Assure_Implementation_Roadmap.md",
+            subject_commit=subject_commit,
+            evidence_directory=evidence_root,
+        )
+
+    assert ordering == []
+    assert not evidence_root.exists()
+
+
+@pytest.mark.parametrize(
+    ("exit_code", "outcome"),
+    ((1, "failed"), (0, "passed")),
+)
+def test_post_r2_capture_marks_failed_and_passing_existing_evidence_as_reused(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    exit_code: int,
+    outcome: str,
+) -> None:
+    repository = (tmp_path / "repository").resolve()
+    repository.mkdir()
+    evidence_root = repository / ".tmp/s1-acceptance/existing-suite"
+    evidence_root.mkdir(parents=True)
+    evidence_path = evidence_root / "post-r2-suite-evidence.json"
+    record = {
+        "evidence_digest": _digest("3"),
+        "execution": {
+            "exit_code": exit_code,
+            "outcome": outcome,
+            "pytest_totals": {
+                "collected": 1,
+                "passed": int(exit_code == 0),
+                "failed": int(exit_code != 0),
+                "skipped": 0,
+                "xfailed": 0,
+                "xpassed": 0,
+                "errors": 0,
+            },
+        },
+    }
+
+    monkeypatch.setattr(
+        governance,
+        "_corrective_private_acceptance_path",
+        lambda *_args, **_kwargs: evidence_root,
+    )
+
+    def validate_existing(path: Path, **kwargs: Any) -> dict[str, Any]:
+        assert path == evidence_path
+        assert kwargs["require_passed"] is False
+        return copy.deepcopy(record)
+
+    monkeypatch.setattr(
+        governance,
+        "validate_post_r2_suite_evidence_source",
+        validate_existing,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_execute_post_r2_pytest",
+        lambda *_args, **_kwargs: pytest.fail("existing evidence must not rerun pytest"),
+    )
+
+    reused = governance.capture_post_r2_suite_evidence(
+        repository,
+        roadmap_path=repository / "Agent_Assure_Implementation_Roadmap.md",
+        result_commit="a" * 40,
+        corrective_authorization={},
+        evidence_directory=evidence_root,
+    )
+
+    assert reused == record
+    assert reused.reused is True
 
 
 def test_post_r2_summary_parser_accepts_pass_and_skip_counts() -> None:
@@ -1913,6 +2610,31 @@ def _fresh_post_r2_process_temp(
     return process_temp_root, process_temp
 
 
+def _simulate_reparse_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+    attacked: Path,
+) -> None:
+    original_lstat = Path.lstat
+
+    class ReparseMetadata:
+        def __init__(self, metadata: os.stat_result) -> None:
+            self._metadata = metadata
+            self.st_file_attributes = (
+                getattr(metadata, "st_file_attributes", 0) | stat.FILE_ATTRIBUTE_REPARSE_POINT
+            )
+
+        def __getattr__(self, name: str) -> Any:
+            return getattr(self._metadata, name)
+
+    def adversarial_lstat(path: Path) -> os.stat_result:
+        metadata = original_lstat(path)
+        if path == attacked:
+            return ReparseMetadata(metadata)  # type: ignore[return-value]
+        return metadata
+
+    monkeypatch.setattr(Path, "lstat", adversarial_lstat)
+
+
 def _post_r2_bootstrap_descendant_section(
     *,
     repository_root: Path,
@@ -1961,6 +2683,190 @@ def test_post_r2_suite_evidence_reparses_counts_and_binds_exact_command(
         )
 
 
+def test_post_v2_control_v4_evidence_validates_as_embedded_and_source_evidence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    result_commit = "a" * 40
+    subject_parent_commit = "b" * 40
+    evidence_path, record = _post_r2_evidence_fixture(
+        tmp_path,
+        result_commit,
+        monkeypatch,
+        legacy_v3_policy=False,
+        subject_parent_commit=subject_parent_commit,
+    )
+    control_basis = copy.deepcopy(record["control_basis"])
+    state = copy.deepcopy(record["repository_precondition"])
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_topology",
+        lambda *_args, **_kwargs: copy.deepcopy(control_basis),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_repository_state",
+        lambda *_args, **_kwargs: copy.deepcopy(state),
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_private_path",
+        lambda _root, value, **_kwargs: Path(value).resolve(),
+    )
+    monkeypatch.setattr(governance, "validate_local_only_roadmap", lambda *_args: None)
+
+    assert (
+        governance._validate_embedded_post_v2_control_suite_evidence(
+            record,
+            expected_subject_commit=result_commit,
+            expected_subject_parent_commit=subject_parent_commit,
+            require_passed=True,
+        )
+        == record
+    )
+    assert (
+        governance.validate_post_v2_control_suite_evidence_source(
+            evidence_path,
+            expected_subject_commit=result_commit,
+            expected_subject_parent_commit=subject_parent_commit,
+            expected_repository_root=tmp_path.resolve(),
+            require_passed=True,
+        )
+        == record
+    )
+
+    dirty_state = copy.deepcopy(record)
+    dirty_state["repository_precondition"]["clean"] = False
+    with pytest.raises(
+        governance.GovernanceError,
+        match=(
+            rf"post-v2 control repository_precondition is not clean at subject commit "
+            rf"{result_commit}"
+        ),
+    ):
+        governance._validate_embedded_post_v2_control_suite_evidence(
+            dirty_state,
+            expected_subject_commit=result_commit,
+            expected_subject_parent_commit=subject_parent_commit,
+            require_passed=True,
+        )
+
+    with pytest.raises(governance.GovernanceError, match="wrong policy version"):
+        governance.validate_post_r2_suite_evidence_source(
+            evidence_path,
+            expected_result_commit=result_commit,
+            expected_repository_root=tmp_path.resolve(),
+            require_passed=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_path", "replacement"),
+    (
+        (
+            (
+                "repository_test_surface",
+                "root_import_policy",
+                "repository_root_on_initial_python_path",
+            ),
+            0,
+        ),
+        (("time_evidence", "actual_signature_time_claimed"), 0),
+        (("repository_precondition", "clean"), 1),
+        (("repository_postcondition", "status_stdout_size_bytes"), False),
+        (("command", "test_runtime", "pyvenv_configuration", "size_bytes"), True),
+        (("execution", "pytest_totals", "errors"), False),
+        (("execution", "stdout", "size_bytes"), True),
+        (("execution", "stderr", "size_bytes"), False),
+    ),
+    ids=(
+        "surface-boolean-as-zero",
+        "time-boolean-as-zero",
+        "state-boolean-as-one",
+        "state-size-as-false",
+        "pyvenv-size-as-true",
+        "total-as-false",
+        "stdout-size-as-true",
+        "stderr-size-as-false",
+    ),
+)
+def test_post_v2_control_v4_rejects_json_boolean_integer_aliases(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    field_path: tuple[str, ...],
+    replacement: object,
+) -> None:
+    result_commit = "a" * 40
+    subject_parent_commit = "b" * 40
+    _evidence_path, record = _post_r2_evidence_fixture(
+        tmp_path,
+        result_commit,
+        monkeypatch,
+        legacy_v3_policy=False,
+        subject_parent_commit=subject_parent_commit,
+    )
+    altered = copy.deepcopy(record)
+    owner: dict[str, Any] = altered
+    for component in field_path[:-1]:
+        owner = owner[component]
+    owner[field_path[-1]] = replacement
+    projection = {key: value for key, value in altered.items() if key != "evidence_digest"}
+    altered["evidence_digest"] = governance.domain_digest(
+        governance.POST_R2_SUITE_EVIDENCE_V4_DOMAIN,
+        projection,
+    )
+
+    with pytest.raises(governance.GovernanceError):
+        governance._validate_embedded_post_v2_control_suite_evidence(
+            altered,
+            expected_subject_commit=result_commit,
+            expected_subject_parent_commit=subject_parent_commit,
+            require_passed=True,
+        )
+
+
+def test_post_v2_control_source_preflights_git_metadata_before_path_resolution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    events: list[str] = []
+
+    def reject_metadata(repository_root: Path) -> None:
+        assert repository_root == tmp_path.resolve()
+        events.append("metadata_preflight")
+        raise governance.GovernanceError("synthetic metadata rejection")
+
+    def forbidden_path_resolution(*_args: Any, **_kwargs: Any) -> Path:
+        events.append("private_path")
+        raise AssertionError("path resolution ran before Git metadata preflight")
+
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        reject_metadata,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_private_path",
+        forbidden_path_resolution,
+    )
+
+    with pytest.raises(governance.GovernanceError, match="synthetic metadata rejection"):
+        governance.validate_post_v2_control_suite_evidence_source(
+            tmp_path / "post-v2-control-suite-evidence.json",
+            expected_subject_commit="a" * 40,
+            expected_subject_parent_commit="b" * 40,
+            expected_repository_root=tmp_path,
+        )
+
+    assert events == ["metadata_preflight"]
+
+
 def test_post_r2_environment_removes_inherited_git_and_hypothesis_controls(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1971,6 +2877,10 @@ def test_post_r2_environment_removes_inherited_git_and_hypothesis_controls(
     ).resolve()
     monkeypatch.setenv("GIT_DIR", str(tmp_path / "hostile-git-dir"))
     monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(tmp_path / "hostile-global-config"))
+    monkeypatch.setenv("GIT_ATTR_NOSYSTEM", "0")
+    monkeypatch.setenv("GIT_CONFIG_KEY_2", "include.path")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_2", str(tmp_path / "hostile-included-config"))
     monkeypatch.setenv("git_work_tree", str(tmp_path / "hostile-work-tree"))
     monkeypatch.setenv("HYPOTHESIS_STORAGE_DIRECTORY", str(tmp_path / "hostile-db"))
     monkeypatch.setenv("AGENT_ASSURE_TEST_SENTINEL", "preserved")
@@ -1982,11 +2892,18 @@ def test_post_r2_environment_removes_inherited_git_and_hypothesis_controls(
     )
 
     assert "GIT_DIR" not in environment
-    assert environment["GIT_CONFIG_COUNT"] == "2"
+    assert environment["GIT_CONFIG_COUNT"] == "4"
+    assert environment["GIT_CONFIG_GLOBAL"] == "NUL"
+    assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
     assert environment["GIT_CONFIG_KEY_0"] == "core.autocrlf"
     assert environment["GIT_CONFIG_VALUE_0"] == "true"
     assert environment["GIT_CONFIG_KEY_1"] == "safe.directory"
     assert environment["GIT_CONFIG_VALUE_1"] == str(tmp_path.resolve())
+    assert environment["GIT_CONFIG_KEY_2"] == "core.excludesFile"
+    assert environment["GIT_CONFIG_VALUE_2"] == "NUL"
+    assert environment["GIT_CONFIG_KEY_3"] == "core.attributesFile"
+    assert environment["GIT_CONFIG_VALUE_3"] == "NUL"
+    assert environment["GIT_ATTR_NOSYSTEM"] == "1"
     assert "git_work_tree" not in environment
     assert "AGENT_ASSURE_TEST_SENTINEL" not in environment
     expected_hypothesis = str(basetemp / "hypothesis")
@@ -1994,6 +2911,68 @@ def test_post_r2_environment_removes_inherited_git_and_hypothesis_controls(
     assert environment["TEMP"] == environment["TMP"] == str(process_temp / "temp")
     assert environment["PROCESSOR_ARCHITECTURE"] == "AMD64"
     assert "PROGRAMDATA" not in environment
+
+
+@pytest.mark.skipif(os.name != "nt", reason="NUL is the Windows null device")
+def test_post_r2_windows_null_git_policy_is_parseable_and_preserves_repository_policy(
+    tmp_path: Path,
+) -> None:
+    basetemp = (tmp_path / "governed-basetemp").resolve()
+    process_temp = (tmp_path / "governed-process-temp").resolve()
+    (process_temp / "temp").mkdir(parents=True)
+    environment = governance._post_r2_subprocess_environment(
+        tmp_path.resolve(),
+        basetemp,
+        process_temp=process_temp,
+    )
+    git_identity = governance.TRUSTED_EXECUTABLE_IDENTITIES.get("git")
+    if git_identity is None:
+        pytest.skip("Git is unavailable")
+
+    nested_repository = tmp_path / "nested-repository"
+    nested_repository.mkdir()
+    git_prefix = [git_identity.path, "-C", str(nested_repository)]
+
+    def run_git(*arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [*git_prefix, *arguments],
+            env=environment,
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+
+    initialized = run_git("init", "--quiet")
+    assert initialized.returncode == 0, initialized.stderr
+
+    excludes_file = nested_repository / ".git" / "info" / "exclude"
+    excludes_file.write_text("/info-local-ignore.txt\n", encoding="utf-8", newline="\n")
+    (nested_repository / ".gitattributes").write_text(
+        "/tracked-attribute.txt agent-assure-test=set\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    for name in ("info-local-ignore.txt", "tracked-attribute.txt", "ordinary.txt"):
+        (nested_repository / name).write_text(name, encoding="utf-8")
+
+    excludes_config = run_git("config", "--get", "core.excludesFile")
+    attributes_config = run_git("config", "--get", "core.attributesFile")
+    assert excludes_config.returncode == 0, excludes_config.stderr
+    assert excludes_config.stdout.strip() == "NUL"
+    assert attributes_config.returncode == 0, attributes_config.stderr
+    assert attributes_config.stdout.strip() == "NUL"
+
+    ignored = run_git("check-ignore", "--verbose", "info-local-ignore.txt")
+    ordinary = run_git("check-ignore", "--verbose", "ordinary.txt")
+    attributed = run_git("check-attr", "agent-assure-test", "--", "tracked-attribute.txt")
+    unattributed = run_git("check-attr", "agent-assure-test", "--", "ordinary.txt")
+    assert ignored.returncode == 0, ignored.stderr
+    assert ".git/info/exclude" in ignored.stdout.replace("\\", "/")
+    assert ordinary.returncode == 1, ordinary.stderr
+    assert attributed.returncode == 0, attributed.stderr
+    assert attributed.stdout.rstrip().endswith("agent-assure-test: set")
+    assert unattributed.returncode == 0, unattributed.stderr
+    assert unattributed.stdout.rstrip().endswith("agent-assure-test: unspecified")
 
 
 def test_post_r2_suite_evidence_rejects_subject_or_argv_mutation(
@@ -2053,6 +3032,18 @@ def test_post_r2_suite_evidence_rejects_subject_or_argv_mutation(
     with pytest.raises(governance.GovernanceError, match="basetemp is not bound"):
         governance._validate_embedded_post_r2_suite_evidence(
             rebound_basetemp,
+            expected_result_commit=result_commit,
+            require_passed=True,
+        )
+
+    dirty_state = copy.deepcopy(record)
+    dirty_state["repository_postcondition"]["clean"] = False
+    with pytest.raises(
+        governance.GovernanceError,
+        match="post-R2 repository_postcondition is not clean R2",
+    ):
+        governance._validate_embedded_post_r2_suite_evidence(
+            dirty_state,
             expected_result_commit=result_commit,
             require_passed=True,
         )
@@ -2133,16 +3124,28 @@ def test_post_r2_bootstrap_authenticates_runtime_and_surface_before_pytest_impor
     descendant_gate = body.index("post-R2 descendant runtime file set changed")
     executable_assignment = body.index("sys.executable = str(descendant_python)")
     launch_guard = body.index("descendant_guard_source =", executable_assignment)
-    path_admission = body.index(
-        "sys.path[:0] = [str(source_root), str(repository_root), str(site_packages)]"
-    )
+    path_admission = body.index("sys.path[:0] = [str(source_root), str(site_packages)]")
     pytest_import = body.index('runpy.run_module("pytest"')
     assert site_gate < descendant_gate < executable_assignment < launch_guard
     assert surface_gate < descendant_gate < path_admission < pytest_import
+    assert "str(repository_root)" not in body[path_admission:pytest_import]
     assert "_agent_assure_guarded_arguments" in body
     assert "pytest_basetemp.parent != process_temp" in body
     assert "pytest_basetemp.exists()" in body
     assert "import pytest" not in body
+
+    descendant_payloads = governance._post_r2_descendant_runtime_payloads(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    authenticated_paths = descendant_payloads[
+        f"Lib/site-packages/{governance.POST_R2_DESCENDANT_RUNTIME_PATHS_FILE}"
+    ].decode("utf-8")
+    assert authenticated_paths.splitlines() == [
+        str(ROOT.resolve() / "src"),
+        str(ROOT.resolve() / ".venv/Lib/site-packages"),
+    ]
 
     bootstrap_payload, bootstrap_record = governance._post_r2_bootstrap_input(
         ROOT,
@@ -2153,7 +3156,12 @@ def test_post_r2_bootstrap_authenticates_runtime_and_surface_before_pytest_impor
         ROOT,
         basetemp=basetemp,
         process_temp=process_temp,
-        test_surface={"file_count": 1, "size_bytes": 1, "sha256": _digest("f")},
+        test_surface={
+            "format": "agent-assure-s1-post-r2-test-surface/2",
+            "file_count": 1,
+            "size_bytes": 1,
+            "sha256": _digest("f"),
+        },
     )
     assert bootstrap_payload == command.encode("utf-8")
     assert bootstrap_record == {
@@ -2168,6 +3176,304 @@ def test_post_r2_bootstrap_authenticates_runtime_and_surface_before_pytest_impor
     assert sum(len(value) for value in argv) < 8_192
 
 
+def test_post_v2_root_config_inventory_extends_v3_exactly_in_parent_and_bootstrap() -> None:
+    import ast
+
+    basetemp = ROOT / ".tmp/s1-acceptance/post-v2-root-config-bootstrap"
+    process_temp = (
+        governance.POST_R2_PROCESS_TEMP_ROOT
+        / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}root-config-bootstrap"
+    )
+    legacy_paths = governance._post_r2_root_test_config_paths(legacy_v3_policy=True)
+    hardened_paths = governance._post_r2_root_test_config_paths(legacy_v3_policy=False)
+
+    assert legacy_paths == governance.POST_R2_ROOT_TEST_CONFIG_PATHS
+    assert hardened_paths == (
+        *legacy_paths,
+        ".pytest.ini",
+        ".pytest.toml",
+    )
+
+    legacy_source = governance._post_r2_pytest_bootstrap_source(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        legacy_v3_policy=True,
+    )
+    hardened_source = governance._post_r2_pytest_bootstrap_source(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    legacy_body = ast.literal_eval(legacy_source.removeprefix("exec(").removesuffix(")"))
+    hardened_body = ast.literal_eval(hardened_source.removeprefix("exec(").removesuffix(")"))
+    assert f"root_configs = {legacy_paths!r}" in legacy_body
+    assert f"root_configs = {hardened_paths!r}" in hardened_body
+    assert ".pytest.ini" not in legacy_body
+    assert ".pytest.toml" not in legacy_body
+    assert "post-R2 unexpected top-level entry" in hardened_body
+    assert hardened_body.index("candidate_metadata = candidate.lstat()") < hardened_body.index(
+        "candidate.name not in allowed_root_entries"
+    )
+
+
+def test_post_v2_pytest_argv_is_hermetic_while_v3_remains_value_exact(
+    tmp_path: Path,
+) -> None:
+    root = (tmp_path / "repository").resolve()
+    basetemp = (tmp_path / "external-process-temp/pytest").resolve()
+    process_temp = basetemp.parent
+    common_surface = {
+        "file_count": 7,
+        "size_bytes": 11,
+        "sha256": _digest("f"),
+    }
+    legacy = governance._post_r2_pytest_argv(
+        root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        test_surface={
+            **common_surface,
+            "format": "agent-assure-s1-post-r2-test-surface/1",
+        },
+    )
+    hardened = governance._post_r2_pytest_argv(
+        root,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        test_surface={
+            **common_surface,
+            "format": "agent-assure-s1-post-r2-test-surface/2",
+        },
+    )
+    shared_prefix = [
+        str(governance._FROZEN_PYTHON_EXECUTABLE),
+        *governance.POST_R2_PYTHON_ARGUMENTS,
+        "-X",
+        f"pycache_prefix={basetemp / 'python-bytecode-cache'}",
+        "-",
+        str(root),
+        str(root / "src"),
+        str(root / ".venv/Lib/site-packages"),
+        str(basetemp / "python-bytecode-cache"),
+        "7",
+        "11",
+        _digest("f"),
+    ]
+    assert legacy == [
+        *shared_prefix,
+        *governance.POST_R2_PYTEST_ARGUMENTS,
+        "--basetemp",
+        str(basetemp),
+    ]
+    assert hardened == [
+        *shared_prefix,
+        *governance.POST_R2_PYTEST_ARGUMENTS,
+        "-c",
+        str(root / "pyproject.toml"),
+        f"--rootdir={root}",
+        f"--confcutdir={root}",
+        "-o",
+        "addopts=",
+        "-o",
+        "pythonpath=src",
+        "-o",
+        "norecursedirs=__pycache__",
+        "-o",
+        "python_files=test_*.py *_test.py",
+        "-o",
+        "python_classes=Test",
+        "-o",
+        "python_functions=test",
+        "--import-mode=importlib",
+        "--strict-config",
+        "--strict-markers",
+        "--disable-socket",
+        str(root / "tests"),
+        "--basetemp",
+        str(basetemp),
+    ]
+
+
+def test_post_v2_pytest_argv_overrides_hostile_collection_and_path_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from _pytest.config import get_config
+
+    parent = tmp_path / "parent"
+    root = (parent / "repository").resolve()
+    (root / "src").mkdir(parents=True)
+    (root / "tests").mkdir()
+    (root / "tests/test_smoke.py").write_text("def test_ok(): pass\n", encoding="utf-8")
+    (root / "tests/suffix_test.py").write_text(
+        "def test_suffix_style_collection(): pass\n",
+        encoding="utf-8",
+    )
+    hidden_cache = root / "tests/nested/__pycache__"
+    hidden_cache.mkdir(parents=True)
+    (hidden_cache / "test_hidden.py").write_text(
+        "raise RuntimeError('cache-resident tests must remain inert')\n",
+        encoding="utf-8",
+    )
+    (root / "pyproject.toml").write_text(
+        "[tool.pytest.ini_options]\n"
+        'addopts = "--maxfail=1 --collect-only"\n'
+        'pythonpath = ["hostile-source"]\n'
+        'testpaths = ["hostile-tests"]\n',
+        encoding="utf-8",
+    )
+    (parent / "pytest.ini").write_text(
+        "[pytest]\naddopts = --maxfail=2 --collect-only\npythonpath = parent-hostile\n",
+        encoding="utf-8",
+    )
+    basetemp = (tmp_path / "external-process-temp/pytest").resolve()
+    argv = governance._post_r2_pytest_argv(
+        root,
+        basetemp=basetemp,
+        process_temp=basetemp.parent,
+        test_surface={
+            "format": "agent-assure-s1-post-r2-test-surface/2",
+            "file_count": 1,
+            "size_bytes": 1,
+            "sha256": _digest("f"),
+        },
+    )
+    pytest_arguments = argv[argv.index(_digest("f")) + 1 :]
+    monkeypatch.setenv("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")
+    monkeypatch.chdir(parent)
+    config = get_config()
+    try:
+        config.parse(pytest_arguments)
+        assert config.rootpath == root
+        assert config.args == [str(root / "tests")]
+        assert config.option.collectonly is False
+        assert config.option.maxfail is None
+        assert config.option.importmode == "importlib"
+        assert config.getoption("--disable-socket") is True
+        assert config.getini("pythonpath") == [root / "src"]
+        assert config.getini("norecursedirs") == ["__pycache__"]
+        assert config.getini("python_files") == ["test_*.py", "*_test.py"]
+        assert config.getini("python_classes") == ["Test"]
+        assert config.getini("python_functions") == ["test"]
+    finally:
+        config._ensure_unconfigure()
+
+    environment = os.environ.copy()
+    for name in ("PYTEST_ADDOPTS", "PYTEST_PLUGINS"):
+        environment.pop(name, None)
+    environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    completed = subprocess.run(
+        [sys.executable, "-B", "-m", "pytest", *pytest_arguments],
+        cwd=parent,
+        env=environment,
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+    assert "2 passed" in completed.stdout
+
+
+def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy() -> None:
+    import ast
+
+    basetemp = ROOT / ".tmp/s1-acceptance/synthetic-v3-basetemp"
+    process_temp = (
+        governance.POST_R2_PROCESS_TEMP_ROOT
+        / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}synthetic-v3"
+    )
+    legacy_command = governance._post_r2_pytest_bootstrap_source(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        legacy_v3_policy=True,
+    )
+    current_command = governance._post_r2_pytest_bootstrap_source(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    legacy_body = ast.literal_eval(legacy_command.removeprefix("exec(").removesuffix(")"))
+    current_body = ast.literal_eval(current_command.removeprefix("exec(").removesuffix(")"))
+    compile(legacy_body, "<post-r2-legacy-v3-bootstrap>", "exec")
+    compile(current_body, "<post-r2-hardened-v4-bootstrap>", "exec")
+    canonical_exclude_guard = (
+        f"if exclude_payload != {governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES!r}:"
+    )
+    assert canonical_exclude_guard not in legacy_body
+    assert canonical_exclude_guard in current_body
+    assert governance.POST_R2_GIT_EXCLUDE_SHA256 in legacy_body
+    assert 'repository_root / ".git/info/attributes"' not in legacy_body
+    assert 'repository_root / ".git/info/attributes"' in current_body
+    assert "post-v2 local attributes must be absent" not in legacy_body
+    assert "post-v2 local attributes must be absent" in current_body
+    assert "sys.path[:0] = [str(source_root), str(repository_root), str(site_packages)]" in (
+        legacy_body
+    )
+    assert "sys.path[:0] = [str(source_root), str(site_packages)]" in current_body
+    assert legacy_command != current_command
+
+    legacy_payload, legacy_record = governance._post_r2_bootstrap_input(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        legacy_v3_policy=True,
+    )
+    assert legacy_payload == legacy_command.encode("utf-8")
+    assert legacy_record == {
+        "transport": "python_stdin_utf8",
+        "size_bytes": len(legacy_payload),
+        "sha256": governance.raw_digest(legacy_payload),
+    }
+    legacy_runtime_payloads = governance._post_r2_descendant_runtime_payloads(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+        legacy_v3_policy=True,
+    )
+    current_runtime_payloads = governance._post_r2_descendant_runtime_payloads(
+        ROOT,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+    runtime_guard = f"Lib/site-packages/{governance.POST_R2_DESCENDANT_RUNTIME_GUARD_FILE}"
+    compile(
+        legacy_runtime_payloads[runtime_guard].decode("utf-8"),
+        "<post-r2-legacy-v3-sitecustomize>",
+        "exec",
+    )
+    compile(
+        current_runtime_payloads[runtime_guard].decode("utf-8"),
+        "<post-r2-hardened-v4-sitecustomize>",
+        "exec",
+    )
+    path_payload = legacy_runtime_payloads[
+        f"Lib/site-packages/{governance.POST_R2_DESCENDANT_RUNTIME_PATHS_FILE}"
+    ].decode("utf-8")
+    assert path_payload.splitlines() == [
+        str(ROOT.resolve() / "src"),
+        str(ROOT.resolve()),
+        str(ROOT.resolve() / ".venv/Lib/site-packages"),
+    ]
+    legacy_environment = governance._post_r2_subprocess_environment(
+        ROOT,
+        basetemp,
+        process_temp=process_temp,
+        legacy_v3_policy=True,
+    )
+    assert legacy_environment["GIT_CONFIG_COUNT"] == "2"
+    assert "GIT_ATTR_NOSYSTEM" not in legacy_environment
+    assert "repository_root_import_policy" not in governance._post_r2_bytecode_policy(
+        basetemp,
+        legacy_v3_policy=True,
+    )
+
+
+@pytest.mark.skipif(
+    os.name != "nt" or not governance._FROZEN_PYTHON_EXECUTABLE.is_file(),
+    reason="the accepted S1 runtime is bound to the recorded Windows host",
+)
 def test_post_r2_descendant_runtime_enforces_recursive_isolated_launch_policy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2364,6 +3670,10 @@ def test_post_r2_parent_rejects_nonexact_descendant_runtime_directories(
         monkeypatch,
         suffix="parent-directory-regression",
     )
+    _install_synthetic_frozen_runtime(
+        (tmp_path / "synthetic-base-runtime").resolve(),
+        monkeypatch,
+    )
     runtime = governance._prepare_post_r2_descendant_runtime(
         ROOT,
         basetemp=basetemp,
@@ -2373,16 +3683,7 @@ def test_post_r2_parent_rejects_nonexact_descendant_runtime_directories(
     unexpected.mkdir()
     expected_error = "directory set changed"
     if mutation == "reparse-directory":
-        redirected = (tmp_path / "redirected-directory").resolve()
-        redirected.mkdir()
-        original_resolve = Path.resolve
-
-        def adversarial_resolve(path: Path, strict: bool = False) -> Path:
-            if path == unexpected:
-                return redirected
-            return original_resolve(path, strict=strict)
-
-        monkeypatch.setattr(Path, "resolve", adversarial_resolve)
+        _simulate_reparse_metadata(monkeypatch, unexpected)
         expected_error = "reparse point"
 
     with pytest.raises(governance.GovernanceError, match=expected_error):
@@ -2392,6 +3693,46 @@ def test_post_r2_parent_rejects_nonexact_descendant_runtime_directories(
             process_temp=process_temp,
             require_empty_user_temp=False,
         )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="8.3 aliases are a Windows filesystem feature")
+def test_post_r2_safe_directory_does_not_treat_a_lexical_8dot3_alias_as_a_reparse(
+    tmp_path: Path,
+) -> None:
+    import ctypes
+
+    long_directory = tmp_path / "agent-assure-post-r2-long-directory-component"
+    long_directory.mkdir()
+    get_short_path_name = ctypes.windll.kernel32.GetShortPathNameW
+    get_short_path_name.argtypes = [
+        ctypes.c_wchar_p,
+        ctypes.POINTER(ctypes.c_wchar),
+        ctypes.c_ulong,
+    ]
+    get_short_path_name.restype = ctypes.c_ulong
+    required = get_short_path_name(str(long_directory), None, 0)
+    if required == 0:
+        pytest.skip("the test volume does not expose an 8.3 alias")
+    short_buffer = ctypes.create_unicode_buffer(required)
+    written = get_short_path_name(str(long_directory), short_buffer, required)
+    if written == 0 or written >= required:
+        pytest.skip("the test volume could not return a stable 8.3 alias")
+    short_directory = Path(short_buffer.value)
+    if os.path.normcase(os.path.abspath(short_directory)) == os.path.normcase(
+        os.path.abspath(long_directory)
+    ):
+        pytest.skip("8.3 name creation is disabled for the test directory")
+
+    metadata = short_directory.lstat()
+    assert stat.S_ISDIR(metadata.st_mode)
+    assert not bool(getattr(metadata, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    assert (
+        governance._post_r2_safe_directory(
+            short_directory,
+            owner="synthetic 8.3 directory",
+        ).st_ino
+        == metadata.st_ino
+    )
 
 
 @pytest.mark.parametrize(
@@ -2413,6 +3754,10 @@ def test_post_r2_bootstrap_rejects_runtime_directory_and_path_component_regressi
         tmp_path,
         monkeypatch,
         suffix="bootstrap-directory-regression",
+    )
+    _install_synthetic_frozen_runtime(
+        (tmp_path / "synthetic-base-runtime").resolve(),
+        monkeypatch,
     )
     basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
     runtime = governance._prepare_post_r2_descendant_runtime(
@@ -2437,21 +3782,12 @@ def test_post_r2_bootstrap_rejects_runtime_directory_and_path_component_regressi
         str(process_temp / governance.POST_R2_PROCESS_USER_TEMP_DIRECTORY),
     )
     if mutation != "empty-directory":
-        redirected = (tmp_path / "redirected-directory").resolve()
-        redirected.mkdir()
         attacked = {
             "reparse-directory": unexpected,
             "reparse-root": process_temp_root,
             "reparse-process-temp": process_temp,
         }[mutation]
-        original_resolve = Path.resolve
-
-        def adversarial_resolve(path: Path, strict: bool = False) -> Path:
-            if path == attacked:
-                return redirected
-            return original_resolve(path, strict=strict)
-
-        monkeypatch.setattr(Path, "resolve", adversarial_resolve)
+        _simulate_reparse_metadata(monkeypatch, attacked)
 
     namespace = {
         "Path": Path,
@@ -2464,6 +3800,10 @@ def test_post_r2_bootstrap_rejects_runtime_directory_and_path_component_regressi
         exec(descendant_section, namespace)  # noqa: S102 - execute the generated verifier
 
 
+@pytest.mark.skipif(
+    os.name != "nt" or not governance._FROZEN_PYTHON_EXECUTABLE.is_file(),
+    reason="the accepted S1 runtime is bound to the recorded Windows host",
+)
 def test_post_r2_descendant_guard_survives_no_site_shadow_and_keyword_args(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2860,15 +4200,26 @@ def test_fresh_pycache_prefix_defeats_hostile_unchecked_hash_bytecode(tmp_path: 
         "print(hostile_cache_target.VALUE)"
     )
 
+    ungoverned_environment = os.environ.copy()
+    for name in (
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONNOUSERSITE",
+        "PYTHONPYCACHEPREFIX",
+        "PYTHONSAFEPATH",
+    ):
+        for candidate in tuple(ungoverned_environment):
+            if candidate.casefold() == name.casefold():
+                ungoverned_environment.pop(candidate)
     ungoverned = subprocess.run(
         [
-            str(governance._FROZEN_PYTHON_EXECUTABLE),
+            _independent_python_test_executable(),
             *governance.POST_R2_PYTHON_ARGUMENTS,
             "-c",
             bootstrap,
         ],
         capture_output=True,
         check=False,
+        env=ungoverned_environment,
         text=True,
     )
     assert ungoverned.returncode == 0
@@ -2878,7 +4229,7 @@ def test_fresh_pycache_prefix_defeats_hostile_unchecked_hash_bytecode(tmp_path: 
     assert not fresh_prefix.exists()
     governed = subprocess.run(
         [
-            str(governance._FROZEN_PYTHON_EXECUTABLE),
+            _independent_python_test_executable(),
             *governance.POST_R2_PYTHON_ARGUMENTS,
             "-X",
             f"pycache_prefix={fresh_prefix}",
@@ -2892,6 +4243,193 @@ def test_fresh_pycache_prefix_defeats_hostile_unchecked_hash_bytecode(tmp_path: 
     assert governed.returncode == 0
     assert governed.stdout.strip() == "trusted-source"
     assert not fresh_prefix.exists()
+
+
+def _minimal_post_v2_surface_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    ignored_root_entry: str | None = None,
+) -> tuple[Path, str]:
+    repository = tmp_path / "repository"
+    _initialize_git_repository(repository)
+    _git(repository, "config", "core.autocrlf", "false")
+    monkeypatch.setattr(governance, "POST_R2_TEST_AFFECTING_DIRECTORIES", ("tests",))
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_TRACKED_ROOT_FILES",
+        (".gitignore", "pyproject.toml"),
+    )
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_ROOT_TEST_CONFIG_PATHS",
+        ("pyproject.toml",),
+    )
+    monkeypatch.setattr(
+        governance,
+        "POST_V2_CONTROL_ADDITIONAL_ROOT_TEST_CONFIG_PATHS",
+        (".pytest.ini", ".pytest.toml"),
+    )
+    (repository / "tests").mkdir()
+    (repository / "tests/test_sample.py").write_bytes(b"def test_ok(): pass\n")
+    (repository / "pyproject.toml").write_bytes(b"[tool.pytest.ini_options]\n")
+    (repository / ".gitignore").write_text(
+        f"/{ignored_root_entry}\n" if ignored_root_entry is not None else "",
+        encoding="utf-8",
+    )
+    (repository / ".git/info/exclude").write_bytes(governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES)
+    return repository, _commit_all(repository, "synthetic post-v2 surface")
+
+
+@pytest.mark.parametrize(
+    ("config_name", "ignored"),
+    ((".pytest.ini", False), (".pytest.toml", True)),
+)
+def test_post_v2_surface_rejects_untracked_or_ignored_hidden_pytest_configuration(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    config_name: str,
+    ignored: bool,
+) -> None:
+    repository, result_commit = _minimal_post_v2_surface_repository(
+        tmp_path,
+        monkeypatch,
+        ignored_root_entry=config_name if ignored else None,
+    )
+    (repository / config_name).write_text(
+        "[pytest]\naddopts = --collect-only\npythonpath = hostile\ntestpaths = hostile\n",
+        encoding="utf-8",
+    )
+    if ignored:
+        assert _git(repository, "check-ignore", "--", config_name).stdout.strip() == config_name
+    else:
+        assert (
+            _git(
+                repository,
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "--",
+                config_name,
+            ).stdout.strip()
+            == config_name
+        )
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match=(
+            "unexpected top-level entry|"
+            rf"post-v2 control test surface differs from subject commit {result_commit}"
+        ),
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
+
+
+@pytest.mark.parametrize(
+    ("entry_name", "entry_kind"),
+    (
+        (".pytest.ini", "file"),
+        (".pytest.toml", "file"),
+        ("hostile.egg-info", "directory"),
+        ("hostile.dist-info", "directory"),
+    ),
+)
+def test_post_v2_generated_bootstrap_rejects_every_unexpected_root_attack(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry_name: str,
+    entry_kind: str,
+) -> None:
+    repository = (tmp_path / "repository").resolve()
+    site_packages = repository / ".venv/Lib/site-packages"
+    site_packages.mkdir(parents=True)
+    (repository / ".git/info").mkdir(parents=True)
+    (repository / "src").mkdir()
+    (repository / "tests").mkdir()
+    (repository / "pyproject.toml").write_bytes(b"[tool.pytest.ini_options]\n")
+    (repository / ".git/info/exclude").write_bytes(governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES)
+    attacked = repository / entry_name
+    if entry_kind == "directory":
+        attacked.mkdir()
+    else:
+        attacked.write_bytes(b"[pytest]\naddopts = --collect-only\n")
+
+    monkeypatch.setattr(governance, "POST_R2_TEST_AFFECTING_DIRECTORIES", ("src", "tests"))
+    monkeypatch.setattr(governance, "POST_R2_TRACKED_ROOT_FILES", ("pyproject.toml",))
+    monkeypatch.setattr(governance, "POST_R2_ROOT_TEST_CONFIG_PATHS", ("pyproject.toml",))
+    monkeypatch.setattr(governance, "POST_R2_TEST_RUNTIME_FILE_COUNT", 0)
+    monkeypatch.setattr(governance, "POST_R2_TEST_RUNTIME_SIZE_BYTES", 0)
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_TEST_RUNTIME_SHA256",
+        hashlib.sha256(governance.POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN).hexdigest(),
+    )
+    process_temp_root = (tmp_path / "process-temp-root").resolve()
+    process_temp_root.mkdir()
+    monkeypatch.setattr(governance, "POST_R2_PROCESS_TEMP_ROOT", process_temp_root)
+    process_temp = process_temp_root / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}bootstrap"
+    basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
+    pycache_prefix = basetemp / "python-bytecode-cache"
+    command = governance._post_r2_pytest_bootstrap_source(
+        repository,
+        basetemp=basetemp,
+        process_temp=process_temp,
+    )
+
+    completed = subprocess.run(
+        [
+            _independent_python_test_executable(),
+            *governance.POST_R2_PYTHON_ARGUMENTS,
+            "-X",
+            f"pycache_prefix={pycache_prefix}",
+            "-",
+            str(repository),
+            str(repository / "src"),
+            str(site_packages),
+            str(pycache_prefix),
+            "0",
+            "0",
+            _digest("0"),
+        ],
+        capture_output=True,
+        check=False,
+        input=command,
+        text=True,
+    )
+
+    assert completed.returncode != 0
+    assert f"post-R2 unexpected top-level entry: {entry_name}" in completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("entry_name", "simulate_reparse", "expected_error"),
+    (
+        ("hostile.egg-info", False, "unexpected top-level entry"),
+        ("hostile.dist-info", False, "unexpected top-level entry"),
+        (".tmp", True, "top-level reparse point"),
+    ),
+)
+def test_post_v2_surface_rejects_packaging_metadata_and_every_top_level_reparse(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    entry_name: str,
+    simulate_reparse: bool,
+    expected_error: str,
+) -> None:
+    repository, result_commit = _minimal_post_v2_surface_repository(tmp_path, monkeypatch)
+    attacked = repository / entry_name
+    attacked.mkdir()
+    if simulate_reparse:
+        _simulate_reparse_metadata(monkeypatch, attacked)
+
+    with pytest.raises(governance.GovernanceError, match=expected_error):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
 
 
 def test_post_r2_test_surface_rejects_ignored_files_and_import_capable_root_dirs(
@@ -2909,23 +4447,31 @@ def test_post_r2_test_surface_rejects_ignored_files_and_import_capable_root_dirs
         ("pyproject.toml", "pytest.ini"),
     )
     (repository / "tests").mkdir()
+    (repository / "tests/.gitignore").write_bytes(b"ignored.py\n")
     (repository / "tests/test_sample.py").write_bytes(b"def test_ok(): pass\n")
     (repository / "pyproject.toml").write_bytes(b"[tool.pytest.ini_options]\n")
     exclude = repository / ".git/info/exclude"
-    exclude.write_text("tests/ignored.py\n", encoding="utf-8", newline="\n")
+    exclude.write_bytes(governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES)
     exclude_payload = exclude.read_bytes()
-    monkeypatch.setattr(governance, "POST_R2_GIT_EXCLUDE_SIZE_BYTES", len(exclude_payload))
-    monkeypatch.setattr(
-        governance,
-        "POST_R2_GIT_EXCLUDE_SHA256",
-        hashlib.sha256(exclude_payload).hexdigest(),
-    )
     result_commit = _commit_all(repository, "synthetic R2")
 
     evidence = governance._post_r2_test_surface_evidence(
         repository,
         result_commit=result_commit,
     )
+
+    attributes = repository / ".git/info/attributes"
+    attributes.write_bytes(b"*.py filter=hostile\n")
+    with pytest.raises(
+        governance.GovernanceError,
+        match=r"\.git/info/attributes must be absent",
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
+    attributes.unlink()
+
     cache = repository / "tests/__pycache__"
     cache.mkdir()
     (cache / "test_sample.cpython-312.pyc").write_bytes(b"hostile but inert cache")
@@ -2937,9 +4483,24 @@ def test_post_r2_test_surface_rejects_ignored_files_and_import_capable_root_dirs
         == evidence
     )
 
+    tracked_test = repository / "tests/test_sample.py"
+    tracked_test.write_bytes(b"def test_changed(): pass\n")
+    with pytest.raises(
+        governance.GovernanceError,
+        match=rf"post-v2 control test-surface bytes differ from subject commit {result_commit}",
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
+    tracked_test.write_bytes(b"def test_ok(): pass\n")
+
     ignored = repository / "tests/ignored.py"
     ignored.write_text("raise RuntimeError('must not load')\n", encoding="utf-8")
-    with pytest.raises(governance.GovernanceError, match="differs from immutable R2"):
+    with pytest.raises(
+        governance.GovernanceError,
+        match=rf"post-v2 control test surface differs from subject commit {result_commit}",
+    ):
         governance._post_r2_test_surface_evidence(
             repository,
             result_commit=result_commit,
@@ -2948,14 +4509,14 @@ def test_post_r2_test_surface_rejects_ignored_files_and_import_capable_root_dirs
 
     untracked_config = repository / "pytest.ini"
     untracked_config.write_text("[pytest]\naddopts = -x\n", encoding="utf-8")
-    with pytest.raises(governance.GovernanceError, match="differs from immutable R2"):
+    with pytest.raises(governance.GovernanceError, match="unexpected top-level entry"):
         governance._post_r2_test_surface_evidence(
             repository,
             result_commit=result_commit,
         )
     untracked_config.unlink()
 
-    exclude.write_text("tests/other-ignored.py\n", encoding="utf-8", newline="\n")
+    exclude.write_bytes(exclude_payload + b"/host-specific-extra/\n")
     with pytest.raises(governance.GovernanceError, match="info/exclude policy changed"):
         governance._post_r2_test_surface_evidence(
             repository,
@@ -2966,7 +4527,266 @@ def test_post_r2_test_surface_rejects_ignored_files_and_import_capable_root_dirs
     build_surface = repository / "dist"
     build_surface.mkdir()
     (build_surface / "pytest.py").write_text("raise RuntimeError('shadow')\n", encoding="utf-8")
-    with pytest.raises(governance.GovernanceError, match="import-capable root directory"):
+    with pytest.raises(governance.GovernanceError, match="unexpected top-level entry"):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
+
+
+def test_legacy_v3_test_surface_diagnostics_keep_the_historical_r2_wording(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository, result_commit = _minimal_post_v2_surface_repository(tmp_path, monkeypatch)
+    legacy_exclude = _install_synthetic_legacy_v3_git_exclude_policy(monkeypatch)
+    (repository / ".git/info/exclude").write_bytes(legacy_exclude)
+    tracked_test = repository / "tests/test_sample.py"
+    tracked_test.write_bytes(b"def test_changed(): pass\n")
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match=r"post-R2 test-surface bytes differ from R2: tests/test_sample\.py",
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+            legacy_v3_policy=True,
+        )
+
+    tracked_test.write_bytes(b"def test_ok(): pass\n")
+    (repository / "tests/test_extra.py").write_bytes(b"def test_extra(): pass\n")
+    with pytest.raises(
+        governance.GovernanceError,
+        match=r"post-R2 test surface differs from immutable R2",
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+            legacy_v3_policy=True,
+        )
+
+
+@pytest.mark.parametrize("attack_kind", ("directory", "symlink", "simulated_reparse"))
+def test_post_v2_local_attributes_absence_rejects_nonregular_and_reparse_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    attack_kind: str,
+) -> None:
+    repository = tmp_path / "repository"
+    info_directory = repository / ".git/info"
+    info_directory.mkdir(parents=True)
+    attributes = info_directory / "attributes"
+    if attack_kind == "directory":
+        attributes.mkdir()
+    elif attack_kind == "symlink":
+        target = repository / "hostile-attributes"
+        target.write_bytes(b"*.py filter=hostile\n")
+        try:
+            os.symlink(target, attributes)
+        except OSError as exc:
+            pytest.skip(f"file symlinks are unavailable on this host: {exc}")
+    else:
+        attributes.write_bytes(b"*.py filter=hostile\n")
+        _simulate_reparse_metadata(monkeypatch, attributes)
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match=r"\.git/info/attributes must be absent",
+    ):
+        governance._post_v2_git_attributes_absence_evidence(repository)
+
+
+def test_post_v2_local_exclude_requires_canonical_bytes_while_v3_keeps_its_pin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    info_directory = repository / ".git/info"
+    info_directory.mkdir(parents=True)
+    exclude = info_directory / "exclude"
+    canonical = b"/Agent_Assure_Implementation_Roadmap.md\n/.venv/\n/.tmp/\n"
+    assert governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES == canonical
+
+    exclude.write_bytes(canonical)
+    assert governance._post_r2_git_exclude_evidence(repository) == {
+        "path": ".git/info/exclude",
+        "size_bytes": len(canonical),
+        "sha256": governance.raw_digest(canonical),
+    }
+    with pytest.raises(governance.GovernanceError, match="exclude policy changed"):
+        governance._post_r2_git_exclude_evidence(repository, legacy_v3_policy=True)
+
+    synthetic_legacy_v3_bytes = _install_synthetic_legacy_v3_git_exclude_policy(monkeypatch)
+    for noncanonical in (
+        canonical + b"/host-specific-extra/\n",
+        synthetic_legacy_v3_bytes,
+        canonical.replace(b"\n", b"\r\n"),
+        b"\xef\xbb\xbf" + canonical,
+    ):
+        exclude.write_bytes(noncanonical)
+        with pytest.raises(governance.GovernanceError, match="exclude policy changed"):
+            governance._post_r2_git_exclude_evidence(repository)
+
+    exclude.write_bytes(synthetic_legacy_v3_bytes)
+    assert governance._post_r2_git_exclude_evidence(
+        repository,
+        legacy_v3_policy=True,
+    ) == {
+        "path": ".git/info/exclude",
+        "size_bytes": governance.POST_R2_GIT_EXCLUDE_SIZE_BYTES,
+        "sha256": "sha256:" + governance.POST_R2_GIT_EXCLUDE_SHA256,
+    }
+
+
+def test_legacy_v3_local_exclude_pin_matches_schemas_and_accepted_records() -> None:
+    expected = {
+        "path": ".git/info/exclude",
+        "size_bytes": 2368,
+        "sha256": ("sha256:7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"),
+    }
+    assert governance.POST_R2_GIT_EXCLUDE_SIZE_BYTES == 2368
+    assert (
+        governance.POST_R2_GIT_EXCLUDE_SHA256
+        == "7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"
+    )
+
+    def local_exclude_values(value: object) -> list[object]:
+        found: list[object] = []
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if key == "local_exclude" and isinstance(child, dict):
+                    found.append(child.get("const", child))
+                found.extend(local_exclude_values(child))
+        elif isinstance(value, list):
+            for child in value:
+                found.extend(local_exclude_values(child))
+        return found
+
+    for name in (
+        "ticket-completion-receipt.schema.json",
+        "governance-bundle.schema.json",
+        "completion-receipt-v1-boot-01.json",
+        "governance-bundle.json",
+    ):
+        assert local_exclude_values(_record(name)) == [expected], name
+
+
+def test_post_v2_repository_state_preflights_git_metadata_before_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    expected_state = {"head_commit": "a" * 40, "clean": True}
+    events: list[str] = []
+
+    def preflight(_repository: Path) -> dict[str, dict[str, Any]]:
+        events.append("metadata_preflight")
+        return {}
+
+    def inspect_status(_repository: Path) -> dict[str, Any]:
+        events.append("git_status")
+        return copy.deepcopy(expected_state)
+
+    monkeypatch.setattr(governance, "_post_v2_control_git_metadata_preflight", preflight)
+    monkeypatch.setattr(governance, "_post_r2_repository_state", inspect_status)
+
+    assert governance._post_v2_control_repository_state(repository) == expected_state
+    assert events == ["metadata_preflight", "git_status"]
+
+    events.clear()
+
+    def reject_metadata(_repository: Path) -> dict[str, dict[str, Any]]:
+        events.append("metadata_preflight")
+        raise governance.GovernanceError("synthetic local Git metadata rejection")
+
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        reject_metadata,
+    )
+    with pytest.raises(governance.GovernanceError, match="metadata rejection"):
+        governance._post_v2_control_repository_state(repository)
+    assert events == ["metadata_preflight"]
+
+
+def test_post_r2_test_surface_rejects_an_ignored_native_extension_at_repository_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    native_suffix = next(
+        (
+            suffix
+            for suffix in governance.POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES
+            if suffix.endswith((".pyd", ".so"))
+        ),
+        None,
+    )
+    if native_suffix is None:
+        pytest.skip("this interpreter does not declare a native extension suffix")
+    artifact_name = f"hostile_root_extension{native_suffix}"
+    repository = tmp_path / "repository"
+    _initialize_git_repository(repository)
+    _git(repository, "config", "core.autocrlf", "false")
+    monkeypatch.setattr(governance, "POST_R2_TEST_AFFECTING_DIRECTORIES", ("tests",))
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_TRACKED_ROOT_FILES",
+        (".gitignore", "pyproject.toml"),
+    )
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_ROOT_TEST_CONFIG_PATHS",
+        ("pyproject.toml",),
+    )
+    (repository / "tests").mkdir()
+    (repository / "tests/test_sample.py").write_bytes(b"def test_ok(): pass\n")
+    (repository / ".gitignore").write_text(f"/{artifact_name}\n", encoding="utf-8")
+    (repository / "pyproject.toml").write_bytes(b"[tool.pytest.ini_options]\n")
+    exclude = repository / ".git/info/exclude"
+    exclude.write_bytes(governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES)
+    result_commit = _commit_all(repository, "synthetic R2")
+    artifact = repository / artifact_name
+    artifact.write_bytes(b"ignored native extension payload")
+    assert _git(repository, "check-ignore", "--", artifact_name).stdout.strip() == artifact_name
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match="unexpected top-level entry",
+    ):
+        governance._post_r2_test_surface_evidence(
+            repository,
+            result_commit=result_commit,
+        )
+
+
+def test_post_r2_test_surface_rejects_a_reparse_top_level_surface_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = tmp_path / "repository"
+    _initialize_git_repository(repository)
+    _git(repository, "config", "core.autocrlf", "false")
+    monkeypatch.setattr(governance, "POST_R2_TEST_AFFECTING_DIRECTORIES", ("tests",))
+    monkeypatch.setattr(governance, "POST_R2_TRACKED_ROOT_FILES", ("pyproject.toml",))
+    monkeypatch.setattr(
+        governance,
+        "POST_R2_ROOT_TEST_CONFIG_PATHS",
+        ("pyproject.toml",),
+    )
+    surface_root = repository / "tests"
+    surface_root.mkdir()
+    (surface_root / "test_sample.py").write_bytes(b"def test_ok(): pass\n")
+    (repository / "pyproject.toml").write_bytes(b"[tool.pytest.ini_options]\n")
+    exclude = repository / ".git/info/exclude"
+    exclude.write_bytes(governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES)
+    result_commit = _commit_all(repository, "synthetic R2")
+    _simulate_reparse_metadata(monkeypatch, surface_root)
+
+    with pytest.raises(
+        governance.GovernanceError,
+        match="top-level reparse point",
+    ):
         governance._post_r2_test_surface_evidence(
             repository,
             result_commit=result_commit,
@@ -3270,14 +5090,7 @@ def test_post_r2_cleanup_rejects_a_reparse_root_before_deletion(
         monkeypatch,
         suffix="reparse-root-cleanup",
     )
-    redirected = (tmp_path / "redirected-directory").resolve()
-    redirected.mkdir()
-    original_resolve = Path.resolve
-
-    def adversarial_resolve(path: Path, strict: bool = False) -> Path:
-        if path == process_temp_root:
-            return redirected
-        return original_resolve(path, strict=strict)
+    _simulate_reparse_metadata(monkeypatch, process_temp_root)
 
     deletion_attempted = False
 
@@ -3285,7 +5098,6 @@ def test_post_r2_cleanup_rejects_a_reparse_root_before_deletion(
         nonlocal deletion_attempted
         deletion_attempted = True
 
-    monkeypatch.setattr(Path, "resolve", adversarial_resolve)
     monkeypatch.setattr(governance.shutil, "rmtree", forbidden_deletion)
 
     with pytest.raises(governance.GovernanceError, match="root.*reparse point"):
@@ -3371,6 +5183,7 @@ def test_post_r2_execution_passes_exact_authenticated_bootstrap_over_stdin(
     basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
     descendant_runtime = {"format": "synthetic-descendant-runtime"}
     test_surface = {
+        "format": "agent-assure-s1-post-r2-test-surface/2",
         "file_count": 1,
         "size_bytes": 1,
         "sha256": _digest("f"),
@@ -5508,7 +7321,6 @@ def test_check_generation_2_rejects_tampered_or_missing_validated_predecessors(
     mutation: str,
     expected_error: str,
 ) -> None:
-    snapshot = governance.load_roadmap(ROADMAP)
     records = {
         name: _record(name)
         for name in (
@@ -5522,6 +7334,11 @@ def test_check_generation_2_rejects_tampered_or_missing_validated_predecessors(
             "baseline-observations.schema.json",
         )
     }
+    snapshot = _minimal_snapshot(
+        raw_digest=records["corrective-kickoff-authorization.json"]["signed_claim"]["evidence"][
+            "roadmap_raw_sha256"
+        ]
+    )
     if mutation == "signing-key":
         records["maintainer-signing-key.json"]["public_key"] = "ssh-ed25519 tampered"
     elif mutation == "corrective-authorization":
@@ -6439,6 +8256,8 @@ def test_cli_rejects_execution_without_isolated_mode() -> None:
 )
 def test_imported_main_cannot_bypass_the_frozen_runtime(arguments: list[str]) -> None:
     program = (
+        "import sys; "
+        f"sys.path.insert(0, {str(ROOT)!r}); "
         "import scripts.v1_s1_governance as governance; "
         f"raise SystemExit(governance.main({arguments!r}))"
     )
@@ -6486,6 +8305,7 @@ def test_every_parser_handler_fails_closed_without_the_frozen_runtime() -> None:
         "forecast_v2_signature_import",
         "forecast_v2_signature_plan",
         "generate_draft",
+        "post_v2_control_suite_capture",
     }
     for handler in handlers:
         assert handler.__dict__.get("__requires_frozen_runtime__") is True
@@ -6530,9 +8350,405 @@ def test_historical_bootstrap_docs_require_a_standalone_runtime_clone() -> None:
     assert "worktree add" not in bootstrap
     assert "rev-parse --is-shallow-repository" in bootstrap
     assert ".git\\objects\\info\\alternates" in bootstrap
+    assert "$InfoPath = Join-Path $VerificationRoot '.git\\info'" in bootstrap
+    assert "New-Item -ItemType Directory -Path $InfoPath" in bootstrap
+    assert "$InfoDirectory.PSIsContainer" in bootstrap
+    assert "$SourceExcludePath = Join-Path $SourceRepository '.git\\info\\exclude'" in bootstrap
+    assert "$ExpectedLegacyExcludeSizeBytes = 2368" in bootstrap
+    assert governance.POST_R2_GIT_EXCLUDE_SHA256 in bootstrap
+    assert "$SourceExcludeFile.PSIsContainer" in bootstrap
+    assert "$SourceExcludeFile.Length -ne $ExpectedLegacyExcludeSizeBytes" in bootstrap
+    assert "$ObservedSourceExcludeSha256 -cne $ExpectedLegacyExcludeSha256" in bootstrap
+    assert "$AttributesPath = Join-Path $InfoPath 'attributes'" in bootstrap
+    assert "Test-Path -LiteralPath $AttributesPath" in bootstrap
+    assert ".git\\info\\attributes to be absent" in bootstrap
+    assert "$ExcludeFile.PSIsContainer" in bootstrap
+    assert "[IO.File]::Copy($SourceExcludePath, $ExcludePath, $false)" in bootstrap
+    assert "$ExcludeFile.Length -ne $ExpectedLegacyExcludeSizeBytes" in bootstrap
+    assert "$ObservedExcludeSha256 -cne $ExpectedLegacyExcludeSha256" in bootstrap
+    assert "[IO.File]::AppendAllText(" not in bootstrap
     assert "Copy-Item -LiteralPath $SourceVenv" in bootstrap
     assert "& $VerifiedLauncher --help" in bootstrap
     assert "status --porcelain=v1 --untracked-files=all" in bootstrap
+    assert "function Remove-HistoricalVerificationRoadmap" in bootstrap
+    assert "$ErrorActionPreference = 'Stop'" in bootstrap
+    assert "$HistoricalRoadmapCopyOwned = $false" in bootstrap
+    assert "if ($HistoricalRoadmapCopyOwned)" in bootstrap
+    assert "finally {" in bootstrap
+    assert "$VerifiedRoadmapStream = [IO.File]::Open(" in bootstrap
+    assert "$SourceRoadmapStream.CopyTo($VerifiedRoadmapStream)" in bootstrap
+    assert "$VerifiedRoadmapStream.Flush($true)" in bootstrap
+    assert "$VerifiedRoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint" in bootstrap
+    assert "Remove-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop" in bootstrap
+    assert "catch [System.Management.Automation.ItemNotFoundException]" in bootstrap
+    assert bootstrap.index("New-Item -ItemType Directory -Path $InfoPath") < bootstrap.index(
+        "[IO.File]::Copy($SourceExcludePath, $ExcludePath, $false)"
+    )
+    assert bootstrap.index("$AttributesPath = Join-Path $InfoPath 'attributes'") < (
+        bootstrap.index("$ExcludePath = Join-Path $VerificationRoot '.git\\info\\exclude'")
+    )
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the documented bootstrap is PowerShell on Windows")
+def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_rejects_nonregular_paths(
+    tmp_path: Path,
+) -> None:
+    documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
+    bootstrap = documentation.split("### Historical-verifier bootstrap boundary", maxsplit=1)[
+        1
+    ].split("## Local draft generation and validation", maxsplit=1)[0]
+    powershell_block = bootstrap.split("```powershell", maxsplit=1)[1].split("```", maxsplit=1)[0]
+    exclude_setup = powershell_block[
+        powershell_block.index("$ExpectedLegacyExcludeSizeBytes") : powershell_block.index(
+            "$SourceVenvItem = Get-Item"
+        )
+    ]
+    synthetic_policy_prefix = b"# Hermetic historical local-exclude policy fixture.\n"
+    synthetic_legacy_policy = synthetic_policy_prefix + b"x" * (
+        governance.POST_R2_GIT_EXCLUDE_SIZE_BYTES - len(synthetic_policy_prefix)
+    )
+    assert len(synthetic_legacy_policy) == governance.POST_R2_GIT_EXCLUDE_SIZE_BYTES
+    synthetic_policy_sha256 = hashlib.sha256(synthetic_legacy_policy).hexdigest()
+    exclude_setup = exclude_setup.replace(
+        governance.POST_R2_GIT_EXCLUDE_SHA256,
+        synthetic_policy_sha256,
+    )
+    powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+    assert powershell.is_file()
+
+    def run_setup(root: Path, source_exclude: Path) -> subprocess.CompletedProcess[str]:
+        escaped_root = str(root).replace("'", "''")
+        escaped_source_exclude = str(source_exclude).replace("'", "''")
+        return subprocess.run(
+            [
+                str(powershell),
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                f"$ErrorActionPreference = 'Stop'\n"
+                f"$VerificationRoot = '{escaped_root}'\n"
+                f"$SourceExcludePath = '{escaped_source_exclude}'\n"
+                f"{exclude_setup}",
+            ],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+
+    source_repository = tmp_path / "source-repository"
+    _initialize_git_repository(source_repository)
+    source_exclude = source_repository / ".git/info/exclude"
+    source_exclude.write_bytes(synthetic_legacy_policy)
+    (source_repository / "tracked.txt").write_bytes(b"standalone clone source\n")
+    _commit_all(source_repository, "synthetic standalone source")
+    empty_template = tmp_path / "empty-git-template"
+    empty_template.mkdir()
+    fresh = tmp_path / "fresh-empty-template-clone"
+    git_executable = shutil.which("git")
+    assert git_executable is not None
+    clone_environment = os.environ.copy()
+    clone_environment.update(
+        {
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "NUL",
+            "GIT_CONFIG_NOSYSTEM": "1",
+        }
+    )
+    cloned = subprocess.run(
+        [
+            git_executable,
+            "clone",
+            "--no-local",
+            "--no-checkout",
+            f"--template={empty_template}",
+            str(source_repository),
+            str(fresh),
+        ],
+        env=clone_environment,
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert cloned.returncode == 0, cloned.stderr
+    assert (fresh / ".git").is_dir()
+    assert not (fresh / ".git/info").exists()
+    completed = run_setup(fresh, source_exclude)
+    assert completed.returncode == 0, completed.stderr
+    exclude_path = fresh / ".git/info/exclude"
+    assert exclude_path.is_file() and not exclude_path.is_symlink()
+    assert exclude_path.read_bytes() == synthetic_legacy_policy
+
+    corrupt_source = tmp_path / "corrupt-source-exclude"
+    corrupt_source.write_bytes(b"!" + synthetic_legacy_policy[1:])
+    corrupt_target = tmp_path / "corrupt-source-target"
+    (corrupt_target / ".git").mkdir(parents=True)
+    rejected_corrupt_source = run_setup(corrupt_target, corrupt_source)
+    assert rejected_corrupt_source.returncode != 0
+    assert "does not match the immutable v3 policy" in rejected_corrupt_source.stderr
+    assert not (corrupt_target / ".git/info/exclude").exists()
+
+    directory_source = tmp_path / "directory-source-exclude"
+    directory_source.mkdir()
+    directory_source_target = tmp_path / "directory-source-target"
+    (directory_source_target / ".git").mkdir(parents=True)
+    rejected_directory_source = run_setup(directory_source_target, directory_source)
+    assert rejected_directory_source.returncode != 0
+    assert "regular non-reparse source .git\\info\\exclude file" in (
+        rejected_directory_source.stderr
+    )
+
+    non_directory_info = tmp_path / "non-directory-info"
+    (non_directory_info / ".git").mkdir(parents=True)
+    (non_directory_info / ".git/info").write_bytes(b"not a directory")
+    rejected_info = run_setup(non_directory_info, source_exclude)
+    assert rejected_info.returncode != 0
+    assert "regular non-reparse .git\\info directory" in rejected_info.stderr
+
+    directory_exclude = tmp_path / "directory-exclude"
+    (directory_exclude / ".git/info/exclude").mkdir(parents=True)
+    rejected_exclude = run_setup(directory_exclude, source_exclude)
+    assert rejected_exclude.returncode != 0
+    assert "clone-local .git\\info\\exclude to be absent" in rejected_exclude.stderr
+
+    reparse_info = tmp_path / "reparse-info"
+    (reparse_info / ".git").mkdir(parents=True)
+    reparse_target = tmp_path / "reparse-info-target"
+    reparse_target.mkdir()
+    try:
+        os.symlink(reparse_target, reparse_info / ".git/info", target_is_directory=True)
+    except OSError:
+        pass
+    else:
+        rejected_reparse = run_setup(reparse_info, source_exclude)
+        assert rejected_reparse.returncode != 0
+        assert "regular non-reparse .git\\info directory" in rejected_reparse.stderr
+
+
+def test_post_v2_control_docs_preserve_the_accepted_checkout_and_exact_local_policy() -> None:
+    documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Preserve the accepted checkout" in documentation
+    assert "and its local metadata unchanged." in documentation
+    assert "from a separate `clone --no-local`" in documentation
+    assert "empty Git template at that exact subject" in documentation
+    assert "`/Agent_Assure_Implementation_Roadmap.md\\n/.venv/\\n/.tmp/\\n`" in documentation
+    assert governance.POST_V2_CONTROL_GIT_EXCLUDE_SHA256 in documentation
+    assert ".git/info/attributes` must be absent" in documentation
+    assert "function Remove-PostV2ControlRoadmap" in documentation
+    assert "$PostV2RoadmapCopyOwned = $false" in documentation
+    assert "if ($PostV2RoadmapCopyOwned)" in documentation
+    assert "$PostV2RoadmapStream = [IO.File]::Open(" in documentation
+    assert "$SourceRoadmapStream.CopyTo($PostV2RoadmapStream)" in documentation
+    assert "$PostV2RoadmapStream.Flush($true)" in documentation
+    assert "$PostV2RoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint" in documentation
+    assert "Remove-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop" in documentation
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the documented cleanup requires PowerShell")
+def test_documented_private_roadmap_cleanup_is_exact_and_runs_on_failure(
+    tmp_path: Path,
+) -> None:
+    documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
+    powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+    assert powershell.is_file()
+    configurations = (
+        (
+            "historical",
+            "VerificationRoot",
+            "Remove-HistoricalVerificationRoadmap",
+            "$HistoricalRoadmapCopyOwned",
+        ),
+        (
+            "post-v2",
+            "PostV2RepositoryRoot",
+            "Remove-PostV2ControlRoadmap",
+            "$PostV2RoadmapCopyOwned",
+        ),
+    )
+
+    for label, root_variable, function_name, owned_variable in configurations:
+        function_start = documentation.index(f"function {function_name}")
+        function_end = documentation.index(
+            "$HistoricalRoadmapCopyOwned" if label == "historical" else "$PostV2ControlEvidenceDir",
+            function_start,
+        )
+        function_source = documentation[function_start:function_end]
+        root = tmp_path / label
+        root.mkdir()
+        source = tmp_path / f"{label}-source-roadmap.md"
+        source.write_bytes(b"private roadmap fixture\n")
+        adjacent = root / "adjacent.txt"
+        adjacent.write_bytes(b"must remain\n")
+        target = root / "Agent_Assure_Implementation_Roadmap.md"
+
+        def run(
+            script: str,
+            *,
+            root: Path = root,
+            root_variable: str = root_variable,
+            function_source: str = function_source,
+        ) -> subprocess.CompletedProcess[str]:
+            escaped_root = str(root).replace("'", "''")
+            return subprocess.run(
+                [
+                    str(powershell),
+                    "-NoLogo",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    f"${root_variable} = '{escaped_root}'\n{function_source}\n{script}",
+                ],
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=30,
+            )
+
+        escaped_source = str(source).replace("'", "''")
+        escaped_target = str(target).replace("'", "''")
+        escaped_adjacent = str(adjacent).replace("'", "''")
+        failed = run(
+            f"{owned_variable} = $false\n"
+            "try {\n"
+            f"  $SourceStream = [IO.File]::Open('{escaped_source}', "
+            "[IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::Read)\n"
+            "  try {\n"
+            f"    $TargetStream = [IO.File]::Open('{escaped_target}', "
+            "[IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)\n"
+            f"    {owned_variable} = $true\n"
+            "    try {\n"
+            "      $PartialBytes = [byte[]] @(1, 2, 3)\n"
+            "      $TargetStream.Write($PartialBytes, 0, $PartialBytes.Length)\n"
+            "      throw 'synthetic governed mid-copy failure'\n"
+            "    }\n"
+            "    finally { $TargetStream.Dispose() }\n"
+            "  }\n"
+            "  finally { $SourceStream.Dispose() }\n"
+            "}\n"
+            "finally {\n"
+            f"  if ({owned_variable}) {{\n"
+            f"    {function_name} -CandidatePath '{escaped_target}'\n"
+            "  }\n"
+            "}\n"
+        )
+        assert failed.returncode != 0
+        assert "synthetic governed mid-copy failure" in failed.stderr
+        assert not target.exists()
+        assert source.read_bytes() == b"private roadmap fixture\n"
+        assert adjacent.read_bytes() == b"must remain\n"
+
+        target.write_bytes(b"must remain after mismatch\n")
+        mismatched = run(f"{function_name} -CandidatePath '{escaped_adjacent}'")
+        assert mismatched.returncode != 0
+        assert "not the exact clone-local path" in mismatched.stderr
+        assert target.read_bytes() == b"must remain after mismatch\n"
+        assert adjacent.read_bytes() == b"must remain\n"
+
+        inspection_denied = run(
+            "function Get-Item {\n"
+            "  [CmdletBinding()]\n"
+            "  param([string] $LiteralPath, [switch] $Force)\n"
+            "  throw [UnauthorizedAccessException]::new('synthetic inspection denied')\n"
+            "}\n"
+            f"{function_name} -CandidatePath '{escaped_target}'"
+        )
+        assert inspection_denied.returncode != 0
+        assert "synthetic inspection denied" in inspection_denied.stderr
+        assert target.read_bytes() == b"must remain after mismatch\n"
+
+        target.unlink()
+        target.mkdir()
+        directory = run(f"{function_name} -CandidatePath '{escaped_target}'")
+        assert directory.returncode != 0
+        assert "requires a regular non-reparse file" in directory.stderr
+        assert target.is_dir()
+        target.rmdir()
+
+        reparse_target = tmp_path / f"{label}-reparse-target"
+        reparse_target.mkdir()
+        try:
+            os.symlink(reparse_target, target, target_is_directory=True)
+        except OSError:
+            pass
+        else:
+            reparse = run(f"{function_name} -CandidatePath '{escaped_target}'")
+            assert reparse.returncode != 0
+            assert "requires a regular non-reparse file" in reparse.stderr
+            assert target.is_symlink()
+            assert reparse_target.is_dir()
+            target.unlink()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="the documented setup requires Windows PowerShell 5.1")
+def test_post_v2_documented_exclude_setup_creates_exact_bytes_once(
+    tmp_path: Path,
+) -> None:
+    documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
+    section = documentation.split(
+        "The canonical v4 exclude policy and the accepted host's 2,368-byte v3 exclude",
+        maxsplit=1,
+    )[1].split("The following block is retained", maxsplit=1)[0]
+    powershell_block = section.split("```powershell", maxsplit=1)[1].split("```", maxsplit=1)[0]
+    exclude_setup = powershell_block[
+        powershell_block.index("$PostV2InfoPath") : powershell_block.index(
+            "function Invoke-PostV2Governance"
+        )
+    ]
+    powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
+    assert powershell.is_file()
+    repository = tmp_path / "post-v2-clone"
+    (repository / ".git").mkdir(parents=True)
+    escaped_root = str(repository).replace("'", "''")
+    command = (
+        "$ErrorActionPreference = 'Stop'\n"
+        f"$PostV2RepositoryRoot = '{escaped_root}'\n"
+        f"{exclude_setup}"
+    )
+
+    first = subprocess.run(
+        [
+            str(powershell),
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert first.returncode == 0, first.stderr
+    exclude_path = repository / ".git/info/exclude"
+    assert exclude_path.read_bytes() == governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES
+
+    second = subprocess.run(
+        [
+            str(powershell),
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            command,
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+        timeout=30,
+    )
+    assert second.returncode != 0
+    assert "refuses to overwrite an existing local-exclude path" in second.stderr
+    assert exclude_path.read_bytes() == governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES
 
 
 @pytest.mark.skipif(
@@ -6719,10 +8935,25 @@ handle.close()
         assert completed.returncode == 0, completed.stderr
         evidence_path.parent.mkdir(parents=True, exist_ok=True)
         evidence_path.write_text("{}\n", encoding="utf-8")
-        return {
-            "evidence_digest": _digest("e"),
-            "execution": {"pytest_totals": {"collected": 1, "passed": 1}},
-        }
+        return _SyntheticCaptureRecord(
+            {
+                "evidence_digest": _digest("e"),
+                "execution": {
+                    "exit_code": 0,
+                    "outcome": "passed",
+                    "pytest_totals": {
+                        "collected": 1,
+                        "passed": 1,
+                        "failed": 0,
+                        "skipped": 0,
+                        "xfailed": 0,
+                        "xpassed": 0,
+                        "errors": 0,
+                    },
+                },
+            },
+            reused=False,
+        )
 
     monkeypatch.setattr(
         governance,
@@ -6742,6 +8973,251 @@ handle.close()
         )
         == 0
     )
+
+
+@pytest.mark.parametrize(
+    (
+        "reused",
+        "exit_code",
+        "outcome",
+        "evidence_format",
+        "acceptance_eligible",
+        "expected_return_code",
+    ),
+    (
+        (True, 0, "passed", "agent-assure-s1-post-r2-suite-evidence/3", True, 0),
+        (True, 1, "failed", "agent-assure-s1-post-r2-suite-evidence/3", False, 1),
+    ),
+)
+def test_corrective_suite_capture_reports_capture_disposition_and_suite_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    reused: bool,
+    exit_code: int,
+    outcome: str,
+    evidence_format: str,
+    acceptance_eligible: bool,
+    expected_return_code: int,
+) -> None:
+    repository = (tmp_path / "repository").resolve()
+    governance_root = repository / "docs/governance/v1"
+    governance_root.mkdir(parents=True)
+    evidence_path = (
+        repository / ".tmp/s1-acceptance/synthetic-suite" / "post-r2-suite-evidence.json"
+    )
+    totals = {
+        "collected": 1,
+        "passed": int(exit_code == 0),
+        "failed": int(exit_code != 0),
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0,
+    }
+    record = _SyntheticCaptureRecord(
+        {
+            "evidence_digest": _digest("e"),
+            "format": evidence_format,
+            "execution": {
+                "exit_code": exit_code,
+                "outcome": outcome,
+                "pytest_totals": totals,
+            },
+        },
+        reused=reused,
+    )
+
+    @contextmanager
+    def unlocked(_repository: Path) -> Any:
+        yield
+
+    monkeypatch.setattr(governance, "_acceptance_import_lock", unlocked)
+    monkeypatch.setattr(
+        governance,
+        "_load_corrective_v2_workspace",
+        lambda **_kwargs: {"authorization": {}},
+    )
+    monkeypatch.setattr(
+        governance,
+        "_require_clean_corrective_result_checkout",
+        lambda *_args, **_kwargs: {},
+    )
+    monkeypatch.setattr(
+        governance,
+        "_corrective_private_acceptance_path",
+        lambda *_args, **_kwargs: evidence_path,
+    )
+    monkeypatch.setattr(
+        governance,
+        "capture_post_r2_suite_evidence",
+        lambda *_args, **_kwargs: record,
+    )
+
+    result = governance.corrective_v2_suite_capture.__wrapped__(
+        Namespace(
+            repository_root=str(repository),
+            governance_dir=str(governance_root),
+            roadmap=str(repository / "Agent_Assure_Implementation_Roadmap.md"),
+            result_commit="a" * 40,
+            evidence_dir=str(evidence_path.parent),
+        )
+    )
+
+    assert result == expected_return_code
+    output = json.loads(capsys.readouterr().out)
+    disposition = "reused" if reused else "captured"
+    status = "passed" if exit_code == 0 else "failed"
+    assert output == {
+        "acceptance_eligible": acceptance_eligible,
+        "authorization_effect": "none",
+        "capture_disposition": disposition,
+        "evidence_digest": _digest("e"),
+        "evidence_path": str(evidence_path),
+        "execution_outcome": outcome,
+        "pytest_exit_code": exit_code,
+        "pytest_totals": totals,
+        "result": f"clean_r2_full_suite_evidence_{disposition}_{status}",
+        "result_commit": "a" * 40,
+        "suite_passed": exit_code == 0,
+    }
+
+
+@pytest.mark.parametrize(
+    ("reused", "exit_code", "outcome", "expected_return_code"),
+    (
+        (False, 0, "passed", 0),
+        (False, 1, "failed", 1),
+        (True, 0, "passed", 0),
+        (True, 1, "failed", 1),
+    ),
+)
+def test_post_v2_control_suite_command_reports_nonaccepting_capture_status(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    reused: bool,
+    exit_code: int,
+    outcome: str,
+    expected_return_code: int,
+) -> None:
+    repository = (tmp_path / "repository").resolve()
+    repository.mkdir()
+    evidence_directory = repository / ".tmp/s1-acceptance/post-v2-control-cli"
+    evidence_path = evidence_directory / "post-v2-control-suite-evidence.json"
+    subject_commit = "a" * 40
+    subject_parent_commit = "b" * 40
+    topology = {
+        "scope": "post_v2_control_verification_only",
+        "authorization_effect": "none",
+        "history_policy": "full_history_without_replacements_grafts_or_alternates/v1",
+        "immutable_acceptance_v2_closure_commit": governance.S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+        "relationship": "proper_non_merge_descendant",
+        "subject_commit": subject_commit,
+        "subject_parent_commit": subject_parent_commit,
+    }
+    totals = {
+        "collected": 1,
+        "passed": int(exit_code == 0),
+        "failed": int(exit_code != 0),
+        "skipped": 0,
+        "xfailed": 0,
+        "xpassed": 0,
+        "errors": 0,
+    }
+    record = _SyntheticCaptureRecord(
+        {
+            "evidence_digest": _digest("e"),
+            "execution": {
+                "exit_code": exit_code,
+                "outcome": outcome,
+                "pytest_totals": totals,
+            },
+        },
+        reused=reused,
+    )
+    state = {"head_commit": subject_commit, "clean": True}
+    ordering: list[str] = []
+
+    @contextmanager
+    def unlocked(_repository: Path) -> Any:
+        yield
+
+    monkeypatch.setattr(governance, "_acceptance_import_lock", unlocked)
+
+    def observed_topology(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        ordering.append("topology")
+        return copy.deepcopy(topology)
+
+    def observed_metadata(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        ordering.append("metadata")
+        return {}
+
+    monkeypatch.setattr(governance, "_post_v2_control_topology", observed_topology)
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_git_metadata_preflight",
+        observed_metadata,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_repository_state",
+        lambda *_args, **_kwargs: copy.deepcopy(state),
+    )
+    monkeypatch.setattr(
+        governance,
+        "capture_post_v2_control_suite_evidence",
+        lambda *_args, **_kwargs: record,
+    )
+    monkeypatch.setattr(
+        governance,
+        "_post_v2_control_private_path",
+        lambda *_args, **_kwargs: evidence_path,
+    )
+
+    parsed = governance._parser().parse_args(
+        [
+            "post-v2-control-suite-capture",
+            "--roadmap",
+            str(repository / "Agent_Assure_Implementation_Roadmap.md"),
+            "--subject-commit",
+            subject_commit,
+            "--evidence-dir",
+            str(evidence_directory),
+            "--repository-root",
+            str(repository),
+        ]
+    )
+    assert parsed.handler is governance.post_v2_control_suite_capture
+    result = governance.post_v2_control_suite_capture.__wrapped__(parsed)
+
+    assert result == expected_return_code
+    assert ordering == [
+        "metadata",
+        "topology",
+        "metadata",
+        "metadata",
+        "topology",
+        "metadata",
+    ]
+    disposition = "reused" if reused else "captured"
+    status = "passed" if exit_code == 0 else "failed"
+    assert json.loads(capsys.readouterr().out) == {
+        "acceptance_eligible": False,
+        "acceptance_generation": None,
+        "authorization_effect": "none",
+        "capture_disposition": disposition,
+        "control_scope": "post_v2_control_verification_only",
+        "evidence_digest": _digest("e"),
+        "evidence_path": str(evidence_path),
+        "execution_outcome": outcome,
+        "pytest_exit_code": exit_code,
+        "pytest_totals": totals,
+        "result": f"post_v2_control_suite_evidence_{disposition}_{status}",
+        "subject_commit": subject_commit,
+        "subject_parent_commit": subject_parent_commit,
+        "suite_passed": exit_code == 0,
+    }
 
 
 def test_interrupted_acceptance_transaction_rolls_back_exact_prior_bytes(
@@ -7218,7 +9694,11 @@ def test_interrupted_acceptance_transaction_rejects_forged_prior_bytes(
 
 
 @pytest.fixture(scope="module")
-def forecast_v2_evidence() -> dict[str, Any]:
+def frozen_forecast_v2_evidence() -> dict[str, Any]:
+    if not ROADMAP.is_file():
+        pytest.skip(
+            "the frozen forecast artifacts can only be recomputed with the local private roadmap"
+        )
     snapshot = governance.load_roadmap(ROADMAP)
     catalog = _record("delivery-forecast.estimation-catalog.json")
     baseline = _record("baseline-observations.json")
@@ -7238,6 +9718,366 @@ def forecast_v2_evidence() -> dict[str, Any]:
         "forecast": _record("delivery-forecast.json"),
         "roster": _record("approval-roster.json"),
     }
+
+
+def test_host_specific_reads_are_confined_to_the_local_frozen_fixture() -> None:
+    import ast
+
+    syntax = ast.parse(Path(__file__).read_text(encoding="utf-8"))
+    roadmap_readers: set[tuple[str, str]] = set()
+    root_git_uses: set[tuple[str, str]] = set()
+
+    def assigned_names(node: ast.AST) -> set[str]:
+        return {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Store)
+        }
+
+    def referenced_names(node: ast.AST) -> set[str]:
+        return {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
+        }
+
+    def has_git_path_component(node: ast.AST) -> bool:
+        return any(
+            isinstance(child, ast.Constant)
+            and isinstance(child.value, str)
+            and ".git" in child.value.replace("\\", "/").split("/")
+            for child in ast.walk(node)
+        )
+
+    def scope_nodes(scope: ast.AST) -> list[ast.AST]:
+        nodes: list[ast.AST] = []
+        pending = list(ast.iter_child_nodes(scope))
+        while pending:
+            node = pending.pop()
+            if isinstance(
+                node,
+                (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda),
+            ):
+                continue
+            nodes.append(node)
+            pending.extend(ast.iter_child_nodes(node))
+        return nodes
+
+    scopes: list[tuple[str, ast.AST]] = [("<module>", syntax)]
+    scopes.extend(
+        (node.name, node)
+        for node in ast.walk(syntax)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+    )
+    git_metadata_helpers = {
+        "_post_r2_git_exclude_evidence",
+        "_post_v2_git_attributes_absence_evidence",
+        "_post_v2_control_git_metadata_preflight",
+    }
+    for scope_name, scope in scopes:
+        nodes = scope_nodes(scope)
+        root_derived_names = {"ROOT"}
+        root_git_names: set[str] = set()
+        assignments = [
+            node
+            for node in nodes
+            if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+            and node.value is not None
+        ]
+        changed = True
+        while changed:
+            changed = False
+            for assignment in assignments:
+                value = assignment.value
+                names = referenced_names(value)
+                targets = assigned_names(assignment)
+                is_root_derived = bool(names & root_derived_names)
+                is_root_git = bool(names & root_git_names) or (
+                    is_root_derived and has_git_path_component(value)
+                )
+                if is_root_derived and not targets <= root_derived_names:
+                    root_derived_names.update(targets)
+                    changed = True
+                if is_root_git and not targets <= root_git_names:
+                    root_git_names.update(targets)
+                    changed = True
+
+        for assignment in assignments:
+            value = assignment.value
+            if bool(referenced_names(value) & root_git_names) or (
+                bool(referenced_names(value) & root_derived_names) and has_git_path_component(value)
+            ):
+                root_git_uses.add((scope_name, "assignment"))
+
+        for returned in (node for node in nodes if isinstance(node, ast.Return)):
+            if returned.value is not None and (
+                bool(referenced_names(returned.value) & root_git_names)
+                or (
+                    bool(referenced_names(returned.value) & root_derived_names)
+                    and has_git_path_component(returned.value)
+                )
+            ):
+                root_git_uses.add((scope_name, "return"))
+
+        for call in (node for node in nodes if isinstance(node, ast.Call)):
+            call_name = call.func.attr if isinstance(call.func, ast.Attribute) else None
+            if isinstance(call.func, ast.Name):
+                call_name = call.func.id
+            inputs = [*call.args, *[item.value for item in call.keywords]]
+            if isinstance(call.func, ast.Attribute):
+                inputs.append(call.func.value)
+            reads_roadmap = any(
+                isinstance(node, ast.Name) and node.id == "ROADMAP"
+                for argument in inputs
+                for node in ast.walk(argument)
+            )
+            if reads_roadmap and call_name in {
+                "load_roadmap",
+                "open",
+                "read_bytes",
+                "read_text",
+            }:
+                roadmap_readers.add((scope_name, call_name))
+
+            reads_root_git = any(
+                bool(referenced_names(argument) & root_git_names)
+                or (
+                    bool(referenced_names(argument) & root_derived_names)
+                    and has_git_path_component(argument)
+                )
+                for argument in inputs
+            )
+            reads_root_git_indirectly = (
+                isinstance(call.func, ast.Attribute)
+                and isinstance(call.func.value, ast.Name)
+                and call.func.value.id == "governance"
+                and call.func.attr in git_metadata_helpers
+                and any(
+                    bool(referenced_names(argument) & root_derived_names) for argument in inputs
+                )
+            )
+            if reads_root_git or reads_root_git_indirectly:
+                root_git_uses.add((scope_name, call_name or "call"))
+
+    assert roadmap_readers == {("frozen_forecast_v2_evidence", "load_roadmap")}
+    assert root_git_uses == set()
+
+
+def _synthetic_forecast_v2_snapshot() -> governance.RoadmapSnapshot:
+    """Build the exact aggregate shape without consulting the private roadmap."""
+
+    entry_count = 39
+    rel02_trains = (
+        "oscal-1.1",
+        "otel-1.2",
+        "otel-1.2",
+        "statistics-1.3",
+        "statistics-1.3",
+        "structural-1.4",
+        "structural-1.4",
+        "formal-1.5",
+        "formal-1.5",
+        "intervention-1.6",
+        "intervention-1.6",
+    )
+    entries = [
+        {
+            "sprint": f"S{index + 1}",
+            "release": f"1.0.0a{index + 1}",
+            "train": rel02_trains[index] if index < len(rel02_trains) else "stable-1.0",
+            "artifact_kind": "governance-bundle",
+            "ticket_ids": [],
+        }
+        for index in range(entry_count)
+    ]
+    ticket_specs: list[tuple[str, tuple[int, ...], int, str]] = [
+        ("V1-REL-02", tuple(range(11)), 5, "per_release_or_gate_execution")
+    ]
+    for index in range(43):
+        ticket_specs.append(
+            (
+                f"V1-SYN-{index + 1:02d}",
+                (index % entry_count, (index + 13) % entry_count),
+                8 if index < 34 else 7,
+                "per_candidate_execution",
+            )
+        )
+    for index in range(24):
+        ticket_specs.append(
+            (
+                f"V1-ONE-{index + 1:02d}",
+                ((index + 7) % entry_count,),
+                1 if index < 20 else 0,
+                "ticket_completion",
+            )
+        )
+
+    for ticket_id, entry_indices, _criterion_count, _scope in ticket_specs:
+        for entry_index in entry_indices:
+            entries[entry_index]["ticket_ids"].append(ticket_id)
+
+    remaining_unquantified_wait_criteria = 175
+    tickets: list[dict[str, Any]] = []
+    for ticket_index, (ticket_id, entry_indices, criterion_count, scope) in enumerate(ticket_specs):
+        criteria: list[str] = []
+        for criterion_index in range(criterion_count):
+            contains_wait = ticket_id.startswith("V1-SYN-") and (
+                remaining_unquantified_wait_criteria > 0
+            )
+            criteria.append(
+                f"Synthetic wait obligation {criterion_index + 1}."
+                if contains_wait
+                else f"Synthetic obligation {criterion_index + 1}."
+            )
+            if contains_wait:
+                remaining_unquantified_wait_criteria -= 1
+
+        packages: list[dict[str, Any]] = []
+        if ticket_index == 0:
+            package_ordinal = 0
+            for occurrence_index, component_count in zip(
+                (0, 2, 4, 6, 8, 10),
+                (2, 3, 5, 6, 7, 8),
+                strict=True,
+            ):
+                for _component_index in range(component_count):
+                    package_ordinal += 1
+                    package = {
+                        "id": f"WP-{package_ordinal:02d}",
+                        "planned_sprint": entries[entry_indices[occurrence_index]]["sprint"],
+                        "depends_on_work_package_ids": [],
+                        "profile_admission_instance_id": f"SYNTHETIC-{package_ordinal:02d}",
+                    }
+                    if package_ordinal <= 2:
+                        package["minimum_observation_window_days"] = 7 * package_ordinal
+                    packages.append(package)
+        elif 1 <= ticket_index <= 36:
+            planned_sprint = entries[entry_indices[0]]["sprint"]
+            package_count = 2 if ticket_index <= 35 else 1
+            for package_index in range(package_count):
+                package: dict[str, Any] = {
+                    "id": f"WP-{package_index + 1:02d}",
+                    "planned_sprint": planned_sprint,
+                    "depends_on_work_package_ids": [],
+                }
+                packages.append(package)
+
+        tickets.append(
+            {
+                "id": ticket_id,
+                "depends_on": [],
+                "acceptance_criteria": criteria,
+                "work_packages": packages,
+                "delivery": {
+                    "estimate": {
+                        "scope": scope,
+                        "unit": "focused_engineer_day",
+                        "p50": 1,
+                        "p90": 2,
+                        "confidence": "low",
+                        "basis": "synthetic_private-roadmap-independent_control",
+                    },
+                    "review_effort_p50_days": 1,
+                },
+                "acceptance_commands": ["pytest synthetic-control"],
+                "existing_anchors_to_verify": [],
+                "golden_case_ids": [],
+                "normative_sections": [],
+                "proposed_change_roles": [],
+                "resolved_allowed_files": [],
+                "required_completion_receipts": (
+                    ["synthetic_receipt"] if ticket_index == 0 else []
+                ),
+            }
+        )
+
+    assert remaining_unquantified_wait_criteria == 0
+    assert all(entry["ticket_ids"] for entry in entries)
+    return governance.RoadmapSnapshot(
+        raw_digest="sha256:" + "1" * 64,
+        tickets=tuple(tickets),
+        release_train={"entries": entries},
+        approval_roster_template={},
+        ticket_set_digest="sha256:" + "2" * 64,
+        dependency_graph_digest="sha256:" + "3" * 64,
+        release_train_digest="sha256:" + "4" * 64,
+    )
+
+
+@pytest.fixture(scope="module")
+def synthetic_forecast_v2_evidence() -> dict[str, Any]:
+    snapshot = _synthetic_forecast_v2_snapshot()
+    catalog = _record("delivery-forecast.estimation-catalog.json")
+    baseline = _record("baseline-observations.json")
+    pending_ledger = governance.build_authoring_ledger_v2(
+        snapshot,
+        catalog,
+        baseline_observations_digest_value=baseline["observations_digest"],
+        inventory_completed_at=baseline["inventory_completed_at_utc"],
+    )
+    governance.validate_authoring_ledger_v2(
+        snapshot,
+        pending_ledger,
+        _record("delivery-forecast.authoring-ledger.schema.json"),
+        catalog,
+        baseline_observations=baseline,
+        allow_pending=True,
+    )
+    decision_manifest = governance.build_forecast_decision_manifest_v2(pending_ledger)
+    signature_envelope = governance._pending_signature_v2(
+        "acblabs", "repository_maintainer", decision_manifest["manifest_digest"]
+    )
+    signature_envelope.update(status="signed", signature="test-signature")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(
+            governance,
+            "_validate_signature_envelope_v2",
+            lambda *_args, **_kwargs: True,
+        )
+        ledger = governance._apply_forecast_decision_manifest_v2(
+            pending_ledger,
+            decision_manifest,
+            signature_envelope,
+        )
+    registry = governance.aggregation_method_registry_v2()
+    roster = _record("approval-roster.json")
+    roster_digest = governance.approval_roster_digest(roster)
+    forecast = governance.build_forecast_v2(
+        snapshot,
+        ledger,
+        registry,
+        approval_roster=roster,
+        approval_roster_digest_value=roster_digest,
+        issued_at="2026-10-16T03:00:00Z",
+        valid_until="2026-11-15T03:00:00Z",
+        trusted_time_basis=(
+            "maintainer-trusted host UTC; Windows Time attestation unavailable; "
+            "OpenSSH SSHSIG carries no timestamp"
+        ),
+    )
+    return {
+        "snapshot": snapshot,
+        "catalog": catalog,
+        "registry": registry,
+        "baseline": baseline,
+        "pending_ledger": pending_ledger,
+        "ledger": ledger,
+        "forecast": forecast,
+        "roster": roster,
+    }
+
+
+@pytest.fixture
+def forecast_v2_evidence(
+    synthetic_forecast_v2_evidence: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict[str, Any]:
+    monkeypatch.setattr(
+        governance,
+        "_validate_signature_envelope_v2",
+        lambda *_args, **_kwargs: True,
+    )
+    return copy.deepcopy(synthetic_forecast_v2_evidence)
 
 
 def _validate_v2_ledger(evidence: dict[str, Any], ledger: dict[str, Any]) -> None:
@@ -7265,9 +10105,9 @@ def _validate_v2_forecast(evidence: dict[str, Any], forecast: dict[str, Any]) ->
 
 
 def test_frozen_v2_forecast_artifacts_recompute_exactly(
-    forecast_v2_evidence: dict[str, Any],
+    frozen_forecast_v2_evidence: dict[str, Any],
 ) -> None:
-    evidence = forecast_v2_evidence
+    evidence = frozen_forecast_v2_evidence
     governance.validate_estimation_catalog_v2(
         evidence["catalog"],
         _record("delivery-forecast.estimation-catalog.schema.json"),
@@ -7311,10 +10151,10 @@ def test_frozen_v2_forecast_artifacts_recompute_exactly(
     _validate_v2_forecast(evidence, evidence["forecast"])
 
 
-def test_v2_forecast_inventory_partition_slots_waits_and_rel02_sequence(
-    forecast_v2_evidence: dict[str, Any],
+def _assert_v2_inventory_partition_slots_waits_and_rel02_sequence(
+    evidence: dict[str, Any],
 ) -> None:
-    rows = forecast_v2_evidence["ledger"]["rows"]
+    rows = evidence["ledger"]["rows"]
     proposals = [proposal for row in rows for proposal in row["execution_proposals"]]
     assert (len(rows), len(proposals)) == (68, 121)
     assert sum(row["source_anchors"]["acceptance_criteria_count"] for row in rows) == 360
@@ -7347,9 +10187,7 @@ def test_v2_forecast_inventory_partition_slots_waits_and_rel02_sequence(
         )
         == 350
     )
-    assert all(
-        not row["resolved_allowed_files"] for row in forecast_v2_evidence["snapshot"].tickets
-    )
+    assert all(not row["resolved_allowed_files"] for row in evidence["snapshot"].tickets)
     rel02 = next(row for row in rows if row["ticket_id"] == "V1-REL-02")
     assert [
         proposal["workload_vector"]["cumulative_optional_profile_count"]
@@ -7359,6 +10197,38 @@ def test_v2_forecast_inventory_partition_slots_waits_and_rel02_sequence(
         proposal["workload_vector"]["evidence_receipt_instance_count"]
         for proposal in rel02["execution_proposals"]
     ] == [3, 1, 4, 1, 6, 1, 7, 1, 8, 1, 9]
+
+
+def test_v2_forecast_inventory_partition_slots_waits_and_rel02_sequence(
+    frozen_forecast_v2_evidence: dict[str, Any],
+) -> None:
+    _assert_v2_inventory_partition_slots_waits_and_rel02_sequence(frozen_forecast_v2_evidence)
+
+
+def test_synthetic_v2_forecast_exercises_the_exact_inventory_shape(
+    forecast_v2_evidence: dict[str, Any],
+) -> None:
+    _assert_v2_inventory_partition_slots_waits_and_rel02_sequence(forecast_v2_evidence)
+
+
+def test_v2_proposal_digest_has_a_verifiable_finalized_state_projection() -> None:
+    ledger = _record("delivery-forecast.authoring-ledger.json")
+    proposal = ledger["rows"][0]["execution_proposals"][0]
+    assert proposal["decision"]["status"] == "human_accepted"
+    assert (
+        proposal["elapsed_time"]["critical_path_status"] == "not_modeled_scope_rebaseline_required"
+    )
+    assert governance._occurrence_proposal_v2_digest(proposal) == proposal["proposal_digest"]
+    governance._validate_occurrence_proposal_v2_digest(proposal)
+
+    altered = copy.deepcopy(proposal)
+    altered["effort_proposal"]["p90_effort_hours"] += 1
+    assert governance._occurrence_proposal_v2_digest(altered) != proposal["proposal_digest"]
+    with pytest.raises(
+        governance.GovernanceError,
+        match="generation-2 occurrence proposal digest mismatch",
+    ):
+        governance._validate_occurrence_proposal_v2_digest(altered)
 
 
 @pytest.mark.parametrize(
@@ -8088,14 +10958,34 @@ def test_forecast_v2_workspace_fails_closed_on_missing_trust_source(
     ],
 )
 def test_forecast_v2_workspace_rejects_tampered_trust_source(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mutation: str,
     expected_error: str,
 ) -> None:
-    read_json = governance._read_json
+    repository = (tmp_path / "repository").resolve()
+    governance_root = repository / "docs/governance/v1"
+    governance_root.mkdir(parents=True)
+    roadmap = repository / "Agent_Assure_Implementation_Roadmap.md"
+    records = {
+        name: _record(name)
+        for name in (
+            "maintainer-signing-key.json",
+            "maintainer-signing-key.schema.json",
+            "corrective-kickoff-authorization.json",
+            "corrective-kickoff-authorization.schema.json",
+            "baseline-observations.json",
+            "baseline-observations.schema.json",
+        )
+    }
+    snapshot = _minimal_snapshot(
+        raw_digest=records["corrective-kickoff-authorization.json"]["signed_claim"]["evidence"][
+            "roadmap_raw_sha256"
+        ]
+    )
 
     def read_record(path: Path) -> dict[str, Any]:
-        record = copy.deepcopy(read_json(path))
+        record = copy.deepcopy(records[path.name])
         if mutation == "signing-key" and path.name == "maintainer-signing-key.json":
             record["public_key"] = "ssh-ed25519 tampered"
         elif (
@@ -8107,14 +10997,16 @@ def test_forecast_v2_workspace_rejects_tampered_trust_source(
             record["format"] = "agent-assure-baseline-observations/tampered"
         return record
 
+    monkeypatch.setattr(governance, "validate_local_only_roadmap", lambda *_args: None)
+    monkeypatch.setattr(governance, "load_roadmap", lambda *_args: snapshot)
     monkeypatch.setattr(governance, "_read_json", read_record)
     monkeypatch.setattr(governance, "_verify_sshsig", lambda **_kwargs: None)
 
     with pytest.raises(governance.GovernanceError, match=expected_error):
         governance._load_forecast_v2_workspace(
-            repository_root=ROOT.resolve(),
-            governance_root=GOVERNANCE_ROOT.resolve(),
-            roadmap_path=ROADMAP.resolve(),
+            repository_root=repository,
+            governance_root=governance_root.resolve(),
+            roadmap_path=roadmap.resolve(),
             allow_pending=True,
         )
 
@@ -8228,21 +11120,29 @@ def test_forecast_v2_workspace_validates_trust_basis_before_ledger_and_roster_is
     )
 
 
-def test_forecast_v2_source_set_is_exhaustive_and_byte_bound() -> None:
-    paths = governance._forecast_v2_source_paths(ROOT, GOVERNANCE_ROOT, ROADMAP)
-    relative_paths = [path.resolve().relative_to(ROOT).as_posix() for path in paths]
+def test_forecast_v2_source_set_is_exhaustive_and_byte_bound(tmp_path: Path) -> None:
+    repository = (tmp_path / "repository").resolve()
+    governance_root = repository / "docs/governance/v1"
+    governance_root.mkdir(parents=True)
+    roadmap = repository / "Agent_Assure_Implementation_Roadmap.md"
+    roadmap.write_bytes(b"synthetic private roadmap contract\n")
+    for name in governance._FORECAST_V2_GOVERNANCE_SOURCE_NAMES:
+        (governance_root / name).write_bytes(b"{}\n")
+
+    paths = governance._forecast_v2_source_paths(repository, governance_root, roadmap)
+    relative_paths = [path.resolve().relative_to(repository).as_posix() for path in paths]
     assert relative_paths == [
         "Agent_Assure_Implementation_Roadmap.md",
         *[f"docs/governance/v1/{name}" for name in governance._FORECAST_V2_GOVERNANCE_SOURCE_NAMES],
     ]
-    plan = {"source_files": [governance._source_file_evidence(ROOT, path) for path in paths]}
-    governance._verify_forecast_v2_plan_sources(ROOT, plan, expected_paths=paths)
+    plan = {"source_files": [governance._source_file_evidence(repository, path) for path in paths]}
+    governance._verify_forecast_v2_plan_sources(repository, plan, expected_paths=paths)
 
     tampered = copy.deepcopy(plan)
     tampered["source_files"][0]["sha256"] = _digest("0")
     with pytest.raises(governance.GovernanceError, match="source file changed"):
         governance._verify_forecast_v2_plan_sources(
-            ROOT,
+            repository,
             tampered,
             expected_paths=paths,
         )

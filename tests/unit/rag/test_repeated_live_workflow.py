@@ -2020,6 +2020,38 @@ def test_paired_evidence_builders_reject_unadmitted_protocol_and_runsets() -> No
                 builder(protocol, supplied[0], supplied[1])
 
 
+@pytest.mark.parametrize(
+    "boundary",
+    (
+        assemble_paired_observations,
+        build_paired_runset_dependencies,
+        repeated_workflow.validate_paired_attempt_journal,
+    ),
+    ids=("observations", "dependencies", "attempt-journal"),
+)
+def test_paired_evidence_boundaries_project_each_runset_once(
+    monkeypatch: pytest.MonkeyPatch,
+    boundary: object,
+) -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    original_model_validate = RunSet.model_validate
+    projection_count = 0
+
+    def counted_model_validate(value: object, *args: object, **kwargs: object) -> RunSet:
+        nonlocal projection_count
+        projection_count += 1
+        return original_model_validate(value, *args, **kwargs)
+
+    monkeypatch.setattr(RunSet, "model_validate", staticmethod(counted_model_validate))
+    assert callable(boundary)
+    boundary(protocol, baseline, counterfactual)
+
+    # One schema-plus-model admission for each arm. A preceding explicit
+    # projection would double the 16,389-event journal work at the supported
+    # maximum size without adding another trust check.
+    assert projection_count == 2
+
+
 def test_attempt_journal_validator_admits_inputs_before_deterministic_return() -> None:
     protocol = _protocol(execution_mode="deterministic_fixture")
     baseline = _runset(protocol, arm_id="baseline_evidence")

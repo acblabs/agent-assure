@@ -10,12 +10,18 @@ roster and signing key, signed kickoff authorizations, forecast decisions, and
 the twice-signed forecast. `NO_INDEPENDENT_REVIEW` is explicit. A subsequent
 audit found that the forecast decisions mechanically retained stale roadmap
 priors and identified time-evidence, verifier-bootstrap, path-diagnostic, and
-post-amendment verification gaps. The immutable generation-1 objects remain
-historical evidence, but they are not the current acceptance basis for S2.
-Authoritative current status requires the corrective generation-2 result and
-closure, replacement signed evidence, and the separately signed
-`agent-assure-s1-current-acceptance-attestation/2` record stored in the fixed
-annotated tag `agent-assure-s1-1.0.0a1-acceptance-v2`.
+post-amendment verification gaps. Generation 2 corrected those defects and its
+fixed annotated tag, signatures, and digest bindings remain immutable
+historical evidence. A later adversarial review found that the generation-2
+validator did not parse on the declared Python 3.11 floor, that hosted-CI tests
+depended on the unavailable private roadmap, and that an ignored native Python
+extension at the repository root was outside the authenticated test-surface
+inventory while remaining importable. Those findings do not rewrite or prove
+tampering of either earlier generation, but they make generation 2
+insufficient as the current acceptance basis for S2. S2 remains blocked until
+a separately authorized successor result and closure capture the repaired
+controls, the complete required check graph, and new signed evidence. The tag
+`agent-assure-s1-1.0.0a1-acceptance-v2` must never be moved or replaced.
 
 ## Record set
 
@@ -39,11 +45,13 @@ annotated tag `agent-assure-s1-1.0.0a1-acceptance-v2`.
   it cannot supply the maintainer's estimate decisions.
 - `delivery-forecast.authoring-ledger.json` contains all 68 ticket rows and 121
   ordered occurrence proposals. Generation 2 requires every one to be
-  `reestimated_after_inventory` from digest-bound work breakdown evidence; all
-  remain pending explicit human review in `R2` preparation.
-- `delivery-forecast.json` is the recomputable planning forecast. It has no S2
-  effect until its generation-2 decisions and signatures pass the successor
-  closure.
+  `reestimated_after_inventory` from digest-bound work breakdown evidence. The
+  checked-in generation-2 ledger contains the installed batch decision; the
+  pending machine proposal is its immutable, digest-bound input state rather
+  than the current decision status.
+- `delivery-forecast.json` is the recomputable, signed generation-2 planning
+  forecast. Its accepted status is historical evidence and has no S2 effect
+  until a later corrective generation closes the post-v2 control findings.
 - `completion-report-*.md`, `completion-receipt-*.json`, and
   `governance-bundle.json` report and bind the two-ticket S1 result. Any receipt
   or bundle whose status or signature remains pending has no authorization
@@ -52,22 +60,35 @@ annotated tag `agent-assure-s1-1.0.0a1-acceptance-v2`.
   digest recomputation, Git provenance checks, and SSH signature verification
   are implemented by `scripts/v1_s1_governance.py`.
 
-The corrected method definition, registry, estimation-catalog, authoring-ledger,
-and forecast digests are, respectively,
+The generation-2 method definition, registry, and estimation-catalog digests
+are, respectively,
 `sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7`,
 `sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6`,
-`sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439`,
-`sha256:c65573f5b9045c08b926e739c1e4491fc038bc203df80454697a23c36d4d9fbf`,
-and
+and `sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439`.
+The pre-decision authoring-ledger digest was
+`sha256:c65573f5b9045c08b926e739c1e4491fc038bc203df80454697a23c36d4d9fbf`;
+the pre-signature forecast digest was
 `sha256:66d1e5a2b29f0405bbd4ef0c10c74d17c7930fd5c7f93a9140b0abc0438d0220`.
-The ledger and forecast use record format generation `/2` while retaining the
-external `delivery-forecast/v1` planning-contract identity.
+They are historical inputs, not the final installed record digests shown
+below. The ledger and forecast use record format generation `/2` while
+retaining the external `delivery-forecast/v1` planning-contract identity.
 
-The following machine-readable block is deliberately pending in the checked-in
-proposal. After the human decision and both final forecast signatures are
-imported, replace both lines with the exact installed statuses and digests
-printed by those imports. The corrective receipt planner rejects `R2` unless
-this block and the matching block in ADR 0016 exactly name the accepted files.
+In those immutable v2 records, `aggregate_p50_effort_hours` and
+`aggregate_p90_effort_hours` are engineering-only aggregates;
+`aggregate_reviewer_effort_hours` is a separate reviewer P50 aggregate. A
+combined P50 is arithmetically available under the declared shared-rank model
+as `aggregate_p50_effort_hours + aggregate_reviewer_effort_hours`, or
+`7,695 + 7,310 = 15,005` focused person-hours. The engineering P90 is `19,766`
+person-hours, but a combined P90 is not identified because no reviewer P90
+inputs were authored. The historical portfolio P90 must not be described as
+including review effort; a successor must preserve that explicit separation or
+add the missing reviewer quantile before claiming a combined total.
+
+The following machine-readable block records the final installed generation-2
+state. It is not a pending-work instruction. The corrective receipt planner
+used it, together with the matching block in ADR 0016, to bind the accepted v2
+files. A successor must preserve these values as historical facts rather than
+silently regenerating or relabeling them.
 
 <!-- agent-assure:forecast-v2-final:start -->
 - Generation-2 authoring ledger status: `human_decisions_imported`; digest: `sha256:825e811fa5a0dc841e8f8a316b4fb5be1183dc5793bce90506928237ad7020ca`.
@@ -215,11 +236,13 @@ The standalone-clone procedure is therefore:
    removing the disposable clone.
 
 The accepted-host pre-run uses absolute paths. Populate the expected artifact
-hashes from the independently reviewed v2 attestation; do not copy them from
-the files being checked. `$VerificationRoot` must be absent, and the template
-and hooks directories must be empty:
+hashes from the supplied v2 attestation only after independently verifying its
+public signature, tag-object identity, and C2 binding; do not copy them from the
+files being checked. `$VerificationRoot` must be absent, and the template and
+hooks directories must be empty:
 
 ```powershell
+$ErrorActionPreference = 'Stop'
 $SourceRepository = 'C:\Users\user\.antigravity-ide\agent-assure'
 $VerificationRoot = 'C:\tmp\agent-assure-s1-v2-verify'
 $EmptyTemplate = 'C:\tmp\agent-assure-empty-git-template'
@@ -231,6 +254,7 @@ $ExpectedValidatorSha256 = 'sha256:<64-lowercase-hex-from-v2-attestation>'
 $ExpectedLauncherSha256 = 'sha256:<64-lowercase-hex-from-v2-attestation>'
 $SourceRoadmap = Join-Path $SourceRepository 'Agent_Assure_Implementation_Roadmap.md'
 $SourceVenv = Join-Path $SourceRepository '.venv'
+$SourceExcludePath = Join-Path $SourceRepository '.git\info\exclude'
 $VerifiedValidator = Join-Path $VerificationRoot 'scripts\v1_s1_governance.py'
 $VerifiedLauncher = Join-Path $VerificationRoot 'scripts\v1_s1_governance.ps1'
 $VerifiedRoadmap = Join-Path $VerificationRoot 'Agent_Assure_Implementation_Roadmap.md'
@@ -249,9 +273,15 @@ foreach ($EmptyDirectory in @($EmptyTemplate, $EmptyHooks)) {
   }
 }
 
-$GitPrefix = @('--no-replace-objects', '-c', "core.hooksPath=$EmptyHooks")
+$GitPrefix = @(
+  '--no-replace-objects',
+  '-c', 'core.excludesFile=',
+  '-c', 'core.attributesFile=',
+  '-c', "core.hooksPath=$EmptyHooks"
+)
 $env:GIT_CONFIG_NOSYSTEM = '1'
 $env:GIT_CONFIG_GLOBAL = 'NUL'
+$env:GIT_ATTR_NOSYSTEM = '1'
 
 $TagType = (& $GitExe @GitPrefix -C $SourceRepository cat-file -t $A2).Trim()
 if ($LASTEXITCODE -ne 0 -or $TagType -cne 'tag') {
@@ -304,58 +334,200 @@ if ($LASTEXITCODE -ne 0 -or $InitialStatus) {
   throw 'Initial standalone C2 checkout is not clean.'
 }
 
-$Utf8NoBom = New-Object Text.UTF8Encoding($false)
+$ExpectedLegacyExcludeSizeBytes = 2368
+$ExpectedLegacyExcludeSha256 = `
+  '7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060'
+$SourceExcludeFile = Get-Item -LiteralPath $SourceExcludePath -Force -ErrorAction Stop
+if ($SourceExcludeFile.PSIsContainer -or
+    (($SourceExcludeFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Historical verification requires a regular non-reparse source .git\info\exclude file.'
+}
+$ObservedSourceExcludeSha256 = (Get-FileHash -LiteralPath $SourceExcludePath `
+  -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+if ($SourceExcludeFile.Length -ne $ExpectedLegacyExcludeSizeBytes -or
+    $ObservedSourceExcludeSha256 -cne $ExpectedLegacyExcludeSha256) {
+  throw 'Accepted-host historical .git\info\exclude does not match the immutable v3 policy.'
+}
+
+$InfoPath = Join-Path $VerificationRoot '.git\info'
+if (-not (Test-Path -LiteralPath $InfoPath)) {
+  [void](New-Item -ItemType Directory -Path $InfoPath)
+}
+$InfoDirectory = Get-Item -LiteralPath $InfoPath -Force -ErrorAction Stop
+if (-not $InfoDirectory.PSIsContainer -or
+    (($InfoDirectory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Historical verification requires a regular non-reparse .git\info directory.'
+}
+$AttributesPath = Join-Path $InfoPath 'attributes'
+if (Test-Path -LiteralPath $AttributesPath) {
+  throw 'Historical verification requires .git\info\attributes to be absent.'
+}
 $ExcludePath = Join-Path $VerificationRoot '.git\info\exclude'
-[IO.File]::AppendAllText(
-  $ExcludePath,
-  "`n/Agent_Assure_Implementation_Roadmap.md`n/.venv/`n/.tmp/`n",
-  $Utf8NoBom
-)
-Copy-Item -LiteralPath $SourceVenv -Destination `
-  (Join-Path $VerificationRoot '.venv') -Recurse
-Copy-Item -LiteralPath $SourceRoadmap -Destination $VerifiedRoadmap
-
-$Status = & $GitExe @GitPrefix -C $VerificationRoot `
-  status --porcelain=v1 --untracked-files=all
-if ($LASTEXITCODE -ne 0 -or $Status) {
-  throw 'Standalone C2 checkout is not clean after installing ignored private inputs.'
+if (Test-Path -LiteralPath $ExcludePath) {
+  throw 'Historical verification requires clone-local .git\info\exclude to be absent.'
 }
-
-$ObservedValidatorSha256 = 'sha256:' + (Get-FileHash -LiteralPath `
-  $VerifiedValidator -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
-$ObservedLauncherSha256 = 'sha256:' + (Get-FileHash -LiteralPath `
-  $VerifiedLauncher -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
-if ($ObservedValidatorSha256 -cne $ExpectedValidatorSha256) {
-  throw 'Standalone-clone validator does not match the v2 attestation.'
+[IO.File]::Copy($SourceExcludePath, $ExcludePath, $false)
+$ExcludeFile = Get-Item -LiteralPath $ExcludePath -Force -ErrorAction Stop
+if ($ExcludeFile.PSIsContainer -or
+    (($ExcludeFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Historical verification requires a regular non-reparse clone-local .git\info\exclude file.'
 }
-if ($ObservedLauncherSha256 -cne $ExpectedLauncherSha256) {
-  throw 'Standalone-clone launcher does not match the v2 attestation.'
+$ObservedExcludeSha256 = (Get-FileHash -LiteralPath $ExcludePath `
+  -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+if ($ExcludeFile.Length -ne $ExpectedLegacyExcludeSizeBytes -or
+    $ObservedExcludeSha256 -cne $ExpectedLegacyExcludeSha256) {
+  throw 'Copied historical .git\info\exclude does not match the immutable v3 policy.'
 }
-
-& $VerifiedLauncher --help | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  throw 'Frozen runtime inventory bootstrap preflight failed.'
+$SourceVenvItem = Get-Item -LiteralPath $SourceVenv -Force -ErrorAction Stop
+if (-not $SourceVenvItem.PSIsContainer -or
+    (($SourceVenvItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Historical verification requires a non-reparse source .venv directory.'
+}
+$VerifiedVenv = Join-Path $VerificationRoot '.venv'
+if (Test-Path -LiteralPath $VerifiedVenv) {
+  throw 'Historical verification refuses to overwrite the clone-local .venv path.'
+}
+Copy-Item -LiteralPath $SourceVenv -Destination $VerifiedVenv -Recurse
+$VerifiedVenvItem = Get-Item -LiteralPath $VerifiedVenv -Force -ErrorAction Stop
+if (-not $VerifiedVenvItem.PSIsContainer -or
+    (($VerifiedVenvItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Historical verification requires a non-reparse clone-local .venv directory.'
 }
 ```
 
-The bootstrap preflight rejects any drift from the pinned base-Python inventory
+The guarded bootstrap preflight below rejects any drift from the pinned base-Python inventory
 (2,766 files, 54,224,916 bytes, SHA-256
 `4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152`)
 or copied third-party inventory (116 files, 1,581,377 bytes, SHA-256
 `a8a4451bde03104cc2a6dae38a30ae0bef63f717a39e5b996e05c10b83fdae02`).
 Then run the historical command through the verified launcher with absolute
-paths rooted at the standalone clone:
+paths rooted at the standalone clone. The private roadmap is copied only inside
+the `try` and its exact clone-local copy is removed by `finally`, including when
+copy verification, bootstrap, or historical validation fails:
 
 ```powershell
-& $VerifiedLauncher check `
-  --roadmap $VerifiedRoadmap `
-  --governance-dir $VerifiedGovernance `
-  --repository-root $VerificationRoot `
-  --historical `
-  --closure-commit $C2 `
-  --acceptance-tag-object $A2
-if ($LASTEXITCODE -ne 0) {
-  throw "Generation-2 historical validation failed: $LASTEXITCODE"
+$ErrorActionPreference = 'Stop'
+function Remove-HistoricalVerificationRoadmap {
+  param([Parameter(Mandatory = $true)][string] $CandidatePath)
+
+  $ExpectedPath = [IO.Path]::GetFullPath(
+    (Join-Path $VerificationRoot 'Agent_Assure_Implementation_Roadmap.md')
+  )
+  if ([IO.Path]::GetFullPath($CandidatePath) -cne $ExpectedPath) {
+    throw 'Historical-verification roadmap cleanup path is not the exact clone-local path.'
+  }
+  try {
+    $RoadmapItem = Get-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop
+  }
+  catch [System.Management.Automation.ItemNotFoundException] {
+    return
+  }
+  if ($RoadmapItem.PSIsContainer -or
+      (($RoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Historical-verification roadmap cleanup requires a regular non-reparse file.'
+  }
+  Remove-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop
+  try {
+    [void](Get-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop)
+  }
+  catch [System.Management.Automation.ItemNotFoundException] {
+    return
+  }
+  throw 'Historical-verification private-roadmap cleanup did not complete.'
+}
+
+$HistoricalRoadmapCopyOwned = $false
+try {
+  $ExpectedRoadmapSizeBytes = 2390013
+  $ExpectedRoadmapSha256 = `
+    '8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb'
+  $SourceRoadmapItem = Get-Item -LiteralPath $SourceRoadmap -Force -ErrorAction Stop
+  if ($SourceRoadmapItem.PSIsContainer -or
+      (($SourceRoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Historical verification requires a regular non-reparse source roadmap file.'
+  }
+  $SourceRoadmapSha256 = (Get-FileHash -LiteralPath $SourceRoadmap `
+    -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if ($SourceRoadmapItem.Length -ne $ExpectedRoadmapSizeBytes -or
+      $SourceRoadmapSha256 -cne $ExpectedRoadmapSha256) {
+    throw 'Historical verification source roadmap does not match generation 2.'
+  }
+  if (Test-Path -LiteralPath $VerifiedRoadmap) {
+    throw 'Historical verification refuses to overwrite the clone-local roadmap path.'
+  }
+  $SourceRoadmapStream = [IO.File]::Open(
+    $SourceRoadmap,
+    [IO.FileMode]::Open,
+    [IO.FileAccess]::Read,
+    [IO.FileShare]::Read
+  )
+  try {
+    $VerifiedRoadmapStream = [IO.File]::Open(
+      $VerifiedRoadmap,
+      [IO.FileMode]::CreateNew,
+      [IO.FileAccess]::Write,
+      [IO.FileShare]::None
+    )
+    $HistoricalRoadmapCopyOwned = $true
+    try {
+      $SourceRoadmapStream.CopyTo($VerifiedRoadmapStream)
+      $VerifiedRoadmapStream.Flush($true)
+    }
+    finally {
+      $VerifiedRoadmapStream.Dispose()
+    }
+  }
+  finally {
+    $SourceRoadmapStream.Dispose()
+  }
+  $VerifiedRoadmapItem = Get-Item -LiteralPath $VerifiedRoadmap -Force -ErrorAction Stop
+  if ($VerifiedRoadmapItem.PSIsContainer -or
+      (($VerifiedRoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Historical verification requires a regular non-reparse clone-local roadmap file.'
+  }
+  $VerifiedRoadmapSha256 = (Get-FileHash -LiteralPath $VerifiedRoadmap `
+    -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if ($VerifiedRoadmapItem.Length -ne $ExpectedRoadmapSizeBytes -or
+      $VerifiedRoadmapSha256 -cne $ExpectedRoadmapSha256) {
+    throw 'Historical verification clone-local roadmap copy does not match generation 2.'
+  }
+
+  $Status = & $GitExe @GitPrefix -C $VerificationRoot `
+    status --porcelain=v1 --untracked-files=all
+  if ($LASTEXITCODE -ne 0 -or $Status) {
+    throw 'Standalone C2 checkout is not clean after installing ignored private inputs.'
+  }
+
+  $ObservedValidatorSha256 = 'sha256:' + (Get-FileHash -LiteralPath `
+    $VerifiedValidator -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  $ObservedLauncherSha256 = 'sha256:' + (Get-FileHash -LiteralPath `
+    $VerifiedLauncher -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if ($ObservedValidatorSha256 -cne $ExpectedValidatorSha256) {
+    throw 'Standalone-clone validator does not match the v2 attestation.'
+  }
+  if ($ObservedLauncherSha256 -cne $ExpectedLauncherSha256) {
+    throw 'Standalone-clone launcher does not match the v2 attestation.'
+  }
+
+  & $VerifiedLauncher --help | Out-Null
+  if ($LASTEXITCODE -ne 0) {
+    throw 'Frozen runtime inventory bootstrap preflight failed.'
+  }
+  & $VerifiedLauncher check `
+    --roadmap $VerifiedRoadmap `
+    --governance-dir $VerifiedGovernance `
+    --repository-root $VerificationRoot `
+    --historical `
+    --closure-commit $C2 `
+    --acceptance-tag-object $A2
+  if ($LASTEXITCODE -ne 0) {
+    throw "Generation-2 historical validation failed: $LASTEXITCODE"
+  }
+}
+finally {
+  if ($HistoricalRoadmapCopyOwned) {
+    Remove-HistoricalVerificationRoadmap -CandidatePath $VerifiedRoadmap
+  }
 }
 ```
 
@@ -363,6 +535,10 @@ The validator rechecks that the roadmap is ignored through `.git/info/exclude`,
 absent from the index and reachable history, and that its exact blob ID is
 absent from the complete local Git object database. Never stage, upload, or
 copy it to a hosted runner.
+
+Preserve any required validation transcript outside `$VerificationRoot`. The
+`finally` path above is deliberately exact-file, non-recursive, and
+reparse-resistant; it runs before any broader disposable-clone cleanup.
 
 A validator reporting its own hash is useful consistency evidence, but is not a
 trust root: unverified code can lie about its own bytes. The external pre-run
@@ -493,8 +669,10 @@ phase 1 can validate.
 That two-disposition worksheet describes generation 1 only. For generation 2,
 `affirmatively_reconfirmed_after_inventory` is forbidden: every row and
 occurrence must be `reestimated_after_inventory` from its digest-bound bottom-up
-work breakdown and remain pending until the human records the separate decision
-and specific rationale.
+work breakdown and remain pending until the maintainer signs the exact generated,
+itemized batch-adoption manifest. The signature binds every selected value and
+generated rationale, but does not represent separately authored per-item prose
+or independently observed cognitive review.
 
 Set the ledger's `issued_at_utc` to a trusted time at or after every
 row/occurrence confirmation and no later than the phase-1 forecast issue time;
@@ -820,7 +998,8 @@ $CorrectiveAuthorization = Join-Path $GovernanceRoot 'corrective-kickoff-authori
 $PrivateKey = '<ABSOLUTE_PRIVATE_KEY_PATH>'
 $DecisionPlanDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\correction-v2-forecast-decision'
 $ForecastPlanDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\correction-v2-forecast-final'
-$PostR2EvidenceDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\correction-v2-post-r2-suite-evidence'
+$PreservedFailedPostR2EvidenceDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\correction-v2-post-r2-suite-evidence'
+$PostR2EvidenceDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\correction-v2-post-r2-suite-evidence-retry-01'
 $PostR2Evidence = Join-Path $PostR2EvidenceDir 'post-r2-suite-evidence.json'
 $ReceiptPlanDir = Join-Path $RepositoryRoot '.tmp\s1-acceptance\phase-v2-receipts'
 $ReceiptImport = Join-Path $RepositoryRoot '.tmp\s1-acceptance\phase-v2-receipt-import.json'
@@ -848,6 +1027,15 @@ function Invoke-HumanSshsig([string]$ClaimPath) {
   if ($LASTEXITCODE -ne 0) { throw "Human SSHSIG failed: $ClaimPath" }
 }
 ```
+
+The directory without the `-retry-01` suffix is the preserved initial failed
+run (`outcome=failed`, six failures); it is not acceptance evidence and must
+not be overwritten or supplied to receipt planning. The authoritative v2
+record is the `-retry-01` record above, has evidence digest
+`sha256:bb11ae69b1a5791ed817fe23e23fd755a00a03182d34b8b3d39e8eb236ece5fe`,
+and is the record embedded in the signed replacement BOOT receipt and bundle.
+Every later corrective run must use a new, explicitly selected directory so a
+failed or historical record cannot be mistaken for the current candidate.
 
 First revalidate the corrective branch and authoritative refs. Then prepare the
 single itemized decision claim. Review all 68 row decisions and 121 occurrence
@@ -957,11 +1145,14 @@ if ($R2Fields.Count -ne 2 -or $R2Fields[1] -cne $C1) {
 }
 ```
 
-At clean `R2`, capture the full suite, prepare and sign both replacement
-receipts, and pass the confirmed receipt-plan digest to both receipt import and
-bundle planning:
+The following technical description records the immutable historical `/3`
+ceremony; it is not a current replay instruction. At clean `R2`, that completed
+ceremony captured the full suite, prepared and signed both replacement
+receipts, and passed the confirmed receipt-plan digest to both receipt import
+and bundle planning. The descendant `corrective-v2-suite-capture` command is
+reuse-only, as specified below.
 
-The capture command's main pytest process does not execute either the checked-in
+The historical capture command's main pytest process did not execute either the checked-in
 virtual-environment Python shim or the ephemeral descendant executable. Its
 process image is the frozen base interpreter, launched by absolute path with
 `-I -S -B -X utf8` and a fresh, unique, absolute `-X pycache_prefix` beneath an
@@ -1014,14 +1205,31 @@ Before importing pytest, that fixed stdlib-only bootstrap authenticates the full
 non-cache `.venv/Lib/site-packages` inventory: 5,473 files, 92,718,636 bytes,
 and domain-separated SHA-256
 `a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c`.
-It also authenticates the complete R2 test surface: every tracked top-level
-directory and tracked root file, all known root test configuration names, and
-the exact local `.git/info/exclude` bytes. Raw filesystem enumeration rejects
-ignored or untracked files under those roots, including configuration files;
-source-adjacent cache directories are the only exclusion. Untracked
-import-capable root directories such as `build` or `dist` are rejected. The
-parent process performs the same authentication before and after pytest and
-verifies every worktree byte against immutable R2.
+It also authenticates the historically defined `/3` R2 test surface: every
+tracked top-level directory and tracked root file, all known root test
+configuration names, and the exact local `.git/info/exclude` bytes. Raw
+filesystem enumeration rejects ignored or untracked files under those roots,
+including configuration files; source-adjacent cache directories are the only
+exclusion. Untracked import-capable root directories such as `build` or `dist`
+are rejected. The parent process performs the same authentication before and
+after pytest and verifies every byte admitted to that historical surface
+against immutable R2. That surface was later shown to be incomplete: the
+repository root remained importable; ignored root-level native extension
+modules were not admitted to the inventory; and pytest 9's hidden
+`.pytest.ini` and `.pytest.toml` configuration names were absent from the known
+configuration list.
+
+The successor `/4` control closes that gap without rewriting `/3`: it removes
+the repository root from the initial Python import path; admits only the exact
+tracked top-level set plus `.git`, `.venv`, `.tmp`, and the private roadmap;
+rejects every other top-level entry and every top-level reparse point; and
+enumerates both hidden pytest configuration names. It explicitly pins
+`pyproject.toml`, the repository root, `src`, importlib import mode, the socket
+guard, and the absolute `tests` tree on pytest's command line while clearing
+configuration-supplied `addopts`, restoring pytest's complete default file,
+class, and function selectors, and pinning `norecursedirs=__pycache__` so the
+sole inventory exclusion cannot become a collection surface. Canonical
+Git-metadata preflights run before every governed Git read or test execution.
 
 After authenticating those bytes, the stdlib-only bootstrap loads that exact
 startup guard into the main process, identifies `sys.executable` as the
@@ -1061,23 +1269,329 @@ Policy-variable handling is case-insensitive: every casing of
 installed with values `1`, `1`, the fresh governed prefix, and `1`,
 respectively. Every casing of `PYTHONCASEOK`, `PYTHONHOME`,
 `PYTHONPLATLIBDIR`, `PYTHONUSERBASE`, and `PYTHONWARNINGS` is removed before a
-governed launch. Its trusted Git configuration is the exact in-memory list
-`GIT_CONFIG_COUNT=2`,
-`GIT_CONFIG_KEY_0=core.autocrlf`, `GIT_CONFIG_VALUE_0=true`,
-`GIT_CONFIG_KEY_1=safe.directory`, and
-`GIT_CONFIG_VALUE_1=<exact repository root>`, with `GIT_CONFIG_GLOBAL=NUL` and
-`GIT_CONFIG_NOSYSTEM=1`. Because pytest prepends the authenticated repository
+governed launch. The accepted historical `/3` record used the exact in-memory
+Git list `GIT_CONFIG_COUNT=2`, containing `core.autocrlf=true` and the exact
+`safe.directory`, with `GIT_CONFIG_GLOBAL=NUL` and `GIT_CONFIG_NOSYSTEM=1`.
+The repaired `/4` capture policy extends that list with Windows null-device
+(`NUL`) `core.excludesFile` and `core.attributesFile` values and also fixes
+`GIT_ATTR_NOSYSTEM=1`, so per-user global and system-level ignore/attribute
+files cannot alter the governed inventory. Repository-local `.git/info/exclude`
+and tracked `.gitignore`/`.gitattributes` policies remain active and are
+separately pinned or authenticated. Empty process-environment values are not
+used because, unlike CLI `-c key=` entries, Git for Windows treats a counted empty
+`GIT_CONFIG_VALUE_*` entry as missing and rejects ordinary repository operations
+during config parsing. Because pytest prepends the authenticated repository
 `addopts`, the governed command then assigns terminal verbosity exactly `-1`;
 this prevents stacked quiet flags from suppressing the terminal totals parsed
 into evidence. The exact environment, plugin list, Hypothesis
 storage, bytecode controls, working directory, both interpreter identities,
 command arguments, runtime inventory, test-surface inventory, and raw
-stdout/stderr hashes are bound into the `/3` evidence record. The pytest
+stdout/stderr hashes are bound into the evidence record. The pytest
 basetemp and bytecode prefix must be absent immediately before the main spawn.
-A retry always allocates a new governed external parent. If cleanup itself
-fails or the host terminates abnormally, any external residue is a failed-run
-artifact: capture does not publish it, and the exact fresh-parent requirement
-prevents its reuse as later-run evidence.
+Every governed execution, including a retry, allocates a new governed external
+parent. If cleanup itself fails or the host terminates abnormally, any external
+residue is a failed-run artifact: capture does not publish it, and the exact
+fresh-parent requirement prevents its reuse as later-run evidence.
+
+Capture and suite success are separate facts. The historical v2 command only
+reuses an existing `/3` record and reports
+`clean_r2_full_suite_evidence_reused_passed` or
+`clean_r2_full_suite_evidence_reused_failed`. A fresh failed `/4` run is
+published for diagnosis only when its UTF-8 terminal output contains exactly
+one parseable totals summary with at least one executed outcome, zero
+deselected tests, and `collected == executed`, and the complete candidate
+record passes the same embedded validator used for replay. Those conditions
+are cumulative: one parseable summary is necessary but not sufficient. A
+published failed capture reports `post_v2_control_suite_evidence_captured_failed`;
+a later replay reports the corresponding `reused` token. A summary-parsing
+failure, including absence of an executed outcome, fails with the exit code,
+outcome, and bounded stream hashes and sizes in its diagnostic. Any
+deselection, collected/executed mismatch, or other embedded-validation failure
+also fails before publication, but its validator diagnostic does not claim that
+the unpublished stream metadata was durably preserved. Both commands expose
+the original `pytest_exit_code`, `execution_outcome`, and `suite_passed` for a
+published record. Every published failed record returns nonzero, whether newly
+captured or reused; only a passing record returns zero.
+
+A published `/4` evidence directory is immutable regardless of whether its
+suite passed or failed. Supplying that directory again validates and reuses the
+record; it does not execute pytest again. Preserve a published failed record as
+diagnostic evidence. Every later execution or retry must use another
+operator-selected run identifier and a different evidence path that is absent
+before invocation.
+
+Eligibility is a separate fail-closed property. The already accepted `/3`
+retry record remains verifiable and reports `acceptance_eligible=true` when it
+passes. `corrective-v2-suite-capture` is now deliberately reuse-only: it
+requires an existing historical `/3` evidence directory, validates its exact
+three-file contents against clean R2, and never executes pytest or manufactures
+new generation-2 evidence.
+
+The repaired controls are exercised separately with
+`post-v2-control-suite-capture`. Its subject must be the clean exact `HEAD`, a
+proper non-merge descendant of immutable `C2`; its evidence directory must use
+the distinct `.tmp/s1-acceptance/post-v2-control-*` prefix; and
+`.git/info/attributes` must be absent. Its `.git/info/exclude` must contain the
+exact 55 LF/no-BOM bytes
+`/Agent_Assure_Implementation_Roadmap.md\n/.venv/\n/.tmp/\n`, whose SHA-256 is
+`ade798e909c6129d230fb91281883f0d07b83a97ad0b60ff673da0857914cfff`.
+The command executes the governed full suite and persists a `/4` record that
+binds the actual subject parent and C2 ancestry, stores
+`acceptance_generation=null` and
+`corrective_authorization_claim_digest=null`, and carries
+`authorization_effect=none` inside its `control_basis`. Its separate CLI
+response reports `acceptance_eligible=false`. The record is
+control-implementation evidence only. Generation-2 receipt planning rejects it
+even when its suite passes, and it cannot unblock S2. A prospectively authorized
+successor must define its own result/closure lineage and acceptance schema
+before new evidence can become acceptance-eligible.
+
+Before publishing a new `/4` directory, capture validates the complete record
+with the same embedded validator used for replay. JSON booleans are rejected in
+integer fields, and terminal totals must account for every collected item;
+any deselection prevents publication, regardless of the suite label or pytest
+exit code. The v4 pytest invocation forces `-c <root>/pyproject.toml`,
+`--rootdir=<root>`, `--confcutdir=<root>`, `pythonpath=src`, canonical collection
+patterns, `--import-mode=importlib`, `--disable-socket`, and the absolute
+`<root>/tests` path. Repository `addopts`, `testpaths`, hidden or ancestor
+configuration, and ignored external test trees cannot redirect the governed
+collection.
+
+The canonical v4 exclude policy and the accepted host's 2,368-byte v3 exclude
+policy are intentionally mutually exclusive. Preserve the accepted checkout
+and its local metadata unchanged. Run the control-only command only after the
+repaired files have been committed, from a separate `clone --no-local` with an
+empty Git template at that exact subject. Apply the standalone procedure's
+local non-reparse `.git`, no-alternates, non-shallow, isolated-Git, clean-status,
+and approved-origin checks (including resetting `origin` to
+`https://github.com/acblabs/agent-assure.git`). Copy the already verified
+frozen `.venv` using the non-reparse source/destination checks above. Supply
+the byte-identical roadmap source through `$PostV2SourceRoadmap`; the guarded
+block verifies and copies it immediately before capture, then removes the exact
+clone-local copy in `finally`. Then create the canonical local policy and
+invoke that clone's launcher as follows. For every execution, including a
+retry, replace `$PostV2RunId` with a never-before-used identifier containing
+one to 64 lowercase ASCII letters, digits, or hyphens, beginning with a letter
+or digit. Do not pre-create the resulting evidence directory. An uncommitted,
+dirty, merge, C2-exact, unrelated, or already-used evidence target correctly
+fails:
+
+Run the ceremony directly on the frozen native Windows host, outside a
+restricted filesystem sandbox. The control verifies rooted Windows paths,
+reparse metadata, ACL-sensitive traversal, and exact host binaries; sandbox
+redirection or access filtering is not part of the attested runtime and can
+produce non-representative failures. The launcher buffers pytest output until
+the child exits. The accepted `/3` full suite took approximately 76 minutes on
+this host, so an otherwise quiet process is not by itself evidence of a hang.
+If the host or process terminates before a record is published, retain any
+diagnostics and retry only with a fresh run identifier and an absent evidence
+target as required above.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$PostV2RepositoryRoot = '<ABSOLUTE_SEPARATE_POST_V2_CLONE_PATH>'
+$PostV2SourceRoadmap = '<ABSOLUTE_VERIFIED_PRIVATE_ROADMAP_SOURCE_PATH>'
+$PostV2RunId = '<FRESH_OPERATOR_SELECTED_RUN_ID>'
+if ($PostV2RunId -cnotmatch '^[a-z0-9][a-z0-9-]{0,63}$') {
+  throw 'Post-v2 run identifier must be 1-64 lowercase letters, digits, or hyphens and start with a letter or digit.'
+}
+$PostV2Roadmap = Join-Path $PostV2RepositoryRoot 'Agent_Assure_Implementation_Roadmap.md'
+$PostV2Launcher = Join-Path $PostV2RepositoryRoot 'scripts\v1_s1_governance.ps1'
+$ImmutableC2 = 'db5133e09860d292047b963b0fb81b3e7385b7fa'
+$PostV2Subject = (& $GitExe @GitPrefix -C $PostV2RepositoryRoot `
+  rev-parse --verify 'HEAD^{commit}').Trim()
+if ($LASTEXITCODE -ne 0 -or $PostV2Subject -ceq $ImmutableC2) {
+  throw 'Post-v2 control subject must be a proper descendant of immutable C2.'
+}
+$PostV2ParentRow = @(& $GitExe @GitPrefix -C $PostV2RepositoryRoot `
+  rev-list --parents -n 1 $PostV2Subject)
+if ($LASTEXITCODE -ne 0 -or $PostV2ParentRow.Count -ne 1) {
+  throw 'Post-v2 control subject parent lookup failed.'
+}
+$PostV2ParentFields = @($PostV2ParentRow[0].Split(
+  [char[]] @(' '),
+  [StringSplitOptions]::RemoveEmptyEntries
+))
+if ($PostV2ParentFields.Count -ne 2 -or
+    $PostV2ParentFields[0] -cne $PostV2Subject) {
+  throw 'Post-v2 control subject must be one non-merge commit.'
+}
+& $GitExe @GitPrefix -C $PostV2RepositoryRoot merge-base --is-ancestor `
+  $ImmutableC2 $PostV2Subject
+if ($LASTEXITCODE -ne 0) {
+  throw 'Post-v2 control subject does not descend from immutable C2.'
+}
+$PostV2InfoPath = Join-Path $PostV2RepositoryRoot '.git\info'
+if (-not (Test-Path -LiteralPath $PostV2InfoPath)) {
+  [void](New-Item -ItemType Directory -Path $PostV2InfoPath)
+}
+$PostV2Info = Get-Item -LiteralPath $PostV2InfoPath -Force -ErrorAction Stop
+if (-not $PostV2Info.PSIsContainer -or
+    (($PostV2Info.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+  throw 'Post-v2 control capture requires a regular non-reparse .git\info directory.'
+}
+$PostV2Attributes = Join-Path $PostV2InfoPath 'attributes'
+if (Test-Path -LiteralPath $PostV2Attributes) {
+  throw 'Post-v2 control capture requires .git\info\attributes to be absent.'
+}
+$PostV2Exclude = Join-Path $PostV2InfoPath 'exclude'
+if (Test-Path -LiteralPath $PostV2Exclude) {
+  throw 'Post-v2 control setup refuses to overwrite an existing local-exclude path.'
+}
+$PostV2ExcludeBytes = [Text.UTF8Encoding]::new($false).GetBytes(
+  "/Agent_Assure_Implementation_Roadmap.md`n/.venv/`n/.tmp/`n"
+)
+$PostV2ExcludeStream = [IO.File]::Open(
+  $PostV2Exclude,
+  [IO.FileMode]::CreateNew,
+  [IO.FileAccess]::Write,
+  [IO.FileShare]::None
+)
+try {
+  $PostV2ExcludeStream.Write(
+    $PostV2ExcludeBytes,
+    0,
+    $PostV2ExcludeBytes.Length
+  )
+  $PostV2ExcludeStream.Flush($true)
+}
+finally {
+  $PostV2ExcludeStream.Dispose()
+}
+
+function Invoke-PostV2Governance {
+  & $PowerShellExe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+    -File $PostV2Launcher @args
+  if ($LASTEXITCODE -ne 0) { throw "Post-v2 governance command failed: $LASTEXITCODE" }
+}
+
+function Remove-PostV2ControlRoadmap {
+  param([Parameter(Mandatory = $true)][string] $CandidatePath)
+
+  $ExpectedPath = [IO.Path]::GetFullPath(
+    (Join-Path $PostV2RepositoryRoot 'Agent_Assure_Implementation_Roadmap.md')
+  )
+  if ([IO.Path]::GetFullPath($CandidatePath) -cne $ExpectedPath) {
+    throw 'Post-v2 roadmap cleanup path is not the exact clone-local path.'
+  }
+  try {
+    $RoadmapItem = Get-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop
+  }
+  catch [System.Management.Automation.ItemNotFoundException] {
+    return
+  }
+  if ($RoadmapItem.PSIsContainer -or
+      (($RoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Post-v2 roadmap cleanup requires a regular non-reparse file.'
+  }
+  Remove-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop
+  try {
+    [void](Get-Item -LiteralPath $ExpectedPath -Force -ErrorAction Stop)
+  }
+  catch [System.Management.Automation.ItemNotFoundException] {
+    return
+  }
+  throw 'Post-v2 private-roadmap cleanup did not complete.'
+}
+
+$PostV2ControlEvidenceDir = Join-Path $PostV2RepositoryRoot `
+  ".tmp\s1-acceptance\post-v2-control-$($PostV2Subject.Substring(0, 12))-$PostV2RunId"
+$PostV2RoadmapCopyOwned = $false
+try {
+  $ExpectedRoadmapSizeBytes = 2390013
+  $ExpectedRoadmapSha256 = `
+    '8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb'
+  $SourceRoadmapItem = Get-Item -LiteralPath $PostV2SourceRoadmap `
+    -Force -ErrorAction Stop
+  if ($SourceRoadmapItem.PSIsContainer -or
+      (($SourceRoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Post-v2 control capture requires a regular non-reparse source roadmap file.'
+  }
+  $SourceRoadmapSha256 = (Get-FileHash -LiteralPath $PostV2SourceRoadmap `
+    -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if ($SourceRoadmapItem.Length -ne $ExpectedRoadmapSizeBytes -or
+      $SourceRoadmapSha256 -cne $ExpectedRoadmapSha256) {
+    throw 'Post-v2 source roadmap does not match generation 2.'
+  }
+  if (Test-Path -LiteralPath $PostV2Roadmap) {
+    throw 'Post-v2 control capture refuses to overwrite the clone-local roadmap path.'
+  }
+  $SourceRoadmapStream = [IO.File]::Open(
+    $PostV2SourceRoadmap,
+    [IO.FileMode]::Open,
+    [IO.FileAccess]::Read,
+    [IO.FileShare]::Read
+  )
+  try {
+    $PostV2RoadmapStream = [IO.File]::Open(
+      $PostV2Roadmap,
+      [IO.FileMode]::CreateNew,
+      [IO.FileAccess]::Write,
+      [IO.FileShare]::None
+    )
+    $PostV2RoadmapCopyOwned = $true
+    try {
+      $SourceRoadmapStream.CopyTo($PostV2RoadmapStream)
+      $PostV2RoadmapStream.Flush($true)
+    }
+    finally {
+      $PostV2RoadmapStream.Dispose()
+    }
+  }
+  finally {
+    $SourceRoadmapStream.Dispose()
+  }
+  $PostV2RoadmapItem = Get-Item -LiteralPath $PostV2Roadmap `
+    -Force -ErrorAction Stop
+  if ($PostV2RoadmapItem.PSIsContainer -or
+      (($PostV2RoadmapItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+    throw 'Post-v2 control capture requires a regular non-reparse clone-local roadmap file.'
+  }
+  $PostV2RoadmapSha256 = (Get-FileHash -LiteralPath $PostV2Roadmap `
+    -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if ($PostV2RoadmapItem.Length -ne $ExpectedRoadmapSizeBytes -or
+      $PostV2RoadmapSha256 -cne $ExpectedRoadmapSha256) {
+    throw 'Post-v2 clone-local roadmap copy does not match generation 2.'
+  }
+  if (Test-Path -LiteralPath $PostV2ControlEvidenceDir) {
+    throw 'Fresh post-v2 control evidence directory must be absent before invocation.'
+  }
+
+  $ControlResult = Invoke-PostV2Governance post-v2-control-suite-capture `
+    --roadmap $PostV2Roadmap --repository-root $PostV2RepositoryRoot `
+    --subject-commit $PostV2Subject `
+    --evidence-dir $PostV2ControlEvidenceDir | ConvertFrom-Json
+  if ($ControlResult.acceptance_eligible -or
+      $null -ne $ControlResult.acceptance_generation -or
+      $ControlResult.authorization_effect -cne 'none' -or
+      $ControlResult.capture_disposition -cne 'captured' -or
+      -not $ControlResult.suite_passed -or
+      $ControlResult.execution_outcome -cne 'passed' -or
+      $ControlResult.pytest_exit_code -ne 0) {
+    throw 'Post-v2 control evidence did not produce a passing non-accepting result.'
+  }
+}
+finally {
+  if ($PostV2RoadmapCopyOwned) {
+    Remove-PostV2ControlRoadmap -CandidatePath $PostV2Roadmap
+  }
+}
+```
+
+Preserve the control result and evidence outside `$PostV2RepositoryRoot` before
+broader disposable-clone cleanup. The `finally` path is exact-file,
+non-recursive, and reparse-resistant, and runs for both success and failure.
+
+The following block is retained solely as the immutable generation-2 ceremony
+transcript, not as current replay instructions. During that ceremony,
+`$GovernanceLauncher` came from clean exact R2, whose then-current handler ran
+pytest and created the accepted retry record. The descendant validator has
+since made the same command name reuse-only and ties source validation to the
+preserved record's captured absolute repository path as well as clean exact R2.
+It is not a portable replay procedure and never recreates the historical run.
+The signed receipt, bundle, and standalone historical-closure paths remain the
+portable validation route for `/3`; none of the receipt/signature steps below
+should be repeated or used to alter v2:
 
 ```powershell
 $SuiteResult = Invoke-S1Governance corrective-v2-suite-capture `
@@ -1201,7 +1715,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Generation-2 fixed tag creation failed.' }
 $A2 = (& $GitExe -C $RepositoryRoot rev-parse "refs/tags/$TagName^{tag}").Trim()
 ```
 
-The pending generation-2 attestation signs
+The finalized generation-2 attestation signs
 `finalization_deadline_at_utc`, derived exactly as the earlier of one hour after
 `gate_completed_at_utc` and the governance bundle's exclusive expiry. The
 finalizer samples the unattested host clock before and after revalidation,
@@ -1264,15 +1778,27 @@ and completion times with their host-unattested observation basis, collected,
 passed, skipped, and failed counts, and process exit code. A result run against
 a dirty tree, another commit, or an unrecorded command is not a substitute.
 
-S2 planning or implementation remains prohibited until the replacement
-evidence is signed, `C2` and the v2 tag object are fixed, and a generation-aware
-historical check succeeds through the standalone-clone, self-binding verifier
-procedure above. GitHub-hosted Windows CI exercises the governance unit suite,
-long-path blob regression, generation-1 historical validation, and a
-generation-2 topology/tag/self-binding integration. The generation-2 CI test
-deliberately substitutes synthetic record validators, so it is not accepted
-configuration proof and does not claim a full generation-2 end-to-end closure.
-Only locally captured evidence from the authenticated, clean R2 maintainer host
-can satisfy that claim. CI never receives or uploads the private implementation
-roadmap and does not reproduce the accepted maintainer host or its unattested
-clock.
+The generation-2 replacement evidence, `C2`, v2 tag, and historical replay were
+completed and remain immutable historical facts. They are not, however, a
+current authorization to begin S2 after the post-v2 control findings described
+at the top of this document. S2 planning or implementation remains prohibited
+until a successor corrective result passes the complete required check graph,
+new evidence is captured with the repaired import and repository-surface
+controls, and a separately signed successor closure and fixed tag pass their
+own standalone historical verification.
+
+The GitHub-hosted workflow is configured so Linux CI imports and compiles the
+governance module on the declared Python 3.11 floor and executes the
+private-input-free governance tests, while Windows CI exercises the
+private-input-free governance unit suite, long-path blob regression,
+generation-1 historical validation, and a generation-2
+topology/tag/self-binding integration. This describes configured coverage, not
+a completed verification claim: a green hosted run of the final successor
+commit remains mandatory before successor closure. Tests that recompute exact
+private-roadmap-derived artifacts are explicitly local-only and are skipped
+when that file is absent; synthetic tests still exercise their control flow.
+The generation-2 CI test deliberately substitutes synthetic record validators,
+so hosted CI is neither accepted-host configuration proof nor a full
+generation-2 end-to-end closure. CI never receives or uploads the private
+implementation roadmap and does not reproduce the maintainer host or its
+unattested clock.

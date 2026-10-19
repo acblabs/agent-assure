@@ -2,6 +2,52 @@
 
 ## Unreleased
 
+- Hardened the local S1 governance verifier after adversarial review. New
+  post-result suite captures use a versioned evidence policy that removes the
+  repository root from the initial Python import path, enforces an exact
+  tracked-plus-governed-local top-level allowlist, rejects every top-level
+  reparse point, isolates user/system Git excludes and attributes, and requires
+  the active checkout's `.git/info/attributes` to be absent. The v4 pytest
+  command pins its authenticated config/root/source/test paths and import mode,
+  clears config-supplied overrides while preserving pytest's complete default
+  selectors, explicitly excludes the unauthenticated `__pycache__` inventory
+  class from recursion, recognizes pytest 9's hidden config names, and validates
+  strict JSON types and complete terminal outcomes before atomic publication.
+  Historical v2 evidence
+  remains byte-verifiable but cannot be silently regenerated under the stronger
+  policy: `corrective-v2-suite-capture` is reuse-only. The separate
+  `post-v2-control-suite-capture` command can produce `/4` evidence from a clean
+  non-merge descendant of immutable C2 using a reproducible canonical local
+  exclude policy, but that evidence has no authorization effect and is not
+  generation-2 acceptance evidence; a prospectively authorized successor
+  topology and schema are still required.
+- Restored Python 3.11 parser compatibility, accepted legitimate NTFS 8.3 path
+  aliases by inspecting actual reparse metadata, and made preserved failed
+  suite captures return an unambiguous nonzero result with explicit
+  captured/reused and passed/failed fields.
+- Removed hosted-CI dependence on the private roadmap where synthetic inputs
+  provide the same control coverage, fixed the Windows roadmap-absence probe,
+  and added an explicit compile check at the declared Python floor. Corrected
+  the governance runbook's empty-template `.git/info` bootstrap by installing
+  and verifying the immutable v3 local-exclude policy, made disposable-clone
+  roadmap cleanup exact and failure-safe, and corrected the authoritative retry
+  evidence path and post-v2 acceptance status. The governed Windows child
+  environment now uses explicit `NUL` Git exclude/attribute files, preserving
+  nested Git commands that reject counted empty environment values, and its
+  regression tests remain deterministic when executed inside that environment.
+- Removed duplicate semantic projections from maximum-size repeated-sensitivity
+  and study-bundle paths while retaining JSON Schema, Pydantic, privacy, digest,
+  lifecycle, and canonical-byte checks at every trust boundary. The post-v2
+  control runbook now requires a fresh operator-selected evidence run ID,
+  rejects an existing target before capture, and distinguishes a newly captured
+  result from immutable passing or failed evidence that the CLI would reuse.
+  Full-suite regression probes now remain valid inside the recursive governed
+  launcher, Windows PowerShell checks use the documented frozen-host binary
+  rather than child `PATH` discovery, and mutation-campaign goldens bind the
+  updated reviewed implementation closure. The runbook also identifies native
+  Windows execution, buffered output, and the historical full-suite runtime so
+  restricted-sandbox behavior is not mistaken for authoritative host evidence.
+
 ## 0.7.0 - 2026-10-08
 
 The v0.7.0 release line is bounded to engineering qualification and committed deterministic-fixture artifact validation. No real-model study, qualifying external pilot, independent empirical review, or frozen confirmatory benchmark is included. The release therefore makes no empirical-effectiveness, external-validity, population-generalization, production-control-effectiveness, provider-quality, safety, compliance, or deployment-fitness claim. Those artifacts are prerequisites only for the corresponding empirical claim, not for distribution of this bounded release.

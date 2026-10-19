@@ -553,19 +553,25 @@ def _write_synthetic_post_r2_evidence(
                 repository,
                 basetemp,
                 process_temp=process_temp,
+                legacy_v3_policy=True,
             ),
             "python_executable": test_runtime["base_runtime"]["python_executable"],
             "descendant_runtime": governance._post_r2_descendant_runtime_record(
                 repository,
                 basetemp=basetemp,
                 process_temp=process_temp,
+                legacy_v3_policy=True,
             ),
             "bootstrap_input": governance._post_r2_bootstrap_input(
                 repository,
                 basetemp=basetemp,
                 process_temp=process_temp,
+                legacy_v3_policy=True,
             )[1],
-            "bytecode_policy": governance._post_r2_bytecode_policy(basetemp),
+            "bytecode_policy": governance._post_r2_bytecode_policy(
+                basetemp,
+                legacy_v3_policy=True,
+            ),
             "test_runtime": test_runtime,
         },
         "time_evidence": {

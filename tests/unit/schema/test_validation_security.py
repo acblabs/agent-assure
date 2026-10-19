@@ -327,6 +327,40 @@ def test_bounded_model_loader_reuses_frozen_semantic_projection(
     assert projection_kinds == ["live-comparison-report"]
 
 
+def test_bounded_model_loader_with_size_reuses_the_same_projection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _v065_live_comparison_payload()
+    encoded = json.dumps(payload).encode("utf-8")
+    path = tmp_path / "live-comparison-report.json"
+    path.write_bytes(encoded)
+    original_projection = validation.project_validated_artifact_payload
+    projection_kinds: list[str] = []
+
+    def counting_projection(*args: object, **kwargs: object) -> object:
+        kind = kwargs.get("kind")
+        assert isinstance(kind, str)
+        projection_kinds.append(kind)
+        return original_projection(*args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        validation,
+        "project_validated_artifact_payload",
+        counting_projection,
+    )
+
+    loaded, size = validation.load_validated_artifact_model_with_size(
+        path,
+        LiveComparisonReport,
+        kind="live-comparison-report",
+    )
+
+    assert loaded.schema_version == "0.6.5"
+    assert size == len(encoded)
+    assert projection_kinds == ["live-comparison-report"]
+
+
 @pytest.mark.parametrize(
     ("path", "invalid_value"),
     (

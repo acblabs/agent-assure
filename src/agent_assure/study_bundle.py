@@ -42,7 +42,7 @@ from agent_assure.schema.study import (
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
 )
-from agent_assure.study_artifact_serialization import published_model_json_bytes
+from agent_assure.study_artifact_serialization import _published_payload_json_bytes
 from agent_assure.study_execution_review import validate_study_execution_review
 from agent_assure.study_limits import (
     MAX_STUDY_BUNDLE_FILES,
@@ -729,7 +729,8 @@ def _load_canonical_model(
     )
     assert_persisted_payload_safe(payload, owner=label)
     model = model_type.model_validate(payload)
-    if data != published_model_json_bytes(model):
+    canonical_payload = model.model_dump(mode="json", warnings="error")
+    if data != _published_payload_json_bytes(canonical_payload):
         raise ValueError(f"{label} is not in the canonical published JSON form")
     return model
 

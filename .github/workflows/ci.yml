@@ -232,6 +232,12 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Compile the governance validator at the declared Python floor
+        if: matrix.shard == 'unit-a'
+        run: >-
+          python -c "from pathlib import Path;
+          source = Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8');
+          compile(source, 'scripts/v1_s1_governance.py', 'exec')"
       - name: Run branch-coverage shard
         run: >-
           python -m pytest -p no:cacheprovider
@@ -378,8 +384,11 @@ jobs:
           if (Test-Path -LiteralPath $Roadmap) {
             throw 'Private roadmap must not be present on a hosted CI runner.'
           }
-          $Tracked = & git ls-files --error-unmatch -- $Roadmap 2>$null
-          if ($LASTEXITCODE -eq 0 -or $Tracked) {
+          $Tracked = & git ls-files -- $Roadmap
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Private roadmap index check failed.'
+          }
+          if ($Tracked) {
             throw 'Private roadmap must not be present in the Git index.'
           }
           $History = & git log --all --format=%H -- $Roadmap

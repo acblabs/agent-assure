@@ -225,11 +225,12 @@ def test_cli_validates_the_reproduction_index_kind() -> None:
     )
 
     assert result.exit_code == 0, result.output
+    normalized_output = " ".join(result.output.split())
     assert (
         "artifact-internal validation passed for "
-        "process-equivalence-reproduction-index:" in result.output
+        "process-equivalence-reproduction-index:" in normalized_output
     )
-    assert "external source/authenticity not established" in result.output
+    assert "external source/authenticity not established" in normalized_output
 
 
 def test_updater_write_self_heals_stale_source_artifact_digest(

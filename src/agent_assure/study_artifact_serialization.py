@@ -7,12 +7,18 @@ import json
 from pydantic import BaseModel
 
 
+def _published_payload_json_bytes(payload: object) -> bytes:
+    """Encode an already validated JSON-mode payload in the bundle wire form."""
+
+    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+
+
 def published_model_json_bytes(model: BaseModel) -> bytes:
     """Return the one canonical human-readable JSON encoding used in bundles."""
 
     validated_model = type(model).model_validate(model.model_dump(mode="json", warnings="error"))
     payload = validated_model.model_dump(mode="json", warnings="error")
-    return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    return _published_payload_json_bytes(payload)
 
 
 def require_published_model_json_bytes(
@@ -25,7 +31,7 @@ def require_published_model_json_bytes(
 
     validated_model = type(model).model_validate(model.model_dump(mode="json", warnings="error"))
     payload = validated_model.model_dump(mode="json", warnings="error")
-    expected = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    expected = _published_payload_json_bytes(payload)
     if supplied is None:
         return expected
     if not isinstance(supplied, bytes) or supplied != expected:

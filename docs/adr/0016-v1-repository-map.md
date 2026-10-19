@@ -309,9 +309,14 @@ assigned exactly once to its declared sprint, and every release-train occurrence
 has one digest-bound anchor. Omissions and duplicate coverage fail closed.
 Component P50, P90, and reviewer P50 person-hours are
 checked integer sums of the versioned work-unit catalog. Elapsed waiting or
-exposure time remains separate from accountable effort. The human maintainer
-must review every row and occurrence, record a specific rationale, and sign the
-digest-bound decisions; the generator cannot infer that judgment.
+exposure time remains separate from accountable effort. The generator produces
+an exact, itemized batch-adoption proposal, including proposal-specific
+rationale text; that text is nonbinding until the maintainer signs the complete
+manifest. The signature records maintainer adoption of the enumerated batch. It
+does not prove separately authored per-item prose or independently observed
+cognitive review. A future workflow that permits item-level changes must accept
+and validate an explicitly human-edited manifest instead of describing the
+generated template as independently authored judgment.
 
 The aggregation method remains `comonotonic-quantile-sum/v1` version `1.1.0`,
 represented by `agent-assure-delivery-forecast-aggregation-method/2` with
@@ -321,17 +326,16 @@ The `/2` registry digest is
 `sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6`.
 The `agent-assure-delivery-forecast-estimation-catalog/1` digest is
 `sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439`.
-The pending generation-2 authoring-ledger digest is
+The pre-decision generation-2 authoring-ledger digest was
 `sha256:c65573f5b9045c08b926e739c1e4491fc038bc203df80454697a23c36d4d9fbf`,
-and the pending forecast record digest is
+and the pre-signature forecast record digest was
 `sha256:66d1e5a2b29f0405bbd4ef0c10c74d17c7930fd5c7f93a9140b0abc0438d0220`.
 Ledger and forecast records use format generation `/2`; the external planning
 contract remains `delivery-forecast/v1`.
 
-This block is an enforced handoff, not a claim that the pending proposal has
-already been accepted. After the human imports, both lines must be updated to
-the exact installed statuses and digests; generation-2 receipt planning fails
-until this block and the governance README agree with those files.
+This block records the installed generation-2 result of that enforced handoff.
+It is not a pending-work instruction. Generation-2 receipt planning required
+this block and the governance README to agree exactly with the accepted files.
 
 <!-- agent-assure:forecast-v2-final:start -->
 - Generation-2 authoring ledger status: `human_decisions_imported`; digest: `sha256:825e811fa5a0dc841e8f8a316b4fb5be1183dc5793bce90506928237ad7020ca`.
@@ -345,6 +349,19 @@ diversification credit. It is not a distribution-free upper bound, confidence
 interval, or calendar forecast. It makes
 the dependence assumption explicit and avoids unsupported Monte Carlo or
 copula precision from only two input quantiles.
+
+The installed v2 field names require a narrower reading than the broad
+`effort_scope` label suggests: `aggregate_p50_effort_hours` and
+`aggregate_p90_effort_hours` sum engineering-effort quantiles only, while
+`aggregate_reviewer_effort_hours` is a separate reviewer P50 sum. Under the
+declared shared-rank construction, the exact combined-P50 identity is
+`aggregate_p50_effort_hours + aggregate_reviewer_effort_hours`, or
+`7,695 + 7,310 = 15,005` focused person-hours. The engineering P90 is `19,766`
+person-hours, but no combined P90 is identified because reviewer P90 inputs
+were never authored. The historical portfolio P90 therefore excludes review
+effort. A successor forecast must either retain that explicit separation in
+its names and claims or author reviewer P90 inputs and expose mathematically
+coherent combined totals.
 
 The generation-2 authoring ledger is cryptographically bound to the corrective
 authorization, baseline observation, roadmap, release-train, ticket-set,
@@ -539,7 +556,7 @@ tracked corrective edits began. It prospectively authorizes only the bounded
 engineering scope; it is not a retrospective authorization or a substitute for
 the later per-estimate decisions, completion conclusions, or signatures.
 
-The only current successor topology is linear: `C1 -> R2 -> C2`. `R2` is a
+The immutable generation-2 successor topology is linear: `C1 -> R2 -> C2`. `R2` is a
 direct, non-merge corrective result; `C2` is its direct, non-merge signed
 closure. The generation-2 fixed tag is
 `agent-assure-s1-1.0.0a1-acceptance-v2`, and its message uses
@@ -571,5 +588,20 @@ hashes with the v2 attestation-bound values before executing either, and the
 validator then checks its executing file and launcher bytes against the regular
 Git blobs at `C2`. A program's self-reported hash and its Python `main()` import
 guard are consistency and misuse controls, not a security boundary or trust
-root. S2 remains prohibited until the replacement signatures, `C2`, fixed v2
-tag object, and this generation-aware historical validation all succeed.
+root. Those replacement signatures, `C2`, the fixed v2 tag object, and the
+generation-aware historical validation were completed. A later adversarial
+review nevertheless found that the validator did not parse on the declared
+Python 3.11 floor, hosted-CI tests depended on the unavailable private roadmap,
+ignored repository-root native extensions were absent from the authenticated
+test-surface inventory while remaining importable, and pytest 9's hidden
+`.pytest.ini` and `.pytest.toml` names were not enumerated. The successor v4
+control uses an exact top-level allowlist, rejects every top-level reparse
+point, and forces the authenticated pytest config, root, source path, import
+mode, socket policy, complete default collection patterns, cache-directory
+recursion exclusion, and absolute `tests` tree. It also
+validates strict JSON field types and complete, non-deselected terminal totals
+before publishing evidence. These findings do not alter the immutable v2
+objects or establish actual tampering, but they make v2 an insufficient current
+acceptance basis. S2 remains prohibited until a new, separately authorized
+corrective result and closure bind the repaired controls, complete required
+checks, and fresh evidence under a new fixed tag.

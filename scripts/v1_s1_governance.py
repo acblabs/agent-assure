@@ -460,7 +460,11 @@ CORRECTIVE_REVIEWED_ARTIFACT_SET_DOMAIN: Final = (
     "agent-assure:s1-corrective-reviewed-artifact-set/v2"
 )
 CORRECTIVE_CLOSURE_ARTIFACT_SET_DOMAIN: Final = "agent-assure:s1-corrective-closure-artifact-set/v2"
+# Generation 2 signed evidence uses the legacy v3 domain.  New captures use
+# v4 so the tightened import-path and Git-configuration policy is never
+# represented as though it had been enforced by the historical v3 command.
 POST_R2_SUITE_EVIDENCE_DOMAIN: Final = "agent-assure:s1-post-r2-suite-evidence/v3"
+POST_R2_SUITE_EVIDENCE_V4_DOMAIN: Final = "agent-assure:s1-post-r2-suite-evidence/v4"
 CORRECTIVE_RECEIPT_PLAN_V2_DOMAIN: Final = "agent-assure:s1-corrective-receipt-signature-plan/v2"
 CORRECTIVE_RECEIPT_IMPORT_V2_DOMAIN: Final = (
     "agent-assure:s1-corrective-receipt-signature-import/v2"
@@ -560,6 +564,7 @@ S1_ACCEPTANCE_V2_TAG_NAME: Final = "agent-assure-s1-1.0.0a1-acceptance-v2"
 S1_ACCEPTANCE_V1_TAG_OBJECT: Final = "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
 S1_ACCEPTANCE_V1_CLOSURE_COMMIT: Final = "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
 S1_ACCEPTANCE_V1_RESULT_COMMIT: Final = "038b1a8c80fc419106eecd43f4a70b14ba026106"
+S1_ACCEPTANCE_V2_CLOSURE_COMMIT: Final = "db5133e09860d292047b963b0fb81b3e7385b7fa"
 S1_ACCEPTANCE_V1_BUNDLE_DIGEST: Final = (
     "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82"
 )
@@ -585,9 +590,11 @@ POST_R2_PYTHON_ARGUMENTS: Final = (
     "utf8",
 )
 POST_R2_PYTEST_ARGUMENTS: Final = (
-    # Repository ``addopts`` are prepended by pytest.  Assign the final
-    # verbosity explicitly so a configured ``-q`` cannot combine with this
-    # command into ``-qq``, which suppresses the terminal totals we attest.
+    # Historical /3 repository ``addopts`` are prepended by pytest.  Assign the
+    # final verbosity explicitly so a configured ``-q`` cannot combine with
+    # this command into ``-qq``, which suppresses the terminal totals we
+    # attest.  The /4 argv additionally clears ``addopts`` and spells out each
+    # required control below.
     "--verbosity=-1",
     "-p",
     "no:cacheprovider",
@@ -605,6 +612,8 @@ CORRECTIVE_LOCAL_ONLY_PATH_PREFIXES: Final = (
     ".tmp/s1-acceptance/phase-v2-",
     ".tmp/s1-acceptance/current-gate-v2-",
 )
+POST_V2_CONTROL_LOCAL_ONLY_PATH_PREFIX: Final = ".tmp/s1-acceptance/post-v2-control-"
+POST_V2_CONTROL_HISTORY_POLICY: Final = "full_history_without_replacements_grafts_or_alternates/v1"
 POST_R2_PROCESS_TEMP_ROOT: Final = Path(r"C:\tmp")
 POST_R2_PROCESS_TEMP_PREFIX: Final = "agent-assure-s1-post-r2-process-temp-"
 POST_R2_PROCESS_USER_TEMP_DIRECTORY: Final = "temp"
@@ -635,6 +644,22 @@ POST_R2_TEST_RUNTIME_SHA256: Final = (
 )
 POST_R2_TEST_SURFACE_INVENTORY_DOMAIN: Final = (
     b"agent-assure:s1-post-r2-test-surface-inventory/v1\x00"
+)
+POST_R2_TEST_SURFACE_INVENTORY_V2_DOMAIN: Final = (
+    b"agent-assure:s1-post-r2-test-surface-inventory/v2\x00"
+)
+POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES: Final = tuple(
+    sorted(
+        {
+            *(suffix.casefold() for suffix in importlib.machinery.all_suffixes()),
+            ".py",
+            ".pyc",
+            ".pyo",
+            ".pyd",
+            ".pyw",
+            ".so",
+        }
+    )
 )
 POST_R2_TEST_AFFECTING_DIRECTORIES: Final = (
     ".githooks",
@@ -688,10 +713,33 @@ POST_R2_ROOT_TEST_CONFIG_PATHS: Final = (
     "tox.ini",
     "usercustomize.py",
 )
+POST_V2_CONTROL_ADDITIONAL_ROOT_TEST_CONFIG_PATHS: Final = (
+    ".pytest.ini",
+    ".pytest.toml",
+)
+POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES: Final = (
+    ".git",
+    ".tmp",
+    ".venv",
+    "Agent_Assure_Implementation_Roadmap.md",
+)
 POST_R2_GIT_EXCLUDE_SIZE_BYTES: Final = 2_368
 POST_R2_GIT_EXCLUDE_SHA256: Final = (
     "7c13bf60842aceead989daabbab30e5ae8fc3e4cf2100af9781e692790265060"
 )
+POST_V2_CONTROL_GIT_EXCLUDE_BYTES: Final = (
+    b"/Agent_Assure_Implementation_Roadmap.md\n/.venv/\n/.tmp/\n"
+)
+POST_V2_CONTROL_GIT_EXCLUDE_SIZE_BYTES: Final = 55
+POST_V2_CONTROL_GIT_EXCLUDE_SHA256: Final = (
+    "ade798e909c6129d230fb91281883f0d07b83a97ad0b60ff673da0857914cfff"
+)
+if (
+    len(POST_V2_CONTROL_GIT_EXCLUDE_BYTES) != POST_V2_CONTROL_GIT_EXCLUDE_SIZE_BYTES
+    or hashlib.sha256(POST_V2_CONTROL_GIT_EXCLUDE_BYTES).hexdigest()
+    != POST_V2_CONTROL_GIT_EXCLUDE_SHA256
+):  # pragma: no cover - constant-integrity import invariant
+    raise RuntimeError("post-v2 canonical local-exclude constants disagree")
 POST_R2_CHILD_PATH: Final = ";".join(
     (
         str(_FROZEN_PYTHON_ROOT),
@@ -710,6 +758,7 @@ def _post_r2_descendant_sitecustomize_source(
     *,
     repository_root: Path,
     site_packages: Path,
+    legacy_v3_policy: bool = False,
 ) -> str:
     """Return the fail-closed, recursively inherited Python launch guard."""
 
@@ -720,6 +769,13 @@ def _post_r2_descendant_sitecustomize_source(
         repository_root / "src",
         repository_root,
         site_packages,
+    )
+    # Keeping the replacement on one physical line restores Python 3.11 parse
+    # compatibility while producing the same generated bytes as the historical
+    # v3 source under Python 3.12's generalized f-string parser.
+    original_pythonpath_present_assignment = (
+        "_AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV = "
+        f"{POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_PRESENT_ENV!r}"
     )
     return f"""\
 from __future__ import annotations
@@ -737,9 +793,7 @@ _AGENT_ASSURE_GUARD_DIRECTORY = {str(guard_directory)!r}
 _AGENT_ASSURE_NO_SITE_PATHS = {tuple(str(path) for path in no_site_paths)!r}
 _AGENT_ASSURE_NO_SITE_ENV = {POST_R2_DESCENDANT_NO_SITE_ENV!r}
 _AGENT_ASSURE_ORIGINAL_PYTHONPATH_ENV = {POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_ENV!r}
-_AGENT_ASSURE_ORIGINAL_PYTHONPATH_PRESENT_ENV = {
-        POST_R2_DESCENDANT_ORIGINAL_PYTHONPATH_PRESENT_ENV!r
-    }
+{original_pythonpath_present_assignment}
 _AGENT_ASSURE_BOOTSTRAP_INSTALL = bool(
     globals().get("_AGENT_ASSURE_BOOTSTRAP_INSTALL", False)
 )
@@ -1220,26 +1274,37 @@ if (
 
 
 def _post_r2_safe_directory(path: Path, *, owner: str) -> os.stat_result:
-    """Require one exact, existing directory without link/reparse traversal."""
+    """Require an existing directory with no link/reparse path component.
 
-    try:
-        metadata = path.lstat()
-    except OSError as exc:
-        raise GovernanceError(f"{owner} is unavailable") from exc
-    attributes = getattr(metadata, "st_file_attributes", 0)
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or stat.S_ISLNK(metadata.st_mode)
-        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
-    ):
-        raise GovernanceError(f"{owner} is not a safe directory")
-    try:
-        resolved = path.resolve(strict=True)
-    except OSError as exc:
-        raise GovernanceError(f"{owner} cannot be resolved safely") from exc
-    if _early_normalized_path(resolved) != _early_normalized_path(path):
-        raise GovernanceError(f"{owner} traverses a reparse point")
-    return metadata
+    Comparing a lexical path with ``Path.resolve()`` is not a reparse-point
+    test on Windows: an ordinary NTFS 8.3 alias resolves to its long spelling.
+    Inspect each component's metadata instead, which accepts aliases while
+    still rejecting symlinks, junctions, and other reparse objects.
+    """
+
+    absolute = Path(os.path.abspath(path))
+    cursor = Path(absolute.anchor)
+    components = [cursor]
+    for path_component in absolute.parts[1:]:
+        cursor /= path_component
+        components.append(cursor)
+    final_metadata: os.stat_result | None = None
+    for component_path in components:
+        try:
+            metadata = component_path.lstat()
+        except OSError as exc:
+            raise GovernanceError(f"{owner} is unavailable") from exc
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        ):
+            raise GovernanceError(f"{owner} traverses a non-directory or reparse point")
+        final_metadata = metadata
+    if final_metadata is None:  # pragma: no cover - absolute paths always have an anchor
+        raise GovernanceError(f"{owner} is unavailable")
+    return final_metadata
 
 
 def _post_r2_process_temp_root() -> Path:
@@ -1622,6 +1687,7 @@ def _post_r2_descendant_runtime_payloads(
     *,
     basetemp: Path,
     process_temp: Path,
+    legacy_v3_policy: bool = False,
 ) -> dict[str, bytes]:
     """Derive the exact ephemeral venv used by every Python descendant."""
 
@@ -1636,12 +1702,17 @@ def _post_r2_descendant_runtime_payloads(
         "include-system-site-packages = false\n"
         f"executable = {_FROZEN_PYTHON_EXECUTABLE}\n"
     ).encode()
-    authenticated_paths = (f"{root / 'src'}\n{root}\n{root / '.venv/Lib/site-packages'}\n").encode()
+    authenticated_path_entries = [root / "src"]
+    if legacy_v3_policy:
+        authenticated_path_entries.append(root)
+    authenticated_path_entries.append(root / ".venv/Lib/site-packages")
+    authenticated_paths = ("".join(f"{path}\n" for path in authenticated_path_entries)).encode()
     startup_guard = _post_r2_descendant_sitecustomize_source(
         descendant_python,
         pycache_prefix,
         repository_root=root,
         site_packages=root / ".venv/Lib/site-packages",
+        legacy_v3_policy=legacy_v3_policy,
     ).encode("utf-8")
     return {
         "pyvenv.cfg": configuration,
@@ -1655,6 +1726,7 @@ def _post_r2_descendant_runtime_record(
     *,
     basetemp: Path,
     process_temp: Path,
+    legacy_v3_policy: bool = False,
 ) -> dict[str, Any]:
     """Describe the exact derived runtime without requiring it to persist."""
 
@@ -1663,6 +1735,7 @@ def _post_r2_descendant_runtime_record(
         repository_root,
         basetemp=basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
 
     def file_record(relative_path: str) -> dict[str, Any]:
@@ -1699,6 +1772,7 @@ def _verify_post_r2_descendant_runtime(
     basetemp: Path,
     process_temp: Path,
     require_empty_user_temp: bool,
+    legacy_v3_policy: bool = False,
 ) -> dict[str, Any]:
     """Verify the derived runtime tree and fresh-cache invariants."""
 
@@ -1710,6 +1784,7 @@ def _verify_post_r2_descendant_runtime(
         repository_root,
         basetemp=basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     descendant_python_relative = "Scripts/python.exe"
     expected_paths = {*expected_payloads, descendant_python_relative}
@@ -1765,6 +1840,7 @@ def _verify_post_r2_descendant_runtime(
         repository_root,
         basetemp=basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
 
 
@@ -1791,6 +1867,7 @@ def _prepare_post_r2_descendant_runtime(
             repository_root,
             basetemp=basetemp,
             process_temp=process_temp,
+            legacy_v3_policy=False,
         ).items():
             target = runtime_root / Path(relative_path)
             with target.open("xb") as handle:
@@ -1802,10 +1879,22 @@ def _prepare_post_r2_descendant_runtime(
             basetemp=basetemp,
             process_temp=process_temp,
             require_empty_user_temp=True,
+            legacy_v3_policy=False,
         )
     except BaseException as primary:
         _cleanup_post_r2_process_temp_after_failure(process_temp, primary)
         raise
+
+
+def _post_r2_root_test_config_paths(*, legacy_v3_policy: bool) -> tuple[str, ...]:
+    """Select the immutable v3 or hardened v4 root-config inventory."""
+
+    if legacy_v3_policy:
+        return POST_R2_ROOT_TEST_CONFIG_PATHS
+    return (
+        *POST_R2_ROOT_TEST_CONFIG_PATHS,
+        *POST_V2_CONTROL_ADDITIONAL_ROOT_TEST_CONFIG_PATHS,
+    )
 
 
 def _post_r2_pytest_bootstrap_source(
@@ -1813,9 +1902,11 @@ def _post_r2_pytest_bootstrap_source(
     *,
     basetemp: Path,
     process_temp: Path,
+    legacy_v3_policy: bool = False,
 ) -> str:
     """Return the fixed stdlib-only verifier that runs before pytest imports."""
 
+    root_test_config_paths = _post_r2_root_test_config_paths(legacy_v3_policy=legacy_v3_policy)
     process_temp_root = POST_R2_PROCESS_TEMP_ROOT
     descendant_runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
     descendant_python = descendant_runtime_root / "Scripts/python.exe"
@@ -1824,8 +1915,148 @@ def _post_r2_pytest_bootstrap_source(
         repository_root,
         basetemp=basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     descendant_guard_relative = f"Lib/site-packages/{POST_R2_DESCENDANT_RUNTIME_GUARD_FILE}"
+    if legacy_v3_policy:
+        root_entry_policy_source = """\
+for candidate in repository_root.iterdir():
+    if (
+        candidate.name not in root_configs
+        and candidate.suffix.casefold() in {\".py\", \".pyc\", \".pyo\"}
+    ):
+        admit_surface_file(candidate, candidate.name)
+    if (
+        candidate.is_dir()
+        and not candidate.is_symlink()
+        and candidate.name.isidentifier()
+        and candidate.name not in directory_roots
+    ):
+        raise RuntimeError(f\"post-R2 import-capable root directory: {candidate.name}\")
+"""
+        top_level_policy_source = """\
+    if not top.is_dir() or top.is_symlink():
+        raise RuntimeError(f\"post-R2 test-surface root changed: {top_level}\")
+"""
+        bound_directory_source = """\
+def require_bound_directory(directory, owner):
+    metadata = directory.lstat()
+    attributes = getattr(metadata, \"st_file_attributes\", 0)
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
+        raise RuntimeError(f\"{owner} is not a safe directory\")
+    resolved = directory.resolve(strict=True)
+    if os.path.normcase(os.path.abspath(resolved)) != os.path.normcase(
+        os.path.abspath(directory)
+    ):
+        raise RuntimeError(f\"{owner} traverses a reparse point\")
+"""
+        python_path_source = (
+            "sys.path[:0] = [str(source_root), str(repository_root), str(site_packages)]"
+        )
+        exclude_policy_source = """\
+exclude_path = repository_root / ".git/info/exclude"
+exclude_payload = exclude_path.read_bytes()
+"""
+        exclude_validation_source = f"""\
+if (len(exclude_payload), hashlib.sha256(exclude_payload).hexdigest()) != (
+    {POST_R2_GIT_EXCLUDE_SIZE_BYTES},
+    {POST_R2_GIT_EXCLUDE_SHA256!r},
+):
+    raise RuntimeError("post-R2 local-exclude policy changed")
+"""
+    else:
+        root_entry_policy_source = f"""\
+allowed_local_root_entries = {POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES!r}
+allowed_root_entries = {{*directory_roots, *tracked_root_files, *allowed_local_root_entries}}
+for candidate in repository_root.iterdir():
+    candidate_metadata = candidate.lstat()
+    candidate_attributes = getattr(candidate_metadata, \"st_file_attributes\", 0)
+    if stat.S_ISLNK(candidate_metadata.st_mode) or bool(
+        candidate_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    ):
+        raise RuntimeError(f\"post-R2 top-level reparse point: {{candidate.name}}\")
+    if candidate.name not in allowed_root_entries:
+        raise RuntimeError(f\"post-R2 unexpected top-level entry: {{candidate.name}}\")
+    if candidate.name in {{\".git\", \".tmp\", \".venv\"}} and not stat.S_ISDIR(
+        candidate_metadata.st_mode
+    ):
+        raise RuntimeError(f\"post-R2 local top-level directory changed: {{candidate.name}}\")
+    if candidate.name == \"Agent_Assure_Implementation_Roadmap.md\" and not stat.S_ISREG(
+        candidate_metadata.st_mode
+    ):
+        raise RuntimeError(\"post-R2 local roadmap is not a regular file\")
+"""
+        top_level_policy_source = """\
+    top_metadata = top.lstat()
+    top_attributes = getattr(top_metadata, \"st_file_attributes\", 0)
+    if (
+        not stat.S_ISDIR(top_metadata.st_mode)
+        or stat.S_ISLNK(top_metadata.st_mode)
+        or bool(top_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
+        raise RuntimeError(f\"post-R2 test-surface root changed: {top_level}\")
+"""
+        bound_directory_source = """\
+def require_bound_directory(directory, owner):
+    absolute = Path(os.path.abspath(directory))
+    current = Path(absolute.anchor)
+    components = [current]
+    for component in absolute.parts[1:]:
+        current /= component
+        components.append(current)
+    for component in components:
+        metadata = component.lstat()
+        attributes = getattr(metadata, \"st_file_attributes\", 0)
+        if (
+            not stat.S_ISDIR(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        ):
+            raise RuntimeError(f\"{owner} traverses a non-directory or reparse point\")
+"""
+        python_path_source = "sys.path[:0] = [str(source_root), str(site_packages)]"
+        exclude_policy_source = """\
+exclude_path = repository_root / ".git/info/exclude"
+exclude_cursor = repository_root
+for exclude_component in (".git", "info", "exclude"):
+    exclude_cursor /= exclude_component
+    exclude_metadata = exclude_cursor.lstat()
+    exclude_attributes = getattr(exclude_metadata, "st_file_attributes", 0)
+    if stat.S_ISLNK(exclude_metadata.st_mode) or bool(
+        exclude_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+    ):
+        raise RuntimeError("post-R2 local-exclude path contains a reparse point")
+if not stat.S_ISREG(exclude_metadata.st_mode):
+    raise RuntimeError("post-R2 local-exclude policy is not a regular file")
+exclude_payload = exclude_path.read_bytes()
+attributes_path = repository_root / ".git/info/attributes"
+try:
+    attributes_path.lstat()
+except FileNotFoundError:
+    pass
+except OSError as exc:
+    raise RuntimeError("post-v2 local attributes cannot be inspected") from exc
+else:
+    raise RuntimeError("post-v2 local attributes must be absent")
+"""
+        exclude_validation_source = f"""\
+if exclude_payload != {POST_V2_CONTROL_GIT_EXCLUDE_BYTES!r}:
+    raise RuntimeError("post-v2 local-exclude policy is not canonical LF/no-BOM bytes")
+"""
+    surface_inventory_domain = (
+        POST_R2_TEST_SURFACE_INVENTORY_DOMAIN
+        if legacy_v3_policy
+        else POST_R2_TEST_SURFACE_INVENTORY_V2_DOMAIN
+    )
+    root_entry_policy_source = root_entry_policy_source.rstrip("\n")
+    top_level_policy_source = top_level_policy_source.rstrip("\n")
+    bound_directory_source = bound_directory_source.rstrip("\n")
+    exclude_policy_source = exclude_policy_source.rstrip("\n")
+    exclude_validation_source = exclude_validation_source.rstrip("\n")
     source = f"""\
 import hashlib
 import os
@@ -1886,17 +2117,12 @@ if (len(runtime_rows), sum(row[1] for row in runtime_rows), runtime_digest.hexdi
 ):
     raise RuntimeError("post-R2 authenticated site-packages inventory changed")
 
-exclude_path = repository_root / ".git/info/exclude"
-exclude_payload = exclude_path.read_bytes()
-if (len(exclude_payload), hashlib.sha256(exclude_payload).hexdigest()) != (
-    {POST_R2_GIT_EXCLUDE_SIZE_BYTES},
-    {POST_R2_GIT_EXCLUDE_SHA256!r},
-):
-    raise RuntimeError("post-R2 local-exclude policy changed")
+{exclude_policy_source}
+{exclude_validation_source}
 
 directory_roots = {POST_R2_TEST_AFFECTING_DIRECTORIES!r}
 tracked_root_files = {POST_R2_TRACKED_ROOT_FILES!r}
-root_configs = {POST_R2_ROOT_TEST_CONFIG_PATHS!r}
+root_configs = {root_test_config_paths!r}
 surface_paths = set()
 
 def admit_surface_file(path, relative):
@@ -1919,23 +2145,10 @@ for name in root_configs:
     candidate = repository_root / name
     if candidate.exists() or candidate.is_symlink():
         admit_surface_file(candidate, name)
-for candidate in repository_root.iterdir():
-    if (
-        candidate.name not in root_configs
-        and candidate.suffix.casefold() in {{".py", ".pyc", ".pyo"}}
-    ):
-        admit_surface_file(candidate, candidate.name)
-    if (
-        candidate.is_dir()
-        and not candidate.is_symlink()
-        and candidate.name.isidentifier()
-        and candidate.name not in directory_roots
-    ):
-        raise RuntimeError(f"post-R2 import-capable root directory: {{candidate.name}}")
+{root_entry_policy_source}
 for top_level in directory_roots:
     top = repository_root / top_level
-    if not top.is_dir() or top.is_symlink():
-        raise RuntimeError(f"post-R2 test-surface root changed: {{top_level}}")
+{top_level_policy_source}
     for current, directories, files in os.walk(top, topdown=True):
         current_path = Path(current)
         retained = []
@@ -1957,7 +2170,7 @@ surface_rows = []
 for relative in sorted(surface_paths, key=lambda value: value.encode("utf-8")):
     payload = (repository_root / relative).read_bytes()
     surface_rows.append((relative, len(payload), hashlib.sha256(payload).digest()))
-surface_digest = hashlib.sha256({POST_R2_TEST_SURFACE_INVENTORY_DOMAIN!r})
+surface_digest = hashlib.sha256({surface_inventory_domain!r})
 for relative, size, file_digest in surface_rows:
     encoded = relative.encode("utf-8")
     surface_digest.update(len(encoded).to_bytes(8, "big"))
@@ -1980,20 +2193,7 @@ pytest_basetemp = expected_pycache.parent
 expected_descendant_payloads = {descendant_payloads!r}
 descendant_python_relative = "Scripts/python.exe"
 
-def require_bound_directory(directory, owner):
-    metadata = directory.lstat()
-    attributes = getattr(metadata, "st_file_attributes", 0)
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or stat.S_ISLNK(metadata.st_mode)
-        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
-    ):
-        raise RuntimeError(f"{{owner}} is not a safe directory")
-    resolved = directory.resolve(strict=True)
-    if os.path.normcase(os.path.abspath(resolved)) != os.path.normcase(
-        os.path.abspath(directory)
-    ):
-        raise RuntimeError(f"{{owner}} traverses a reparse point")
+{bound_directory_source}
 
 if (
     not process_temp_root.is_absolute()
@@ -2080,7 +2280,7 @@ exec(
         "_AGENT_ASSURE_BOOTSTRAP_INSTALL": True,
     }},
 )
-sys.path[:0] = [str(source_root), str(repository_root), str(site_packages)]
+{python_path_source}
 sys.argv = ["pytest", *pytest_arguments]
 runpy.run_module("pytest", run_name="__main__", alter_sys=True)
 """
@@ -2125,6 +2325,14 @@ CORRECTIVE_UTC_100NS_PATTERN: Final = re.compile(
 
 class GovernanceError(ValueError):
     """Raised when a governance input or artifact violates the frozen contract."""
+
+
+class _PostR2SuiteCaptureRecord(dict[str, Any]):
+    """A persisted evidence record with out-of-band capture disposition."""
+
+    def __init__(self, value: Mapping[str, Any], *, reused: bool) -> None:
+        super().__init__(copy.deepcopy(dict(value)))
+        self.reused = reused
 
 
 class _GitBlobSemanticError(GovernanceError):
@@ -3369,9 +3577,7 @@ def build_authoring_ledger_v2(
             }
             proposal = {
                 **proposal_projection,
-                "proposal_digest": domain_digest(
-                    OCCURRENCE_PROPOSAL_V2_DOMAIN, proposal_projection
-                ),
+                "proposal_digest": _occurrence_proposal_v2_digest(proposal_projection),
                 "decision": {
                     "status": "pending_explicit_human_review",
                     "selected_p50_effort_hours": None,
@@ -3470,6 +3676,44 @@ def _ledger_v2_digest(ledger: Mapping[str, Any]) -> str:
     )
 
 
+def _occurrence_proposal_v2_digest(proposal: Mapping[str, Any]) -> str:
+    """Hash the immutable pre-decision proposal basis.
+
+    Human adoption changes the presentation status from pending review to a
+    rebaseline requirement.  That lifecycle transition must not silently make
+    the itemized proposal basis unverifiable, so both states normalize to the
+    exact pending proposal that the signed decision manifest adopted.  The
+    final ledger digest and signatures continue to bind the finalized status
+    and decision bytes themselves.
+    """
+
+    projection = copy.deepcopy(
+        {
+            key: value
+            for key, value in proposal.items()
+            if key not in {"proposal_digest", "decision"}
+        }
+    )
+    elapsed_time = _as_object(
+        projection.get("elapsed_time"), owner="generation-2 occurrence elapsed time"
+    )
+    critical_path_status = _required_string(elapsed_time, "critical_path_status")
+    if critical_path_status not in {
+        "not_modeled_pending_human_review",
+        "not_modeled_scope_rebaseline_required",
+    }:
+        raise GovernanceError("generation-2 occurrence critical-path status is invalid")
+    normalized_elapsed_time = dict(elapsed_time)
+    normalized_elapsed_time["critical_path_status"] = "not_modeled_pending_human_review"
+    projection["elapsed_time"] = normalized_elapsed_time
+    return domain_digest(OCCURRENCE_PROPOSAL_V2_DOMAIN, projection)
+
+
+def _validate_occurrence_proposal_v2_digest(proposal: Mapping[str, Any]) -> None:
+    if proposal.get("proposal_digest") != _occurrence_proposal_v2_digest(proposal):
+        raise GovernanceError("generation-2 occurrence proposal digest mismatch")
+
+
 def build_forecast_decision_manifest_v2(
     pending_ledger: Mapping[str, Any],
 ) -> dict[str, Any]:
@@ -3512,6 +3756,7 @@ def build_forecast_decision_manifest_v2(
         )
         for raw_proposal in proposals:
             proposal = _as_object(raw_proposal, owner=f"{ticket_id} proposal")
+            _validate_occurrence_proposal_v2_digest(proposal)
             coverage = _as_object(proposal.get("obligation_coverage"), owner="proposal coverage")
             effort = _as_object(proposal.get("effort_proposal"), owner="proposal effort")
             work_breakdown = _as_array(
@@ -3616,6 +3861,7 @@ def _apply_forecast_decision_manifest_v2(
                 "reviewed_at_utc": None,
                 "rationale": item["rationale"],
             }
+            _validate_occurrence_proposal_v2_digest(proposal)
     if cursor != len(items):
         raise GovernanceError("forecast decision manifest has trailing or missing items")
     result["decision_evidence"] = {
@@ -3637,6 +3883,13 @@ def validate_authoring_ledger_v2(
     allow_pending: bool,
 ) -> None:
     _validate_json_schema(ledger, schema, owner="generation-2 forecast authoring ledger")
+    rows = _as_array(ledger.get("rows"), owner="authoring ledger rows")
+    for raw_row in rows:
+        row = _as_object(raw_row, owner="authoring ledger row")
+        for raw_proposal in _as_array(row.get("execution_proposals"), owner="execution proposals"):
+            _validate_occurrence_proposal_v2_digest(
+                _as_object(raw_proposal, owner="generation-2 occurrence proposal")
+            )
     expected_pending = build_authoring_ledger_v2(
         snapshot,
         catalog,
@@ -3670,7 +3923,6 @@ def validate_authoring_ledger_v2(
             raise GovernanceError("decided authoring ledger does not exactly recompute")
     if ledger.get("ledger_digest") != _ledger_v2_digest(ledger):
         raise GovernanceError("generation-2 authoring ledger digest mismatch")
-    rows = _as_array(ledger.get("rows"), owner="authoring ledger rows")
     occurrence_total = sum(
         len(
             _as_array(
@@ -6389,6 +6641,7 @@ def _governance_subprocess_environment() -> dict[str, str]:
     environment.update(
         {
             "GIT_ALLOW_PROTOCOL": "https",
+            "GIT_ATTR_NOSYSTEM": "1",
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
             "GIT_CONFIG_SYSTEM": os.devnull,
@@ -6458,6 +6711,10 @@ def _git_invocation_prefix(executable: str, hooks_directory: Path) -> list[str]:
         "core.fsmonitor=false",
         "-c",
         "core.untrackedCache=false",
+        "-c",
+        "core.excludesFile=",
+        "-c",
+        "core.attributesFile=",
         "-c",
         f"core.hooksPath={hooks_directory.resolve(strict=True)}",
         "-c",
@@ -8892,6 +9149,28 @@ def _post_r2_execution_outcome(exit_code: int) -> str:
     }.get(exit_code, "unexpected_exit")
 
 
+def _post_r2_suite_record_passed(record: Mapping[str, Any]) -> bool:
+    """Apply the acceptance pass predicate to a validated capture record."""
+
+    execution = _as_object(record.get("execution"), owner="post-R2 suite execution")
+    totals = _as_object(execution.get("pytest_totals"), owner="post-R2 pytest totals")
+    total_keys = {"collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"}
+    if set(totals) != total_keys:
+        raise GovernanceError("post-R2 pytest totals are invalid")
+    values = {key: _required_integer(totals, key) for key in total_keys}
+    executed_count = sum(
+        values[key] for key in ("passed", "failed", "skipped", "xfailed", "xpassed")
+    )
+    return (
+        _required_integer(execution, "exit_code") == 0
+        and execution.get("outcome") == "passed"
+        and values["failed"] == 0
+        and values["errors"] == 0
+        and values["passed"] > 0
+        and values["collected"] == executed_count
+    )
+
+
 def _parse_post_r2_pytest_totals(stdout: bytes, stderr: bytes) -> dict[str, int]:
     """Parse pytest's terminal summary without trusting hand-entered counts."""
 
@@ -9011,6 +9290,49 @@ def _post_r2_repository_state(repository_root: Path) -> dict[str, Any]:
         "status_command": ["git", "status", "--porcelain=v1", "--untracked-files=all"],
         "status_stdout_size_bytes": len(status.stdout),
         "status_stdout_sha256": raw_digest(status.stdout),
+    }
+
+
+def _post_v2_control_topology(
+    repository_root: Path,
+    *,
+    subject_commit: str,
+) -> dict[str, str]:
+    """Bind one cleanable, non-merge control commit above immutable C2."""
+
+    if GIT_COMMIT_PATTERN.fullmatch(subject_commit) is None:
+        raise GovernanceError("post-v2 control subject must be a full lowercase 40-hex commit ID")
+    _validate_git_history_safety(repository_root)
+    parent_record = _run_git(
+        repository_root,
+        ["rev-list", "--parents", "-n", "1", subject_commit],
+    )
+    fields = parent_record.stdout.decode("ascii", errors="strict").split()
+    if parent_record.returncode != 0 or not fields or fields[0] != subject_commit:
+        raise GovernanceError("post-v2 control subject commit is unavailable")
+    if subject_commit == S1_ACCEPTANCE_V2_CLOSURE_COMMIT:
+        raise GovernanceError("post-v2 control subject must be a proper descendant of C2")
+    ancestry = _run_git(
+        repository_root,
+        [
+            "merge-base",
+            "--is-ancestor",
+            S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+            subject_commit,
+        ],
+    )
+    if ancestry.returncode != 0:
+        raise GovernanceError("post-v2 control subject does not descend from immutable C2")
+    if len(fields) != 2:
+        raise GovernanceError("post-v2 control subject must be a non-merge commit")
+    return {
+        "scope": "post_v2_control_verification_only",
+        "authorization_effect": "none",
+        "history_policy": POST_V2_CONTROL_HISTORY_POLICY,
+        "immutable_acceptance_v2_closure_commit": S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+        "relationship": "proper_non_merge_descendant",
+        "subject_commit": subject_commit,
+        "subject_parent_commit": fields[1],
     }
 
 
@@ -9207,19 +9529,43 @@ def _post_r2_git_tree_entries(
     return entries
 
 
-def _post_r2_git_exclude_evidence(repository_root: Path) -> dict[str, Any]:
-    """Require the accepted host's exact local-exclude bytes."""
+def _post_r2_git_exclude_evidence(
+    repository_root: Path,
+    *,
+    legacy_v3_policy: bool = False,
+) -> dict[str, Any]:
+    """Require the policy-version-specific exact local-exclude bytes."""
 
-    path = repository_root / ".git/info/exclude"
-    if not path.is_file() or path.is_symlink():
+    path = _resolve_repository_path_without_links(
+        repository_root,
+        ".git/info/exclude",
+        owner="post-R2 .git/info/exclude",
+    )
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise GovernanceError("post-R2 .git/info/exclude is unavailable") from exc
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
         raise GovernanceError("post-R2 .git/info/exclude is not a regular file")
     payload = path.read_bytes()
     digest = raw_digest(payload)
-    if (
-        len(payload) != POST_R2_GIT_EXCLUDE_SIZE_BYTES
-        or digest != "sha256:" + POST_R2_GIT_EXCLUDE_SHA256
-    ):
+    expected_size = (
+        POST_R2_GIT_EXCLUDE_SIZE_BYTES
+        if legacy_v3_policy
+        else POST_V2_CONTROL_GIT_EXCLUDE_SIZE_BYTES
+    )
+    expected_sha256 = (
+        POST_R2_GIT_EXCLUDE_SHA256 if legacy_v3_policy else POST_V2_CONTROL_GIT_EXCLUDE_SHA256
+    )
+    if len(payload) != expected_size or digest != "sha256:" + expected_sha256:
         raise GovernanceError("post-R2 .git/info/exclude policy changed")
+    if not legacy_v3_policy and payload != POST_V2_CONTROL_GIT_EXCLUDE_BYTES:
+        raise GovernanceError("post-v2 .git/info/exclude is not canonical LF/no-BOM bytes")
     return {
         "path": ".git/info/exclude",
         "size_bytes": len(payload),
@@ -9227,14 +9573,55 @@ def _post_r2_git_exclude_evidence(repository_root: Path) -> dict[str, Any]:
     }
 
 
+def _post_v2_git_attributes_absence_evidence(repository_root: Path) -> dict[str, str]:
+    """Require repository-local Git attributes to be entirely absent."""
+
+    info_directory = _resolve_repository_path_without_links(
+        repository_root,
+        ".git/info",
+        owner="post-v2 .git/info",
+    )
+    path = info_directory / "attributes"
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return {"path": ".git/info/attributes", "status": "absent"}
+    except OSError as exc:
+        raise GovernanceError("post-v2 .git/info/attributes cannot be inspected") from exc
+    raise GovernanceError("post-v2 .git/info/attributes must be absent")
+
+
+def _post_v2_control_git_metadata_preflight(
+    repository_root: Path,
+) -> dict[str, dict[str, Any]]:
+    """Reject mutable local Git policy before worktree-sensitive Git reads."""
+
+    return {
+        "local_exclude": _post_r2_git_exclude_evidence(repository_root),
+        "local_attributes": _post_v2_git_attributes_absence_evidence(repository_root),
+    }
+
+
+def _post_v2_control_repository_state(repository_root: Path) -> dict[str, Any]:
+    """Inspect v4 state only after fail-closed local Git metadata checks."""
+
+    _post_v2_control_git_metadata_preflight(repository_root)
+    return _post_r2_repository_state(repository_root)
+
+
 def _post_r2_test_surface_evidence(
     repository_root: Path,
     *,
     result_commit: str,
+    legacy_v3_policy: bool = False,
 ) -> dict[str, Any]:
     """Bind every tracked byte and reject extra files that can affect pytest."""
 
     root = repository_root.resolve()
+    root_test_config_paths = _post_r2_root_test_config_paths(legacy_v3_policy=legacy_v3_policy)
+    post_v2_git_metadata = (
+        None if legacy_v3_policy else _post_v2_control_git_metadata_preflight(root)
+    )
     all_entries = _post_r2_git_tree_entries(root, result_commit)
     directory_roots = set(POST_R2_TEST_AFFECTING_DIRECTORIES)
     tracked_root_files = set(POST_R2_TRACKED_ROOT_FILES)
@@ -9274,33 +9661,69 @@ def _post_r2_test_surface_evidence(
         if not candidate.exists() and not candidate.is_symlink():
             raise GovernanceError(f"post-R2 tracked root file is missing: {name}")
         require_regular_file(candidate, name)
-    for name in POST_R2_ROOT_TEST_CONFIG_PATHS:
+    for name in root_test_config_paths:
         candidate = root / name
         if candidate.exists() or candidate.is_symlink():
             require_regular_file(candidate, name)
     for candidate in root.iterdir():
-        if candidate.name not in tracked_root_files and candidate.suffix.casefold() in {
-            ".py",
-            ".pyc",
-            ".pyo",
-        }:
-            require_regular_file(candidate, candidate.name)
-        if (
-            candidate.name.isidentifier()
-            and candidate.name not in directory_roots
-            and (candidate.is_dir() or candidate.is_symlink())
-        ):
-            raise GovernanceError(
-                "post-R2 repository contains an untracked import-capable root directory: "
-                f"{candidate.name}"
-            )
+        if legacy_v3_policy:
+            if candidate.name not in tracked_root_files and candidate.suffix.casefold() in {
+                ".py",
+                ".pyc",
+                ".pyo",
+            }:
+                require_regular_file(candidate, candidate.name)
+            if (
+                candidate.name.isidentifier()
+                and candidate.name not in directory_roots
+                and (candidate.is_dir() or candidate.is_symlink())
+            ):
+                raise GovernanceError(
+                    "post-R2 repository contains an untracked import-capable root directory: "
+                    f"{candidate.name}"
+                )
+        else:
+            metadata = candidate.lstat()
+            attributes = getattr(metadata, "st_file_attributes", 0)
+            if stat.S_ISLNK(metadata.st_mode) or bool(
+                attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT
+            ):
+                raise GovernanceError(
+                    f"post-R2 repository contains a top-level reparse point: {candidate.name}"
+                )
+            allowed = {
+                *directory_roots,
+                *tracked_root_files,
+                *POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES,
+            }
+            if candidate.name not in allowed:
+                raise GovernanceError(
+                    f"post-R2 repository contains an unexpected top-level entry: {candidate.name}"
+                )
+            if candidate.name in {".git", ".tmp", ".venv"} and not stat.S_ISDIR(metadata.st_mode):
+                raise GovernanceError(
+                    f"post-R2 local top-level directory changed: {candidate.name}"
+                )
+            if candidate.name == "Agent_Assure_Implementation_Roadmap.md" and not stat.S_ISREG(
+                metadata.st_mode
+            ):
+                raise GovernanceError("post-R2 local roadmap is not a regular file")
 
     def walk_error(error: OSError) -> None:
         raise GovernanceError(f"unable to enumerate post-R2 test surface: {error}")
 
     for top_level in POST_R2_TEST_AFFECTING_DIRECTORIES:
         top = root / top_level
-        if not top.is_dir() or top.is_symlink():
+        try:
+            top_metadata = top.lstat()
+        except OSError as exc:
+            raise GovernanceError(f"post-R2 test-surface root is unavailable: {top_level}") from exc
+        top_attributes = getattr(top_metadata, "st_file_attributes", 0)
+        if (
+            not stat.S_ISDIR(top_metadata.st_mode)
+            or stat.S_ISLNK(top_metadata.st_mode)
+            or bool(top_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        ):
             raise GovernanceError(f"post-R2 test-surface root is not a directory: {top_level}")
         for current, directories, files in os.walk(top, topdown=True, onerror=walk_error):
             current_path = Path(current)
@@ -9325,8 +9748,10 @@ def _post_r2_test_surface_evidence(
     if observed != set(expected):
         extras = sorted(observed - set(expected), key=_utf8_sort_key)
         missing = sorted(set(expected) - observed, key=_utf8_sort_key)
+        surface_prefix = "post-R2" if legacy_v3_policy else "post-v2 control"
+        surface_owner = "immutable R2" if legacy_v3_policy else f"subject commit {result_commit}"
         raise GovernanceError(
-            "post-R2 test surface differs from immutable R2 "
+            f"{surface_prefix} test surface differs from {surface_owner} "
             f"(extra={extras[:8]}, missing={missing[:8]})"
         )
 
@@ -9340,32 +9765,59 @@ def _post_r2_test_surface_evidence(
             usedforsecurity=False,
         ).hexdigest()
         if git_object != expected_object_id:
-            raise GovernanceError(f"post-R2 test-surface bytes differ from R2: {relative}")
+            if legacy_v3_policy:
+                raise GovernanceError(f"post-R2 test-surface bytes differ from R2: {relative}")
+            raise GovernanceError(
+                "post-v2 control test-surface bytes differ from subject commit "
+                f"{result_commit}: {relative}"
+            )
         rows.append((relative, len(payload), hashlib.sha256(payload).digest()))
 
-    digest = hashlib.sha256(POST_R2_TEST_SURFACE_INVENTORY_DOMAIN)
+    digest = hashlib.sha256(
+        POST_R2_TEST_SURFACE_INVENTORY_DOMAIN
+        if legacy_v3_policy
+        else POST_R2_TEST_SURFACE_INVENTORY_V2_DOMAIN
+    )
     for relative, size, file_digest in rows:
         encoded = relative.encode("utf-8")
         digest.update(len(encoded).to_bytes(8, "big"))
         digest.update(encoded)
         digest.update(size.to_bytes(8, "big"))
         digest.update(file_digest)
-    return {
-        "format": "agent-assure-s1-post-r2-test-surface/1",
+    record = {
+        "format": (
+            "agent-assure-s1-post-r2-test-surface/1"
+            if legacy_v3_policy
+            else "agent-assure-s1-post-r2-test-surface/2"
+        ),
         "subject_result_commit": result_commit,
         "directory_roots": list(POST_R2_TEST_AFFECTING_DIRECTORIES),
         "tracked_root_files": list(POST_R2_TRACKED_ROOT_FILES),
-        "root_config_paths": list(POST_R2_ROOT_TEST_CONFIG_PATHS),
+        "root_config_paths": list(root_test_config_paths),
         "cache_policy": {
             "excluded_directory_name": "__pycache__",
             "reason": "fresh_absolute_pycache_prefix_makes_source_adjacent_caches_inert",
             "forbidden_direct_file_suffixes": sorted(POST_R2_TEST_RUNTIME_FORBIDDEN_FILE_SUFFIXES),
         },
-        "local_exclude": _post_r2_git_exclude_evidence(root),
+        "local_exclude": (
+            _post_r2_git_exclude_evidence(root, legacy_v3_policy=True)
+            if legacy_v3_policy
+            else cast(dict[str, Any], post_v2_git_metadata)["local_exclude"]
+        ),
         "file_count": len(rows),
         "size_bytes": sum(row[1] for row in rows),
         "sha256": "sha256:" + digest.hexdigest(),
     }
+    if not legacy_v3_policy:
+        record["root_import_policy"] = {
+            "repository_root_on_initial_python_path": False,
+            "forbidden_file_suffixes": list(POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES),
+            "allowed_local_root_entries": list(POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES),
+            "unexpected_top_level_entries": "rejected",
+            "top_level_reparse_points": "rejected",
+        }
+        record["local_attributes"] = cast(dict[str, Any], post_v2_git_metadata)["local_attributes"]
+    return record
 
 
 def _post_r2_governance_source_evidence(
@@ -9381,6 +9833,15 @@ def _post_r2_governance_source_evidence(
         _source_file_evidence(repository_root, path)
         for path in sorted(paths, key=lambda value: _utf8_sort_key(str(value)))
     ]
+
+
+def _post_v2_control_source_evidence(
+    repository_root: Path,
+    roadmap_path: Path,
+) -> list[dict[str, Any]]:
+    """Bind the sole untracked input used by post-v2 control tests."""
+
+    return [_source_file_evidence(repository_root, roadmap_path.resolve())]
 
 
 def _allocate_post_r2_run_paths(_repository_root: Path) -> tuple[Path, Path]:
@@ -9418,6 +9879,37 @@ def _post_r2_pytest_argv(
     root = repository_root.resolve()
     if not basetemp.is_absolute():
         raise GovernanceError("post-R2 pytest basetemp must be absolute")
+    surface_format = _required_string(test_surface, "format")
+    pytest_arguments: tuple[str, ...]
+    if surface_format == "agent-assure-s1-post-r2-test-surface/1":
+        pytest_arguments = POST_R2_PYTEST_ARGUMENTS
+    elif surface_format == "agent-assure-s1-post-r2-test-surface/2":
+        pytest_arguments = (
+            *POST_R2_PYTEST_ARGUMENTS,
+            "-c",
+            str(root / "pyproject.toml"),
+            f"--rootdir={root}",
+            f"--confcutdir={root}",
+            "-o",
+            "addopts=",
+            "-o",
+            "pythonpath=src",
+            "-o",
+            "norecursedirs=__pycache__",
+            "-o",
+            "python_files=test_*.py *_test.py",
+            "-o",
+            "python_classes=Test",
+            "-o",
+            "python_functions=test",
+            "--import-mode=importlib",
+            "--strict-config",
+            "--strict-markers",
+            "--disable-socket",
+            str(root / "tests"),
+        )
+    else:
+        raise GovernanceError("post-R2 pytest argv requires a governed test-surface format")
     pycache_prefix = basetemp / "python-bytecode-cache"
     site_packages = root / ".venv/Lib/site-packages"
     return [
@@ -9433,7 +9925,7 @@ def _post_r2_pytest_argv(
         str(_required_integer(test_surface, "file_count")),
         str(_required_integer(test_surface, "size_bytes")),
         _required_string(test_surface, "sha256"),
-        *POST_R2_PYTEST_ARGUMENTS,
+        *pytest_arguments,
         "--basetemp",
         str(basetemp),
     ]
@@ -9444,6 +9936,7 @@ def _post_r2_bootstrap_input(
     *,
     basetemp: Path,
     process_temp: Path,
+    legacy_v3_policy: bool = False,
 ) -> tuple[bytes, dict[str, Any]]:
     """Return the exact stdin bootstrap and its evidence-bound identity."""
 
@@ -9451,6 +9944,7 @@ def _post_r2_bootstrap_input(
         repository_root.resolve(),
         basetemp=basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     ).encode("utf-8")
     return payload, {
         "transport": "python_stdin_utf8",
@@ -9459,9 +9953,13 @@ def _post_r2_bootstrap_input(
     }
 
 
-def _post_r2_bytecode_policy(basetemp: Path) -> dict[str, Any]:
+def _post_r2_bytecode_policy(
+    basetemp: Path,
+    *,
+    legacy_v3_policy: bool = False,
+) -> dict[str, Any]:
     pycache_prefix = basetemp / "python-bytecode-cache"
-    return {
+    policy: dict[str, Any] = {
         "basetemp": str(basetemp),
         "basetemp_precondition": "fresh_unique_and_absent_immediately_before_spawn",
         "pycache_prefix": str(pycache_prefix),
@@ -9476,6 +9974,23 @@ def _post_r2_bytecode_policy(basetemp: Path) -> dict[str, Any]:
         "site_packages_cache_policy": "excluded_inert___pycache___only",
         "site_packages_direct_bytecode_policy": "reject_pyc_and_pyo",
     }
+    if not legacy_v3_policy:
+        policy.update(
+            {
+                "repository_root_import_policy": (
+                    "excluded_from_initial_sys_path_before_pytest_import"
+                ),
+                "repository_root_importable_file_policy": (
+                    "reject_all_unexpected_top_level_entries"
+                ),
+                "repository_root_importable_file_suffixes": list(
+                    POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES
+                ),
+                "repository_root_local_allowlist": list(POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES),
+                "repository_root_reparse_policy": "reject_all_top_level_reparse_points",
+            }
+        )
+    return policy
 
 
 def _publish_post_r2_suite_evidence_directory(
@@ -9484,8 +9999,15 @@ def _publish_post_r2_suite_evidence_directory(
     record: Mapping[str, Any],
     stdout: bytes,
     stderr: bytes,
+    record_file_name: str = "post-r2-suite-evidence.json",
 ) -> None:
     """Atomically publish the complete three-file evidence set."""
+
+    if record_file_name not in {
+        "post-r2-suite-evidence.json",
+        "post-v2-control-suite-evidence.json",
+    }:
+        raise GovernanceError("suite evidence record file name is not governed")
 
     evidence_root.parent.mkdir(parents=True, exist_ok=True)
     temporary = Path(
@@ -9497,7 +10019,7 @@ def _publish_post_r2_suite_evidence_directory(
     )
     try:
         payloads = {
-            "post-r2-suite-evidence.json": _render_json_bytes(record),
+            record_file_name: _render_json_bytes(record),
             "pytest.stdout.bin": stdout,
             "pytest.stderr.bin": stderr,
         }
@@ -9523,6 +10045,7 @@ def _post_r2_subprocess_environment(
     basetemp: Path,
     *,
     process_temp: Path,
+    legacy_v3_policy: bool = False,
 ) -> dict[str, str]:
     """Build the complete allowlisted child environment from no inherited state."""
 
@@ -9532,7 +10055,7 @@ def _post_r2_subprocess_environment(
     pycache_prefix = basetemp / "python-bytecode-cache"
     descendant_scripts = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY / "Scripts"
     user_temp = process_temp / POST_R2_PROCESS_USER_TEMP_DIRECTORY
-    return {
+    environment = {
         "COMSPEC": r"C:\Windows\System32\cmd.exe",
         "GIT_CONFIG_COUNT": "2",
         "GIT_CONFIG_GLOBAL": "NUL",
@@ -9564,6 +10087,18 @@ def _post_r2_subprocess_environment(
         "USERPROFILE": r"C:\Users\user",
         "WINDIR": r"C:\Windows",
     }
+    if not legacy_v3_policy:
+        environment.update(
+            {
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_CONFIG_COUNT": "4",
+                "GIT_CONFIG_KEY_2": "core.excludesFile",
+                "GIT_CONFIG_KEY_3": "core.attributesFile",
+                "GIT_CONFIG_VALUE_2": "NUL",
+                "GIT_CONFIG_VALUE_3": "NUL",
+            }
+        )
+    return environment
 
 
 def _execute_post_r2_pytest(
@@ -9671,51 +10206,79 @@ def capture_post_r2_suite_evidence(
     roadmap_path: Path,
     result_commit: str,
     corrective_authorization: Mapping[str, Any],
-    evidence_directory: str | Path = POST_R2_SUITE_EVIDENCE_DIRECTORY,
+    evidence_directory: str | Path,
 ) -> dict[str, Any]:
-    """Run the exact full suite once and persist local-only, source-verifiable evidence.
-
-    The output directory is deliberately separate from pytest's ignored
-    ``--basetemp`` so pytest cleanup cannot delete the evidence it is meant to
-    support.  The function never manufactures or accepts result counts; all
-    totals are parsed from the captured raw pytest streams.
-    """
+    """Reuse historical v3 R2 evidence without retrofitting a new capture."""
 
     root = repository_root.resolve()
     evidence_root = _corrective_private_acceptance_path(
         root,
         evidence_directory,
         owner="post-R2 suite evidence directory",
-        must_exist=False,
+        must_exist=True,
     )
-    if evidence_root.exists() or evidence_root.is_symlink():
-        if not evidence_root.is_dir() or evidence_root.is_symlink():
-            raise GovernanceError("post-R2 suite evidence target is not a regular directory")
-        evidence_path = evidence_root / "post-r2-suite-evidence.json"
-        return validate_post_r2_suite_evidence_source(
-            evidence_path,
+    if not evidence_root.is_dir() or evidence_root.is_symlink():
+        raise GovernanceError("post-R2 suite evidence target is not a regular directory")
+    # Keep the historical API shape so existing callers remain explicit about
+    # the R2 inputs, but never use those inputs to manufacture successor bytes.
+    _ = roadmap_path, corrective_authorization
+    return _PostR2SuiteCaptureRecord(
+        validate_post_r2_suite_evidence_source(
+            evidence_root / "post-r2-suite-evidence.json",
             expected_result_commit=result_commit,
             expected_repository_root=root,
             require_passed=False,
-        )
-    _corrective_result_artifact_inventory(
-        root,
-        result_commit=result_commit,
-        corrective_authorization=corrective_authorization,
+        ),
+        reused=True,
     )
-    governance_sources = _post_r2_governance_source_evidence(root, roadmap_path)
-    pre_state = _post_r2_repository_state(root)
+
+
+def capture_post_v2_control_suite_evidence(
+    repository_root: Path,
+    *,
+    roadmap_path: Path,
+    subject_commit: str,
+    evidence_directory: str | Path,
+) -> dict[str, Any]:
+    """Capture hardened control evidence at a clean descendant of immutable C2."""
+
+    root = repository_root.resolve()
+    _post_v2_control_git_metadata_preflight(root)
+    topology = _post_v2_control_topology(root, subject_commit=subject_commit)
+    validate_local_only_roadmap(root, roadmap_path)
+    evidence_root = _post_v2_control_private_path(
+        root,
+        evidence_directory,
+        owner="post-v2 control suite evidence directory",
+    )
+    if evidence_root.exists() or evidence_root.is_symlink():
+        if not evidence_root.is_dir() or evidence_root.is_symlink():
+            raise GovernanceError(
+                "post-v2 control suite evidence target is not a regular directory"
+            )
+        return _PostR2SuiteCaptureRecord(
+            validate_post_v2_control_suite_evidence_source(
+                evidence_root / "post-v2-control-suite-evidence.json",
+                expected_subject_commit=subject_commit,
+                expected_subject_parent_commit=topology["subject_parent_commit"],
+                expected_repository_root=root,
+                require_passed=False,
+            ),
+            reused=True,
+        )
+    governance_sources = _post_v2_control_source_evidence(root, roadmap_path)
+    pre_state = _post_v2_control_repository_state(root)
     if pre_state != {
         **pre_state,
-        "head_commit": result_commit,
+        "head_commit": subject_commit,
         "clean": True,
     }:
-        raise GovernanceError("post-R2 suite must start at clean R2")
+        raise GovernanceError("post-v2 control suite must start at its clean exact subject")
 
     test_runtime = _post_r2_test_runtime_evidence(root)
     test_surface = _post_r2_test_surface_evidence(
         root,
-        result_commit=result_commit,
+        result_commit=subject_commit,
     )
     (
         basetemp,
@@ -9728,32 +10291,36 @@ def capture_post_r2_suite_evidence(
         completed_at,
     ) = _execute_post_r2_pytest(root, test_surface=test_surface)
     if evidence_root == basetemp or evidence_root.is_relative_to(basetemp):
-        raise GovernanceError("post-R2 evidence must be outside pytest's basetemp")
+        raise GovernanceError("post-v2 control evidence must be outside pytest's basetemp")
     if (
         _post_r2_test_surface_evidence(
             root,
-            result_commit=result_commit,
+            result_commit=subject_commit,
         )
         != test_surface
     ):
-        raise GovernanceError("post-R2 repository test surface changed during suite execution")
+        raise GovernanceError(
+            "post-v2 control repository test surface changed during suite execution"
+        )
     if _post_r2_test_runtime_evidence(root) != test_runtime:
-        raise GovernanceError("post-R2 pytest runtime changed during suite execution")
-    if _post_r2_governance_source_evidence(root, roadmap_path) != governance_sources:
-        raise GovernanceError("post-R2 governance sources changed during suite execution")
-    _corrective_result_artifact_inventory(
-        root,
-        result_commit=result_commit,
-        corrective_authorization=corrective_authorization,
-    )
-    post_state = _post_r2_repository_state(root)
+        raise GovernanceError("post-v2 control pytest runtime changed during suite execution")
+    if _post_v2_control_source_evidence(root, roadmap_path) != governance_sources:
+        raise GovernanceError("post-v2 control sources changed during suite execution")
+    if _post_v2_control_topology(root, subject_commit=subject_commit) != topology:
+        raise GovernanceError("post-v2 control topology changed during suite execution")
+    post_state = _post_v2_control_repository_state(root)
+    if post_state != {
+        **post_state,
+        "head_commit": subject_commit,
+        "clean": True,
+    }:
+        raise GovernanceError("post-v2 control suite did not end at its clean exact subject")
     totals = _parse_post_r2_pytest_execution_totals(completed)
     projection: dict[str, Any] = {
-        "format": "agent-assure-s1-post-r2-suite-evidence/3",
-        "acceptance_generation": 2,
-        "subject_result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
-        "subject_result_commit": result_commit,
-        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        "format": "agent-assure-s1-post-r2-suite-evidence/4",
+        "acceptance_generation": None,
+        "corrective_authorization_claim_digest": None,
+        "control_basis": topology,
         "governance_sources": governance_sources,
         "repository_test_surface": test_surface,
         "command": {
@@ -9791,23 +10358,34 @@ def capture_post_r2_suite_evidence(
     }
     record = {
         **projection,
-        "evidence_digest": domain_digest(POST_R2_SUITE_EVIDENCE_DOMAIN, projection),
+        "evidence_digest": domain_digest(POST_R2_SUITE_EVIDENCE_V4_DOMAIN, projection),
     }
+    validated_record = _validate_embedded_post_v2_control_suite_evidence(
+        record,
+        expected_subject_commit=subject_commit,
+        expected_subject_parent_commit=_required_string(topology, "subject_parent_commit"),
+        require_passed=False,
+    )
     try:
         _publish_post_r2_suite_evidence_directory(
             evidence_root,
-            record=record,
+            record=validated_record,
             stdout=completed.stdout,
             stderr=completed.stderr,
+            record_file_name="post-v2-control-suite-evidence.json",
         )
     except FileExistsError:
-        return validate_post_r2_suite_evidence_source(
-            evidence_root / "post-r2-suite-evidence.json",
-            expected_result_commit=result_commit,
-            expected_repository_root=root,
-            require_passed=False,
+        return _PostR2SuiteCaptureRecord(
+            validate_post_v2_control_suite_evidence_source(
+                evidence_root / "post-v2-control-suite-evidence.json",
+                expected_subject_commit=subject_commit,
+                expected_subject_parent_commit=topology["subject_parent_commit"],
+                expected_repository_root=root,
+                require_passed=False,
+            ),
+            reused=True,
         )
-    return record
+    return _PostR2SuiteCaptureRecord(validated_record, reused=False)
 
 
 def _validate_post_r2_test_surface_record(
@@ -9816,7 +10394,15 @@ def _validate_post_r2_test_surface_record(
     expected_result_commit: str,
 ) -> dict[str, Any]:
     surface = _as_object(value, owner="post-R2 repository test surface")
-    if set(surface) != {
+    surface_format = surface.get("format")
+    if surface_format not in {
+        "agent-assure-s1-post-r2-test-surface/1",
+        "agent-assure-s1-post-r2-test-surface/2",
+    }:
+        raise GovernanceError("post-R2 repository test-surface format changed")
+    legacy_v3_policy = surface_format == "agent-assure-s1-post-r2-test-surface/1"
+    root_test_config_paths = _post_r2_root_test_config_paths(legacy_v3_policy=legacy_v3_policy)
+    expected_fields = {
         "format",
         "subject_result_commit",
         "directory_roots",
@@ -9827,14 +10413,16 @@ def _validate_post_r2_test_surface_record(
         "file_count",
         "size_bytes",
         "sha256",
-    }:
+    }
+    if not legacy_v3_policy:
+        expected_fields.update({"local_attributes", "root_import_policy"})
+    if set(surface) != expected_fields:
         raise GovernanceError("post-R2 repository test-surface evidence is malformed")
     if (
-        surface.get("format") != "agent-assure-s1-post-r2-test-surface/1"
-        or surface.get("subject_result_commit") != expected_result_commit
+        surface.get("subject_result_commit") != expected_result_commit
         or surface.get("directory_roots") != list(POST_R2_TEST_AFFECTING_DIRECTORIES)
         or surface.get("tracked_root_files") != list(POST_R2_TRACKED_ROOT_FILES)
-        or surface.get("root_config_paths") != list(POST_R2_ROOT_TEST_CONFIG_PATHS)
+        or surface.get("root_config_paths") != list(root_test_config_paths)
         or surface.get("cache_policy")
         != {
             "excluded_directory_name": "__pycache__",
@@ -9846,14 +10434,50 @@ def _validate_post_r2_test_surface_record(
         or SHA256_PATTERN.fullmatch(_required_string(surface, "sha256")) is None
     ):
         raise GovernanceError("post-R2 repository test-surface evidence changed")
+    if not legacy_v3_policy:
+        root_import_policy = _as_object(
+            surface.get("root_import_policy"),
+            owner="post-R2 repository root import policy",
+        )
+        if (
+            set(root_import_policy)
+            != {
+                "repository_root_on_initial_python_path",
+                "forbidden_file_suffixes",
+                "allowed_local_root_entries",
+                "unexpected_top_level_entries",
+                "top_level_reparse_points",
+            }
+            or root_import_policy.get("repository_root_on_initial_python_path") is not False
+            or root_import_policy.get("forbidden_file_suffixes")
+            != list(POST_R2_ROOT_IMPORTABLE_FILE_SUFFIXES)
+            or root_import_policy.get("allowed_local_root_entries")
+            != list(POST_V2_CONTROL_ALLOWED_LOCAL_ROOT_ENTRIES)
+            or root_import_policy.get("unexpected_top_level_entries") != "rejected"
+            or root_import_policy.get("top_level_reparse_points") != "rejected"
+        ):
+            raise GovernanceError("post-R2 repository root import policy changed")
+    if not legacy_v3_policy and surface.get("local_attributes") != {
+        "path": ".git/info/attributes",
+        "status": "absent",
+    }:
+        raise GovernanceError("post-v2 local-attributes absence evidence changed")
     local_exclude = _as_object(
         surface.get("local_exclude"),
         owner="post-R2 local-exclude evidence",
     )
+    expected_exclude_size = (
+        POST_R2_GIT_EXCLUDE_SIZE_BYTES
+        if legacy_v3_policy
+        else POST_V2_CONTROL_GIT_EXCLUDE_SIZE_BYTES
+    )
+    expected_exclude_sha256 = (
+        POST_R2_GIT_EXCLUDE_SHA256 if legacy_v3_policy else POST_V2_CONTROL_GIT_EXCLUDE_SHA256
+    )
     if local_exclude != {
         "path": ".git/info/exclude",
-        "size_bytes": POST_R2_GIT_EXCLUDE_SIZE_BYTES,
-        "sha256": "sha256:" + POST_R2_GIT_EXCLUDE_SHA256,
+        "size_bytes": expected_exclude_size,
+        "sha256": "sha256:" + expected_exclude_sha256,
     }:
         raise GovernanceError("post-R2 local-exclude evidence changed")
     return surface
@@ -9863,13 +10487,19 @@ def _validate_embedded_post_r2_suite_evidence(
     evidence: Mapping[str, Any],
     *,
     expected_result_commit: str,
+    expected_subject_parent_commit: str | None = None,
     require_passed: bool,
 ) -> dict[str, Any]:
+    evidence_format = evidence.get("format")
+    if evidence_format not in {
+        "agent-assure-s1-post-r2-suite-evidence/3",
+        "agent-assure-s1-post-r2-suite-evidence/4",
+    }:
+        raise GovernanceError("post-R2 suite evidence changed format")
+    legacy_v3_policy = evidence_format == "agent-assure-s1-post-r2-suite-evidence/3"
     expected_keys = {
         "format",
         "acceptance_generation",
-        "subject_result_parent_commit",
-        "subject_result_commit",
         "corrective_authorization_claim_digest",
         "governance_sources",
         "repository_test_surface",
@@ -9880,18 +10510,44 @@ def _validate_embedded_post_r2_suite_evidence(
         "execution",
         "evidence_digest",
     }
+    if legacy_v3_policy:
+        expected_keys.update({"subject_result_parent_commit", "subject_result_commit"})
+    else:
+        expected_keys.add("control_basis")
     if set(evidence) != expected_keys:
         raise GovernanceError("post-R2 suite evidence has missing or unexpected fields")
-    exact = {
-        "format": "agent-assure-s1-post-r2-suite-evidence/3",
-        "acceptance_generation": 2,
-        "subject_result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
-        "subject_result_commit": expected_result_commit,
-        "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
-    }
-    for key, expected in exact.items():
-        if evidence.get(key) != expected:
-            raise GovernanceError(f"post-R2 suite evidence changed {key}")
+    if legacy_v3_policy:
+        exact = {
+            "format": evidence_format,
+            "acceptance_generation": 2,
+            "subject_result_parent_commit": S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            "subject_result_commit": expected_result_commit,
+            "corrective_authorization_claim_digest": CORRECTIVE_KICKOFF_CLAIM_DIGEST,
+        }
+        for key, expected in exact.items():
+            if evidence.get(key) != expected:
+                raise GovernanceError(f"post-R2 suite evidence changed {key}")
+    else:
+        if (
+            expected_subject_parent_commit is None
+            or GIT_COMMIT_PATTERN.fullmatch(expected_subject_parent_commit) is None
+        ):
+            raise GovernanceError("post-v2 control validation requires the exact subject parent")
+        expected_basis = {
+            "scope": "post_v2_control_verification_only",
+            "authorization_effect": "none",
+            "history_policy": POST_V2_CONTROL_HISTORY_POLICY,
+            "immutable_acceptance_v2_closure_commit": S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+            "relationship": "proper_non_merge_descendant",
+            "subject_commit": expected_result_commit,
+            "subject_parent_commit": expected_subject_parent_commit,
+        }
+        if (
+            evidence.get("acceptance_generation") is not None
+            or evidence.get("corrective_authorization_claim_digest") is not None
+            or evidence.get("control_basis") != expected_basis
+        ):
+            raise GovernanceError("post-v2 control basis or non-acceptance semantics changed")
     governance_sources = _as_array(
         evidence.get("governance_sources"), owner="post-R2 governance sources"
     )
@@ -9909,19 +10565,28 @@ def _validate_embedded_post_r2_suite_evidence(
             or SHA256_PATTERN.fullmatch(_required_string(source, "sha256")) is None
         ):
             raise GovernanceError("post-R2 governance source evidence is invalid")
-    required_governance_sources = {
-        "docs/governance/v1/corrective-kickoff-authorization.json",
-        "docs/governance/v1/corrective-kickoff-authorization.schema.json",
-    }
-    roadmap_sources = source_paths - required_governance_sources
-    if not required_governance_sources <= source_paths or roadmap_sources != {
-        "Agent_Assure_Implementation_Roadmap.md"
-    }:
+    required_governance_sources = (
+        {
+            "Agent_Assure_Implementation_Roadmap.md",
+            "docs/governance/v1/corrective-kickoff-authorization.json",
+            "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+        }
+        if legacy_v3_policy
+        else {"Agent_Assure_Implementation_Roadmap.md"}
+    )
+    if source_paths != required_governance_sources:
         raise GovernanceError("post-R2 governance source set is not exact")
     test_surface = _validate_post_r2_test_surface_record(
         evidence.get("repository_test_surface"),
         expected_result_commit=expected_result_commit,
     )
+    expected_surface_format = (
+        "agent-assure-s1-post-r2-test-surface/1"
+        if legacy_v3_policy
+        else "agent-assure-s1-post-r2-test-surface/2"
+    )
+    if test_surface.get("format") != expected_surface_format:
+        raise GovernanceError("post-R2 suite and test-surface policy versions differ")
     command = _as_object(evidence.get("command"), owner="post-R2 suite command")
     if set(command) != {
         "argv",
@@ -9978,6 +10643,7 @@ def _validate_embedded_post_r2_suite_evidence(
         normalized_root,
         normalized_basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     if environment != expected_environment:
         raise GovernanceError("post-R2 suite exact environment changed")
@@ -9985,6 +10651,7 @@ def _validate_embedded_post_r2_suite_evidence(
         normalized_root,
         basetemp=normalized_basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     if command.get("bootstrap_input") != expected_bootstrap_input:
         raise GovernanceError("post-R2 suite bootstrap stdin identity changed")
@@ -9996,12 +10663,16 @@ def _validate_embedded_post_r2_suite_evidence(
     )
     if argv != expected_argv:
         raise GovernanceError("post-R2 suite pytest argv changed")
-    if command.get("bytecode_policy") != _post_r2_bytecode_policy(normalized_basetemp):
+    if command.get("bytecode_policy") != _post_r2_bytecode_policy(
+        normalized_basetemp,
+        legacy_v3_policy=legacy_v3_policy,
+    ):
         raise GovernanceError("post-R2 suite bytecode policy changed")
     expected_descendant_runtime = _post_r2_descendant_runtime_record(
         normalized_root,
         basetemp=normalized_basetemp,
         process_temp=process_temp,
+        legacy_v3_policy=legacy_v3_policy,
     )
     if command.get("descendant_runtime") != expected_descendant_runtime:
         raise GovernanceError("post-R2 descendant runtime evidence changed")
@@ -10047,8 +10718,7 @@ def _validate_embedded_post_r2_suite_evidence(
         not isinstance(pyvenv.get("absolute_path"), str)
         or not Path(cast(str, pyvenv["absolute_path"])).is_absolute()
         or pyvenv.get("relative_path") != ".venv/pyvenv.cfg"
-        or not isinstance(pyvenv.get("size_bytes"), int)
-        or cast(int, pyvenv["size_bytes"]) <= 0
+        or _required_integer(pyvenv, "size_bytes") <= 0
         or not isinstance(pyvenv.get("sha256"), str)
         or SHA256_PATTERN.fullmatch(cast(str, pyvenv["sha256"])) is None
     ):
@@ -10112,7 +10782,10 @@ def _validate_embedded_post_r2_suite_evidence(
     }:
         raise GovernanceError("post-R2 time evidence has unexpected fields")
     for key, expected in ATTESTATION_V2_TIME_EVIDENCE.items():
-        if time_evidence.get(key) != expected:
+        observed = time_evidence.get(key)
+        if (isinstance(expected, bool) and observed is not expected) or (
+            not isinstance(expected, bool) and observed != expected
+        ):
             raise GovernanceError(f"post-R2 time semantics changed {key}")
     started = _parse_utc(
         _required_string(time_evidence, "started_at_utc"), owner="post-R2 suite start"
@@ -10126,19 +10799,28 @@ def _validate_embedded_post_r2_suite_evidence(
     empty_digest = raw_digest(b"")
     for state_name in ("repository_precondition", "repository_postcondition"):
         state = _as_object(evidence.get(state_name), owner=f"post-R2 {state_name}")
-        if state != {
-            "head_commit": expected_result_commit,
-            "clean": True,
-            "status_command": [
-                "git",
-                "status",
-                "--porcelain=v1",
-                "--untracked-files=all",
-            ],
-            "status_stdout_size_bytes": 0,
-            "status_stdout_sha256": empty_digest,
-        }:
-            raise GovernanceError(f"post-R2 {state_name} is not clean R2")
+        if (
+            set(state)
+            != {
+                "head_commit",
+                "clean",
+                "status_command",
+                "status_stdout_size_bytes",
+                "status_stdout_sha256",
+            }
+            or state.get("head_commit") != expected_result_commit
+            or state.get("clean") is not True
+            or state.get("status_command")
+            != ["git", "status", "--porcelain=v1", "--untracked-files=all"]
+            or _required_integer(state, "status_stdout_size_bytes") != 0
+            or state.get("status_stdout_sha256") != empty_digest
+        ):
+            if legacy_v3_policy:
+                raise GovernanceError(f"post-R2 {state_name} is not clean R2")
+            raise GovernanceError(
+                f"post-v2 control {state_name} is not clean at subject commit "
+                f"{expected_result_commit}"
+            )
     execution = _as_object(evidence.get("execution"), owner="post-R2 suite execution")
     if set(execution) != {"exit_code", "outcome", "pytest_totals", "stdout", "stderr"}:
         raise GovernanceError("post-R2 suite execution has unexpected fields")
@@ -10147,14 +10829,13 @@ def _validate_embedded_post_r2_suite_evidence(
         raise GovernanceError("post-R2 suite outcome does not match its exit code")
     totals = _as_object(execution.get("pytest_totals"), owner="post-R2 pytest totals")
     total_keys = {"collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"}
-    if set(totals) != total_keys or any(
-        not isinstance(totals.get(key), int) or cast(int, totals[key]) < 0 for key in total_keys
-    ):
+    if set(totals) != total_keys:
         raise GovernanceError("post-R2 pytest totals are invalid")
+    total_values = {key: _required_integer(totals, key) for key in total_keys}
     executed_count = sum(
-        cast(int, totals[name]) for name in ("passed", "failed", "skipped", "xfailed", "xpassed")
+        total_values[name] for name in ("passed", "failed", "skipped", "xfailed", "xpassed")
     )
-    if totals.get("collected") != executed_count:
+    if total_values["collected"] != executed_count:
         raise GovernanceError("post-R2 collected count does not equal terminal outcome totals")
     for stream_name in ("stdout", "stderr"):
         stream = _as_object(execution.get(stream_name), owner=f"post-R2 {stream_name}")
@@ -10162,41 +10843,65 @@ def _validate_embedded_post_r2_suite_evidence(
             raise GovernanceError(f"post-R2 {stream_name} evidence has unexpected fields")
         if stream.get("file_name") != f"pytest.{stream_name}.bin":
             raise GovernanceError(f"post-R2 {stream_name} file name changed")
+        _required_integer(stream, "size_bytes")
         if (
-            not isinstance(stream.get("size_bytes"), int)
-            or cast(int, stream["size_bytes"]) < 0
-            or not isinstance(stream.get("sha256"), str)
+            not isinstance(stream.get("sha256"), str)
             or SHA256_PATTERN.fullmatch(cast(str, stream["sha256"])) is None
         ):
             raise GovernanceError(f"post-R2 {stream_name} artifact evidence is invalid")
     if require_passed and (
         exit_code != 0
         or execution.get("outcome") != "passed"
-        or totals.get("failed") != 0
-        or totals.get("errors") != 0
-        or cast(int, totals.get("passed", 0)) <= 0
+        or total_values["failed"] != 0
+        or total_values["errors"] != 0
+        or total_values["passed"] <= 0
     ):
         raise GovernanceError("post-R2 full suite did not pass")
     projection = {key: value for key, value in evidence.items() if key != "evidence_digest"}
-    digest = domain_digest(POST_R2_SUITE_EVIDENCE_DOMAIN, projection)
+    digest = domain_digest(
+        POST_R2_SUITE_EVIDENCE_DOMAIN if legacy_v3_policy else POST_R2_SUITE_EVIDENCE_V4_DOMAIN,
+        projection,
+    )
     if evidence.get("evidence_digest") != digest:
         raise GovernanceError("post-R2 suite evidence digest mismatch")
     return copy.deepcopy(dict(evidence))
 
 
-def validate_post_r2_suite_evidence_source(
+def _validate_embedded_post_v2_control_suite_evidence(
+    evidence: Mapping[str, Any],
+    *,
+    expected_subject_commit: str,
+    expected_subject_parent_commit: str,
+    require_passed: bool,
+) -> dict[str, Any]:
+    """Validate a v4 control fixture without consulting another checkout."""
+
+    if evidence.get("format") != "agent-assure-s1-post-r2-suite-evidence/4":
+        raise GovernanceError("post-v2 control evidence must use suite evidence format v4")
+    return _validate_embedded_post_r2_suite_evidence(
+        evidence,
+        expected_result_commit=expected_subject_commit,
+        expected_subject_parent_commit=expected_subject_parent_commit,
+        require_passed=require_passed,
+    )
+
+
+def _validate_suite_evidence_source(
     evidence_path: Path,
     *,
     expected_result_commit: str,
+    expected_subject_parent_commit: str | None,
     expected_repository_root: Path | None = None,
     require_passed: bool = True,
+    expected_format: str,
+    record_file_name: str,
 ) -> dict[str, Any]:
     evidence_directory = evidence_path.parent
     if not evidence_directory.is_dir() or evidence_directory.is_symlink():
         raise GovernanceError("post-R2 evidence source is not a regular directory")
     observed_names = {entry.name for entry in evidence_directory.iterdir()}
     if observed_names != {
-        "post-r2-suite-evidence.json",
+        record_file_name,
         "pytest.stdout.bin",
         "pytest.stderr.bin",
     }:
@@ -10206,11 +10911,17 @@ def validate_post_r2_suite_evidence_source(
         if not source.is_file() or source.is_symlink():
             raise GovernanceError("post-R2 evidence source contains a non-regular file")
     record = _read_json(evidence_path)
+    if record.get("format") != expected_format:
+        raise GovernanceError("suite evidence source has the wrong policy version")
     validated = _validate_embedded_post_r2_suite_evidence(
         record,
         expected_result_commit=expected_result_commit,
+        expected_subject_parent_commit=expected_subject_parent_commit,
         require_passed=require_passed,
     )
+    legacy_v3_policy = expected_format == "agent-assure-s1-post-r2-suite-evidence/3"
+    if not legacy_v3_policy and expected_repository_root is None:
+        raise GovernanceError("post-v2 control source validation requires its active checkout")
     command = _as_object(validated["command"], owner="post-R2 command")
     if expected_repository_root is not None:
         observed_root = os.path.normcase(
@@ -10233,6 +10944,18 @@ def validate_post_r2_suite_evidence_source(
         if expected_repository_root is not None
         else Path(_required_string(command, "working_directory")).resolve()
     )
+    if not legacy_v3_policy:
+        topology = _post_v2_control_topology(
+            runtime_root,
+            subject_commit=expected_result_commit,
+        )
+        if topology != validated.get("control_basis"):
+            raise GovernanceError("post-v2 control source topology changed")
+        state = _post_v2_control_repository_state(runtime_root)
+        if state.get("head_commit") != expected_result_commit or state.get("clean") is not True:
+            raise GovernanceError(
+                "post-v2 control source requires its clean exact subject checkout"
+            )
     embedded_sources = [
         copy.deepcopy(dict(_as_object(value, owner="post-R2 governance source")))
         for value in _as_array(
@@ -10240,20 +10963,27 @@ def validate_post_r2_suite_evidence_source(
         )
     ]
     embedded_paths = {_required_string(source, "path") for source in embedded_sources}
-    fixed_sources = {
-        "docs/governance/v1/corrective-kickoff-authorization.json",
-        "docs/governance/v1/corrective-kickoff-authorization.schema.json",
-    }
+    fixed_sources = (
+        {
+            "docs/governance/v1/corrective-kickoff-authorization.json",
+            "docs/governance/v1/corrective-kickoff-authorization.schema.json",
+        }
+        if legacy_v3_policy
+        else set()
+    )
     roadmap_relative = next(iter(embedded_paths - fixed_sources))
     roadmap_path = runtime_root / roadmap_relative
-    if embedded_sources != _post_r2_governance_source_evidence(
-        runtime_root,
-        roadmap_path,
-    ):
+    expected_sources = (
+        _post_r2_governance_source_evidence(runtime_root, roadmap_path)
+        if legacy_v3_policy
+        else _post_v2_control_source_evidence(runtime_root, roadmap_path)
+    )
+    if embedded_sources != expected_sources:
         raise GovernanceError("post-R2 governance source bytes changed")
     if validated.get("repository_test_surface") != _post_r2_test_surface_evidence(
         runtime_root,
         result_commit=expected_result_commit,
+        legacy_v3_policy=legacy_v3_policy,
     ):
         raise GovernanceError("post-R2 repository test-surface bytes changed")
     test_runtime = _as_object(command.get("test_runtime"), owner="post-R2 test runtime")
@@ -10268,7 +10998,9 @@ def validate_post_r2_suite_evidence_source(
         if not stream_path.is_file() or stream_path.is_symlink():
             raise GovernanceError(f"post-R2 {stream_name} source is not a regular file")
         payload = stream_path.read_bytes()
-        if len(payload) != stream.get("size_bytes") or raw_digest(payload) != stream.get("sha256"):
+        if len(payload) != _required_integer(stream, "size_bytes") or raw_digest(
+            payload
+        ) != stream.get("sha256"):
             raise GovernanceError(f"post-R2 {stream_name} source bytes changed")
     execution = _as_object(validated["execution"], owner="post-R2 execution")
     stdout_record = _as_object(execution["stdout"], owner="post-R2 stdout")
@@ -10278,6 +11010,56 @@ def validate_post_r2_suite_evidence_source(
     if execution.get("pytest_totals") != _parse_post_r2_pytest_totals(stdout, stderr):
         raise GovernanceError("post-R2 pytest totals do not match captured output bytes")
     return validated
+
+
+def validate_post_r2_suite_evidence_source(
+    evidence_path: Path,
+    *,
+    expected_result_commit: str,
+    expected_repository_root: Path | None = None,
+    require_passed: bool = True,
+) -> dict[str, Any]:
+    """Validate historical v3 evidence without admitting v4 control records."""
+
+    if evidence_path.name != "post-r2-suite-evidence.json":
+        raise GovernanceError("suite evidence source has the wrong policy version")
+    return _validate_suite_evidence_source(
+        evidence_path,
+        expected_result_commit=expected_result_commit,
+        expected_subject_parent_commit=None,
+        expected_repository_root=expected_repository_root,
+        require_passed=require_passed,
+        expected_format="agent-assure-s1-post-r2-suite-evidence/3",
+        record_file_name="post-r2-suite-evidence.json",
+    )
+
+
+def validate_post_v2_control_suite_evidence_source(
+    evidence_path: Path,
+    *,
+    expected_subject_commit: str,
+    expected_subject_parent_commit: str,
+    expected_repository_root: Path,
+    require_passed: bool = True,
+) -> dict[str, Any]:
+    """Validate v4 only against the active clean post-C2 checkout."""
+
+    _post_v2_control_git_metadata_preflight(expected_repository_root.resolve())
+    governed_path = _post_v2_control_private_path(
+        expected_repository_root,
+        evidence_path,
+        owner="post-v2 control suite evidence source",
+        must_exist=True,
+    )
+    return _validate_suite_evidence_source(
+        governed_path,
+        expected_result_commit=expected_subject_commit,
+        expected_subject_parent_commit=expected_subject_parent_commit,
+        expected_repository_root=expected_repository_root,
+        require_passed=require_passed,
+        expected_format="agent-assure-s1-post-r2-suite-evidence/4",
+        record_file_name="post-v2-control-suite-evidence.json",
+    )
 
 
 def _completion_review_paths_v2(ticket_id: str) -> list[tuple[str, str]]:
@@ -10632,6 +11414,10 @@ def _ticket_completion_receipt_v2_projection(
             expected_result_commit=result_commit,
             require_passed=True,
         )
+        if suite_evidence.get("format") != "agent-assure-s1-post-r2-suite-evidence/3":
+            raise GovernanceError(
+                "hardened post-R2 suite evidence requires a successor acceptance schema"
+            )
     reviewed_artifact_set_digest = domain_digest(
         CORRECTIVE_REVIEWED_ARTIFACT_SET_DOMAIN, {"artifacts": reviewed_set}
     )
@@ -11409,9 +12195,15 @@ def _resolve_repository_path_without_links(
     cursor = root
     for component in relative.parts:
         cursor /= component
-        is_junction = getattr(cursor, "is_junction", None)
-        if cursor.is_symlink() or (callable(is_junction) and bool(is_junction())):
-            raise GovernanceError(f"{owner} contains a symlink or junction: {cursor}")
+        try:
+            metadata = cursor.lstat()
+        except FileNotFoundError:
+            break
+        except OSError as exc:
+            raise GovernanceError(f"{owner} path metadata is unavailable: {cursor}") from exc
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        if stat.S_ISLNK(metadata.st_mode) or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+            raise GovernanceError(f"{owner} contains a reparse point: {cursor}")
     return absolute
 
 
@@ -11941,6 +12733,31 @@ def _corrective_private_acceptance_path(
     )
     relative = resolved.relative_to(root).as_posix()
     _require_corrective_local_only_path(relative, owner=owner)
+    return resolved
+
+
+def _post_v2_control_private_path(
+    repository_root: Path,
+    value: str | Path,
+    *,
+    owner: str,
+    must_exist: bool | None = None,
+) -> Path:
+    """Resolve a post-v2 control artifact outside corrective authority."""
+
+    root = repository_root.resolve()
+    resolved = _private_acceptance_path(
+        root,
+        value,
+        owner=owner,
+        must_exist=must_exist,
+    )
+    relative = resolved.relative_to(root).as_posix()
+    if not relative.startswith(POST_V2_CONTROL_LOCAL_ONLY_PATH_PREFIX):
+        raise GovernanceError(
+            f"{owner} must use the post-v2 control-only prefix: "
+            f"{POST_V2_CONTROL_LOCAL_ONLY_PATH_PREFIX}"
+        )
     return resolved
 
 
@@ -16829,7 +17646,7 @@ def _validate_corrective_closure_worktree(
 
 @_require_frozen_runtime
 def corrective_v2_suite_capture(args: argparse.Namespace) -> int:
-    """Run and preserve the exact clean-R2 full-suite evidence."""
+    """Reuse the exact historical clean-R2 v3 full-suite evidence."""
 
     repository_root = Path(cast(str, args.repository_root)).resolve()
     governance_root = _governance_root(repository_root, cast(str, args.governance_dir))
@@ -16857,9 +17674,9 @@ def corrective_v2_suite_capture(args: argparse.Namespace) -> int:
         corrective_authorization=cast(Mapping[str, Any], context["authorization"]),
         evidence_directory=evidence_directory,
     )
-    # Do not hold the acceptance lock while pytest runs: governance tests must
-    # be able to acquire it in child processes.  Reacquire it at the boundary
-    # and fail closed if a concurrent import began or changed clean R2.
+    # Do not hold the acceptance lock while the historical source set is read
+    # and validated.  Reacquire it at the boundary and fail closed if a
+    # concurrent import began or changed clean R2.
     with _acceptance_import_lock(repository_root):
         journal = _acceptance_transaction_journal(repository_root)
         if journal.exists() or journal.is_symlink():
@@ -16877,20 +17694,124 @@ def corrective_v2_suite_capture(args: argparse.Namespace) -> int:
         owner="post-R2 suite evidence",
         must_exist=True,
     )
+    reused = bool(getattr(record, "reused", False))
+    suite_passed = _post_r2_suite_record_passed(record)
+    capture_disposition = "reused" if reused else "captured"
+    pass_disposition = "passed" if suite_passed else "failed"
+    execution = _as_object(record.get("execution"), owner="post-R2 suite execution")
     print(
         json.dumps(
             {
                 "authorization_effect": "none",
+                "acceptance_eligible": (
+                    suite_passed
+                    and record.get("format") == "agent-assure-s1-post-r2-suite-evidence/3"
+                ),
+                "capture_disposition": capture_disposition,
                 "evidence_digest": record["evidence_digest"],
                 "evidence_path": str(evidence_path),
-                "pytest_totals": record["execution"]["pytest_totals"],
-                "result": "clean_r2_full_suite_evidence_captured",
+                "execution_outcome": execution["outcome"],
+                "pytest_exit_code": execution["exit_code"],
+                "pytest_totals": execution["pytest_totals"],
+                "result": (
+                    f"clean_r2_full_suite_evidence_{capture_disposition}_{pass_disposition}"
+                ),
                 "result_commit": result_commit,
+                "suite_passed": suite_passed,
             },
             sort_keys=True,
         )
     )
-    return 0
+    return 0 if suite_passed else 1
+
+
+@_require_frozen_runtime
+def post_v2_control_suite_capture(args: argparse.Namespace) -> int:
+    """Capture control-only suite evidence at a clean post-C2 commit."""
+
+    repository_root = Path(cast(str, args.repository_root)).resolve()
+    roadmap_path = Path(cast(str, args.roadmap)).resolve()
+    subject_commit = cast(str, args.subject_commit)
+    if GIT_COMMIT_PATTERN.fullmatch(subject_commit) is None:
+        raise GovernanceError("--subject-commit must be a full lowercase 40-hex commit ID")
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if journal.exists() or journal.is_symlink():
+            raise GovernanceError(
+                "post-v2 control capture cannot start with an incomplete acceptance import"
+            )
+        _post_v2_control_git_metadata_preflight(repository_root)
+        topology = _post_v2_control_topology(
+            repository_root,
+            subject_commit=subject_commit,
+        )
+        state = _post_v2_control_repository_state(repository_root)
+        if state.get("head_commit") != subject_commit or state.get("clean") is not True:
+            raise GovernanceError("post-v2 control capture requires its clean exact subject HEAD")
+    evidence_directory = cast(str, args.evidence_dir)
+    record = capture_post_v2_control_suite_evidence(
+        repository_root,
+        roadmap_path=roadmap_path,
+        subject_commit=subject_commit,
+        evidence_directory=evidence_directory,
+    )
+    # Pytest descendants exercise the acceptance lock, so hold it only at the
+    # two state boundaries and revalidate the exact topology after execution.
+    with _acceptance_import_lock(repository_root):
+        journal = _acceptance_transaction_journal(repository_root)
+        if journal.exists() or journal.is_symlink():
+            raise GovernanceError(
+                "post-v2 control capture ended with an incomplete acceptance import"
+            )
+        _post_v2_control_git_metadata_preflight(repository_root)
+        if (
+            _post_v2_control_topology(
+                repository_root,
+                subject_commit=subject_commit,
+            )
+            != topology
+        ):
+            raise GovernanceError("post-v2 control capture topology changed")
+        state = _post_v2_control_repository_state(repository_root)
+        if state.get("head_commit") != subject_commit or state.get("clean") is not True:
+            raise GovernanceError(
+                "post-v2 control capture ended outside its clean exact subject HEAD"
+            )
+    evidence_path = _post_v2_control_private_path(
+        repository_root,
+        Path(evidence_directory) / "post-v2-control-suite-evidence.json",
+        owner="post-v2 control suite evidence",
+        must_exist=True,
+    )
+    reused = bool(getattr(record, "reused", False))
+    suite_passed = _post_r2_suite_record_passed(record)
+    capture_disposition = "reused" if reused else "captured"
+    pass_disposition = "passed" if suite_passed else "failed"
+    execution = _as_object(record.get("execution"), owner="post-v2 control suite execution")
+    print(
+        json.dumps(
+            {
+                "acceptance_eligible": False,
+                "acceptance_generation": None,
+                "authorization_effect": "none",
+                "capture_disposition": capture_disposition,
+                "control_scope": topology["scope"],
+                "evidence_digest": record["evidence_digest"],
+                "evidence_path": str(evidence_path),
+                "execution_outcome": execution["outcome"],
+                "pytest_exit_code": execution["exit_code"],
+                "pytest_totals": execution["pytest_totals"],
+                "result": (
+                    f"post_v2_control_suite_evidence_{capture_disposition}_{pass_disposition}"
+                ),
+                "subject_commit": subject_commit,
+                "subject_parent_commit": topology["subject_parent_commit"],
+                "suite_passed": suite_passed,
+            },
+            sort_keys=True,
+        )
+    )
+    return 0 if suite_passed else 1
 
 
 @_require_frozen_runtime
@@ -18687,16 +19608,34 @@ def acceptance_preflight(args: argparse.Namespace) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    post_v2_control_suite = subparsers.add_parser(
+        "post-v2-control-suite-capture",
+        help="Capture control-only full-suite evidence at a clean non-merge post-C2 commit",
+    )
+    post_v2_control_suite.add_argument("--roadmap", required=True)
+    post_v2_control_suite.add_argument("--subject-commit", required=True)
+    post_v2_control_suite.add_argument(
+        "--evidence-dir",
+        required=True,
+        help=(
+            "Local-only .tmp/s1-acceptance/post-v2-control-* directory "
+            "(existing evidence is reused)"
+        ),
+    )
+    post_v2_control_suite.add_argument("--repository-root", default=".")
+    post_v2_control_suite.set_defaults(handler=post_v2_control_suite_capture)
+
     corrective_suite = subparsers.add_parser(
         "corrective-v2-suite-capture",
-        help="Run the exact full suite at clean R2 and preserve local raw evidence",
+        help="Reuse historical v3 full-suite evidence at clean exact R2",
     )
     corrective_suite.add_argument("--roadmap", required=True)
     corrective_suite.add_argument("--governance-dir", required=True)
     corrective_suite.add_argument("--result-commit", required=True)
     corrective_suite.add_argument(
         "--evidence-dir",
-        default=POST_R2_SUITE_EVIDENCE_DIRECTORY,
+        required=True,
+        help="Existing local-only historical v3 evidence directory (validated and reused)",
     )
     corrective_suite.add_argument("--repository-root", default=".")
     corrective_suite.set_defaults(handler=corrective_v2_suite_capture)

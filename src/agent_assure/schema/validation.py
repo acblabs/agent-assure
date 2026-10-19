@@ -422,6 +422,26 @@ def load_validated_artifact_model(
     archival and fail closed at this public assurance boundary.
     """
 
+    parsed, _ = load_validated_artifact_model_with_size(
+        path,
+        model,
+        kind=kind,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    return parsed
+
+
+def load_validated_artifact_model_with_size(
+    path: Path,
+    model: type[ArtifactModelT],
+    *,
+    kind: str,
+    max_bytes: int | None = None,
+    label: str | None = None,
+) -> tuple[ArtifactModelT, int]:
+    """Load one exact byte snapshot and return its sole projection and size."""
+
     from agent_assure.schema.export import model_for_kind
 
     expected_model = model_for_kind(kind)
@@ -450,7 +470,7 @@ def load_validated_artifact_model(
         raise ValueError(f"{kind} artifact failed JSON Schema validation") from exc
     if parsed is None:  # pragma: no cover - internal invariant
         raise AssertionError("validated artifact model projection was not produced")
-    return parsed
+    return parsed, contents.size
 
 
 def _load_validated_artifact_payload_snapshot(

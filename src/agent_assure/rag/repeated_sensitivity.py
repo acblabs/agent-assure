@@ -78,6 +78,7 @@ from agent_assure.schema.study import RealModelStudyManifest
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
     project_validated_artifact_payload,
+    validate_loaded_artifact_model,
     validate_loaded_artifact_payload,
 )
 from agent_assure.study_dispatch import (
@@ -1023,6 +1024,45 @@ def _assemble_paired_observations_for_verified_synthetic_study(
     )
 
 
+def _project_validated_paired_artifacts(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+    baseline: RunSet,
+    counterfactual: RunSet,
+) -> tuple[RepeatedEvidenceSensitivityProtocol, RunSet, RunSet]:
+    """Re-admit paired artifacts without duplicating large RunSet projections.
+
+    These public analysis boundaries accept already constructed models, but a
+    caller can still forge them with ``model_construct`` or an unchecked copy.
+    Dumping and re-admitting preserves the full persisted-artifact trust
+    boundary. The small protocol keeps its established model-first diagnostic
+    ordering. For each potentially maximum-size RunSet,
+    ``validate_loaded_artifact_model`` returns the Pydantic projection produced
+    by the schema-validation pass; projecting first and then calling a
+    payload-only validator would repeat every nested journal digest and
+    lifecycle check.
+    """
+
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    validated_protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    validated_baseline = validate_loaded_artifact_model(
+        baseline_payload,
+        RunSet,
+        kind="run-set",
+    )
+    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
+    validated_counterfactual = validate_loaded_artifact_model(
+        counterfactual_payload,
+        RunSet,
+        kind="run-set",
+    )
+    return validated_protocol, validated_baseline, validated_counterfactual
+
+
 def _assemble_paired_observations(
     protocol: RepeatedEvidenceSensitivityProtocol,
     baseline: RunSet,
@@ -1030,18 +1070,11 @@ def _assemble_paired_observations(
     *,
     allow_verified_synthetic_study: bool,
 ) -> tuple[PairedSensitivityObservation, ...]:
-    protocol_payload = protocol.model_dump(mode="json", warnings="error")
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
-    validate_loaded_artifact_payload(
-        protocol_payload,
-        "repeated-evidence-sensitivity-protocol",
+    protocol, baseline, counterfactual = _project_validated_paired_artifacts(
+        protocol,
+        baseline,
+        counterfactual,
     )
-    baseline_payload = baseline.model_dump(mode="json", warnings="error")
-    baseline = RunSet.model_validate(baseline_payload)
-    validate_loaded_artifact_payload(baseline_payload, "run-set")
-    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
-    counterfactual = RunSet.model_validate(counterfactual_payload)
-    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
     if allow_verified_synthetic_study:
         _validate_unjournaled_synthetic_study_inputs(protocol, baseline, counterfactual)
     else:
@@ -1329,18 +1362,11 @@ def build_paired_runset_dependencies(
     counterfactual: RunSet,
 ) -> tuple[RunSetArtifactDependency, RunSetArtifactDependency]:
     """Bind analysis to the exact persisted arm RunSets and design commitment."""
-    protocol_payload = protocol.model_dump(mode="json", warnings="error")
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
-    validate_loaded_artifact_payload(
-        protocol_payload,
-        "repeated-evidence-sensitivity-protocol",
+    protocol, baseline, counterfactual = _project_validated_paired_artifacts(
+        protocol,
+        baseline,
+        counterfactual,
     )
-    baseline_payload = baseline.model_dump(mode="json", warnings="error")
-    baseline = RunSet.model_validate(baseline_payload)
-    validate_loaded_artifact_payload(baseline_payload, "run-set")
-    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
-    counterfactual = RunSet.model_validate(counterfactual_payload)
-    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
     planned_cells = {
         (case_id, repetition_index)
         for case_id in protocol.planned_case_ids
@@ -1551,18 +1577,11 @@ def validate_paired_attempt_journal(
     baseline: RunSet,
     counterfactual: RunSet,
 ) -> None:
-    protocol_payload = protocol.model_dump(mode="json", warnings="error")
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
-    validate_loaded_artifact_payload(
-        protocol_payload,
-        "repeated-evidence-sensitivity-protocol",
+    protocol, baseline, counterfactual = _project_validated_paired_artifacts(
+        protocol,
+        baseline,
+        counterfactual,
     )
-    baseline_payload = baseline.model_dump(mode="json", warnings="error")
-    baseline = RunSet.model_validate(baseline_payload)
-    validate_loaded_artifact_payload(baseline_payload, "run-set")
-    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
-    counterfactual = RunSet.model_validate(counterfactual_payload)
-    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
     _validate_admitted_paired_attempt_journal(protocol, baseline, counterfactual)
 
 
