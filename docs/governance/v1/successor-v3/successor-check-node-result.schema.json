@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-check-node-result.schema.json",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "digest_domain",
+        "node_id",
+        "predicate",
+        "status",
+        "subject",
+        "verified_receipts",
+        "derived_state",
+        "decisions",
+        "time_evidence",
+        "result_digest"
+      ],
+      "properties": {
+        "format": {
+          "const": "agent-assure-s1-successor-check-node-result/1"
+        },
+        "digest_domain": {
+          "const": "agent-assure:s1-successor-check-node-result/v1"
+        },
+        "node_id": {
+          "const": "g3.result.r3_evidence_graph"
+        },
+        "predicate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version"
+          ],
+          "properties": {
+            "id": {
+              "const": "preclosure-aggregate"
+            },
+            "version": {
+              "const": 1
+            }
+          }
+        },
+        "status": {
+          "const": "passed"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "object_kind",
+            "oid",
+            "tree",
+            "parent"
+          ],
+          "properties": {
+            "role": {
+              "const": "R3"
+            },
+            "object_kind": {
+              "const": "commit"
+            },
+            "oid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "tree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "parent": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          }
+        },
+        "verified_receipts": {
+          "type": "array",
+          "minItems": 11,
+          "maxItems": 11,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "node_id",
+              "receipt_digest"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "pattern": "^g3\\."
+              },
+              "receipt_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "derived_state": {
+          "const": "ready_to_assemble_preclosure_evidence"
+        },
+        "decisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "s1_current_basis",
+            "s2_authorized",
+            "release_authorized",
+            "method_admission_authorized"
+          ],
+          "properties": {
+            "s1_current_basis": {
+              "const": false
+            },
+            "s2_authorized": {
+              "const": false
+            },
+            "release_authorized": {
+              "const": false
+            },
+            "method_admission_authorized": {
+              "const": false
+            }
+          }
+        },
+        "time_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "started_at_utc",
+            "completed_at_utc",
+            "clock_basis",
+            "externally_attested"
+          ],
+          "properties": {
+            "started_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "completed_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "clock_basis": {
+              "const": "maintainer_host_utc_externally_unattested"
+            },
+            "externally_attested": {
+              "const": false
+            }
+          }
+        },
+        "result_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "format",
+        "digest_domain",
+        "node_id",
+        "predicate",
+        "status",
+        "subject",
+        "verified_receipts",
+        "derived_state",
+        "decisions",
+        "time_evidence",
+        "result_digest"
+      ],
+      "properties": {
+        "format": {
+          "const": "agent-assure-s1-successor-check-node-result/1"
+        },
+        "digest_domain": {
+          "const": "agent-assure:s1-successor-check-node-result/v1"
+        },
+        "node_id": {
+          "const": "g3.decision.current_s1_basis"
+        },
+        "predicate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version"
+          ],
+          "properties": {
+            "id": {
+              "const": "current-basis"
+            },
+            "version": {
+              "const": 1
+            }
+          }
+        },
+        "status": {
+          "const": "passed"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "object_kind",
+            "c3_commit",
+            "a3_object"
+          ],
+          "properties": {
+            "role": {
+              "const": "CEREMONY"
+            },
+            "object_kind": {
+              "const": "ceremony"
+            },
+            "c3_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "a3_object": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          }
+        },
+        "verified_receipts": {
+          "type": "array",
+          "minItems": 15,
+          "maxItems": 15,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "node_id",
+              "receipt_digest"
+            ],
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "pattern": "^g3\\."
+              },
+              "receipt_digest": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "derived_state": {
+          "const": "exact_C3_is_current_S1_maintainer_development_basis"
+        },
+        "decisions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "s1_current_basis",
+            "s2_authorized",
+            "release_authorized",
+            "method_admission_authorized"
+          ],
+          "properties": {
+            "s1_current_basis": {
+              "const": true
+            },
+            "s2_authorized": {
+              "const": false
+            },
+            "release_authorized": {
+              "const": false
+            },
+            "method_admission_authorized": {
+              "const": false
+            }
+          }
+        },
+        "time_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "started_at_utc",
+            "completed_at_utc",
+            "clock_basis",
+            "externally_attested"
+          ],
+          "properties": {
+            "started_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "completed_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "clock_basis": {
+              "const": "maintainer_host_utc_externally_unattested"
+            },
+            "externally_attested": {
+              "const": false
+            }
+          }
+        },
+        "result_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/package-manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "package_id",
+    "scope",
+    "files",
+    "manifest_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-design-package-manifest/2"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-design-package-manifest/v2"
+    },
+    "package_id": {
+      "const": "a974a9e0-c780-4288-9238-21144a4a5b8d"
+    },
+    "scope": {
+      "const": "immutable_unsigned_core_payload_excluding_manifest_validation_report_and_lifecycle_outputs"
+    },
+    "files": {
+      "type": "array",
+      "minItems": 20,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "manifest_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,1360 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-acceptance-tag-claim.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "claim_nonce",
+    "authority",
+    "c3",
+    "closure",
+    "c3_preflight_receipt",
+    "tag",
+    "conditional_decision",
+    "limitations",
+    "validity"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-acceptance-tag-claim/3"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-acceptance-tag-claim/v3"
+    },
+    "claim_nonce": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "authority": {
+      "const": {
+        "mode": "maintainer_development",
+        "accountable_human": "acblabs",
+        "authorized_roles": [
+          "repository_maintainer",
+          "technical_lead"
+        ],
+        "signing_key": {
+          "record_path": "docs/governance/v1/maintainer-signing-key.json",
+          "record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a",
+          "algorithm": "ssh-ed25519",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "signature_profile": "openssh-sshsig-ed25519/v1",
+          "namespace": "agent-assure-governance-v1"
+        },
+        "approval_roster": {
+          "path": "docs/governance/v1/approval-roster.json",
+          "bytes": 10036,
+          "raw_sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+        },
+        "review_status": "NO_INDEPENDENT_REVIEW"
+      }
+    },
+    "c3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commit",
+        "tree",
+        "parent",
+        "commit_message",
+        "delta_digest_domain",
+        "delta_digest"
+      ],
+      "properties": {
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "commit_message": {
+          "const": "Close Generation-3 governed S1 successor"
+        },
+        "delta_digest_domain": {
+          "const": "agent-assure:s1-successor-git-delta/v1"
+        },
+        "delta_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "closure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "successor-closure-authorization.json"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "c3_preflight_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "phase",
+        "predicate",
+        "status",
+        "subject",
+        "predecessor_receipt_digests",
+        "placeholder_bindings",
+        "producer",
+        "assertions",
+        "outputs",
+        "time_evidence",
+        "receipt_digest_domain",
+        "receipt_digest"
+      ],
+      "properties": {
+        "node_id": {
+          "const": "g3.preflight.c3_records_signatures"
+        },
+        "phase": {
+          "const": "postclosure"
+        },
+        "predicate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "version"
+          ],
+          "properties": {
+            "id": {
+              "const": "c3-preflight"
+            },
+            "version": {
+              "const": 1
+            }
+          }
+        },
+        "status": {
+          "const": "passed"
+        },
+        "subject": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "role",
+            "object_kind",
+            "oid",
+            "tree",
+            "parent"
+          ],
+          "properties": {
+            "role": {
+              "const": "C3"
+            },
+            "object_kind": {
+              "const": "commit"
+            },
+            "oid": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "tree": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            },
+            "parent": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          }
+        },
+        "predecessor_receipt_digests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "uniqueItems": true,
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "placeholder_bindings": {
+          "type": "object",
+          "maxProperties": 24,
+          "propertyNames": {
+            "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "producer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "runtime_role",
+            "identity_binding",
+            "contract_node_digest",
+            "runtime_closure_source_state_digest",
+            "runtime",
+            "commands"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "minLength": 1
+            },
+            "runtime_role": {
+              "type": "string",
+              "minLength": 1
+            },
+            "identity_binding": {
+              "enum": [
+                "exact_binary_and_dependency_inventory",
+                "tracked_workflow_and_remote_API_evidence",
+                "pure_deterministic_aggregation"
+              ]
+            },
+            "contract_node_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "runtime_closure_source_state_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "runtime": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "path",
+                      "bytes",
+                      "sha256",
+                      "reported_version"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[^\\r\\n\\u0000]+$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                      },
+                      "reported_version": {
+                        "type": "string",
+                        "minLength": 1
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "path",
+                      "bytes",
+                      "sha256",
+                      "reported_version",
+                      "runtime_inventory",
+                      "runtime_probe",
+                      "base_runtime_inventory"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[^\\r\\n\\u0000]+$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                      },
+                      "reported_version": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "runtime_inventory": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "root",
+                          "file_count",
+                          "size_bytes",
+                          "digest_domain",
+                          "sha256"
+                        ],
+                        "properties": {
+                          "root": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "file_count": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "size_bytes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "digest_domain": {
+                            "const": "agent-assure:s1-python-runtime-inventory/v1"
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                          }
+                        }
+                      },
+                      "runtime_probe": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "version",
+                          "executable",
+                          "implementation",
+                          "cache_tag",
+                          "hexversion",
+                          "platform",
+                          "platform_tag",
+                          "pointer_bits",
+                          "maxsize",
+                          "prefix",
+                          "base_prefix",
+                          "stdlib"
+                        ],
+                        "properties": {
+                          "version": {
+                            "type": "array",
+                            "minItems": 5,
+                            "maxItems": 5,
+                            "prefixItems": [
+                              {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": 0
+                              },
+                              {
+                                "enum": [
+                                  "alpha",
+                                  "beta",
+                                  "candidate",
+                                  "final"
+                                ]
+                              },
+                              {
+                                "type": "integer",
+                                "minimum": 0
+                              }
+                            ],
+                            "items": false
+                          },
+                          "executable": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "implementation": {
+                            "const": "cpython"
+                          },
+                          "cache_tag": {
+                            "type": "string",
+                            "pattern": "^cpython-[0-9]+$"
+                          },
+                          "hexversion": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "platform": {
+                            "const": "win32"
+                          },
+                          "platform_tag": {
+                            "const": "win-amd64"
+                          },
+                          "pointer_bits": {
+                            "const": 64
+                          },
+                          "maxsize": {
+                            "const": "9223372036854775807"
+                          },
+                          "prefix": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "base_prefix": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "stdlib": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          }
+                        }
+                      },
+                      "base_runtime_inventory": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "root",
+                          "file_count",
+                          "size_bytes",
+                          "digest_domain",
+                          "sha256"
+                        ],
+                        "properties": {
+                          "root": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "file_count": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "size_bytes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "digest_domain": {
+                            "const": "agent-assure:s1-base-python-runtime-inventory/v1"
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "path",
+                      "bytes",
+                      "sha256",
+                      "reported_version",
+                      "runtime_identity"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[^\\r\\n\\u0000]+$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                      },
+                      "reported_version": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "runtime_identity": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "runtime_inventory",
+                          "exec_path",
+                          "https_transport",
+                          "upload_pack",
+                          "tls"
+                        ],
+                        "properties": {
+                          "runtime_inventory": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "root",
+                              "file_count",
+                              "size_bytes",
+                              "digest_domain",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "root": {
+                                "const": "C:\\Program Files\\Git"
+                              },
+                              "file_count": {
+                                "const": 9514
+                              },
+                              "size_bytes": {
+                                "const": 425255801
+                              },
+                              "digest_domain": {
+                                "const": "agent-assure:s1-git-runtime-inventory/v1"
+                              },
+                              "sha256": {
+                                "const": "sha256:83ef17948d67cd5e4f2af356d59c3e60636e5d10a682e14ecde94755b697e560"
+                              }
+                            }
+                          },
+                          "exec_path": {
+                            "const": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core"
+                          },
+                          "https_transport": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "path",
+                              "bytes",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z]:\\\\"
+                              },
+                              "bytes": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^sha256:[0-9a-f]{64}$"
+                              }
+                            }
+                          },
+                          "upload_pack": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "path",
+                              "bytes",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "path": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z]:\\\\"
+                              },
+                              "bytes": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^sha256:[0-9a-f]{64}$"
+                              }
+                            }
+                          },
+                          "tls": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "backend",
+                              "ca_bundle",
+                              "openssl_config",
+                              "openssl_modules"
+                            ],
+                            "properties": {
+                              "backend": {
+                                "const": "openssl"
+                              },
+                              "ca_bundle": {
+                                "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt"
+                              },
+                              "openssl_config": {
+                                "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\openssl.cnf"
+                              },
+                              "openssl_modules": {
+                                "const": "C:\\Program Files\\Git\\mingw64\\lib\\ossl-modules"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "commands": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "executable_role",
+                  "executable",
+                  "argv",
+                  "cwd",
+                  "environment",
+                  "timeout_seconds",
+                  "max_output_bytes",
+                  "exit_code",
+                  "stdout",
+                  "stderr",
+                  "time_evidence"
+                ],
+                "properties": {
+                  "executable_role": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "executable": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "path",
+                          "bytes",
+                          "sha256",
+                          "reported_version"
+                        ],
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                          },
+                          "reported_version": {
+                            "type": "string",
+                            "minLength": 1
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "path",
+                          "bytes",
+                          "sha256",
+                          "reported_version",
+                          "runtime_inventory",
+                          "runtime_probe",
+                          "base_runtime_inventory"
+                        ],
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                          },
+                          "reported_version": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "runtime_inventory": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "root",
+                              "file_count",
+                              "size_bytes",
+                              "digest_domain",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "root": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              },
+                              "file_count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "size_bytes": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "digest_domain": {
+                                "const": "agent-assure:s1-python-runtime-inventory/v1"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^sha256:[0-9a-f]{64}$"
+                              }
+                            }
+                          },
+                          "runtime_probe": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "version",
+                              "executable",
+                              "implementation",
+                              "cache_tag",
+                              "hexversion",
+                              "platform",
+                              "platform_tag",
+                              "pointer_bits",
+                              "maxsize",
+                              "prefix",
+                              "base_prefix",
+                              "stdlib"
+                            ],
+                            "properties": {
+                              "version": {
+                                "type": "array",
+                                "minItems": 5,
+                                "maxItems": 5,
+                                "prefixItems": [
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  },
+                                  {
+                                    "enum": [
+                                      "alpha",
+                                      "beta",
+                                      "candidate",
+                                      "final"
+                                    ]
+                                  },
+                                  {
+                                    "type": "integer",
+                                    "minimum": 0
+                                  }
+                                ],
+                                "items": false
+                              },
+                              "executable": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              },
+                              "implementation": {
+                                "const": "cpython"
+                              },
+                              "cache_tag": {
+                                "type": "string",
+                                "pattern": "^cpython-[0-9]+$"
+                              },
+                              "hexversion": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "platform": {
+                                "const": "win32"
+                              },
+                              "platform_tag": {
+                                "const": "win-amd64"
+                              },
+                              "pointer_bits": {
+                                "const": 64
+                              },
+                              "maxsize": {
+                                "const": "9223372036854775807"
+                              },
+                              "prefix": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              },
+                              "base_prefix": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              },
+                              "stdlib": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              }
+                            }
+                          },
+                          "base_runtime_inventory": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "root",
+                              "file_count",
+                              "size_bytes",
+                              "digest_domain",
+                              "sha256"
+                            ],
+                            "properties": {
+                              "root": {
+                                "type": "string",
+                                "minLength": 1,
+                                "pattern": "^[^\\r\\n\\u0000]+$"
+                              },
+                              "file_count": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "size_bytes": {
+                                "type": "integer",
+                                "minimum": 1
+                              },
+                              "digest_domain": {
+                                "const": "agent-assure:s1-base-python-runtime-inventory/v1"
+                              },
+                              "sha256": {
+                                "type": "string",
+                                "pattern": "^sha256:[0-9a-f]{64}$"
+                              }
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "path",
+                          "bytes",
+                          "sha256",
+                          "reported_version",
+                          "runtime_identity"
+                        ],
+                        "properties": {
+                          "path": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[^\\r\\n\\u0000]+$"
+                          },
+                          "bytes": {
+                            "type": "integer",
+                            "minimum": 1
+                          },
+                          "sha256": {
+                            "type": "string",
+                            "pattern": "^sha256:[0-9a-f]{64}$"
+                          },
+                          "reported_version": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "runtime_identity": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "runtime_inventory",
+                              "exec_path",
+                              "https_transport",
+                              "upload_pack",
+                              "tls"
+                            ],
+                            "properties": {
+                              "runtime_inventory": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "root",
+                                  "file_count",
+                                  "size_bytes",
+                                  "digest_domain",
+                                  "sha256"
+                                ],
+                                "properties": {
+                                  "root": {
+                                    "const": "C:\\Program Files\\Git"
+                                  },
+                                  "file_count": {
+                                    "const": 9514
+                                  },
+                                  "size_bytes": {
+                                    "const": 425255801
+                                  },
+                                  "digest_domain": {
+                                    "const": "agent-assure:s1-git-runtime-inventory/v1"
+                                  },
+                                  "sha256": {
+                                    "const": "sha256:83ef17948d67cd5e4f2af356d59c3e60636e5d10a682e14ecde94755b697e560"
+                                  }
+                                }
+                              },
+                              "exec_path": {
+                                "const": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core"
+                              },
+                              "https_transport": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "path",
+                                  "bytes",
+                                  "sha256"
+                                ],
+                                "properties": {
+                                  "path": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z]:\\\\"
+                                  },
+                                  "bytes": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "sha256": {
+                                    "type": "string",
+                                    "pattern": "^sha256:[0-9a-f]{64}$"
+                                  }
+                                }
+                              },
+                              "upload_pack": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "path",
+                                  "bytes",
+                                  "sha256"
+                                ],
+                                "properties": {
+                                  "path": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z]:\\\\"
+                                  },
+                                  "bytes": {
+                                    "type": "integer",
+                                    "minimum": 1
+                                  },
+                                  "sha256": {
+                                    "type": "string",
+                                    "pattern": "^sha256:[0-9a-f]{64}$"
+                                  }
+                                }
+                              },
+                              "tls": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "backend",
+                                  "ca_bundle",
+                                  "openssl_config",
+                                  "openssl_modules"
+                                ],
+                                "properties": {
+                                  "backend": {
+                                    "const": "openssl"
+                                  },
+                                  "ca_bundle": {
+                                    "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt"
+                                  },
+                                  "openssl_config": {
+                                    "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\openssl.cnf"
+                                  },
+                                  "openssl_modules": {
+                                    "const": "C:\\Program Files\\Git\\mingw64\\lib\\ossl-modules"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "argv": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "cwd": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "environment": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "inherit",
+                      "fixed",
+                      "fresh_path_bindings",
+                      "secret_inputs"
+                    ],
+                    "properties": {
+                      "inherit": {
+                        "const": false
+                      },
+                      "fixed": {
+                        "type": "object",
+                        "maxProperties": 24,
+                        "propertyNames": {
+                          "pattern": "^[A-Z][A-Z0-9_]*$"
+                        },
+                        "additionalProperties": {
+                          "type": "string"
+                        }
+                      },
+                      "fresh_path_bindings": {
+                        "type": "object",
+                        "maxProperties": 12,
+                        "propertyNames": {
+                          "pattern": "^[A-Z][A-Z0-9_]*$"
+                        },
+                        "additionalProperties": {
+                          "type": "string",
+                          "minLength": 1
+                        }
+                      },
+                      "secret_inputs": {
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "pattern": "^[A-Z][A-Z0-9_]*$"
+                        },
+                        "uniqueItems": true
+                      }
+                    }
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 14400
+                  },
+                  "max_output_bytes": {
+                    "type": "integer",
+                    "minimum": 1024,
+                    "maximum": 16777216
+                  },
+                  "exit_code": {
+                    "const": 0
+                  },
+                  "stdout": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "path",
+                      "bytes",
+                      "sha256",
+                      "encoding",
+                      "content"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16777216
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                      },
+                      "encoding": {
+                        "const": "base64"
+                      },
+                      "content": {
+                        "type": "string",
+                        "maxLength": 22369624,
+                        "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+                      }
+                    }
+                  },
+                  "stderr": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "path",
+                      "bytes",
+                      "sha256",
+                      "encoding",
+                      "content"
+                    ],
+                    "properties": {
+                      "path": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+                      },
+                      "bytes": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 16777216
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^sha256:[0-9a-f]{64}$"
+                      },
+                      "encoding": {
+                        "const": "base64"
+                      },
+                      "content": {
+                        "type": "string",
+                        "maxLength": 22369624,
+                        "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+                      }
+                    }
+                  },
+                  "time_evidence": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "started_at_utc",
+                      "completed_at_utc",
+                      "clock_basis",
+                      "externally_attested"
+                    ],
+                    "properties": {
+                      "started_at_utc": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+                      },
+                      "completed_at_utc": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+                      },
+                      "clock_basis": {
+                        "const": "maintainer_host_utc_externally_unattested"
+                      },
+                      "externally_attested": {
+                        "const": false
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "assertions": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "value"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]*$"
+              },
+              "value": {}
+            }
+          }
+        },
+        "outputs": {
+          "type": "array",
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "bytes",
+              "sha256",
+              "encoding",
+              "content"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16777216
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              },
+              "encoding": {
+                "const": "base64"
+              },
+              "content": {
+                "type": "string",
+                "maxLength": 22369624,
+                "pattern": "^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+              }
+            }
+          }
+        },
+        "time_evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "started_at_utc",
+            "completed_at_utc",
+            "clock_basis",
+            "externally_attested"
+          ],
+          "properties": {
+            "started_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "completed_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "clock_basis": {
+              "const": "maintainer_host_utc_externally_unattested"
+            },
+            "externally_attested": {
+              "const": false
+            }
+          }
+        },
+        "receipt_digest_domain": {
+          "const": "agent-assure:s1-successor-check-receipt/v1"
+        },
+        "receipt_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "tag": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "kind",
+        "git_signed",
+        "target_role",
+        "tagger_name",
+        "tagger_email",
+        "tagger_date",
+        "message_format"
+      ],
+      "properties": {
+        "name": {
+          "const": "agent-assure-s1-1.0.0a1-acceptance-v3"
+        },
+        "kind": {
+          "const": "annotated_tag_with_embedded_sshsig_governance_attestation"
+        },
+        "git_signed": {
+          "const": false
+        },
+        "target_role": {
+          "const": "C3"
+        },
+        "tagger_name": {
+          "const": "acblabs"
+        },
+        "tagger_email": {
+          "const": "abaio@acblabs.com"
+        },
+        "tagger_date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "message_format": {
+          "const": "agent-assure-s1-successor-acceptance-tag-envelope/1"
+        }
+      }
+    },
+    "conditional_decision": {
+      "const": "accept_exact_C3_if_and_only_if_A3_construction_and_post_tag_standalone_replay_pass"
+    },
+    "limitations": {
+      "const": [
+        "conditional_until_post_tag_standalone_replay",
+        "not_a_Git_signed_tag",
+        "does_not_authorize_C3_or_A3_publication",
+        "does_not_authorize_S2_or_release",
+        "maintainer_development_single_human_not_independent_audit",
+        "job_object_descendant_containment_is_not_a_security_sandbox"
+      ]
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "not_before_utc",
+        "not_after_utc",
+        "clock_basis"
+      ],
+      "properties": {
+        "not_before_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "not_after_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "clock_basis": {
+          "const": "maintainer_host_utc_externally_unattested"
+        }
+      }
+    }
+  }
+}

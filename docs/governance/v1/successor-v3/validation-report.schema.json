@@ -1,0 +1,725 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/validation-report.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "package_id",
+    "validated_at_utc",
+    "clock_basis",
+    "validator",
+    "manifest",
+    "checks",
+    "authorization_effect",
+    "validation_report_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-design-validation-report/4"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-design-validation-report/v4"
+    },
+    "package_id": {
+      "const": "a974a9e0-c780-4288-9238-21144a4a5b8d"
+    },
+    "validated_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+    },
+    "clock_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "externally_attested",
+        "cryptographic_timestamp",
+        "rfc3161_token"
+      ],
+      "properties": {
+        "source": {
+          "const": "maintainer_host_utc_externally_unattested"
+        },
+        "externally_attested": {
+          "const": false
+        },
+        "cryptographic_timestamp": {
+          "const": false
+        },
+        "rfc3161_token": {
+          "const": false
+        }
+      }
+    },
+    "validator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "launcher",
+        "launcher_profile",
+        "runtime_requirement",
+        "result",
+        "pre_sign_native_launch_budget",
+        "pre_sign_native_suite_prerequisites"
+      ],
+      "properties": {
+        "path": {
+          "const": "tools/successor_v3_tool.py"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "launcher": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "bytes",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "const": "tools/successor_v3_launcher.ps1"
+            },
+            "bytes": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        "launcher_profile": {
+          "const": "agent-assure-s1-successor-v3-powershell-runtime-launcher/v1"
+        },
+        "runtime_requirement": {
+          "const": "exact_frozen_CPython_3.12.13_with_authenticated_base_and_dependency_inventories"
+        },
+        "result": {
+          "const": "executed_preflight_passed"
+        },
+        "pre_sign_native_launch_budget": {
+          "const": {
+            "method": "AST_extracted_exact_tool_pure_production_native_windows_launch_budget",
+            "scope": "static_vectors_only_no_child_execution_or_acceptance_evidence",
+            "vectors_passed": 12,
+            "native_executable_max_utf16_units": 259,
+            "command_line_max_utf16_units_excluding_terminating_nul": 32766,
+            "known_fixture_executable_utf16_units": [
+              211,
+              210
+            ],
+            "known_fixture_executable_conservative_max_utf16_units": 239
+          }
+        },
+        "pre_sign_native_suite_prerequisites": {
+          "const": {
+            "scope": "pre_sign_prerequisites_only_no_full_native_suite_or_acceptance_claim",
+            "privacy_predicate_method": "exact_prospective_runner_AST_with_hermetic_read_only_Git_adapter",
+            "annotated_tag_ref_count": 9,
+            "lightweight_tag_ref_count": 8,
+            "total_tag_ref_count": 17,
+            "private_path_history_commit_count": 0,
+            "nonexistent_path_control_commit_count": 0,
+            "ref_surface_unchanged": true,
+            "privacy_predicate_vectors_passed": 3,
+            "runtime_method": "two_pass_initial_rows_and_exact_virtual_one_pointer_substitution_no_mutation",
+            "native_inventory_domain": "agent-assure:s1-post-r2-test-runtime-inventory/v1",
+            "initial_native_inventory": {
+              "file_count": 5473,
+              "size_bytes": 92718636,
+              "sha256": "sha256:a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c"
+            },
+            "activated_native_inventory": {
+              "file_count": 5473,
+              "size_bytes": 92718662,
+              "sha256": "sha256:62497d094508eb57c773fbd7d1b69c30e2fb84a42ec41b51907d85a65598e789"
+            },
+            "activated_successor_site_inventory": {
+              "file_count": 5473,
+              "size_bytes": 92718662,
+              "sha256": "sha256:bc1b660a2a4660ce7133a7663a06c4af13153618b7872e1b930995d17a066a96"
+            }
+          }
+        }
+      }
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "manifest.json"
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 33,
+      "maxItems": 33,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "exact_package_and_schema_file_allowlists"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "strict_json_utf8_lf_nfc_control_free_safe_integer_no_duplicate_keys_or_nonfinite_numbers"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "draft_2020_12_metaschemas"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "all_current_instances_schema_valid"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "domain_registry_exact_metadata_complete_and_unique"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "all_semantic_digest_projections_recomputed"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "raw_manifest_recomputed"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "B3_source_state_and_exact_18_path_inventory_bindings"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "source_clone_recorded_procedure_and_live_object_isolation"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "two_phase_project_runtime_activation_after_exact_K3"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "B3_authority_key_and_roster_continuity"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "kickoff_candidate_distinct_from_accepted_record"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "prospective_thirteen_attempt_generation_3_supersession_and_failed_native_node8_execution_binding"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "protocol_schema_tool_plan_bindings"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "signed_exact_R3_descriptors_runner_identity_and_C3_partition_contracts"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "declared_exact_hosted_CI_21_job_contract"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "preclosure_graph_exact_12_nodes_20_edges"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "full_graph_exact_16_nodes_24_edges"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "acyclic_no_duplicate_or_self_loop_edges"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "exact_command_environment_and_runtime_contracts"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "atomic_node_execution_receipt_installation_and_pure_claim_constructors"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "precommitted_python_runtime_inventories_and_startup_surface"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "native_suite_private_history_and_dual_domain_runtime_prerequisites"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "exact_successor_commit_envelopes_and_causal_time_order"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "governed_branch_commit_tag_and_publication_transactions"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "causal_external_publication_and_hosted_ci_timestamps"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "standalone_no_local_clone_provenance_and_object_integrity"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "causal_fixed_point_bans"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "unsigned_preparation_contains_no_signature_or_accepted_record"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "profile_specific_repository_and_roadmap_rules"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "profile_specific_unstaged_tracked_path_surface"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "package_local_binary_attribute_policy_exactly_bound"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "id",
+            "status"
+          ],
+          "properties": {
+            "id": {
+              "const": "hermetic_git_configuration_administrative_state_and_index_surface"
+            },
+            "status": {
+              "const": "passed"
+            }
+          }
+        }
+      ],
+      "items": false
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "validation_report_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

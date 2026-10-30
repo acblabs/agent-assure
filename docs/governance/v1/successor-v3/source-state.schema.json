@@ -1,0 +1,1249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/source-state.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "package_id",
+    "prepared_at_utc",
+    "clock_basis",
+    "repository",
+    "source_clone_provenance",
+    "preauthorization_baseline",
+    "observed_legacy_control_evidence",
+    "private_roadmap",
+    "host_tools",
+    "git_runtime",
+    "successor_runtime",
+    "source_state_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-source-state/3"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-source-state/v3"
+    },
+    "package_id": {
+      "const": "a974a9e0-c780-4288-9238-21144a4a5b8d"
+    },
+    "prepared_at_utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+    },
+    "clock_basis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "externally_attested",
+        "cryptographic_timestamp",
+        "rfc3161_token"
+      ],
+      "properties": {
+        "source": {
+          "const": "maintainer_host_utc_externally_unattested"
+        },
+        "externally_attested": {
+          "const": false
+        },
+        "cryptographic_timestamp": {
+          "const": false
+        },
+        "rfc3161_token": {
+          "const": false
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "absolute_root",
+        "head_commit",
+        "head_tree",
+        "head_parent",
+        "branch",
+        "worktree_porcelain_v1",
+        "git_info_exclude",
+        "git_info_attributes"
+      ],
+      "properties": {
+        "absolute_root": {
+          "const": "C:\\tmp\\agent-assure-s1-v3-source-a974a9e0-c780-4288-9238-21144a4a5b8d"
+        },
+        "head_commit": {
+          "const": "aae82851a74d4e6c5efda543850f1eba9d6b09f9"
+        },
+        "head_tree": {
+          "const": "cee453ba1afbd9fe59907a2d02c91a2f2eb5274c"
+        },
+        "head_parent": {
+          "const": "db5133e09860d292047b963b0fb81b3e7385b7fa"
+        },
+        "branch": {
+          "const": "fix/s1-governed-baseline-v2"
+        },
+        "worktree_porcelain_v1": {
+          "const": ""
+        },
+        "git_info_exclude": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "bytes",
+            "sha256"
+          ],
+          "properties": {
+            "path": {
+              "const": ".git/info/exclude"
+            },
+            "bytes": {
+              "const": 55
+            },
+            "sha256": {
+              "const": "sha256:ade798e909c6129d230fb91281883f0d07b83a97ad0b60ff673da0857914cfff"
+            }
+          }
+        },
+        "git_info_attributes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path",
+            "state"
+          ],
+          "properties": {
+            "path": {
+              "const": ".git/info/attributes"
+            },
+            "state": {
+              "const": "absent"
+            }
+          }
+        }
+      }
+    },
+    "source_clone_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "record"
+      ],
+      "properties": {
+        "path": {
+          "const": ".git/agent-assure-s1-v3-source-clone-provenance.json"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "record": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "package_id",
+            "recorded_at_utc",
+            "clock_basis",
+            "procedure",
+            "postconditions",
+            "evidentiary_limit"
+          ],
+          "properties": {
+            "format": {
+              "const": "agent-assure-s1-successor-source-clone-provenance/1"
+            },
+            "package_id": {
+              "const": "a974a9e0-c780-4288-9238-21144a4a5b8d"
+            },
+            "recorded_at_utc": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+            },
+            "clock_basis": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "externally_attested",
+                "cryptographic_timestamp",
+                "rfc3161_token"
+              ],
+              "properties": {
+                "source": {
+                  "const": "maintainer_host_utc_externally_unattested"
+                },
+                "externally_attested": {
+                  "const": false
+                },
+                "cryptographic_timestamp": {
+                  "const": false
+                },
+                "rfc3161_token": {
+                  "const": false
+                }
+              }
+            },
+            "procedure": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "classification",
+                "source_repository_root",
+                "destination_repository_root",
+                "empty_template_root",
+                "git_executable",
+                "clone_argv",
+                "destination_absent_before_clone",
+                "empty_template_observed_before_clone",
+                "clone_exit_code",
+                "recorded_after_clone_completion"
+              ],
+              "properties": {
+                "classification": {
+                  "const": "operator_recorded_source_clone_bootstrap_procedure"
+                },
+                "source_repository_root": {
+                  "const": "C:\\Users\\user\\.antigravity-ide\\agent-assure"
+                },
+                "destination_repository_root": {
+                  "const": "C:\\tmp\\agent-assure-s1-v3-source-a974a9e0-c780-4288-9238-21144a4a5b8d"
+                },
+                "empty_template_root": {
+                  "const": "C:\\tmp\\agent-assure-s1-v3-source-empty-template-a974a9e0-c780-4288-9238-21144a4a5b8d"
+                },
+                "git_executable": {
+                  "const": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe"
+                },
+                "clone_argv": {
+                  "const": [
+                    "-c",
+                    "core.autocrlf=false",
+                    "-c",
+                    "core.eol=lf",
+                    "clone",
+                    "--no-local",
+                    "--no-hardlinks",
+                    "--no-checkout",
+                    "--single-branch",
+                    "--branch",
+                    "fix/s1-governed-baseline-v2",
+                    "--template=C:\\tmp\\agent-assure-s1-v3-source-empty-template-a974a9e0-c780-4288-9238-21144a4a5b8d",
+                    "--upload-pack='C:/Program Files/Git/mingw64/bin/git-upload-pack.exe'",
+                    "C:\\Users\\user\\.antigravity-ide\\agent-assure",
+                    "C:\\tmp\\agent-assure-s1-v3-source-a974a9e0-c780-4288-9238-21144a4a5b8d"
+                  ]
+                },
+                "destination_absent_before_clone": {
+                  "const": true
+                },
+                "empty_template_observed_before_clone": {
+                  "const": true
+                },
+                "clone_exit_code": {
+                  "const": 0
+                },
+                "recorded_after_clone_completion": {
+                  "const": true
+                }
+              }
+            },
+            "postconditions": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "head_commit",
+                "head_tree",
+                "head_parent",
+                "branch",
+                "origin_url",
+                "origin_fetch_refspec",
+                "git_info_exclude",
+                "git_info_attributes",
+                "shallow_repository",
+                "object_alternates",
+                "replacement_refs",
+                "object_files_regular_nonreparse_single_link",
+                "git_fsck_argv",
+                "git_fsck_result",
+                "project_runtime_phase",
+                "project_editable_path",
+                "project_editable_target_utf8"
+              ],
+              "properties": {
+                "head_commit": {
+                  "const": "aae82851a74d4e6c5efda543850f1eba9d6b09f9"
+                },
+                "head_tree": {
+                  "const": "cee453ba1afbd9fe59907a2d02c91a2f2eb5274c"
+                },
+                "head_parent": {
+                  "const": "db5133e09860d292047b963b0fb81b3e7385b7fa"
+                },
+                "branch": {
+                  "const": "fix/s1-governed-baseline-v2"
+                },
+                "origin_url": {
+                  "const": "https://github.com/acblabs/agent-assure.git"
+                },
+                "origin_fetch_refspec": {
+                  "const": "+refs/heads/*:refs/remotes/origin/*"
+                },
+                "git_info_exclude": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "const": ".git/info/exclude"
+                    },
+                    "bytes": {
+                      "const": 55
+                    },
+                    "sha256": {
+                      "const": "sha256:ade798e909c6129d230fb91281883f0d07b83a97ad0b60ff673da0857914cfff"
+                    }
+                  }
+                },
+                "git_info_attributes": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "state"
+                  ],
+                  "properties": {
+                    "path": {
+                      "const": ".git/info/attributes"
+                    },
+                    "state": {
+                      "const": "absent"
+                    }
+                  }
+                },
+                "shallow_repository": {
+                  "const": false
+                },
+                "object_alternates": {
+                  "const": "absent"
+                },
+                "replacement_refs": {
+                  "const": "absent"
+                },
+                "object_files_regular_nonreparse_single_link": {
+                  "const": true
+                },
+                "git_fsck_argv": {
+                  "const": [
+                    "fsck",
+                    "--full",
+                    "--strict",
+                    "--no-reflogs",
+                    "--no-dangling"
+                  ]
+                },
+                "git_fsck_result": {
+                  "const": "passed"
+                },
+                "project_runtime_phase": {
+                  "const": "initial_B3"
+                },
+                "project_editable_path": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "const": ".venv/Lib/site-packages/_editable_impl_agent_assure.pth"
+                    },
+                    "bytes": {
+                      "const": 47
+                    },
+                    "sha256": {
+                      "const": "sha256:f3b9a26ece35c1223f35c47a2c585c2d3c23f40ecc9a1dbde0bcd748cd491356"
+                    }
+                  }
+                },
+                "project_editable_target_utf8": {
+                  "const": "C:\\Users\\user\\.antigravity-ide\\agent-assure\\src"
+                }
+              }
+            },
+            "evidentiary_limit": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "authority",
+                "independent_witness",
+                "externally_attested",
+                "cryptographic_timestamp",
+                "rfc3161_token",
+                "proves_historical_command_execution",
+                "statement"
+              ],
+              "properties": {
+                "authority": {
+                  "const": "maintainer_host_process_record"
+                },
+                "independent_witness": {
+                  "const": false
+                },
+                "externally_attested": {
+                  "const": false
+                },
+                "cryptographic_timestamp": {
+                  "const": false
+                },
+                "rfc3161_token": {
+                  "const": false
+                },
+                "proves_historical_command_execution": {
+                  "const": false
+                },
+                "statement": {
+                  "const": "Maintainer-host process record, created after clone completion and bound by the later human-signed kickoff claim; it is not independent creation-time attestation or proof, and it carries no cryptographic timestamp or RFC 3161 token."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "preauthorization_baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "commit",
+        "tree",
+        "parent",
+        "acceptance_generation",
+        "authorization_effect",
+        "acceptance_eligible",
+        "retrospectively_authorized",
+        "artifact_count",
+        "inventory_digest_domain",
+        "inventory_digest",
+        "artifacts"
+      ],
+      "properties": {
+        "classification": {
+          "const": "preauthorization_nonaccepting_control_baseline"
+        },
+        "commit": {
+          "const": "aae82851a74d4e6c5efda543850f1eba9d6b09f9"
+        },
+        "tree": {
+          "const": "cee453ba1afbd9fe59907a2d02c91a2f2eb5274c"
+        },
+        "parent": {
+          "const": "db5133e09860d292047b963b0fb81b3e7385b7fa"
+        },
+        "acceptance_generation": {
+          "type": "null"
+        },
+        "authorization_effect": {
+          "const": "none"
+        },
+        "acceptance_eligible": {
+          "const": false
+        },
+        "retrospectively_authorized": {
+          "const": false
+        },
+        "artifact_count": {
+          "const": 18
+        },
+        "inventory_digest_domain": {
+          "const": "agent-assure:s1-successor-preauthorization-inventory/v1"
+        },
+        "inventory_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 18,
+          "maxItems": 18,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "mode",
+              "git_blob_oid",
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+              },
+              "mode": {
+                "const": "100644"
+              },
+              "git_blob_oid": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "observed_legacy_control_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "availability_scope",
+        "required_for_standalone",
+        "format",
+        "subject_commit",
+        "manifest_semantic_digest",
+        "totals",
+        "files"
+      ],
+      "properties": {
+        "classification": {
+          "const": "preparation_observation_only_nonaccepting"
+        },
+        "availability_scope": {
+          "const": "preparation_host_only"
+        },
+        "required_for_standalone": {
+          "const": false
+        },
+        "format": {
+          "const": "agent-assure-s1-post-r2-suite-evidence/4"
+        },
+        "subject_commit": {
+          "const": "aae82851a74d4e6c5efda543850f1eba9d6b09f9"
+        },
+        "manifest_semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "totals": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "collected",
+            "passed",
+            "skipped",
+            "failed",
+            "errors",
+            "deselected"
+          ],
+          "properties": {
+            "collected": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "passed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "failed": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "errors": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "deselected": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "files": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "bytes",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^(?![A-Za-z]:)(?!/)(?!.*\\\\)(?!.*(?:^|/)\\.\\.(?:/|$)).+$"
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "private_roadmap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "repository_path",
+        "state",
+        "tracked",
+        "ignored",
+        "available_to_ci",
+        "required_for_successor_validation",
+        "bytes",
+        "sha256"
+      ],
+      "properties": {
+        "repository_path": {
+          "const": "Agent_Assure_Implementation_Roadmap.md"
+        },
+        "state": {
+          "const": "present_local_private"
+        },
+        "tracked": {
+          "const": false
+        },
+        "ignored": {
+          "const": true
+        },
+        "available_to_ci": {
+          "const": false
+        },
+        "required_for_successor_validation": {
+          "const": false
+        },
+        "bytes": {
+          "const": 2390013
+        },
+        "sha256": {
+          "const": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+        }
+      }
+    },
+    "host_tools": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "bytes",
+          "sha256",
+          "role",
+          "reported_version"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z]:\\\\"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "role": {
+            "enum": [
+              "frozen_python",
+              "frozen_git",
+              "frozen_git_https_transport",
+              "frozen_git_upload_pack",
+              "openssh_sshsig",
+              "frozen_windows_powershell"
+            ]
+          },
+          "reported_version": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "git_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inventory",
+        "exec_path",
+        "tls"
+      ],
+      "properties": {
+        "inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "root",
+            "file_count",
+            "size_bytes",
+            "digest_domain",
+            "sha256"
+          ],
+          "properties": {
+            "root": {
+              "const": "C:\\Program Files\\Git"
+            },
+            "file_count": {
+              "const": 9514
+            },
+            "size_bytes": {
+              "const": 425255801
+            },
+            "digest_domain": {
+              "const": "agent-assure:s1-git-runtime-inventory/v1"
+            },
+            "sha256": {
+              "const": "sha256:83ef17948d67cd5e4f2af356d59c3e60636e5d10a682e14ecde94755b697e560"
+            }
+          }
+        },
+        "exec_path": {
+          "const": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core"
+        },
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backend",
+            "ca_bundle",
+            "openssl_config",
+            "openssl_modules"
+          ],
+          "properties": {
+            "backend": {
+              "const": "openssl"
+            },
+            "ca_bundle": {
+              "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt"
+            },
+            "openssl_config": {
+              "const": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\openssl.cnf"
+            },
+            "openssl_modules": {
+              "const": "C:\\Program Files\\Git\\mingw64\\lib\\ossl-modules"
+            }
+          }
+        }
+      }
+    },
+    "successor_runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "launcher_profile",
+        "launcher_command_prefix",
+        "child_environment",
+        "base_runtime",
+        "dependency_runtime",
+        "project_environment",
+        "python_flags",
+        "sys_flags",
+        "xoptions",
+        "sys_path"
+      ],
+      "properties": {
+        "launcher_profile": {
+          "const": "agent-assure-s1-successor-v3-powershell-runtime-launcher/v1"
+        },
+        "launcher_command_prefix": {
+          "const": [
+            "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            "tools/successor_v3_launcher.ps1"
+          ]
+        },
+        "child_environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "inherit",
+            "fixed",
+            "fresh_paths",
+            "cleared"
+          ],
+          "properties": {
+            "inherit": {
+              "const": false
+            },
+            "fixed": {
+              "const": {
+                "AGENT_ASSURE_S1_SUCCESSOR_V3_LAUNCHER_PROFILE": "agent-assure-s1-successor-v3-powershell-runtime-launcher/v1",
+                "AGENT_ASSURE_S1_SUCCESSOR_V3_BASE_RUNTIME_SHA256": "4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152",
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "PATH": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none;C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\DLLs;C:\\Windows\\System32;C:\\Windows",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1"
+              }
+            },
+            "fresh_paths": {
+              "const": [
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ]
+            },
+            "cleared": {
+              "const": [
+                "HOME",
+                "USERPROFILE",
+                "XDG_CONFIG_HOME",
+                "PYTHONHOME",
+                "PYTHONPATH",
+                "OPENSSL_CONF",
+                "OPENSSL_ENGINES",
+                "OPENSSL_MODULES"
+              ]
+            }
+          }
+        },
+        "base_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "relative_root",
+            "file_count",
+            "size_bytes",
+            "digest_domain",
+            "sha256"
+          ],
+          "properties": {
+            "relative_root": {
+              "const": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none"
+            },
+            "file_count": {
+              "const": 2766
+            },
+            "size_bytes": {
+              "const": 54224916
+            },
+            "digest_domain": {
+              "const": "agent-assure:s1-base-python-runtime-inventory/v1"
+            },
+            "sha256": {
+              "const": "sha256:4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152"
+            }
+          }
+        },
+        "dependency_runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "relative_root",
+            "roots",
+            "file_count",
+            "size_bytes",
+            "digest_domain",
+            "sha256"
+          ],
+          "properties": {
+            "relative_root": {
+              "const": ".venv/Lib/site-packages"
+            },
+            "roots": {
+              "const": [
+                "attr",
+                "attrs",
+                "jsonschema",
+                "jsonschema_specifications",
+                "referencing",
+                "rfc8785",
+                "rpds",
+                "typing_extensions.py"
+              ]
+            },
+            "file_count": {
+              "const": 116
+            },
+            "size_bytes": {
+              "const": 1581377
+            },
+            "digest_domain": {
+              "const": "agent-assure:s1-python-runtime-inventory/v1"
+            },
+            "sha256": {
+              "const": "sha256:a8a4451bde03104cc2a6dae38a30ae0bef63f717a39e5b996e05c10b83fdae02"
+            }
+          }
+        },
+        "project_environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "relative_root",
+            "interpreter",
+            "initial_b3_phase",
+            "transition",
+            "activated_successor_phase"
+          ],
+          "properties": {
+            "relative_root": {
+              "const": ".venv"
+            },
+            "interpreter": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": ".venv/Scripts/python.exe"
+                },
+                "bytes": {
+                  "const": 45568
+                },
+                "sha256": {
+                  "const": "sha256:c57a44e32ef09a5a9839568ab1c7ff0b78b97d0975e4830c01b9c3dc698d9c98"
+                }
+              }
+            },
+            "initial_b3_phase": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "required_for",
+                "editable_path",
+                "editable_target_utf8",
+                "editable_bytes",
+                "editable_sha256",
+                "full_runtime_inventory",
+                "site_packages_inventory"
+              ],
+              "properties": {
+                "required_for": {
+                  "const": "exact_B3_capture_and_HEAD_B3_revalidation"
+                },
+                "editable_path": {
+                  "const": ".venv/Lib/site-packages/_editable_impl_agent_assure.pth"
+                },
+                "editable_target_utf8": {
+                  "const": "C:\\Users\\user\\.antigravity-ide\\agent-assure\\src"
+                },
+                "editable_bytes": {
+                  "const": 47
+                },
+                "editable_sha256": {
+                  "const": "sha256:f3b9a26ece35c1223f35c47a2c585c2d3c23f40ecc9a1dbde0bcd748cd491356"
+                },
+                "full_runtime_inventory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "file_count",
+                    "size_bytes",
+                    "digest_domain",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "file_count": {
+                      "const": 5530
+                    },
+                    "size_bytes": {
+                      "const": 128092847
+                    },
+                    "digest_domain": {
+                      "const": "agent-assure:s1-python-runtime-inventory/v1"
+                    },
+                    "sha256": {
+                      "const": "sha256:6000bd14ce6b1ce88e2ab1fa9e942a26365329119e4d5b6ad15bda124d567d4c"
+                    }
+                  }
+                },
+                "site_packages_inventory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "file_count",
+                    "size_bytes",
+                    "digest_domain",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "file_count": {
+                      "const": 5473
+                    },
+                    "size_bytes": {
+                      "const": 92718636
+                    },
+                    "digest_domain": {
+                      "const": "agent-assure:s1-python-runtime-inventory/v1"
+                    },
+                    "sha256": {
+                      "const": "sha256:8978fcf95c738a2158bd377ded08329bd20178d33bba736e46476cb9937c9090"
+                    }
+                  }
+                }
+              }
+            },
+            "transition": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "command",
+                "not_before",
+                "required_before",
+                "mutation_scope",
+                "intent_path",
+                "completion_path",
+                "temporary_paths",
+                "recovery_command",
+                "intent_binds",
+                "recovery_states",
+                "profile_revalidation",
+                "atomicity",
+                "direction"
+              ],
+              "properties": {
+                "command": {
+                  "const": "activate-project-runtime"
+                },
+                "not_before": {
+                  "const": "successful_exact_K3_install"
+                },
+                "required_before": {
+                  "const": "any_R3_worktree_or_command"
+                },
+                "mutation_scope": {
+                  "const": [
+                    ".venv/Lib/site-packages/_editable_impl_agent_assure.pth"
+                  ]
+                },
+                "intent_path": {
+                  "const": ".git/agent-assure-s1-v3-project-runtime-activation-intent.json"
+                },
+                "completion_path": {
+                  "const": ".git/agent-assure-s1-v3-project-runtime-activation-completion.json"
+                },
+                "temporary_paths": {
+                  "const": [
+                    ".git/agent-assure-s1-v3-project-runtime-activation.tmp",
+                    ".git/agent-assure-s1-v3-project-runtime-activation-intent.pending",
+                    ".git/agent-assure-s1-v3-project-runtime-activation-completion.pending"
+                  ]
+                },
+                "recovery_command": {
+                  "const": "recover-project-runtime"
+                },
+                "intent_binds": {
+                  "const": [
+                    "exact_current_K3",
+                    "exact_K3_ref_install_completion",
+                    "exact_activation_transaction_lock"
+                  ]
+                },
+                "recovery_states": {
+                  "const": [
+                    "initial_or_pending_intent_without_durable_intent_clears_stale_lock",
+                    "initial_with_intent_resumes_atomic_replace",
+                    "activated_with_intent_finalizes_completion",
+                    "activated_with_completion_accepts_postcondition",
+                    "every_other_state_retains_lock"
+                  ]
+                },
+                "profile_revalidation": {
+                  "const": "live_phase_full_runtime_site_packages_startup_and_single_links"
+                },
+                "atomicity": {
+                  "const": "same_volume_atomic_replace_after_create_once_intent"
+                },
+                "direction": {
+                  "const": "one_way_initial_to_activated"
+                }
+              }
+            },
+            "activated_successor_phase": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "required_for",
+                "editable_path",
+                "editable_target_utf8",
+                "editable_bytes",
+                "editable_sha256",
+                "full_runtime_inventory",
+                "site_packages_inventory",
+                "require_single_link_files"
+              ],
+              "properties": {
+                "required_for": {
+                  "const": "project_python_and_all_R3_plus_profiles"
+                },
+                "editable_path": {
+                  "const": ".venv/Lib/site-packages/_editable_impl_agent_assure.pth"
+                },
+                "editable_target_utf8": {
+                  "const": "C:\\tmp\\agent-assure-s1-v3-source-a974a9e0-c780-4288-9238-21144a4a5b8d\\src"
+                },
+                "editable_bytes": {
+                  "const": 73
+                },
+                "editable_sha256": {
+                  "const": "sha256:727b13ae449897630d5e66456731153f6b2e6820a8fb57c84b8b4242e8c52e08"
+                },
+                "full_runtime_inventory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "file_count",
+                    "size_bytes",
+                    "digest_domain",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "file_count": {
+                      "const": 5530
+                    },
+                    "size_bytes": {
+                      "const": 128092873
+                    },
+                    "digest_domain": {
+                      "const": "agent-assure:s1-python-runtime-inventory/v1"
+                    },
+                    "sha256": {
+                      "const": "sha256:a338690d52be433eac437baad0b65accd95af4e37c48b2bbc654dfa0aa40ab61"
+                    }
+                  }
+                },
+                "site_packages_inventory": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "file_count",
+                    "size_bytes",
+                    "digest_domain",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "file_count": {
+                      "const": 5473
+                    },
+                    "size_bytes": {
+                      "const": 92718662
+                    },
+                    "digest_domain": {
+                      "const": "agent-assure:s1-python-runtime-inventory/v1"
+                    },
+                    "sha256": {
+                      "const": "sha256:bc1b660a2a4660ce7133a7663a06c4af13153618b7872e1b930995d17a066a96"
+                    }
+                  }
+                },
+                "require_single_link_files": {
+                  "const": true
+                }
+              }
+            }
+          }
+        },
+        "python_flags": {
+          "const": [
+            "-X",
+            "pycache_prefix=<fresh-external-C:\\tmp-run-directory>",
+            "-I",
+            "-S",
+            "-B",
+            "-X",
+            "utf8"
+          ]
+        },
+        "sys_flags": {
+          "const": [
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            1,
+            0,
+            0,
+            0,
+            1,
+            1,
+            false,
+            1,
+            0,
+            true,
+            4300
+          ]
+        },
+        "xoptions": {
+          "const": {
+            "pycache_prefix": "<fresh-external-C:\\tmp-run-directory>",
+            "utf8": true
+          }
+        },
+        "sys_path": {
+          "const": [
+            "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python312.zip",
+            "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\DLLs",
+            "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\Lib",
+            "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none",
+            ".venv/Lib/site-packages"
+          ]
+        }
+      }
+    },
+    "source_state_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

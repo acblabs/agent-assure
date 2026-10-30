@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-kickoff-candidate.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "package_id",
+    "authorization_id",
+    "state",
+    "authorization_effect",
+    "claim",
+    "source_state_digest",
+    "protocol_bundle_digest",
+    "candidate_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-kickoff-candidate/2"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-kickoff-candidate/v2"
+    },
+    "package_id": {
+      "const": "a974a9e0-c780-4288-9238-21144a4a5b8d"
+    },
+    "authorization_id": {
+      "const": "a33388e8-562d-41ad-9de1-05daf864c4b6"
+    },
+    "state": {
+      "const": "unsigned_candidate"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest",
+        "schema_path"
+      ],
+      "properties": {
+        "path": {
+          "const": "claims/kickoff.claim"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "schema_path": {
+          "const": "successor-kickoff-claim.schema.json"
+        }
+      }
+    },
+    "source_state_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "protocol_bundle_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "candidate_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-acceptance-tag-envelope.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "tag_name",
+    "target_commit",
+    "claim_encoding",
+    "claim",
+    "claim_raw_sha256",
+    "signature_profile",
+    "namespace",
+    "signer_fingerprint",
+    "signature_encoding",
+    "signature"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-acceptance-tag-envelope/1"
+    },
+    "tag_name": {
+      "const": "agent-assure-s1-1.0.0a1-acceptance-v3"
+    },
+    "target_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "claim_encoding": {
+      "const": "base64_of_exact_utf8_bytes"
+    },
+    "claim": {
+      "type": "string",
+      "contentEncoding": "base64"
+    },
+    "claim_raw_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "signature_profile": {
+      "const": "openssh-sshsig-ed25519/v1"
+    },
+    "namespace": {
+      "const": "agent-assure-governance-v1"
+    },
+    "signer_fingerprint": {
+      "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+    },
+    "signature_encoding": {
+      "const": "base64_of_exact_ascii_armor_bytes"
+    },
+    "signature": {
+      "type": "string",
+      "contentEncoding": "base64"
+    }
+  }
+}

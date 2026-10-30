@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-publication-claim.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "claim_nonce",
+    "authority",
+    "subject",
+    "destination",
+    "prerequisites",
+    "authorized_action",
+    "prohibited_actions",
+    "validity"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-publication-claim/1"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-publication-claim/v1"
+    },
+    "claim_nonce": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "authority": {
+      "const": {
+        "mode": "maintainer_development",
+        "accountable_human": "acblabs",
+        "authorized_roles": [
+          "repository_maintainer",
+          "technical_lead"
+        ],
+        "signing_key": {
+          "record_path": "docs/governance/v1/maintainer-signing-key.json",
+          "record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a",
+          "algorithm": "ssh-ed25519",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "signature_profile": "openssh-sshsig-ed25519/v1",
+          "namespace": "agent-assure-governance-v1"
+        },
+        "approval_roster": {
+          "path": "docs/governance/v1/approval-roster.json",
+          "bytes": 10036,
+          "raw_sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+        },
+        "review_status": "NO_INDEPENDENT_REVIEW"
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "commit",
+        "tree",
+        "parent"
+      ],
+      "properties": {
+        "role": {
+          "const": "R3"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "destination": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "remote_name",
+        "remote_url",
+        "ref"
+      ],
+      "properties": {
+        "remote_name": {
+          "const": "origin"
+        },
+        "remote_url": {
+          "const": "https://github.com/acblabs/agent-assure.git"
+        },
+        "ref": {
+          "const": "refs/heads/fix/s1-governed-baseline-v3"
+        }
+      }
+    },
+    "prerequisites": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": false,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_id",
+            "receipt_digest"
+          ],
+          "properties": {
+            "node_id": {
+              "const": "g3.result.r3_schema_semantics"
+            },
+            "receipt_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_id",
+            "receipt_digest"
+          ],
+          "properties": {
+            "node_id": {
+              "const": "g3.result.r3_python311_governance"
+            },
+            "receipt_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_id",
+            "receipt_digest"
+          ],
+          "properties": {
+            "node_id": {
+              "const": "g3.result.r3_native_windows_full_suite"
+            },
+            "receipt_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_id",
+            "receipt_digest"
+          ],
+          "properties": {
+            "node_id": {
+              "const": "g3.result.r3_static_quality_docs"
+            },
+            "receipt_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "node_id",
+            "receipt_digest"
+          ],
+          "properties": {
+            "node_id": {
+              "const": "g3.result.r3_repository_surface"
+            },
+            "receipt_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            }
+          }
+        }
+      ]
+    },
+    "authorized_action": {
+      "const": "one_non_force_push_of_exact_R3_to_exact_ref"
+    },
+    "prohibited_actions": {
+      "const": [
+        "force_push",
+        "push_any_oid_other_than_exact_R3",
+        "push_any_ref_other_than_fixed_successor_branch",
+        "create_or_push_any_tag",
+        "publish_C3_or_start_S2_or_release"
+      ]
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "not_before_utc",
+        "not_after_utc",
+        "clock_basis"
+      ],
+      "properties": {
+        "not_before_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "not_after_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "clock_basis": {
+          "const": "maintainer_host_utc_externally_unattested"
+        }
+      }
+    }
+  }
+}

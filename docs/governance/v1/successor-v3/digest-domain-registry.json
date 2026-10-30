@@ -1,0 +1,255 @@
+{
+  "format": "agent-assure-s1-successor-digest-domain-registry/1",
+  "registry_digest_domain": "agent-assure:s1-successor-digest-domain-registry/v1",
+  "entries": [
+    {
+      "id": "digest_domain_registry",
+      "domain": "agent-assure:s1-successor-digest-domain-registry/v1",
+      "projection": "remove /registry_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "source_state",
+      "domain": "agent-assure:s1-successor-source-state/v3",
+      "projection": "remove /source_state_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "preauthorization_inventory",
+      "domain": "agent-assure:s1-successor-preauthorization-inventory/v1",
+      "projection": "ordered artifacts array",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "check_contract_set",
+      "domain": "agent-assure:s1-successor-check-contract-set/v2",
+      "projection": "remove /check_contracts_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "check_node_contract",
+      "domain": "agent-assure:s1-successor-check-node/v1",
+      "projection": "entire exact node contract",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "check_node_result",
+      "domain": "agent-assure:s1-successor-check-node-result/v1",
+      "projection": "remove /result_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "git_runtime_inventory",
+      "domain": "agent-assure:s1-git-runtime-inventory/v1",
+      "projection": "ordered complete Git-for-Windows installation files; relative-path, byte-length, raw-SHA256 rows with UInt64 big-endian lengths",
+      "hash_algorithm": "sha256",
+      "canonicalization": "length-prefixed-binary-rows/v1",
+      "framing": "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(size)||raw_sha256)"
+    },
+    {
+      "id": "base_runtime_inventory",
+      "domain": "agent-assure:s1-base-python-runtime-inventory/v1",
+      "projection": "ordered effective non-bytecode files outside __pycache__ after fresh explicit pycache redirection; relative-path, byte-length, raw-SHA256 rows with UInt64 big-endian lengths",
+      "hash_algorithm": "sha256",
+      "canonicalization": "length-prefixed-binary-rows/v1",
+      "framing": "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(size)||raw_sha256)"
+    },
+    {
+      "id": "python_dependency_inventory",
+      "domain": "agent-assure:s1-python-runtime-inventory/v1",
+      "projection": "ordered effective non-bytecode files outside __pycache__ after fresh explicit pycache redirection; relative-path, byte-length, raw-SHA256 rows with UInt64 big-endian lengths",
+      "hash_algorithm": "sha256",
+      "canonicalization": "length-prefixed-binary-rows/v1",
+      "framing": "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(size)||raw_sha256)"
+    },
+    {
+      "id": "native_test_runtime_inventory",
+      "domain": "agent-assure:s1-post-r2-test-runtime-inventory/v1",
+      "projection": "ordered effective non-bytecode native pytest site-packages files outside __pycache__; relative-path, byte-length, raw-SHA256 rows with UInt64 big-endian lengths",
+      "hash_algorithm": "sha256",
+      "canonicalization": "length-prefixed-binary-rows/v1",
+      "framing": "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(size)||raw_sha256)"
+    },
+    {
+      "id": "python_runtime_delta_row_manifest",
+      "domain": "agent-assure:s1-python-runtime-delta-row-manifest/v1",
+      "projection": "ordered changed runtime-relative paths with paired expected and actual byte-length/raw-SHA256 rows",
+      "hash_algorithm": "sha256",
+      "canonicalization": "length-prefixed-binary-rows/v1",
+      "framing": "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(expected_size)||expected_raw_sha256||UInt64BE(actual_size)||actual_raw_sha256)"
+    },
+    {
+      "id": "python311_test_identity_set",
+      "domain": "agent-assure:s1-python311-test-identities/v1",
+      "projection": "entire canonical sorted [{classname,name}] array",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "git_delta",
+      "domain": "agent-assure:s1-successor-git-delta/v1",
+      "projection": "ordered changed-path mode, blob-OID, byte-length, raw-SHA256 descriptors",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "protocol_bundle",
+      "domain": "agent-assure:s1-successor-protocol-bundle/v1",
+      "projection": "artifacts and schemas descriptor arrays",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "schema_set",
+      "domain": "agent-assure:s1-successor-schema-set/v2",
+      "projection": "ordered schema descriptor array",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "preclosure_graph",
+      "domain": "agent-assure:s1-successor-preclosure-check-graph/v2",
+      "projection": "nodes, edges, terminal_node, max_combined_output_bytes, max_combined_semantic_output_bytes",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "full_ceremony_graph",
+      "domain": "agent-assure:s1-successor-full-ceremony-check-graph/v2",
+      "projection": "nodes, edges, terminal_node, max_combined_output_bytes, max_combined_semantic_output_bytes",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "check_receipt",
+      "domain": "agent-assure:s1-successor-check-receipt/v1",
+      "projection": "remove /receipt_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "signature_plan",
+      "domain": "agent-assure:s1-successor-signature-plan/v2",
+      "projection": "remove /plan_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "kickoff_claim",
+      "domain": "agent-assure:s1-successor-kickoff-claim/v13",
+      "projection": "entire exact claim JSON value",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "kickoff_candidate",
+      "domain": "agent-assure:s1-successor-kickoff-candidate/v2",
+      "projection": "remove /candidate_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "kickoff_authorization_record",
+      "domain": "agent-assure:s1-successor-kickoff-authorization-record/v14",
+      "projection": "remove /authorization_record_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "publication_claim",
+      "domain": "agent-assure:s1-successor-publication-claim/v1",
+      "projection": "entire exact claim JSON value",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "publication_authorization_record",
+      "domain": "agent-assure:s1-successor-publication-authorization-record/v2",
+      "projection": "remove /authorization_record_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "suite_evidence",
+      "domain": "agent-assure:s1-successor-suite-evidence/v5",
+      "projection": "remove /evidence_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "closure_claim",
+      "domain": "agent-assure:s1-successor-closure-claim/v1",
+      "projection": "entire exact claim JSON value",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "closure_authorization_record",
+      "domain": "agent-assure:s1-successor-closure-authorization-record/v1",
+      "projection": "remove /authorization_record_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "acceptance_tag_claim",
+      "domain": "agent-assure:s1-successor-acceptance-tag-claim/v3",
+      "projection": "entire exact claim JSON value",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "final_verification",
+      "domain": "agent-assure:s1-successor-final-verification/v1",
+      "projection": "remove /verification_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "design_package_manifest",
+      "domain": "agent-assure:s1-successor-design-package-manifest/v2",
+      "projection": "remove /manifest_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    },
+    {
+      "id": "design_validation_report",
+      "domain": "agent-assure:s1-successor-design-validation-report/v4",
+      "projection": "remove /validation_report_digest",
+      "hash_algorithm": "sha256",
+      "canonicalization": "RFC8785/JCS",
+      "framing": "UTF8(domain) || 0x00 || JCS(projection)"
+    }
+  ],
+  "registry_digest": "sha256:cd7a4a80a8a57fabce9d05c193a7184116db71ba62983f0f146ca5c0468fd7c1"
+}

@@ -1,0 +1,3762 @@
+{
+  "format": "agent-assure-s1-successor-check-contracts/2",
+  "digest_domain": "agent-assure:s1-successor-check-contract-set/v2",
+  "package_id": "a974a9e0-c780-4288-9238-21144a4a5b8d",
+  "tooling": [
+    {
+      "path": "tools/successor_v3_launcher.ps1",
+      "bytes": 23257,
+      "sha256": "sha256:a73daa920ece3bb5cdbc0a205a3fd0e14c422fb846b18f9865fbe7d740accd69",
+      "role": "runtime_launcher",
+      "runtime": "exact_Windows_PowerShell_5.1_launcher_authenticating_base_runtime",
+      "private_key_access": false
+    },
+    {
+      "path": "tools/build_design_package.py",
+      "bytes": 1060101,
+      "sha256": "sha256:e5c69e7c19d13b3db605e9c4e1d216f6442adf3f11e62d0b8a8083ae14b7976d",
+      "role": "package_builder",
+      "runtime": "exact_frozen_CPython_3.12.13_with_authenticated_dependencies;source_syntax_CPython_3.11",
+      "private_key_access": false
+    },
+    {
+      "path": "tools/successor_v3_tool.py",
+      "bytes": 1602254,
+      "sha256": "sha256:1c83395d85e4eb49379467fd2f8020c515d3fa17f3d5632462dc7efbe4eddf24",
+      "role": "validator_importer",
+      "runtime": "exact_frozen_CPython_3.12.13_with_authenticated_dependencies;source_syntax_CPython_3.11",
+      "private_key_access": false
+    }
+  ],
+  "hosted_ci": {
+    "provider": "github_actions",
+    "repository": "acblabs/agent-assure",
+    "workflow_path": ".github/workflows/ci.yml",
+    "workflow_name": "ci",
+    "event": "push",
+    "head_branch": "fix/s1-governed-baseline-v3",
+    "job_instance_count": 21,
+    "job_names": [
+      "test (3.11)",
+      "test (3.12)",
+      "test (3.13)",
+      "test (3.14)",
+      "dependency lower bounds / Python 3.11",
+      "dependency lower bounds / Python 3.14",
+      "composite-action-smoke",
+      "composite-action-strict-smoke",
+      "coverage / unit-a",
+      "coverage / unit-b1",
+      "coverage / unit-b2",
+      "coverage / unit-top",
+      "coverage / integration",
+      "coverage-gate",
+      "windows-containment (3.11)",
+      "windows-containment (3.14)",
+      "schema-immutability",
+      "Windows governance / Python 3.12",
+      "langgraph-smoke",
+      "adk-smoke",
+      "otel-contract"
+    ],
+    "matrix": {
+      "test": {
+        "runs_on": "ubuntu-24.04",
+        "python_versions": [
+          "3.11",
+          "3.12",
+          "3.13",
+          "3.14"
+        ]
+      },
+      "dependency_lower_bounds": {
+        "runs_on": "ubuntu-24.04",
+        "python_versions": [
+          "3.11",
+          "3.14"
+        ]
+      },
+      "coverage": {
+        "runs_on": "ubuntu-24.04",
+        "shards": [
+          {
+            "name": "unit-a",
+            "test_paths": "tests/unit/adapters tests/unit/authoring tests/unit/canonical tests/unit/compare tests/unit/controls tests/unit/demo tests/unit/docs tests/unit/evaluation tests/unit/examples tests/unit/fixtures tests/unit/governance tests/unit/graph tests/unit/mutation"
+          },
+          {
+            "name": "unit-b1",
+            "test_paths": "tests/unit/policies tests/unit/privacy tests/unit/rag tests/unit/release tests/unit/reporting"
+          },
+          {
+            "name": "unit-b2",
+            "test_paths": "tests/unit/runner tests/unit/schema tests/unit/statistics tests/unit/streaming tests/unit/study tests/unit/telemetry tests/unit/usage"
+          },
+          {
+            "name": "unit-top",
+            "test_paths": "tests/unit/test_*.py"
+          },
+          {
+            "name": "integration",
+            "test_paths": "tests/integration"
+          }
+        ]
+      },
+      "windows_containment": {
+        "runs_on": "windows-2025",
+        "python_versions": [
+          "3.11",
+          "3.14"
+        ]
+      },
+      "singleton_job_ids": [
+        "composite-action-smoke",
+        "composite-action-strict-smoke",
+        "coverage-gate",
+        "schema-immutability",
+        "windows-governance",
+        "langgraph-smoke",
+        "adk-smoke",
+        "otel-contract"
+      ]
+    },
+    "api": {
+      "version": "2022-11-28",
+      "jobs_filter": "latest",
+      "per_page": 100,
+      "require_total_count_equals_returned": true,
+      "require_completed_success": true
+    }
+  },
+  "preclosure_graph": {
+    "digest_domain": "agent-assure:s1-successor-preclosure-check-graph/v2",
+    "nodes": [
+      {
+        "id": "g3.predecessor.v1_historical",
+        "phase": "preclosure",
+        "kind": "predecessor",
+        "predicate": {
+          "id": "historical-g1",
+          "version": 1
+        },
+        "subject_role": "C1",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.predecessor.v1_historical",
+              "--subject-role",
+              "C1",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "result_commit=038b1a8c80fc419106eecd43f4a70b14ba026106;closure_commit=6165bc6436aada6cbeb4fc4119eafa9b5dfdb000;tag_object=1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb",
+            "tag_peels_to_C1_and_all_embedded_signatures_validate"
+          ]
+        }
+      },
+      {
+        "id": "g3.predecessor.v2_historical",
+        "phase": "preclosure",
+        "kind": "predecessor",
+        "predicate": {
+          "id": "historical-g2",
+          "version": 1
+        },
+        "subject_role": "C2",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.predecessor.v2_historical",
+              "--subject-role",
+              "C2",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "result_commit=022c44ca11b170d5843aa57a7b33fba9cd0ad38d;closure_commit=db5133e09860d292047b963b0fb81b3e7385b7fa;tag_object=aba5ac9111fd2be3a1b0e8e3ac7c3ebb8cb002be",
+            "tag_peels_to_C2_and_generation_2_remains_current_until_final_replay"
+          ]
+        }
+      },
+      {
+        "id": "g3.baseline.b3_control_replay",
+        "phase": "preclosure",
+        "kind": "baseline",
+        "predicate": {
+          "id": "b3-control",
+          "version": 1
+        },
+        "subject_role": "B3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.baseline.b3_control_replay",
+              "--subject-role",
+              "B3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "commit=aae82851a74d4e6c5efda543850f1eba9d6b09f9;tree=cee453ba1afbd9fe59907a2d02c91a2f2eb5274c;sole_parent=db5133e09860d292047b963b0fb81b3e7385b7fa",
+            "fresh_control_evidence_and_stdout_stderr_validate;legacy_observation_not_consumed"
+          ]
+        }
+      },
+      {
+        "id": "g3.authorization.k3_anchor",
+        "phase": "preclosure",
+        "kind": "authorization",
+        "predicate": {
+          "id": "k3-anchor",
+          "version": 1
+        },
+        "subject_role": "K3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.authorization.k3_anchor",
+              "--subject-role",
+              "K3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "sole_parent=aae82851a74d4e6c5efda543850f1eba9d6b09f9",
+            "exact_K3_delta_and_verified_kickoff_import;no_retroactive_push_or_S2_effect"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_topology_scope",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-topology",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_topology_scope",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "sole_parent={K3_COMMIT};subject={R3_COMMIT}",
+            "all_delta_paths_in_signed_allowlist;no_merge_symlink_submodule_reparse_or_extra_path"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_schema_semantics",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-schema-semantics",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_schema_semantics",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_signed_schema_set_and_digest_domains",
+            "metaschema_closed_instance_semantic_and_candidate_separation_checks_pass"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_python311_governance",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-python311",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "python311_floor_runner",
+          "runtime_role": "isolated_cpython_3_11",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8'),'scripts/v1_s1_governance.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('docs/governance/v1/successor-v3/tools/build_design_package.py').read_text(encoding='utf-8'),'build_design_package.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('docs/governance/v1/successor-v3/tools/successor_v3_tool.py').read_text(encoding='utf-8'),'successor_v3_tool.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; import os, stat; root=Path(os.environ['TEMP']); target=root/'native-symlink-capability-target'; link=root/'native-symlink-capability-link'; target.write_bytes(b'agent-assure-symlink-probe'); os.symlink(target, link); metadata=link.lstat(); assert stat.S_ISLNK(metadata.st_mode); assert metadata.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT; assert link.read_bytes()==b'agent-assure-symlink-probe'; link.unlink(); target.unlink(); print('native file symlink capability: passed')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "pytest",
+              "-p",
+              "pytest_socket",
+              "-q",
+              "-p",
+              "no:cacheprovider",
+              "--strict-config",
+              "--strict-markers",
+              "--fail-on-skip",
+              "--basetemp",
+              "{TEMP}/p",
+              "--junitxml",
+              "{PYTHON311_JUNIT}",
+              "tests/unit/governance/test_v1_s1_governance.py",
+              "tests/integration/test_v1_s1_historical_check.py"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 7200,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "docs/governance/v1/successor-v3/tools/successor_v3_launcher.ps1",
+              "tool",
+              "verify-python311-junit",
+              "--package",
+              "docs/governance/v1/successor-v3",
+              "--junit",
+              "{PYTHON311_JUNIT}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 25165824,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "runtime_major_minor=3.11",
+            "native_file_symlink_capability_probed_in_same_security_token",
+            "exact_311_tests_with_zero_failures_errors_skips_or_deselections_revalidated_from_junit"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_native_windows_full_suite",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-native-full",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "frozen_native_full_suite_launcher",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-native-suite",
+              "--subject",
+              "{R3_COMMIT}",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 7200,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_frozen_runtime_launcher_python_dll_git_openssh_and_dependency_inventories",
+            "activated_site_packages=5473_files_92718662_bytes_sha256_bc1b660a2a4660ce7133a7663a06c4af13153618b7872e1b930995d17a066a96",
+            "collected=executed=passed+skipped;failed=errors=deselected=0"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_static_quality_docs",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-static-docs",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "static_and_docs_runner",
+          "runtime_role": "isolated_project_runtime",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "ruff",
+              "check",
+              "--no-cache",
+              "."
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "mypy",
+              "--no-incremental",
+              "--cache-dir",
+              "{FRESH_MYPY_CACHE}",
+              "src/agent_assure"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "scripts/check_docs_alignment.py"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "scripts/update_golden.py",
+              "--check"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 16777216,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "ruff_mypy_docs_alignment_and_generated_consistency_all_exit_zero",
+            "every_command_argv_stdout_stderr_and_tool_identity_captured"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_repository_surface",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-repo-surface",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_repository_surface",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_commit_tree_parent_delta_clean_index_worktree_and_untracked",
+            "no_shallow_replace_graft_alternate_sparse_config_injection_reparse_or_private_roadmap_history"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_hosted_ci",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-hosted-ci",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "github_actions_evidence_verifier",
+          "runtime_role": "github_API_plus_exact_R3_workflow",
+          "identity_binding": "tracked_workflow_and_remote_API_evidence"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_git",
+            "argv": [
+              "--no-replace-objects",
+              "--git-dir={isolated_repository_root}/.git",
+              "--work-tree={isolated_repository_root}",
+              "-c",
+              "core.hooksPath={TEMP}/git-hooks",
+              "-c",
+              "core.excludesFile={TEMP}/git-global-excludes",
+              "-c",
+              "core.attributesFile={TEMP}/git-global-attributes",
+              "-c",
+              "core.fsmonitor=false",
+              "-c",
+              "core.untrackedCache=false",
+              "-c",
+              "credential.helper=",
+              "-c",
+              "submodule.recurse=false",
+              "show",
+              "{R3_COMMIT}:.github/workflows/ci.yml"
+            ],
+            "cwd": "{TEMP}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1",
+                "GIT_EXEC_PATH": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core",
+                "GIT_SSL_CAINFO": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
+                "SSL_CERT_FILE": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
+                "OPENSSL_CONF": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\openssl.cnf",
+                "OPENSSL_MODULES": "C:\\Program Files\\Git\\mingw64\\lib\\ossl-modules"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "github_cli",
+            "argv": [
+              "api",
+              "--method",
+              "GET",
+              "-H",
+              "Accept: application/vnd.github+json",
+              "-H",
+              "X-GitHub-Api-Version: 2022-11-28",
+              "repos/acblabs/agent-assure/actions/runs/{RUN_ID}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX",
+                "GH_CONFIG_DIR"
+              ],
+              "secret_inputs": [
+                "GH_TOKEN"
+              ]
+            },
+            "timeout_seconds": 300,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "github_cli",
+            "argv": [
+              "api",
+              "--method",
+              "GET",
+              "-H",
+              "Accept: application/vnd.github+json",
+              "-H",
+              "X-GitHub-Api-Version: 2022-11-28",
+              "repos/acblabs/agent-assure/actions/runs/{RUN_ID}/jobs?filter=latest&per_page=100"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX",
+                "GH_CONFIG_DIR"
+              ],
+              "secret_inputs": [
+                "GH_TOKEN"
+              ]
+            },
+            "timeout_seconds": 300,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 12582912,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "publication_authorization_binds_exact_R3_and_receipts_6_through_10",
+            "workflow_run_head_sha_exact_R3;all_expected_job_instances_success;none_skipped_neutral_cancelled",
+            "exact_21_job_instance_names_and_bound_matrix_axes_from_hosted_ci_contract"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_evidence_graph",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "preclosure-aggregate",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "preclosure_receipt_aggregator",
+          "runtime_role": "bound_successor_validator",
+          "identity_binding": "pure_deterministic_aggregation"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "docs/governance/v1/successor-v3/tools/successor_v3_launcher.ps1",
+              "tool",
+              "aggregate-preclosure",
+              "--package",
+              "docs/governance/v1/successor-v3",
+              "--predecessor-receipts",
+              "{RECEIPTS_1_THROUGH_11_DIRECTORY}",
+              "--subject",
+              "{R3_COMMIT}",
+              "--output",
+              "{NODE_12_RESULT}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_12_nodes_20_edges_and_predecessor_receipt_transfers",
+            "closed_acyclic_reachable_terminal;no_missing_extra_or_postclosure_node"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "g3.predecessor.v1_historical",
+        "to": "g3.predecessor.v2_historical"
+      },
+      {
+        "from": "g3.predecessor.v2_historical",
+        "to": "g3.baseline.b3_control_replay"
+      },
+      {
+        "from": "g3.baseline.b3_control_replay",
+        "to": "g3.authorization.k3_anchor"
+      },
+      {
+        "from": "g3.authorization.k3_anchor",
+        "to": "g3.result.r3_topology_scope"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_schema_semantics"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_python311_governance"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_native_windows_full_suite"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_static_quality_docs"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_repository_surface"
+      },
+      {
+        "from": "g3.result.r3_schema_semantics",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_python311_governance",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_native_windows_full_suite",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_static_quality_docs",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_repository_surface",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_schema_semantics",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_python311_governance",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_native_windows_full_suite",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_static_quality_docs",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_repository_surface",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_hosted_ci",
+        "to": "g3.result.r3_evidence_graph"
+      }
+    ],
+    "terminal_node": "g3.result.r3_evidence_graph",
+    "max_combined_output_bytes": 33554432,
+    "max_combined_semantic_output_bytes": 50331648,
+    "graph_digest": "sha256:79b81beb18f6de68414f5fb0e3a1ff05f2a447e50bb5d8e82b518545b20cdb0c"
+  },
+  "full_ceremony_graph": {
+    "digest_domain": "agent-assure:s1-successor-full-ceremony-check-graph/v2",
+    "nodes": [
+      {
+        "id": "g3.predecessor.v1_historical",
+        "phase": "preclosure",
+        "kind": "predecessor",
+        "predicate": {
+          "id": "historical-g1",
+          "version": 1
+        },
+        "subject_role": "C1",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.predecessor.v1_historical",
+              "--subject-role",
+              "C1",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "result_commit=038b1a8c80fc419106eecd43f4a70b14ba026106;closure_commit=6165bc6436aada6cbeb4fc4119eafa9b5dfdb000;tag_object=1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb",
+            "tag_peels_to_C1_and_all_embedded_signatures_validate"
+          ]
+        }
+      },
+      {
+        "id": "g3.predecessor.v2_historical",
+        "phase": "preclosure",
+        "kind": "predecessor",
+        "predicate": {
+          "id": "historical-g2",
+          "version": 1
+        },
+        "subject_role": "C2",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.predecessor.v2_historical",
+              "--subject-role",
+              "C2",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "result_commit=022c44ca11b170d5843aa57a7b33fba9cd0ad38d;closure_commit=db5133e09860d292047b963b0fb81b3e7385b7fa;tag_object=aba5ac9111fd2be3a1b0e8e3ac7c3ebb8cb002be",
+            "tag_peels_to_C2_and_generation_2_remains_current_until_final_replay"
+          ]
+        }
+      },
+      {
+        "id": "g3.baseline.b3_control_replay",
+        "phase": "preclosure",
+        "kind": "baseline",
+        "predicate": {
+          "id": "b3-control",
+          "version": 1
+        },
+        "subject_role": "B3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.baseline.b3_control_replay",
+              "--subject-role",
+              "B3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "commit=aae82851a74d4e6c5efda543850f1eba9d6b09f9;tree=cee453ba1afbd9fe59907a2d02c91a2f2eb5274c;sole_parent=db5133e09860d292047b963b0fb81b3e7385b7fa",
+            "fresh_control_evidence_and_stdout_stderr_validate;legacy_observation_not_consumed"
+          ]
+        }
+      },
+      {
+        "id": "g3.authorization.k3_anchor",
+        "phase": "preclosure",
+        "kind": "authorization",
+        "predicate": {
+          "id": "k3-anchor",
+          "version": 1
+        },
+        "subject_role": "K3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.authorization.k3_anchor",
+              "--subject-role",
+              "K3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "sole_parent=aae82851a74d4e6c5efda543850f1eba9d6b09f9",
+            "exact_K3_delta_and_verified_kickoff_import;no_retroactive_push_or_S2_effect"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_topology_scope",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-topology",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_topology_scope",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "sole_parent={K3_COMMIT};subject={R3_COMMIT}",
+            "all_delta_paths_in_signed_allowlist;no_merge_symlink_submodule_reparse_or_extra_path"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_schema_semantics",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-schema-semantics",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_schema_semantics",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_signed_schema_set_and_digest_domains",
+            "metaschema_closed_instance_semantic_and_candidate_separation_checks_pass"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_python311_governance",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-python311",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "python311_floor_runner",
+          "runtime_role": "isolated_cpython_3_11",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8'),'scripts/v1_s1_governance.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('docs/governance/v1/successor-v3/tools/build_design_package.py').read_text(encoding='utf-8'),'build_design_package.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; compile(Path('docs/governance/v1/successor-v3/tools/successor_v3_tool.py').read_text(encoding='utf-8'),'successor_v3_tool.py','exec')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-S",
+              "-B",
+              "-X",
+              "utf8",
+              "-c",
+              "from pathlib import Path; import os, stat; root=Path(os.environ['TEMP']); target=root/'native-symlink-capability-target'; link=root/'native-symlink-capability-link'; target.write_bytes(b'agent-assure-symlink-probe'); os.symlink(target, link); metadata=link.lstat(); assert stat.S_ISLNK(metadata.st_mode); assert metadata.st_file_attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT; assert link.read_bytes()==b'agent-assure-symlink-probe'; link.unlink(); target.unlink(); print('native file symlink capability: passed')"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "python311",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "pytest",
+              "-p",
+              "pytest_socket",
+              "-q",
+              "-p",
+              "no:cacheprovider",
+              "--strict-config",
+              "--strict-markers",
+              "--fail-on-skip",
+              "--basetemp",
+              "{TEMP}/p",
+              "--junitxml",
+              "{PYTHON311_JUNIT}",
+              "tests/unit/governance/test_v1_s1_governance.py",
+              "tests/integration/test_v1_s1_historical_check.py"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 7200,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "docs/governance/v1/successor-v3/tools/successor_v3_launcher.ps1",
+              "tool",
+              "verify-python311-junit",
+              "--package",
+              "docs/governance/v1/successor-v3",
+              "--junit",
+              "{PYTHON311_JUNIT}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 25165824,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "runtime_major_minor=3.11",
+            "native_file_symlink_capability_probed_in_same_security_token",
+            "exact_311_tests_with_zero_failures_errors_skips_or_deselections_revalidated_from_junit"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_native_windows_full_suite",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-native-full",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "frozen_native_full_suite_launcher",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-native-suite",
+              "--subject",
+              "{R3_COMMIT}",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 7200,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_frozen_runtime_launcher_python_dll_git_openssh_and_dependency_inventories",
+            "activated_site_packages=5473_files_92718662_bytes_sha256_bc1b660a2a4660ce7133a7663a06c4af13153618b7872e1b930995d17a066a96",
+            "collected=executed=passed+skipped;failed=errors=deselected=0"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_static_quality_docs",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-static-docs",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "static_and_docs_runner",
+          "runtime_role": "isolated_project_runtime",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "ruff",
+              "check",
+              "--no-cache",
+              "."
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "-m",
+              "mypy",
+              "--no-incremental",
+              "--cache-dir",
+              "{FRESH_MYPY_CACHE}",
+              "src/agent_assure"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "scripts/check_docs_alignment.py"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "project_python",
+            "argv": [
+              "-X",
+              "pycache_prefix={PYTHONPYCACHEPREFIX}",
+              "-I",
+              "-B",
+              "-X",
+              "utf8",
+              "scripts/update_golden.py",
+              "--check"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 16777216,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "ruff_mypy_docs_alignment_and_generated_consistency_all_exit_zero",
+            "every_command_argv_stdout_stderr_and_tool_identity_captured"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_repository_surface",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-repo-surface",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.result.r3_repository_surface",
+              "--subject-role",
+              "R3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_commit_tree_parent_delta_clean_index_worktree_and_untracked",
+            "no_shallow_replace_graft_alternate_sparse_config_injection_reparse_or_private_roadmap_history"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_hosted_ci",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "r3-hosted-ci",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "github_actions_evidence_verifier",
+          "runtime_role": "github_API_plus_exact_R3_workflow",
+          "identity_binding": "tracked_workflow_and_remote_API_evidence"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_git",
+            "argv": [
+              "--no-replace-objects",
+              "--git-dir={isolated_repository_root}/.git",
+              "--work-tree={isolated_repository_root}",
+              "-c",
+              "core.hooksPath={TEMP}/git-hooks",
+              "-c",
+              "core.excludesFile={TEMP}/git-global-excludes",
+              "-c",
+              "core.attributesFile={TEMP}/git-global-attributes",
+              "-c",
+              "core.fsmonitor=false",
+              "-c",
+              "core.untrackedCache=false",
+              "-c",
+              "credential.helper=",
+              "-c",
+              "submodule.recurse=false",
+              "show",
+              "{R3_COMMIT}:.github/workflows/ci.yml"
+            ],
+            "cwd": "{TEMP}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1",
+                "GIT_EXEC_PATH": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core",
+                "GIT_SSL_CAINFO": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
+                "SSL_CERT_FILE": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt",
+                "OPENSSL_CONF": "C:\\Program Files\\Git\\mingw64\\etc\\ssl\\openssl.cnf",
+                "OPENSSL_MODULES": "C:\\Program Files\\Git\\mingw64\\lib\\ossl-modules"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "github_cli",
+            "argv": [
+              "api",
+              "--method",
+              "GET",
+              "-H",
+              "Accept: application/vnd.github+json",
+              "-H",
+              "X-GitHub-Api-Version: 2022-11-28",
+              "repos/acblabs/agent-assure/actions/runs/{RUN_ID}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX",
+                "GH_CONFIG_DIR"
+              ],
+              "secret_inputs": [
+                "GH_TOKEN"
+              ]
+            },
+            "timeout_seconds": 300,
+            "max_output_bytes": 4194304
+          },
+          {
+            "executable_role": "github_cli",
+            "argv": [
+              "api",
+              "--method",
+              "GET",
+              "-H",
+              "Accept: application/vnd.github+json",
+              "-H",
+              "X-GitHub-Api-Version: 2022-11-28",
+              "repos/acblabs/agent-assure/actions/runs/{RUN_ID}/jobs?filter=latest&per_page=100"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX",
+                "GH_CONFIG_DIR"
+              ],
+              "secret_inputs": [
+                "GH_TOKEN"
+              ]
+            },
+            "timeout_seconds": 300,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 12582912,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0,
+            0,
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "publication_authorization_binds_exact_R3_and_receipts_6_through_10",
+            "workflow_run_head_sha_exact_R3;all_expected_job_instances_success;none_skipped_neutral_cancelled",
+            "exact_21_job_instance_names_and_bound_matrix_axes_from_hosted_ci_contract"
+          ]
+        }
+      },
+      {
+        "id": "g3.result.r3_evidence_graph",
+        "phase": "preclosure",
+        "kind": "result",
+        "predicate": {
+          "id": "preclosure-aggregate",
+          "version": 1
+        },
+        "subject_role": "R3",
+        "producer": {
+          "id": "preclosure_receipt_aggregator",
+          "runtime_role": "bound_successor_validator",
+          "identity_binding": "pure_deterministic_aggregation"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "docs/governance/v1/successor-v3/tools/successor_v3_launcher.ps1",
+              "tool",
+              "aggregate-preclosure",
+              "--package",
+              "docs/governance/v1/successor-v3",
+              "--predecessor-receipts",
+              "{RECEIPTS_1_THROUGH_11_DIRECTORY}",
+              "--subject",
+              "{R3_COMMIT}",
+              "--output",
+              "{NODE_12_RESULT}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "exact_12_nodes_20_edges_and_predecessor_receipt_transfers",
+            "closed_acyclic_reachable_terminal;no_missing_extra_or_postclosure_node"
+          ]
+        }
+      },
+      {
+        "id": "g3.preflight.c3_records_signatures",
+        "phase": "postclosure",
+        "kind": "preflight",
+        "predicate": {
+          "id": "c3-preflight",
+          "version": 1
+        },
+        "subject_role": "C3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.preflight.c3_records_signatures",
+              "--subject-role",
+              "C3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "sole_parent=exact_R3;exact_eight_path_delta",
+            "all_precreated_signatures_and_records_valid;state_ready_for_A3_only"
+          ]
+        }
+      },
+      {
+        "id": "g3.tag.a3_fixed_annotated",
+        "phase": "postclosure",
+        "kind": "tag",
+        "predicate": {
+          "id": "a3-tag",
+          "version": 1
+        },
+        "subject_role": "A3",
+        "producer": {
+          "id": "tracked_governance_runner",
+          "runtime_role": "frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-run-node",
+              "--node",
+              "g3.tag.a3_fixed_annotated",
+              "--subject-role",
+              "A3",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "fixed_annotated_tag_name_and_exact_C3_target",
+            "embedded_governance_SSHSIG_valid;tag_is_not_Git_signed;no_self_object_ID"
+          ]
+        }
+      },
+      {
+        "id": "g3.historical.standalone_replay",
+        "phase": "postclosure",
+        "kind": "historical",
+        "predicate": {
+          "id": "standalone-replay",
+          "version": 1
+        },
+        "subject_role": "CEREMONY",
+        "producer": {
+          "id": "standalone_historical_verifier",
+          "runtime_role": "frozen_git_plus_frozen_native_windows_3_12",
+          "identity_binding": "exact_binary_and_dependency_inventory"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "scripts/v1_s1_governance.ps1",
+              "successor-v3-historical-check",
+              "--expected-c3",
+              "{C3_COMMIT}",
+              "--expected-a3",
+              "{A3_OBJECT}",
+              "--output",
+              "{fresh_output_path}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 7200,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "tool_created_validated_clone_provenance_record",
+            "clone_uses_no_local_no_hardlinks_empty_template_and_isolated_config",
+            "full_object_integrity_and_exact_A3_C3_all_generation_validation",
+            "private_roadmap_absent_and_no_local_dependencies"
+          ]
+        }
+      },
+      {
+        "id": "g3.decision.current_s1_basis",
+        "phase": "postclosure",
+        "kind": "decision",
+        "predicate": {
+          "id": "current-basis",
+          "version": 1
+        },
+        "subject_role": "CEREMONY",
+        "producer": {
+          "id": "final_decision_deriver",
+          "runtime_role": "bound_successor_validator",
+          "identity_binding": "pure_deterministic_aggregation"
+        },
+        "commands": [
+          {
+            "executable_role": "frozen_windows_powershell",
+            "argv": [
+              "-NoLogo",
+              "-NoProfile",
+              "-NonInteractive",
+              "-ExecutionPolicy",
+              "Bypass",
+              "-File",
+              "docs/governance/v1/successor-v3/tools/successor_v3_launcher.ps1",
+              "tool",
+              "derive-current-basis",
+              "--package",
+              "docs/governance/v1/successor-v3",
+              "--preclosure-evidence",
+              "{PRE_CLOSURE_EVIDENCE}",
+              "--preclosure-signature",
+              "{PRE_CLOSURE_EVIDENCE_SIGNATURE}",
+              "--postclosure-predecessor-receipts",
+              "{RECEIPTS_13_THROUGH_15_DIRECTORY}",
+              "--expected-c3",
+              "{C3_COMMIT}",
+              "--expected-a3",
+              "{A3_OBJECT}",
+              "--output",
+              "{NODE_16_RESULT}"
+            ],
+            "cwd": "{isolated_repository_root}",
+            "environment": {
+              "inherit": false,
+              "fixed": {
+                "COMSPEC": "C:\\Windows\\System32\\cmd.exe",
+                "SYSTEMROOT": "C:\\Windows",
+                "WINDIR": "C:\\Windows",
+                "PATH": "C:\\Program Files\\Git\\mingw64\\bin;C:\\Windows\\System32\\OpenSSH;C:\\Windows\\System32;C:\\Windows",
+                "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+                "NODEFAULTCURRENTDIRECTORYINEXEPATH": "1",
+                "GIT_CONFIG_NOSYSTEM": "1",
+                "GIT_CONFIG_GLOBAL": "NUL",
+                "GIT_TERMINAL_PROMPT": "0",
+                "GIT_ATTR_NOSYSTEM": "1",
+                "GIT_OPTIONAL_LOCKS": "0",
+                "GIT_NO_REPLACE_OBJECTS": "1",
+                "GIT_NO_LAZY_FETCH": "1",
+                "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "PYTHONUTF8": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+                "NO_COLOR": "1"
+              },
+              "fresh_paths": [
+                "HOME",
+                "TEMP",
+                "TMP",
+                "PYTHONPYCACHEPREFIX"
+              ],
+              "secret_inputs": []
+            },
+            "timeout_seconds": 3600,
+            "max_output_bytes": 4194304
+          }
+        ],
+        "max_combined_output_bytes": 4194304,
+        "max_semantic_output_bytes": 4194304,
+        "success": {
+          "exit_codes": [
+            0
+          ],
+          "forbidden_statuses": [
+            "deselected",
+            "not_evaluated",
+            "skip",
+            "waive"
+          ],
+          "requirements": [
+            "all_15_predecessor_receipts_and_transfers_recomputed",
+            "derive_exact_C3_current_basis_only_now;S2_release_and_method_admission_blocked"
+          ]
+        }
+      }
+    ],
+    "edges": [
+      {
+        "from": "g3.predecessor.v1_historical",
+        "to": "g3.predecessor.v2_historical"
+      },
+      {
+        "from": "g3.predecessor.v2_historical",
+        "to": "g3.baseline.b3_control_replay"
+      },
+      {
+        "from": "g3.baseline.b3_control_replay",
+        "to": "g3.authorization.k3_anchor"
+      },
+      {
+        "from": "g3.authorization.k3_anchor",
+        "to": "g3.result.r3_topology_scope"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_schema_semantics"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_python311_governance"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_native_windows_full_suite"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_static_quality_docs"
+      },
+      {
+        "from": "g3.result.r3_topology_scope",
+        "to": "g3.result.r3_repository_surface"
+      },
+      {
+        "from": "g3.result.r3_schema_semantics",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_python311_governance",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_native_windows_full_suite",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_static_quality_docs",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_repository_surface",
+        "to": "g3.result.r3_hosted_ci"
+      },
+      {
+        "from": "g3.result.r3_schema_semantics",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_python311_governance",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_native_windows_full_suite",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_static_quality_docs",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_repository_surface",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_hosted_ci",
+        "to": "g3.result.r3_evidence_graph"
+      },
+      {
+        "from": "g3.result.r3_evidence_graph",
+        "to": "g3.preflight.c3_records_signatures"
+      },
+      {
+        "from": "g3.preflight.c3_records_signatures",
+        "to": "g3.tag.a3_fixed_annotated"
+      },
+      {
+        "from": "g3.tag.a3_fixed_annotated",
+        "to": "g3.historical.standalone_replay"
+      },
+      {
+        "from": "g3.historical.standalone_replay",
+        "to": "g3.decision.current_s1_basis"
+      }
+    ],
+    "terminal_node": "g3.decision.current_s1_basis",
+    "max_combined_output_bytes": 41943040,
+    "max_combined_semantic_output_bytes": 67108864,
+    "graph_digest": "sha256:bacb5358e2f4c63640d358eb8f2245ed39be0523d5766ba4ebc53efc2c22ea37"
+  },
+  "check_contracts_digest": "sha256:6b03af2c14bcc85f935e116a2b6e0183228558f98cb871ab026dc9a391480f2a"
+}

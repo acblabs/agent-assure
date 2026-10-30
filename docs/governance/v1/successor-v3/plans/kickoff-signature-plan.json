@@ -1,0 +1,180 @@
+{
+  "format": "agent-assure-s1-successor-signature-plan/2",
+  "digest_domain": "agent-assure:s1-successor-signature-plan/v2",
+  "package_id": "a974a9e0-c780-4288-9238-21144a4a5b8d",
+  "authorization_id": "a33388e8-562d-41ad-9de1-05daf864c4b6",
+  "claim_path": "claims/kickoff.claim",
+  "claim_schema_path": "successor-kickoff-claim.schema.json",
+  "signature_staging_requirement": "external_regular_file_outside_package",
+  "installed_signature_path": "claims/kickoff.claim.sig",
+  "authorization_record_path": "successor-kickoff-authorization.json",
+  "authorization_record_signature_staging_requirement": "external_regular_file_outside_package",
+  "installed_authorization_record_signature_path": "successor-kickoff-authorization.json.sig",
+  "path_contract": {
+    "staging_root": ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d",
+    "staged_claim": ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/kickoff.claim",
+    "staged_signature": ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/kickoff.claim.sig",
+    "staged_authorization": ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/successor-kickoff-authorization.json",
+    "staged_authorization_signature": ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/successor-kickoff-authorization.json.sig",
+    "fresh_b3_replay_root": ".tmp/s1-acceptance/post-v2-control-successor-v3-b3-a974a9e0-c780-4288-9238-21144a4a5b8d",
+    "installed_signature": "claims/kickoff.claim.sig",
+    "installed_replay_root": "baseline",
+    "installed_authorization": "successor-kickoff-authorization.json",
+    "installed_authorization_signature": "successor-kickoff-authorization.json.sig",
+    "later_ceremony_root": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d",
+    "later_layout": {
+      "root": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d",
+      "preclosure_receipts": [
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/01-g3.predecessor.v1_historical.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/02-g3.predecessor.v2_historical.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/03-g3.baseline.b3_control_replay.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/04-g3.authorization.k3_anchor.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/05-g3.result.r3_topology_scope.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/06-g3.result.r3_schema_semantics.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/07-g3.result.r3_python311_governance.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/08-g3.result.r3_native_windows_full_suite.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/09-g3.result.r3_static_quality_docs.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/10-g3.result.r3_repository_surface.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/11-g3.result.r3_hosted_ci.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/preclosure/12-g3.result.r3_evidence_graph.receipt.json"
+      ],
+      "postclosure_receipts": [
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/postclosure/13-g3.preflight.c3_records_signatures.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/postclosure/14-g3.tag.a3_fixed_annotated.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/postclosure/15-g3.historical.standalone_replay.receipt.json",
+        ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/receipts/postclosure/16-g3.decision.current_s1_basis.receipt.json"
+      ],
+      "node12_result": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/results/12-g3.result.r3_evidence_graph.node-result.json",
+      "node16_result": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/results/16-g3.decision.current_s1_basis.node-result.json",
+      "c3_payload": {
+        "publication_claim": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/claims/publication.claim",
+        "publication_signature": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/claims/publication.claim.sig",
+        "publication_authorization": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/successor-publication-authorization.json",
+        "suite_evidence": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/successor-suite-evidence.json",
+        "suite_evidence_signature": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/successor-suite-evidence.json.sig",
+        "closure_claim": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/claims/closure.claim",
+        "closure_signature": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/claims/closure.claim.sig",
+        "closure_authorization": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/c3-payload/successor-closure-authorization.json"
+      },
+      "post_c3": {
+        "acceptance_claim": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/post-c3/acceptance-tag.claim",
+        "acceptance_signature": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/post-c3/acceptance-tag.claim.sig",
+        "tag_envelope": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/post-c3/acceptance-tag-envelope.json",
+        "final_verification": ".tmp/s1-acceptance/successor-v3-ceremony-a974a9e0-c780-4288-9238-21144a4a5b8d/post-c3/successor-final-verification.json"
+      }
+    }
+  },
+  "signer_argv_template": [
+    "C:\\Windows\\System32\\OpenSSH\\ssh-keygen.exe",
+    "-Y",
+    "sign",
+    "-f",
+    "{HUMAN_PRIVATE_KEY}",
+    "-n",
+    "agent-assure-governance-v1",
+    ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/kickoff.claim"
+  ],
+  "authorization_record_signer_argv_template": [
+    "C:\\Windows\\System32\\OpenSSH\\ssh-keygen.exe",
+    "-Y",
+    "sign",
+    "-f",
+    "{HUMAN_PRIVATE_KEY}",
+    "-n",
+    "agent-assure-governance-v1",
+    ".tmp/s1-acceptance/successor-v3-kickoff-staging-a974a9e0-c780-4288-9238-21144a4a5b8d/successor-kickoff-authorization.json"
+  ],
+  "signer_working_directory": "repository_root",
+  "signer_executable": {
+    "path": "C:\\Windows\\System32\\OpenSSH\\ssh-keygen.exe",
+    "bytes": 861184,
+    "sha256": "sha256:c9dc170cd161db87e75eb6cf282f1325005b9e35628b9a36cb19883a8be1a34f"
+  },
+  "claim_binding_mode": "resolved_at_import_from_candidate_no_plan_to_claim_back_reference",
+  "signature_profile": "openssh-sshsig-ed25519/v1",
+  "namespace": "agent-assure-governance-v1",
+  "signer": {
+    "accountable_human": "acblabs",
+    "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+    "fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+    "review_status": "NO_INDEPENDENT_REVIEW"
+  },
+  "steps": [
+    {
+      "ordinal": 1,
+      "actor": "operator",
+      "action": "prove_native_file_symlink_capability_in_signing_token_and_validate_exact_unsigned_package_and_validity_window"
+    },
+    {
+      "ordinal": 2,
+      "actor": "operator",
+      "action": "copy_exact_claim_bytes_to_fixed_external_staging_path_and_rehash"
+    },
+    {
+      "ordinal": 3,
+      "actor": "accountable_human",
+      "action": "read_exact_staged_claim_and_make_personal_decision"
+    },
+    {
+      "ordinal": 4,
+      "actor": "accountable_human",
+      "action": "invoke_exact_external_sshsig_command_with_personally_controlled_key"
+    },
+    {
+      "ordinal": 5,
+      "actor": "operator",
+      "action": "capture_fresh_B3_control_replay_at_fixed_external_path"
+    },
+    {
+      "ordinal": 6,
+      "actor": "importer",
+      "action": "snapshot_and_verify_claim_signature_roster_replay_topology_and_time_window"
+    },
+    {
+      "ordinal": 7,
+      "actor": "importer",
+      "action": "under_one_lock_exclusively_install_claim_signature_replay_and_record_ready_authorization_without_overwrite"
+    },
+    {
+      "ordinal": 8,
+      "actor": "accountable_human",
+      "action": "inspect_exact_staged_authorization_record_and_make_personal_decision"
+    },
+    {
+      "ordinal": 9,
+      "actor": "accountable_human",
+      "action": "sign_exact_staged_authorization_record_with_same_bound_sshsig_profile"
+    },
+    {
+      "ordinal": 10,
+      "actor": "importer",
+      "action": "verify_record_signature_and_exclusively_finalize_kickoff_import"
+    },
+    {
+      "ordinal": 11,
+      "actor": "operator",
+      "action": "stage_and_independently_verify_exact_K3_index_surface"
+    },
+    {
+      "ordinal": 12,
+      "actor": "accountable_human",
+      "action": "after_inspection_invoke_transaction_locked_governed_exact_K3_installer"
+    },
+    {
+      "ordinal": 13,
+      "actor": "operator",
+      "action": "after_successful_exact_K3_install_invoke_recoverable_lock_and_completion_bound_project_runtime_activation_before_any_R3_work"
+    }
+  ],
+  "prohibited_actions": [
+    "private_key_access_by_builder_or_importer",
+    "signature_generation_by_builder_or_importer",
+    "retrospective_authorization_of_B3",
+    "implicit_Git_commit_creation",
+    "implicit_tag_creation",
+    "implicit_remote_publication",
+    "S2_start",
+    "release_or_method_admission"
+  ],
+  "plan_digest": "sha256:ee9cc3849a37e7e0cc6dde291fbcdba87a5d5e031233c1575e9c4706fdc22e14"
+}
