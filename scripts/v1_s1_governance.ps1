@@ -8,6 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $LauncherProfile = 'agent-assure-s1-powershell-runtime-launcher/v1'
+$SuccessorTrackedLauncherProfile = 'agent-assure-s1-successor-v3-tracked-runner/v1'
 $ExpectedRuntimeFileCount = 2766
 $ExpectedRuntimeSizeBytes = [UInt64] 54224916
 $ExpectedRuntimeSha256 = '4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152'
@@ -136,8 +137,22 @@ if ($RelativePaths.Count -ne $ExpectedRuntimeFileCount -or
 
 $ProfileVariable = 'AGENT_ASSURE_S1_LAUNCHER_PROFILE'
 $DigestVariable = 'AGENT_ASSURE_S1_BASE_RUNTIME_SHA256'
+$SuccessorProfileVariable = 'AGENT_ASSURE_S1_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE'
 $PriorProfile = [Environment]::GetEnvironmentVariable($ProfileVariable, 'Process')
 $PriorDigest = [Environment]::GetEnvironmentVariable($DigestVariable, 'Process')
+$PriorSuccessorProfile = [Environment]::GetEnvironmentVariable(
+    $SuccessorProfileVariable,
+    'Process'
+)
+$SuccessorCommand = $null
+if (@($GovernanceArguments).Count -gt 0) {
+    $SuccessorCommand = $GovernanceArguments[0]
+}
+$IsSuccessorCommand = @(
+    'successor-v3-run-node',
+    'successor-v3-native-suite',
+    'successor-v3-historical-check'
+) -ccontains $SuccessorCommand
 $ConstrainedVariables = @(
     'OPENSSL_CONF',
     'OPENSSL_ENGINES',
@@ -172,6 +187,16 @@ $ChildExitCode = 1
 try {
     [Environment]::SetEnvironmentVariable($ProfileVariable, $LauncherProfile, 'Process')
     [Environment]::SetEnvironmentVariable($DigestVariable, $ObservedSha256, 'Process')
+    if ($IsSuccessorCommand) {
+        [Environment]::SetEnvironmentVariable(
+            $SuccessorProfileVariable,
+            $SuccessorTrackedLauncherProfile,
+            'Process'
+        )
+    }
+    else {
+        [Environment]::SetEnvironmentVariable($SuccessorProfileVariable, $null, 'Process')
+    }
     [Environment]::SetEnvironmentVariable('OPENSSL_CONF', $null, 'Process')
     [Environment]::SetEnvironmentVariable('OPENSSL_ENGINES', $null, 'Process')
     [Environment]::SetEnvironmentVariable('OPENSSL_MODULES', $null, 'Process')
@@ -192,6 +217,11 @@ try {
 finally {
     [Environment]::SetEnvironmentVariable($ProfileVariable, $PriorProfile, 'Process')
     [Environment]::SetEnvironmentVariable($DigestVariable, $PriorDigest, 'Process')
+    [Environment]::SetEnvironmentVariable(
+        $SuccessorProfileVariable,
+        $PriorSuccessorProfile,
+        'Process'
+    )
     foreach ($Name in $ConstrainedVariables) {
         [Environment]::SetEnvironmentVariable($Name, $PriorEnvironment[$Name], 'Process')
     }

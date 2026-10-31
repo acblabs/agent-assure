@@ -18,9 +18,11 @@ depended on the unavailable private roadmap, and that an ignored native Python
 extension at the repository root was outside the authenticated test-surface
 inventory while remaining importable. Those findings do not rewrite or prove
 tampering of either earlier generation, but they make generation 2
-insufficient as the current acceptance basis for S2. S2 remains blocked until
-a separately authorized successor result and closure capture the repaired
-controls, the complete required check graph, and new signed evidence. The tag
+insufficient as the current acceptance basis for S2. The Generation-3 kickoff
+is now prospectively authorized and its bounded R3 implementation follows the
+signed partition, but it is not yet a current acceptance generation. S2 remains
+blocked until the separately signed successor closure, fixed tag, standalone
+replay, complete check graph, and final current-basis derivation succeed. The tag
 `agent-assure-s1-1.0.0a1-acceptance-v2` must never be moved or replaced.
 
 ## Record set
@@ -59,6 +61,14 @@ controls, the complete required check graph, and new signed evidence. The tag
 - Every JSON record type has a colocated Draft 2020-12 schema. Semantic checks,
   digest recomputation, Git provenance checks, and SSH signature verification
   are implemented by `scripts/v1_s1_governance.py`.
+- `successor-v3/` contains the signed Generation-3 protocol, exact source-state
+  and check contracts, schemas, tools, signature plan, verified kickoff record,
+  and fresh B3 control replay. Its own README is the canonical ceremony
+  runbook. Its kickoff claim binds the exact intended R3 blob descriptors and
+  the tracked runner's package and protocol-format identities, which are
+  rechecked at the worktree, index, and installed-commit boundaries. This
+  document records the tracked-runner boundary and lifecycle meaning without
+  weakening or replacing that signed protocol.
 
 The generation-2 method definition, registry, and estimation-catalog digests
 are, respectively,
@@ -1802,3 +1812,134 @@ so hosted CI is neither accepted-host configuration proof nor a full
 generation-2 end-to-end closure. CI never receives or uploads the private
 implementation roadmap and does not reproduce the maintainer host or its
 unattested clock.
+
+## Prospectively authorized Generation 3
+
+The fixed successor topology is `C2 -> B3 -> K3 -> R3 -> C3`; the annotated A3
+tag targets C3. B3 remains a nonaccepting control baseline. K3 is its direct
+non-merge child and installs the verified, human-signed kickoff package. R3 is
+K3's direct non-merge implementation child and changes exactly the eight paths
+declared by the signed claim. C3 is R3's direct non-merge closure child and
+changes only the eight predeclared successor evidence and authorization
+records. A3 is fixed to
+`agent-assure-s1-1.0.0a1-acceptance-v3` and cannot move.
+
+The canonical protocol, schemas, digest registry, check contracts, lifecycle
+profiles, exact commands, and recovery rules are under
+`docs/governance/v1/successor-v3/`. The signed preclosure graph has exactly 12
+nodes and 20 edges; the full graph has exactly 16 nodes and 24 edges. No prose
+in this parent README authorizes a substitution for that package.
+
+### Tracked-runner command boundary
+
+The signed graph invokes three tracked commands only through
+`scripts/v1_s1_governance.ps1` and its authenticated frozen Windows runtime:
+
+Before a kickoff claim is signable, the package tool imports the exact
+descriptor-bound prospective runner and exercises the same schema-instance
+validation path used by node 1. Schema discovery traverses only Draft 2020-12
+schema-bearing keyword positions. Ordinary instance data beneath `const`,
+`enum`, `default`, and `examples` is opaque; genuine unsupported formats and
+nonlocal schema references remain fail-closed negative controls. The runner's
+closed format set admits only canonical UTC date-times, absolute URIs, and
+lowercase hyphenated UUIDs, with no ambient format-plugin discovery.
+The package tool emits JSON stdout and stderr directly as UTF-8 bytes with
+LF framing. Before signing, all three real PowerShell launcher preflight
+outputs are consumed by the descriptor-bound prospective runner's exact
+validator-output parser. That parser retains its CRLF and BOM rejection,
+strict JSON rules, and exact package/profile/status checks. Captured evidence
+is never normalized to make a transport mismatch pass.
+
+The Python 3.11 schema-walker regression uses an instance admitted by its
+root-level `enum`, and separately proves rejection of the contradictory
+fixture. This changes no production schema rule. Governed Git reads explicitly
+set `core.longpaths=true` rather than relying on ambient or repository settings;
+regressions cover loose and packed object reads beneath deep fixture roots.
+Fresh execution roots are `C:\tmp\s3-<uuid4hex>` with a complete canonical
+lowercase UUID-v4 nonce. Package/node identities remain independently bound
+by the signed contract and receipt, and no two receipts may reuse a root.
+Node 7 supplies the explicit short pytest basetemp `{TEMP}/p`. The executor
+checks native executable-path and command-line UTF-16 budgets before launch.
+An unsigned pre-signing regression run is diagnostic only: it creates no
+acceptance receipt, authorizes no ref change, and cannot replace node 7's later
+exact 311-test zero-failure, zero-error, zero-skip, zero-deselection gate.
+
+The native-suite roadmap-history guard uses a literal root-relative path and
+full commit history across all refs, not an object listing that can include
+unrelated annotated tags. A genuine roadmap commit remains forbidden even
+after deletion or when reachable only through another branch. Git inspection
+errors fail closed. When the local private input is present, its established
+ignored/untracked, index, and unreachable-blob safeguards are also enforced;
+its permitted absence after activation does not disable the history check.
+The prospective native-suite and package-domain runtime inventories are
+recomputed from the same stable file rows and one exact editable-pointer
+substitution before signing. Separate unsigned prerequisites and full-native
+regression runs are diagnostics only, not signatures, acceptance receipts,
+or substitutes for node 8's later exact signed execution.
+
+- `successor-v3-run-node --node <id> --subject-role <role> --output <path>`
+  evaluates nodes 1-6, 10, 13, and 14. The only admitted pairs are
+  `g3.predecessor.v1_historical`/`C1`,
+  `g3.predecessor.v2_historical`/`C2`,
+  `g3.baseline.b3_control_replay`/`B3`,
+  `g3.authorization.k3_anchor`/`K3`,
+  `g3.result.r3_topology_scope`/`R3`,
+  `g3.result.r3_schema_semantics`/`R3`,
+  `g3.result.r3_repository_surface`/`R3`,
+  `g3.preflight.c3_records_signatures`/`C3`, and
+  `g3.tag.a3_fixed_annotated`/`A3`.
+- `successor-v3-native-suite --subject <R3> --output <path>` evaluates node 8
+  with the exact frozen launcher, CPython, DLL, Git, OpenSSH, activated
+  dependency inventory before and after execution, full-suite command, and
+  terminal totals. The package-domain runtime validation and the tracked
+  runner's independently domain-separated import-surface validation must both
+  remain unchanged across pytest.
+- `successor-v3-historical-check --expected-c3 <C3> --expected-a3 <A3>` with
+  `--output <path>` evaluates node 15 in the tool-created standalone clone. It
+  requires complete object integrity, the exact C3/A3 binding, validation of all
+  three generations, no private roadmap, and no dependency on the source
+  checkout or its ignored environment.
+
+The PowerShell launcher sets the dedicated tracked-successor handshake only for
+those three exact commands and removes any ambient value for every legacy
+command. The Python entry point consumes that handshake and rejects direct,
+misrouted, or cross-generation invocation. This is a misuse and runtime-binding
+control; it does not turn an environment variable into a trust root.
+
+Every tracked command creates its output exactly once at the fresh absolute
+path supplied by the package executor. A node observation contains exactly
+`format`, `node_id`, `predicate`, `status`, `subject`, `assertions`,
+`forbidden_status_counts`, and `evidence`. It reports `passed` only after the
+subject, signed assertion list, zero counts for every forbidden status, and
+nonempty predicate evidence have all been independently established. Existing,
+symlinked, reparse-backed, noncanonical, or out-of-scope output paths fail
+closed; no command overwrites diagnostic or acceptance evidence.
+
+The tracked runner proves repository and historical predicates. The signed
+package tool separately authenticates the command contract, creates fresh
+environments, captures bounded stdout and stderr plus executable identities,
+validates the semantic observation, constructs the receipt, transfers exact
+predecessor receipt digests, aggregates the graph, and derives the final basis.
+One component's self-report cannot substitute for the other's validation.
+
+### Acceptance and publication boundary
+
+Generation 2 remains the immutable historical current generation until the
+complete Generation-3 sequence finishes. R3 implementation and a green exact-R3
+hosted run are necessary but not sufficient. Generation 3 becomes current only
+after all preclosure receipts pass, a separate human signature authorizes the
+closure, C3 and A3 are installed, the standalone replay passes, and node 16
+derives exact C3 as the current S1 basis. The kickoff signature authorizes no
+push. A separate publication signature may authorize one bounded non-force R3
+branch push; it does not authorize C3, A3, S2, a release, deployment, or method
+admission.
+
+All Generation-3 preparation, import, execution, and gate times remain truthful
+maintainer-host UTC observations without external time attestation. OpenSSH
+SSHSIG has no cryptographic signing timestamp or RFC 3161 token. The accountable
+development roles are held by the same maintainer, so the result is explicitly
+single-maintainer development governance, not independent audit or multiparty
+sign-off. Direct execution remains pinned to the recorded Windows CPython, Git,
+OpenSSH, dependency inventories, and applicable local private input. Hosted CI
+checks the declared portable and synthetic surface; it does not attest the
+maintainer host, private roadmap, or host clock.

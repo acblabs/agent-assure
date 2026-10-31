@@ -33,6 +33,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Final, cast
 from urllib.parse import urlsplit
+from uuid import UUID
 
 # The S1 validator is deliberately host-bound.  Strict command execution starts
 # with the reviewed base interpreter rather than the ignored, workspace-writable
@@ -88,6 +89,18 @@ _FROZEN_RUNTIME_SHA256: Final = "a8a4451bde03104cc2a6dae38a30ae0bef63f717a39e5b9
 _LAUNCHER_PROFILE: Final = "agent-assure-s1-powershell-runtime-launcher/v1"
 _LAUNCHER_PROFILE_ENV: Final = "AGENT_ASSURE_S1_LAUNCHER_PROFILE"
 _LAUNCHER_RUNTIME_DIGEST_ENV: Final = "AGENT_ASSURE_S1_BASE_RUNTIME_SHA256"
+_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE: Final = "agent-assure-s1-successor-v3-tracked-runner/v1"
+_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE_ENV: Final = (
+    "AGENT_ASSURE_S1_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE"
+)
+_SUCCESSOR_V3_POWERSHELL_EXECUTABLE: Final = Path(
+    r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
+)
+_SUCCESSOR_V3_POWERSHELL_SIZE: Final = 495_616
+_SUCCESSOR_V3_POWERSHELL_SHA256: Final = (
+    "60c9b29843624dd8af6b6a7b26147753be6aeef65098b9a503cc50850afe410f"
+)
+_SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES: Final = 4 * 1024 * 1024
 _LAUNCHER_CHILD_PATH: Final = (
     str(_FROZEN_PYTHON_ROOT)
     + ";"
@@ -480,6 +493,9 @@ CORRECTIVE_KICKOFF_CLAIM_DIGEST: Final = (
     "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
 )
 CORRECTIVE_KICKOFF_CLAIM_SIZE: Final = 6_712
+CORRECTIVE_ROADMAP_DIGEST: Final = (
+    "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+)
 TICKET_SET_DOMAIN: Final = "agent-assure:roadmap-ticket-set/v1"
 DEPENDENCY_GRAPH_DOMAIN: Final = "agent-assure:roadmap-dependency-graph/v1"
 RELEASE_TRAIN_DOMAIN: Final = "agent-assure:roadmap-release-train/v1"
@@ -565,6 +581,83 @@ S1_ACCEPTANCE_V1_TAG_OBJECT: Final = "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
 S1_ACCEPTANCE_V1_CLOSURE_COMMIT: Final = "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
 S1_ACCEPTANCE_V1_RESULT_COMMIT: Final = "038b1a8c80fc419106eecd43f4a70b14ba026106"
 S1_ACCEPTANCE_V2_CLOSURE_COMMIT: Final = "db5133e09860d292047b963b0fb81b3e7385b7fa"
+S1_ACCEPTANCE_V2_RESULT_COMMIT: Final = "022c44ca11b170d5843aa57a7b33fba9cd0ad38d"
+S1_ACCEPTANCE_V2_TAG_OBJECT: Final = "aba5ac9111fd2be3a1b0e8e3ac7c3ebb8cb002be"
+S1_SUCCESSOR_V3_PACKAGE_ID: Final = "a974a9e0-c780-4288-9238-21144a4a5b8d"
+S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT: Final = (
+    "agent-assure-s1-successor-check-contracts/2"
+)
+S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT: Final = (
+    "agent-assure-s1-successor-authorization-claim/13"
+)
+S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT: Final = (
+    "agent-assure-s1-successor-kickoff-authorization/14"
+)
+S1_SUCCESSOR_V3_PACKAGE_RELATIVE: Final = "docs/governance/v1/successor-v3"
+S1_SUCCESSOR_V3_BRANCH_NAME: Final = "fix/s1-governed-baseline-v3"
+S1_SUCCESSOR_V3_TAG_NAME: Final = "agent-assure-s1-1.0.0a1-acceptance-v3"
+S1_SUCCESSOR_V3_B3_COMMIT: Final = "aae82851a74d4e6c5efda543850f1eba9d6b09f9"
+S1_SUCCESSOR_V3_B3_TREE: Final = "cee453ba1afbd9fe59907a2d02c91a2f2eb5274c"
+S1_SUCCESSOR_V3_K3_MESSAGE: Final = "Authorize Generation-3 governed S1 successor"
+S1_SUCCESSOR_V3_R3_MESSAGE: Final = "Implement Generation-3 governed S1 successor"
+S1_SUCCESSOR_V3_C3_MESSAGE: Final = "Close Generation-3 governed S1 successor"
+S1_SUCCESSOR_V3_OBSERVATION_FORMAT: Final = "agent-assure-s1-successor-node-observation/1"
+S1_SUCCESSOR_V3_R3_PATHS: Final = (
+    ".github/workflows/ci.yml",
+    "CHANGELOG.md",
+    "docs/adr/0016-v1-repository-map.md",
+    "docs/governance/v1/README.md",
+    "scripts/v1_s1_governance.ps1",
+    "scripts/v1_s1_governance.py",
+    "tests/integration/test_v1_s1_historical_check.py",
+    "tests/unit/governance/test_v1_s1_governance.py",
+)
+S1_SUCCESSOR_V3_C3_PATHS: Final = tuple(
+    sorted(
+        (
+            "docs/governance/v1/successor-v3/claims/closure.claim",
+            "docs/governance/v1/successor-v3/claims/closure.claim.sig",
+            "docs/governance/v1/successor-v3/claims/publication.claim",
+            "docs/governance/v1/successor-v3/claims/publication.claim.sig",
+            "docs/governance/v1/successor-v3/successor-closure-authorization.json",
+            "docs/governance/v1/successor-v3/successor-publication-authorization.json",
+            "docs/governance/v1/successor-v3/successor-suite-evidence.json",
+            "docs/governance/v1/successor-v3/successor-suite-evidence.json.sig",
+        )
+    )
+)
+S1_SUCCESSOR_V3_RUN_NODE_ROLES: Final = {
+    "g3.predecessor.v1_historical": "C1",
+    "g3.predecessor.v2_historical": "C2",
+    "g3.baseline.b3_control_replay": "B3",
+    "g3.authorization.k3_anchor": "K3",
+    "g3.result.r3_topology_scope": "R3",
+    "g3.result.r3_schema_semantics": "R3",
+    "g3.result.r3_repository_surface": "R3",
+    "g3.preflight.c3_records_signatures": "C3",
+    "g3.tag.a3_fixed_annotated": "A3",
+}
+S1_SUCCESSOR_V3_SCHEMA_FILES: Final = (
+    "check-contracts.schema.json",
+    "digest-domain-registry.schema.json",
+    "package-manifest.schema.json",
+    "signature-plan.schema.json",
+    "source-state.schema.json",
+    "successor-acceptance-tag-claim.schema.json",
+    "successor-acceptance-tag-envelope.schema.json",
+    "successor-check-node-result.schema.json",
+    "successor-check-receipt.schema.json",
+    "successor-closure-authorization.schema.json",
+    "successor-closure-claim.schema.json",
+    "successor-final-verification.schema.json",
+    "successor-kickoff-authorization.schema.json",
+    "successor-kickoff-candidate.schema.json",
+    "successor-kickoff-claim.schema.json",
+    "successor-publication-authorization.schema.json",
+    "successor-publication-claim.schema.json",
+    "successor-suite-evidence.schema.json",
+    "validation-report.schema.json",
+)
 S1_ACCEPTANCE_V1_BUNDLE_DIGEST: Final = (
     "sha256:62d4ddd81f2f619597b40a39d75a084e5bd0bc5ad99e2653f3fe6659b0194a82"
 )
@@ -641,6 +734,22 @@ POST_R2_TEST_RUNTIME_FILE_COUNT: Final = 5_473
 POST_R2_TEST_RUNTIME_SIZE_BYTES: Final = 92_718_636
 POST_R2_TEST_RUNTIME_SHA256: Final = (
     "a1fc3961699a2eed1fdbeccba871a55b760f3764da3e54c1a638fc18bafb7f2c"
+)
+POST_R2_TEST_RUNTIME_IDENTITY: Final = (
+    POST_R2_TEST_RUNTIME_FILE_COUNT,
+    POST_R2_TEST_RUNTIME_SIZE_BYTES,
+    POST_R2_TEST_RUNTIME_SHA256,
+)
+# K3's one-way project-runtime activation changes only the editable-install
+# pointer from the frozen B3 bootstrap clone to the dedicated successor clone.
+# Keep this identity separate so historical B3 evidence continues to verify
+# against the exact pre-activation inventory.  The signed source-state records
+# bc1b660a... under its successor-package domain; this value is the same activated
+# bytes rehashed under POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN.
+SUCCESSOR_V3_TEST_RUNTIME_IDENTITY: Final = (
+    5_473,
+    92_718_662,
+    "62497d094508eb57c773fbd7d1b69c30e2fb84a42ec41b51907d85a65598e789",
 )
 POST_R2_TEST_SURFACE_INVENTORY_DOMAIN: Final = (
     b"agent-assure:s1-post-r2-test-surface-inventory/v1\x00"
@@ -1903,9 +2012,13 @@ def _post_r2_pytest_bootstrap_source(
     basetemp: Path,
     process_temp: Path,
     legacy_v3_policy: bool = False,
+    expected_runtime_identity: tuple[int, int, str] = POST_R2_TEST_RUNTIME_IDENTITY,
 ) -> str:
     """Return the fixed stdlib-only verifier that runs before pytest imports."""
 
+    expected_runtime_file_count, expected_runtime_size_bytes, expected_runtime_sha256 = (
+        expected_runtime_identity
+    )
     root_test_config_paths = _post_r2_root_test_config_paths(legacy_v3_policy=legacy_v3_policy)
     process_temp_root = POST_R2_PROCESS_TEMP_ROOT
     descendant_runtime_root = process_temp / POST_R2_DESCENDANT_RUNTIME_DIRECTORY
@@ -2111,9 +2224,9 @@ for relative, size, file_digest in runtime_rows:
     runtime_digest.update(size.to_bytes(8, "big"))
     runtime_digest.update(file_digest)
 if (len(runtime_rows), sum(row[1] for row in runtime_rows), runtime_digest.hexdigest()) != (
-    {POST_R2_TEST_RUNTIME_FILE_COUNT},
-    {POST_R2_TEST_RUNTIME_SIZE_BYTES},
-    {POST_R2_TEST_RUNTIME_SHA256!r},
+    {expected_runtime_file_count},
+    {expected_runtime_size_bytes},
+    {expected_runtime_sha256!r},
 ):
     raise RuntimeError("post-R2 authenticated site-packages inventory changed")
 
@@ -4031,6 +4144,55 @@ def validate_authoring_ledger_v2(
         raise GovernanceError("unquantified wait diagnostic changed from the source inventory")
     if _forecast_v2_file_scope_observation(snapshot)["unresolved_ticket_count"] != 68:
         raise GovernanceError("all 68 ticket file scopes must remain explicitly unresolved")
+    if snapshot.raw_digest == CORRECTIVE_ROADMAP_DIGEST:
+        base06_rows = [
+            row
+            for row in rows
+            if _as_object(row, owner="ledger row").get("ticket_id") == "V1-BASE-06"
+        ]
+        if len(base06_rows) != 1:
+            raise GovernanceError("ledger must contain exactly one V1-BASE-06 row")
+        base06 = _as_object(base06_rows[0], owner="V1-BASE-06 row")
+        base06_anchors = _as_object(base06.get("source_anchors"), owner="V1-BASE-06 source anchors")
+        base06_proposals = _as_array(
+            base06.get("execution_proposals"), owner="V1-BASE-06 proposals"
+        )
+        if (
+            base06_anchors.get("acceptance_criteria_count") != 13
+            or base06_anchors.get("work_package_count") != 4
+            or len(base06_proposals) != 1
+        ):
+            raise GovernanceError("V1-BASE-06 explicit expansion inventory changed")
+        base06_proposal = _as_object(base06_proposals[0], owner="V1-BASE-06 proposal")
+        base06_coverage = _as_object(
+            base06_proposal.get("obligation_coverage"), owner="V1-BASE-06 coverage"
+        )
+        if (
+            base06_proposal.get("occurrence_id") != "V1-BASE-06@S2/1.0.0a2"
+            or base06_proposal.get("occurrence_index") != 1
+            or len(
+                _as_array(
+                    base06_coverage.get("acceptance_criteria"),
+                    owner="V1-BASE-06 criteria",
+                )
+            )
+            != 13
+            or len(
+                _as_array(
+                    base06_coverage.get("work_packages"),
+                    owner="V1-BASE-06 packages",
+                )
+            )
+            != 4
+            or len(
+                _as_array(
+                    base06_proposal.get("work_breakdown"),
+                    owner="V1-BASE-06 work breakdown",
+                )
+            )
+            != 9
+        ):
+            raise GovernanceError("V1-BASE-06 explicit occurrence expansion changed")
     rel02_rows = [
         row for row in rows if _as_object(row, owner="ledger row").get("ticket_id") == "V1-REL-02"
     ]
@@ -5888,8 +6050,19 @@ def validate_corrective_kickoff_authorization(
     ):
         raise GovernanceError("corrective kickoff signed claim bytes changed")
     evidence = _as_object(signed_claim.get("evidence"), owner="corrective claim evidence")
-    if evidence.get("roadmap_raw_sha256") != expected_roadmap_digest:
+    if (
+        evidence.get("roadmap_raw_sha256") != expected_roadmap_digest
+        or expected_roadmap_digest != CORRECTIVE_ROADMAP_DIGEST
+    ):
         raise GovernanceError("corrective kickoff targets another roadmap")
+    roadmap_policy = _as_object(
+        signed_claim.get("roadmap_policy"), owner="corrective roadmap policy"
+    )
+    if roadmap_policy.get("minimum_explicit_expanded_ticket_ids") != [
+        "V1-BASE-06",
+        "V1-REL-02",
+    ]:
+        raise GovernanceError("corrective kickoff explicit-expansion policy changed")
     _validate_corrective_local_only_path_prefixes(signed_claim)
     topology = _as_object(signed_claim.get("expected_topology"), owner="corrective claim topology")
     if topology != {
@@ -6711,6 +6884,8 @@ def _git_invocation_prefix(executable: str, hooks_directory: Path) -> list[str]:
         "core.fsmonitor=false",
         "-c",
         "core.untrackedCache=false",
+        "-c",
+        "core.longpaths=true",
         "-c",
         "core.excludesFile=",
         "-c",
@@ -9405,14 +9580,17 @@ def _measure_post_r2_test_runtime_inventory(
 def _post_r2_test_runtime_inventory(
     repository_root: Path,
     site_packages: Path,
+    *,
+    expected_identity: tuple[int, int, str] = POST_R2_TEST_RUNTIME_IDENTITY,
 ) -> dict[str, Any]:
     """Authenticate the measured pytest import path against the frozen inventory."""
 
     inventory = _measure_post_r2_test_runtime_inventory(repository_root, site_packages)
+    expected_file_count, expected_size_bytes, expected_sha256 = expected_identity
     expected = {
-        "file_count": POST_R2_TEST_RUNTIME_FILE_COUNT,
-        "size_bytes": POST_R2_TEST_RUNTIME_SIZE_BYTES,
-        "sha256": "sha256:" + POST_R2_TEST_RUNTIME_SHA256,
+        "file_count": expected_file_count,
+        "size_bytes": expected_size_bytes,
+        "sha256": "sha256:" + expected_sha256,
     }
     if any(inventory[key] != value for key, value in expected.items()):
         raise GovernanceError("post-R2 pytest site-packages inventory changed")
@@ -9438,7 +9616,11 @@ def _post_r2_runtime_file_evidence(
     }
 
 
-def _post_r2_test_runtime_evidence(repository_root: Path) -> dict[str, Any]:
+def _post_r2_test_runtime_evidence(
+    repository_root: Path,
+    *,
+    expected_identity: tuple[int, int, str] = POST_R2_TEST_RUNTIME_IDENTITY,
+) -> dict[str, Any]:
     """Bind the authenticated venv packages and already-frozen base runtime."""
 
     root = repository_root.resolve()
@@ -9474,7 +9656,11 @@ def _post_r2_test_runtime_evidence(repository_root: Path) -> dict[str, Any]:
             configuration,
             owner="post-R2 pyvenv configuration",
         ),
-        "site_packages_inventory": _post_r2_test_runtime_inventory(root, site_packages),
+        "site_packages_inventory": _post_r2_test_runtime_inventory(
+            root,
+            site_packages,
+            expected_identity=expected_identity,
+        ),
         "base_runtime": {
             "root": str(_FROZEN_PYTHON_ROOT),
             "python_executable": {
@@ -9937,6 +10123,7 @@ def _post_r2_bootstrap_input(
     basetemp: Path,
     process_temp: Path,
     legacy_v3_policy: bool = False,
+    expected_runtime_identity: tuple[int, int, str] = POST_R2_TEST_RUNTIME_IDENTITY,
 ) -> tuple[bytes, dict[str, Any]]:
     """Return the exact stdin bootstrap and its evidence-bound identity."""
 
@@ -9945,6 +10132,7 @@ def _post_r2_bootstrap_input(
         basetemp=basetemp,
         process_temp=process_temp,
         legacy_v3_policy=legacy_v3_policy,
+        expected_runtime_identity=expected_runtime_identity,
     ).encode("utf-8")
     return payload, {
         "transport": "python_stdin_utf8",
@@ -10105,6 +10293,7 @@ def _execute_post_r2_pytest(
     repository_root: Path,
     *,
     test_surface: Mapping[str, Any],
+    expected_runtime_identity: tuple[int, int, str] = POST_R2_TEST_RUNTIME_IDENTITY,
 ) -> tuple[
     Path,
     list[str],
@@ -10142,6 +10331,7 @@ def _execute_post_r2_pytest(
             root,
             basetemp=basetemp,
             process_temp=process_temp,
+            expected_runtime_identity=expected_runtime_identity,
         )
         pycache_prefix = basetemp / "python-bytecode-cache"
         if (
@@ -14612,32 +14802,83 @@ def _historical_governance_json_paths(*, acceptance_generation: int = 1) -> list
     return [f"docs/governance/v1/{name}" for name in names]
 
 
+_SCHEMA_SINGLE_SUBSCHEMA_KEYWORDS: Final = frozenset(
+    {
+        "additionalItems",
+        "additionalProperties",
+        "contains",
+        "contentSchema",
+        "else",
+        "if",
+        "items",
+        "not",
+        "propertyNames",
+        "then",
+        "unevaluatedItems",
+        "unevaluatedProperties",
+    }
+)
+_SCHEMA_ARRAY_SUBSCHEMA_KEYWORDS: Final = frozenset(
+    {"allOf", "anyOf", "oneOf", "prefixItems"}
+)
+_SCHEMA_MAPPING_SUBSCHEMA_KEYWORDS: Final = frozenset(
+    {"$defs", "definitions", "dependentSchemas", "patternProperties", "properties"}
+)
+
+
+def _schema_children(schema: Mapping[str, Any]) -> Iterator[object]:
+    """Yield only values whose JSON Schema keyword position contains schemas.
+
+    Instance-valued keywords such as ``const``, ``enum``, ``default``, and
+    ``examples`` are deliberately opaque.  Recursing through arbitrary values
+    would reinterpret ordinary instance members named ``format`` or ``$ref``
+    as schema vocabulary and reject otherwise valid closed schemas.
+    """
+
+    for keyword in _SCHEMA_SINGLE_SUBSCHEMA_KEYWORDS:
+        child = schema.get(keyword)
+        if isinstance(child, (Mapping, bool)):
+            yield child
+    for keyword in _SCHEMA_ARRAY_SUBSCHEMA_KEYWORDS:
+        children = schema.get(keyword)
+        if isinstance(children, list):
+            yield from children
+    for keyword in _SCHEMA_MAPPING_SUBSCHEMA_KEYWORDS:
+        children = schema.get(keyword)
+        if isinstance(children, Mapping):
+            yield from children.values()
+
+    # Draft-07 compatibility: each dependency value is either a schema or an
+    # array of property names.  Arrays are instance-free strings, not schemas.
+    dependencies = schema.get("dependencies")
+    if isinstance(dependencies, Mapping):
+        for child in dependencies.values():
+            if isinstance(child, (Mapping, bool)):
+                yield child
+
+
 def _schema_declared_formats(value: object) -> set[str]:
+    if not isinstance(value, Mapping):
+        return set()
     formats: set[str] = set()
-    if isinstance(value, Mapping):
-        declared = value.get("format")
-        if isinstance(declared, str):
-            formats.add(declared)
-        for child in value.values():
-            formats.update(_schema_declared_formats(child))
-    elif isinstance(value, list):
-        for child in value:
-            formats.update(_schema_declared_formats(child))
+    declared = value.get("format")
+    if isinstance(declared, str):
+        formats.add(declared)
+    for child in _schema_children(value):
+        formats.update(_schema_declared_formats(child))
     return formats
 
 
 def _schema_external_references(value: object) -> set[str]:
+    if not isinstance(value, Mapping):
+        return set()
     references: set[str] = set()
-    if isinstance(value, Mapping):
-        for keyword in ("$ref", "$dynamicRef"):
-            reference = value.get(keyword)
-            if isinstance(reference, str) and not reference.startswith("#"):
-                references.add(reference)
-        for child in value.values():
-            references.update(_schema_external_references(child))
-    elif isinstance(value, list):
-        for child in value:
-            references.update(_schema_external_references(child))
+    for keyword in ("$ref", "$dynamicRef"):
+        reference = value.get(keyword)
+        if isinstance(reference, str) and not reference.startswith("#"):
+            references.add(reference)
+    for child in _schema_children(value):
+        references.update(_schema_external_references(child))
     return references
 
 
@@ -14678,8 +14919,18 @@ def _schema_absolute_uri(value: object) -> bool:
     return parsed.scheme not in {"http", "https"} or bool(parsed.netloc and hostname)
 
 
+def _schema_canonical_uuid(value: object) -> bool:
+    if not isinstance(value, str):
+        return True
+    try:
+        parsed = UUID(value)
+    except ValueError:
+        return False
+    return str(parsed) == value
+
+
 def _closed_schema_format_checker(schema: Mapping[str, Any]) -> jsonschema.FormatChecker:
-    supported = {"date-time", "uri"}
+    supported = {"date-time", "uri", "uuid"}
     unexpected = _schema_declared_formats(schema) - supported
     if unexpected:
         raise GovernanceError(
@@ -14690,6 +14941,7 @@ def _closed_schema_format_checker(schema: Mapping[str, Any]) -> jsonschema.Forma
     checkers = cast(dict[str, tuple[Any, tuple[type[BaseException], ...]]], checker.checkers)
     checkers["date-time"] = (_schema_canonical_utc, ())
     checkers["uri"] = (_schema_absolute_uri, ())
+    checkers["uuid"] = (_schema_canonical_uuid, ())
     return checker
 
 
@@ -18997,19 +19249,1374 @@ def assemble_draft(args: argparse.Namespace) -> int:
     return 0
 
 
+def _successor_v3_consume_tracked_launcher_handshake() -> None:
+    """Require the dedicated PowerShell dispatch handshake in production.
+
+    Imported unit tests deliberately enter through ``__wrapped__`` and do not
+    claim process-level launcher integrity.  A real command, however, already
+    has the frozen-runtime bootstrap active and must also have been selected by
+    the tracked launcher's Generation-3-only dispatch branch.  Pop the value so
+    no descendant can mistake an inherited marker for its own authorization.
+    """
+
+    if not _main_has_active_runtime_bootstrap():
+        return
+    observed = os.environ.pop(_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE_ENV, None)
+    if observed != _SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE:
+        raise GovernanceError(
+            "Generation-3 commands require the dedicated tracked-launcher profile"
+        )
+
+
+def _successor_v3_repository_root() -> Path:
+    """Bind a signed no-repository-argument command to its exact current clone."""
+
+    root = Path.cwd().resolve()
+    _post_r2_safe_directory(root, owner="Generation-3 repository root")
+    top_level = _run_git(root, ["rev-parse", "--show-toplevel"])
+    if top_level.returncode != 0:
+        raise GovernanceError("Generation-3 command is not running in a Git worktree")
+    try:
+        observed = Path(top_level.stdout.decode("utf-8", errors="strict").strip()).resolve()
+    except (OSError, UnicodeDecodeError) as exc:
+        raise GovernanceError("Generation-3 Git root is invalid") from exc
+    if os.path.normcase(str(observed)) != os.path.normcase(str(root)):
+        raise GovernanceError("Generation-3 command must run at the repository root")
+    expected_script = _resolve_repository_path_without_links(
+        root,
+        "scripts/v1_s1_governance.py",
+        owner="Generation-3 tracked validator",
+    )
+    if os.path.normcase(str(Path(__file__).resolve())) != os.path.normcase(
+        str(expected_script.resolve(strict=True))
+    ):
+        raise GovernanceError("Generation-3 command is not executing the tracked validator")
+    return root
+
+
+def _successor_v3_read_bounded_file(path: Path, *, owner: str, limit: int) -> bytes:
+    """Read one ordinary non-reparse file under an explicit byte ceiling."""
+
+    try:
+        metadata = path.lstat()
+    except OSError as exc:
+        raise GovernanceError(f"{owner} is unavailable") from exc
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+    ):
+        raise GovernanceError(f"{owner} is not an ordinary file")
+    if metadata.st_size > limit:
+        raise GovernanceError(f"{owner} exceeds its {limit}-byte bound")
+    try:
+        payload = path.read_bytes()
+    except OSError as exc:
+        raise GovernanceError(f"unable to read {owner}") from exc
+    if len(payload) != metadata.st_size:
+        raise GovernanceError(f"{owner} changed while it was read")
+    return payload
+
+
+def _successor_v3_read_json(path: Path, *, owner: str) -> tuple[dict[str, Any], bytes]:
+    """Read strict UTF-8 JSON with the package's LF/no-BOM transport policy."""
+
+    raw = _successor_v3_read_bounded_file(
+        path,
+        owner=owner,
+        limit=MAX_GOVERNANCE_JSON_BYTES,
+    )
+    if not raw or raw.startswith(b"\xef\xbb\xbf") or b"\r" in raw or not raw.endswith(b"\n"):
+        raise GovernanceError(f"{owner} must be nonempty UTF-8 with terminal LF and no CR/BOM")
+    try:
+        text = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise GovernanceError(f"{owner} is not UTF-8") from exc
+    value = _as_object(strict_json_loads(text), owner=owner)
+    return value, raw
+
+
+def _successor_v3_descriptor_bytes(
+    package: Path,
+    descriptor: Mapping[str, Any],
+    *,
+    owner: str,
+) -> bytes:
+    """Recompute one signed package-relative raw-file descriptor."""
+
+    relative = _required_string(descriptor, "path")
+    if (
+        not relative
+        or "\\" in relative
+        or Path(relative).is_absolute()
+        or Path(relative).as_posix() != relative
+        or any(part in {"", ".", ".."} for part in relative.split("/"))
+    ):
+        raise GovernanceError(f"{owner} path is not canonical")
+    path = _resolve_repository_path_without_links(package, relative, owner=owner)
+    raw = _successor_v3_read_bounded_file(
+        path,
+        owner=owner,
+        limit=MAX_GOVERNANCE_JSON_BYTES,
+    )
+    if len(raw) != _required_integer(descriptor, "bytes"):
+        raise GovernanceError(f"{owner} byte length changed")
+    if raw_digest(raw) != _required_string(descriptor, "sha256"):
+        raise GovernanceError(f"{owner} SHA-256 changed")
+    return raw
+
+
+def _successor_v3_verify_raw_sshsig(
+    signature_path: Path,
+    payload: bytes,
+    *,
+    owner: str,
+) -> dict[str, Any]:
+    """Verify one canonical raw OpenSSH SSHSIG with the frozen maintainer key."""
+
+    raw = _successor_v3_read_bounded_file(signature_path, owner=owner, limit=65_536)
+    canonical = _canonical_sshsig_armor(raw)
+    if canonical != raw:
+        raise GovernanceError(f"{owner} is not canonical LF OpenSSH armor")
+    _verify_sshsig(
+        signature_base64=base64.b64encode(raw).decode("ascii"),
+        payload=payload,
+        signer_person_id="acblabs",
+        public_key=MAINTAINER_PUBLIC_KEY,
+    )
+    return {"bytes": len(raw), "sha256": raw_digest(raw), "verified": True}
+
+
+def _successor_v3_validate_signed_package(repository_root: Path) -> dict[str, Any]:
+    """Authenticate the K3 package before trusting any executable contract bytes."""
+
+    package = _resolve_repository_path_without_links(
+        repository_root,
+        S1_SUCCESSOR_V3_PACKAGE_RELATIVE,
+        owner="Generation-3 package",
+    )
+    expected_package = repository_root / Path(S1_SUCCESSOR_V3_PACKAGE_RELATIVE)
+    if package != expected_package or not package.is_dir():
+        raise GovernanceError("Generation-3 package is not installed at its exact path")
+    _post_r2_safe_directory(package, owner="Generation-3 package")
+
+    contracts, contracts_raw = _successor_v3_read_json(
+        package / "check-contracts.json",
+        owner="Generation-3 check contracts",
+    )
+    contracts_schema, _ = _successor_v3_read_json(
+        package / "check-contracts.schema.json",
+        owner="Generation-3 check-contract schema",
+    )
+    _validate_json_schema(contracts, contracts_schema, owner="Generation-3 check contracts")
+    contracts_projection = dict(contracts)
+    contracts_projection.pop("check_contracts_digest", None)
+    if contracts.get("check_contracts_digest") != domain_digest(
+        _required_string(contracts, "digest_domain"), contracts_projection
+    ):
+        raise GovernanceError("Generation-3 check-contract digest mismatch")
+    if (
+        contracts.get("format") != S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT
+        or contracts.get("package_id") != S1_SUCCESSOR_V3_PACKAGE_ID
+    ):
+        raise GovernanceError("Generation-3 check-contract identity mismatch")
+
+    claim, claim_raw = _successor_v3_read_json(
+        package / "claims/kickoff.claim",
+        owner="Generation-3 kickoff claim",
+    )
+    claim_schema, _ = _successor_v3_read_json(
+        package / "successor-kickoff-claim.schema.json",
+        owner="Generation-3 kickoff-claim schema",
+    )
+    _validate_json_schema(claim, claim_schema, owner="Generation-3 kickoff claim")
+    if (
+        claim.get("format") != S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT
+        or claim.get("package_id") != S1_SUCCESSOR_V3_PACKAGE_ID
+        or claim.get("proposed_acceptance_generation") != 3
+    ):
+        raise GovernanceError("Generation-3 kickoff claim identity mismatch")
+    claim_signature = _successor_v3_verify_raw_sshsig(
+        package / "claims/kickoff.claim.sig",
+        claim_raw,
+        owner="Generation-3 kickoff claim signature",
+    )
+
+    authorization, authorization_raw = _successor_v3_read_json(
+        package / "successor-kickoff-authorization.json",
+        owner="Generation-3 kickoff authorization",
+    )
+    authorization_schema, _ = _successor_v3_read_json(
+        package / "successor-kickoff-authorization.schema.json",
+        owner="Generation-3 kickoff-authorization schema",
+    )
+    _validate_json_schema(
+        authorization,
+        authorization_schema,
+        owner="Generation-3 kickoff authorization",
+    )
+    authorization_projection = dict(authorization)
+    authorization_projection.pop("authorization_record_digest", None)
+    if authorization.get("authorization_record_digest") != domain_digest(
+        _required_string(authorization, "digest_domain"), authorization_projection
+    ):
+        raise GovernanceError("Generation-3 kickoff-authorization digest mismatch")
+    if (
+        authorization.get("format") != S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT
+        or authorization.get("package_id") != S1_SUCCESSOR_V3_PACKAGE_ID
+        or authorization.get("state") != "accepted_after_verified_human_signature"
+        or authorization.get("authorization_effect") != "prospective_only_from_import"
+    ):
+        raise GovernanceError("Generation-3 kickoff authorization identity/state mismatch")
+    authorization_signature = _successor_v3_verify_raw_sshsig(
+        package / "successor-kickoff-authorization.json.sig",
+        authorization_raw,
+        owner="Generation-3 kickoff authorization signature",
+    )
+
+    claim_binding = _as_object(authorization.get("claim"), owner="kickoff claim binding")
+    if claim_binding != {
+        "path": "claims/kickoff.claim",
+        "bytes": len(claim_raw),
+        "raw_sha256": raw_digest(claim_raw),
+        "semantic_digest": domain_digest(_required_string(claim, "digest_domain"), claim),
+    }:
+        raise GovernanceError("Generation-3 authorization does not bind the exact kickoff claim")
+    recorded_signature = _as_object(
+        authorization.get("signature"), owner="kickoff signature binding"
+    )
+    if (
+        recorded_signature.get("path") != "claims/kickoff.claim.sig"
+        or recorded_signature.get("bytes") != claim_signature["bytes"]
+        or recorded_signature.get("sha256") != claim_signature["sha256"]
+        or recorded_signature.get("principal") != "acblabs"
+        or recorded_signature.get("fingerprint") != MAINTAINER_KEY_FINGERPRINT
+        or recorded_signature.get("namespace") != SIGNATURE_NAMESPACE
+        or recorded_signature.get("verified") is not True
+        or recorded_signature.get("signing_time_claimed") is not False
+    ):
+        raise GovernanceError("Generation-3 kickoff signature binding mismatch")
+
+    partition = _as_object(claim.get("change_partition"), owner="change partition")
+    if tuple(_required_string_array(partition, "r3_exact_allowlist")) != S1_SUCCESSOR_V3_R3_PATHS:
+        raise GovernanceError("signed Generation-3 R3 allowlist changed")
+    if tuple(_required_string_array(partition, "c3_exact_paths")) != S1_SUCCESSOR_V3_C3_PATHS:
+        raise GovernanceError("signed Generation-3 C3 path set changed")
+    messages = _as_object(partition.get("canonical_commit_messages"), owner="commit messages")
+    if messages != {
+        "k3": S1_SUCCESSOR_V3_K3_MESSAGE,
+        "r3": S1_SUCCESSOR_V3_R3_MESSAGE,
+        "c3": S1_SUCCESSOR_V3_C3_MESSAGE,
+    }:
+        raise GovernanceError("signed Generation-3 commit messages changed")
+
+    protocol = _as_object(claim.get("protocol_bundle"), owner="protocol bundle")
+    if protocol.get("check_contracts_digest") != contracts.get("check_contracts_digest"):
+        raise GovernanceError("kickoff claim does not bind the check-contract digest")
+    artifact_descriptors: dict[str, dict[str, Any]] = {}
+    for value in _as_array(protocol.get("artifacts"), owner="protocol artifacts"):
+        descriptor = _as_object(value, owner="protocol artifact")
+        relative = _required_string(descriptor, "path")
+        if relative in artifact_descriptors:
+            raise GovernanceError("protocol bundle repeats an artifact path")
+        _successor_v3_descriptor_bytes(package, descriptor, owner=f"protocol artifact {relative}")
+        artifact_descriptors[relative] = dict(descriptor)
+    required_tool_paths = {
+        "tools/successor_v3_launcher.ps1",
+        "tools/build_design_package.py",
+        "tools/successor_v3_tool.py",
+        "check-contracts.json",
+    }
+    if not required_tool_paths <= set(artifact_descriptors):
+        raise GovernanceError("signed protocol bundle is missing required executable artifacts")
+    if artifact_descriptors["check-contracts.json"] != {
+        "path": "check-contracts.json",
+        "bytes": len(contracts_raw),
+        "sha256": raw_digest(contracts_raw),
+    }:
+        raise GovernanceError("signed protocol bundle check-contract binding mismatch")
+
+    schema_set = _as_object(protocol.get("schema_set"), owner="protocol schema set")
+    schema_descriptors: dict[str, dict[str, Any]] = {}
+    for value in _as_array(schema_set.get("schemas"), owner="protocol schemas"):
+        descriptor = _as_object(value, owner="protocol schema")
+        relative = _required_string(descriptor, "path")
+        if relative in schema_descriptors:
+            raise GovernanceError("protocol bundle repeats a schema path")
+        _successor_v3_descriptor_bytes(package, descriptor, owner=f"protocol schema {relative}")
+        schema_descriptors[relative] = dict(descriptor)
+    if tuple(schema_descriptors) != S1_SUCCESSOR_V3_SCHEMA_FILES:
+        raise GovernanceError("signed Generation-3 schema set changed")
+
+    tooling: dict[str, dict[str, Any]] = {}
+    for value in _as_array(contracts.get("tooling"), owner="contract tooling"):
+        descriptor = _as_object(value, owner="contract tool")
+        relative = _required_string(descriptor, "path")
+        if relative in tooling:
+            raise GovernanceError("Generation-3 contracts repeat a tool path")
+        raw = _successor_v3_descriptor_bytes(
+            package,
+            descriptor,
+            owner=f"contract tool {relative}",
+        )
+        protocol_descriptor = artifact_descriptors.get(relative)
+        if protocol_descriptor is None or protocol_descriptor != {
+            "path": relative,
+            "bytes": len(raw),
+            "sha256": raw_digest(raw),
+        }:
+            raise GovernanceError(f"contract and kickoff claim disagree for {relative}")
+        if descriptor.get("private_key_access") is not False:
+            raise GovernanceError(f"Generation-3 tool claims private-key access: {relative}")
+        tooling[relative] = dict(descriptor)
+    if set(tooling) != required_tool_paths - {"check-contracts.json"}:
+        raise GovernanceError("Generation-3 contract tooling set changed")
+
+    return {
+        "package": package,
+        "contracts": contracts,
+        "claim": claim,
+        "authorization": authorization,
+        "tooling": tooling,
+        "schema_descriptors": schema_descriptors,
+        "signature_evidence": {
+            "claim": claim_signature,
+            "authorization": authorization_signature,
+        },
+    }
+
+
+def _successor_v3_contract(
+    signed_package: Mapping[str, Any],
+    node_id: str,
+    *,
+    expected_role: str,
+) -> tuple[dict[str, Any], int]:
+    """Select one unique signed graph node and bind its role and predicate."""
+
+    contracts = _as_object(signed_package.get("contracts"), owner="signed contracts")
+    graph = _as_object(contracts.get("full_ceremony_graph"), owner="full ceremony graph")
+    nodes = [
+        _as_object(value, owner="full ceremony node")
+        for value in _as_array(graph.get("nodes"), owner="full ceremony nodes")
+    ]
+    matches = [
+        (index, node) for index, node in enumerate(nodes, start=1) if node.get("id") == node_id
+    ]
+    if len(matches) != 1:
+        raise GovernanceError(f"signed graph does not contain one unique node: {node_id}")
+    ordinal, node = matches[0]
+    predicate = _as_object(node.get("predicate"), owner=f"{node_id} predicate")
+    if (
+        node.get("subject_role") != expected_role
+        or predicate.get("version") != 1
+        or not isinstance(predicate.get("id"), str)
+    ):
+        raise GovernanceError(f"signed graph node role/predicate changed: {node_id}")
+    return node, ordinal
+
+
+def _successor_v3_parse_package_validation_stdout(
+    raw: bytes, *, profile: str
+) -> dict[str, Any]:
+    """Validate the exact subprocess JSON bytes without normalizing transport."""
+
+    if len(raw) > _SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES:
+        raise GovernanceError("Generation-3 package validation exceeded its output bound")
+    if (
+        not raw
+        or raw.startswith(b"\xef\xbb\xbf")
+        or not raw.endswith(b"\n")
+        or b"\r" in raw
+    ):
+        raise GovernanceError("Generation-3 package validator output is not canonical LF JSON")
+    try:
+        rendered = raw.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise GovernanceError("Generation-3 package validator output is not UTF-8") from exc
+    result = _as_object(strict_json_loads(rendered), owner="package validation result")
+    if (
+        result.get("status") != "passed"
+        or result.get("profile") != profile
+        or result.get("package_id") != S1_SUCCESSOR_V3_PACKAGE_ID
+    ):
+        raise GovernanceError("Generation-3 package validator returned another result")
+    return result
+
+
+def _successor_v3_package_validation(
+    signed_package: Mapping[str, Any],
+    repository_root: Path,
+    *,
+    profile: str,
+) -> dict[str, Any]:
+    """Run the independently signed package validator through its signed launcher."""
+
+    package = cast(Path, signed_package["package"])
+    tooling = _as_object(signed_package.get("tooling"), owner="signed package tooling")
+    launcher_descriptor = _as_object(
+        tooling.get("tools/successor_v3_launcher.ps1"), owner="successor package launcher"
+    )
+    tool_descriptor = _as_object(
+        tooling.get("tools/successor_v3_tool.py"), owner="successor package validator"
+    )
+    launcher = package / _required_string(launcher_descriptor, "path")
+    # Descriptor reads are intentionally repeated immediately before execution.
+    _successor_v3_descriptor_bytes(package, launcher_descriptor, owner="executing package launcher")
+    _successor_v3_descriptor_bytes(package, tool_descriptor, owner="executing package validator")
+    try:
+        _early_verify_file(
+            _SUCCESSOR_V3_POWERSHELL_EXECUTABLE,
+            expected_size=_SUCCESSOR_V3_POWERSHELL_SIZE,
+            expected_sha256=_SUCCESSOR_V3_POWERSHELL_SHA256,
+            owner="Generation-3 Windows PowerShell",
+        )
+    except (OSError, RuntimeError) as exc:
+        raise GovernanceError(f"Generation-3 PowerShell identity validation failed: {exc}") from exc
+    argv = [
+        str(_SUCCESSOR_V3_POWERSHELL_EXECUTABLE),
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(launcher),
+        "tool",
+        "validate",
+        "--package",
+        str(package),
+        "--profile",
+        profile,
+    ]
+    environment = _governance_subprocess_environment()
+    environment.pop(_SUCCESSOR_V3_TRACKED_LAUNCHER_PROFILE_ENV, None)
+    try:
+        completed = subprocess.run(
+            argv,
+            cwd=repository_root,
+            env=environment,
+            capture_output=True,
+            check=False,
+            timeout=900,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise GovernanceError("Generation-3 package validation timed out") from exc
+    if len(completed.stdout) + len(completed.stderr) > _SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES:
+        raise GovernanceError("Generation-3 package validation exceeded its output bound")
+    if completed.returncode != 0 or completed.stderr:
+        raise GovernanceError(
+            "Generation-3 package validation failed; "
+            f"exit_code={completed.returncode}; stdout_sha256={raw_digest(completed.stdout)}; "
+            f"stderr_sha256={raw_digest(completed.stderr)}"
+        )
+    result = _successor_v3_parse_package_validation_stdout(completed.stdout, profile=profile)
+    return {
+        "status": "passed",
+        "profile": profile,
+        "package_id": S1_SUCCESSOR_V3_PACKAGE_ID,
+        "argv": argv,
+        "launcher": {
+            "bytes": _required_integer(launcher_descriptor, "bytes"),
+            "sha256": _required_string(launcher_descriptor, "sha256"),
+        },
+        "validator": {
+            "bytes": _required_integer(tool_descriptor, "bytes"),
+            "sha256": _required_string(tool_descriptor, "sha256"),
+        },
+        "stdout": {"bytes": len(completed.stdout), "sha256": raw_digest(completed.stdout)},
+        "stderr": {"bytes": 0, "sha256": raw_digest(completed.stderr)},
+        "result": result,
+    }
+
+
+def _successor_v3_git_oid(repository_root: Path, revision: str, *, owner: str) -> str:
+    result = _run_git(repository_root, ["rev-parse", "--verify", revision])
+    if result.returncode != 0:
+        raise GovernanceError(f"unable to resolve {owner}")
+    try:
+        oid = result.stdout.decode("ascii", errors="strict").strip()
+    except UnicodeDecodeError as exc:
+        raise GovernanceError(f"{owner} object ID is not ASCII") from exc
+    if GIT_COMMIT_PATTERN.fullmatch(oid) is None:
+        raise GovernanceError(f"{owner} is not one full lowercase SHA-1 object ID")
+    return oid
+
+
+def _successor_v3_commit_subject(
+    repository_root: Path,
+    *,
+    role: str,
+    oid: str,
+    expected_parent: str,
+    expected_tree: str | None = None,
+    expected_message: str | None = None,
+) -> dict[str, Any]:
+    """Validate a direct non-merge commit and return its exact observation subject."""
+
+    if GIT_COMMIT_PATTERN.fullmatch(oid) is None:
+        raise GovernanceError(f"{role} must be one full lowercase commit ID")
+    object_type = _run_git(repository_root, ["cat-file", "-t", oid])
+    raw_object = _run_git(repository_root, ["cat-file", "commit", oid])
+    if (
+        object_type.returncode != 0
+        or object_type.stdout != b"commit\n"
+        or raw_object.returncode != 0
+    ):
+        raise GovernanceError(f"{role} does not identify an available commit")
+    header, separator, message = raw_object.stdout.partition(b"\n\n")
+    if not separator:
+        raise GovernanceError(f"{role} commit object has no message boundary")
+    headers = header.split(b"\n")
+    tree_headers = [line for line in headers if line.startswith(b"tree ")]
+    parent_headers = [line for line in headers if line.startswith(b"parent ")]
+    if len(tree_headers) != 1 or parent_headers != [f"parent {expected_parent}".encode("ascii")]:
+        raise GovernanceError(f"{role} is not the exact sole-parent successor")
+    tree = tree_headers[0].removeprefix(b"tree ").decode("ascii", errors="strict")
+    if GIT_COMMIT_PATTERN.fullmatch(tree) is None:
+        raise GovernanceError(f"{role} tree ID is invalid")
+    if expected_tree is not None and tree != expected_tree:
+        raise GovernanceError(f"{role} tree differs from its signed identity")
+    if expected_message is not None and message != expected_message.encode("utf-8") + b"\n":
+        raise GovernanceError(f"{role} commit message changed")
+    return {
+        "role": role,
+        "object_kind": "commit",
+        "oid": oid,
+        "tree": tree,
+        "parent": expected_parent,
+    }
+
+
+def _successor_v3_exact_delta(
+    repository_root: Path,
+    *,
+    parent: str,
+    child: str,
+    expected_paths: Sequence[str],
+    expected_status: str,
+) -> list[dict[str, Any]]:
+    """Require an exact path/status partition of ordinary 100644 blobs."""
+
+    observed = _git_name_status(repository_root, parent, child)
+    if tuple(sorted(observed, key=_utf8_sort_key)) != tuple(expected_paths):
+        raise GovernanceError(
+            f"Generation-3 delta differs from its signed path set: {parent}..{child}"
+        )
+    if any(status != expected_status for status in observed.values()):
+        raise GovernanceError("Generation-3 delta contains an unexpected Git change status")
+    descriptors: list[dict[str, Any]] = []
+    for relative in expected_paths:
+        entry = _run_git(
+            repository_root,
+            ["ls-tree", "-z", "--full-tree", child, "--", f":(top,literal){relative}"],
+        )
+        if entry.returncode != 0 or not entry.stdout.endswith(b"\x00"):
+            raise GovernanceError(f"unable to inspect Generation-3 delta path: {relative}")
+        match = re.fullmatch(rb"100644 blob ([0-9a-f]{40})\t(.+)\x00", entry.stdout)
+        if match is None:
+            raise GovernanceError(f"Generation-3 delta path is not one 100644 blob: {relative}")
+        try:
+            observed_path = match.group(2).decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
+            raise GovernanceError("Generation-3 delta contains a non-UTF-8 path") from exc
+        if observed_path != relative:
+            raise GovernanceError(f"Git returned another Generation-3 delta path: {relative}")
+        payload = _read_commit_blob(
+            repository_root,
+            child,
+            relative,
+            owner="Generation-3 delta blob",
+        )
+        descriptors.append(
+            {
+                "path": relative,
+                "status": expected_status,
+                "mode": "100644",
+                "git_blob_oid": match.group(1).decode("ascii"),
+                "bytes": len(payload),
+                "sha256": raw_digest(payload),
+            }
+        )
+    return descriptors
+
+
+def _successor_v3_validate_historical_acceptance(
+    repository_root: Path,
+    *,
+    generation: int,
+) -> dict[str, Any]:
+    """Revalidate an immutable historical tag and every embedded SSHSIG."""
+
+    if generation == 1:
+        tag_name = S1_ACCEPTANCE_TAG_NAME
+        tag_object = S1_ACCEPTANCE_V1_TAG_OBJECT
+        closure_commit = S1_ACCEPTANCE_V1_CLOSURE_COMMIT
+        result_commit = S1_ACCEPTANCE_V1_RESULT_COMMIT
+        expected_format = CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT
+    elif generation == 2:
+        tag_name = S1_ACCEPTANCE_V2_TAG_NAME
+        tag_object = S1_ACCEPTANCE_V2_TAG_OBJECT
+        closure_commit = S1_ACCEPTANCE_V2_CLOSURE_COMMIT
+        result_commit = S1_ACCEPTANCE_V2_RESULT_COMMIT
+        expected_format = CURRENT_ACCEPTANCE_ATTESTATION_V2_FORMAT
+    else:  # pragma: no cover - internal callers use only the two predecessors
+        raise GovernanceError("unsupported historical acceptance generation")
+    record = _read_tagged_current_acceptance_attestation(
+        repository_root,
+        tag_object=tag_object,
+        expected_closure_commit=closure_commit,
+    )
+    if (
+        record.get("format") != expected_format
+        or record.get("acceptance_tag_name") != tag_name
+        or record.get("closure_commit") != closure_commit
+        or record.get("result_commit") != result_commit
+    ):
+        raise GovernanceError(f"Generation-{generation} historical acceptance identity changed")
+    roadmap_digest = _required_string(record, "full_roadmap_digest")
+    _validate_current_acceptance_attestation(
+        record,
+        repository_root=repository_root,
+        expected_closure_commit=closure_commit,
+        expected_roadmap_digest=roadmap_digest,
+        allow_pending=False,
+        require_executing_artifacts=False,
+    )
+    if generation == 2:
+        _validate_generation_1_predecessor_acceptance(
+            repository_root,
+            expected_roadmap_digest=roadmap_digest,
+        )
+    subject = _successor_v3_commit_subject(
+        repository_root,
+        role=f"C{generation}",
+        oid=closure_commit,
+        expected_parent=result_commit,
+    )
+    return {
+        "subject": subject,
+        "tag": {"name": tag_name, "object": tag_object, "target": closure_commit},
+        "attestation_digest": _required_string(record, "attestation_digest"),
+        "roadmap_digest": roadmap_digest,
+        "status": "valid_historical_accepted",
+    }
+
+
+def _successor_v3_validate_b3_replay(
+    signed_package: Mapping[str, Any],
+    repository_root: Path,
+) -> dict[str, Any]:
+    """Reparse the immutable B3 evidence and its separately bound raw streams."""
+
+    package = cast(Path, signed_package["package"])
+    evidence, evidence_raw = _successor_v3_read_json(
+        package / "baseline/post-v2-control-suite-evidence.json",
+        owner="embedded B3 control evidence",
+    )
+    validated = _validate_embedded_post_v2_control_suite_evidence(
+        evidence,
+        expected_subject_commit=S1_SUCCESSOR_V3_B3_COMMIT,
+        expected_subject_parent_commit=S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+        require_passed=True,
+    )
+    stdout = _successor_v3_read_bounded_file(
+        package / "baseline/pytest.stdout.bin",
+        owner="embedded B3 pytest stdout",
+        limit=_SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES,
+    )
+    stderr = _successor_v3_read_bounded_file(
+        package / "baseline/pytest.stderr.bin",
+        owner="embedded B3 pytest stderr",
+        limit=_SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES,
+    )
+    execution = _as_object(validated.get("execution"), owner="embedded B3 execution")
+    for name, payload in (("stdout", stdout), ("stderr", stderr)):
+        descriptor = _as_object(execution.get(name), owner=f"embedded B3 {name}")
+        if descriptor.get("size_bytes") != len(payload) or descriptor.get("sha256") != raw_digest(
+            payload
+        ):
+            raise GovernanceError(f"embedded B3 {name} bytes differ from signed evidence")
+    completed = subprocess.CompletedProcess(
+        args=[],
+        returncode=_required_integer(execution, "exit_code"),
+        stdout=stdout,
+        stderr=stderr,
+    )
+    totals = _parse_post_r2_pytest_execution_totals(completed)
+    recorded_totals = _as_object(execution.get("pytest_totals"), owner="embedded B3 totals")
+    if totals != recorded_totals:
+        raise GovernanceError("embedded B3 raw pytest totals differ from signed evidence")
+    subject = _successor_v3_commit_subject(
+        repository_root,
+        role="B3",
+        oid=S1_SUCCESSOR_V3_B3_COMMIT,
+        expected_parent=S1_ACCEPTANCE_V2_CLOSURE_COMMIT,
+        expected_tree=S1_SUCCESSOR_V3_B3_TREE,
+    )
+    return {
+        "subject": subject,
+        "evidence": {"bytes": len(evidence_raw), "sha256": raw_digest(evidence_raw)},
+        "stdout": {"bytes": len(stdout), "sha256": raw_digest(stdout)},
+        "stderr": {"bytes": len(stderr), "sha256": raw_digest(stderr)},
+        "pytest_totals": totals,
+    }
+
+
+def _successor_v3_r3_subject(repository_root: Path) -> tuple[dict[str, Any], str]:
+    r3 = _successor_v3_git_oid(repository_root, "HEAD^{commit}", owner="R3 HEAD")
+    parents = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", r3])
+    try:
+        fields = parents.stdout.decode("ascii", errors="strict").split()
+    except UnicodeDecodeError as exc:
+        raise GovernanceError("R3 parent record is invalid") from exc
+    if parents.returncode != 0 or len(fields) != 2 or fields[0] != r3:
+        raise GovernanceError("R3 must be a non-merge commit")
+    k3 = fields[1]
+    subject = _successor_v3_commit_subject(
+        repository_root,
+        role="R3",
+        oid=r3,
+        expected_parent=k3,
+        expected_message=S1_SUCCESSOR_V3_R3_MESSAGE,
+    )
+    _successor_v3_commit_subject(
+        repository_root,
+        role="K3",
+        oid=k3,
+        expected_parent=S1_SUCCESSOR_V3_B3_COMMIT,
+        expected_message=S1_SUCCESSOR_V3_K3_MESSAGE,
+    )
+    _successor_v3_exact_delta(
+        repository_root,
+        parent=k3,
+        child=r3,
+        expected_paths=S1_SUCCESSOR_V3_R3_PATHS,
+        expected_status="M",
+    )
+    return subject, k3
+
+
+def _successor_v3_require_private_roadmap_history_absent(repository_root: Path) -> None:
+    """Inspect reachable commit history without confusing annotated tags with files."""
+
+    history = _run_git(
+        repository_root,
+        [
+            "log", "--all", "--full-history", "--format=%H", "--",
+            ":(top,literal)Agent_Assure_Implementation_Roadmap.md",
+        ],
+    )
+    if history.returncode != 0:
+        raise GovernanceError(
+            "unable to inspect reachable Git history for the private roadmap: "
+            + _bounded_git_failure(history)
+        )
+    if history.stdout.strip():
+        raise GovernanceError("private roadmap path is present in reachable Git history")
+
+
+def _successor_v3_repository_surface(
+    repository_root: Path,
+    *,
+    r3: str,
+) -> dict[str, Any]:
+    """Bind the clean R3 checkout and all bytes able to affect native pytest."""
+
+    _validate_git_history_safety(repository_root)
+    state = _post_v2_control_repository_state(repository_root)
+    if state.get("head_commit") != r3 or state.get("clean") is not True:
+        raise GovernanceError("Generation-3 repository surface requires clean exact R3")
+    branch = _run_git(repository_root, ["symbolic-ref", "--quiet", "--short", "HEAD"])
+    if (
+        branch.returncode != 0
+        or branch.stdout.decode("utf-8", errors="strict").strip() != S1_SUCCESSOR_V3_BRANCH_NAME
+    ):
+        raise GovernanceError("Generation-3 R3 checkout is not on the exact successor branch")
+    _successor_v3_require_private_roadmap_history_absent(repository_root)
+    private_roadmap = repository_root / "Agent_Assure_Implementation_Roadmap.md"
+    if private_roadmap.exists() or private_roadmap.is_symlink():
+        validate_local_only_roadmap(repository_root, private_roadmap)
+    test_surface = _post_r2_test_surface_evidence(repository_root, result_commit=r3)
+    return {"state": state, "branch": S1_SUCCESSOR_V3_BRANCH_NAME, "test_surface": test_surface}
+
+
+def _successor_v3_a3_subject(
+    repository_root: Path,
+    *,
+    expected_c3: str | None = None,
+    expected_a3: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    a3 = _successor_v3_git_oid(
+        repository_root,
+        f"refs/tags/{S1_SUCCESSOR_V3_TAG_NAME}^{{tag}}",
+        owner="A3 annotated tag",
+    )
+    c3 = _successor_v3_git_oid(
+        repository_root,
+        f"refs/tags/{S1_SUCCESSOR_V3_TAG_NAME}^{{commit}}",
+        owner="A3 target",
+    )
+    if expected_c3 is not None and c3 != expected_c3:
+        raise GovernanceError("A3 targets another C3 commit")
+    if expected_a3 is not None and a3 != expected_a3:
+        raise GovernanceError("fixed A3 ref resolves to another annotated-tag object")
+    raw = _run_git(repository_root, ["cat-file", "tag", a3])
+    if raw.returncode != 0 or len(raw.stdout) > MAX_GOVERNANCE_JSON_BYTES:
+        raise GovernanceError("unable to read the bounded A3 tag object")
+    header, separator, _message = raw.stdout.partition(b"\n\n")
+    headers = header.split(b"\n")
+    if (
+        not separator
+        or len(headers) != 4
+        or headers[0] != f"object {c3}".encode("ascii")
+        or headers[1] != b"type commit"
+        or headers[2] != f"tag {S1_SUCCESSOR_V3_TAG_NAME}".encode("ascii")
+    ):
+        raise GovernanceError("A3 annotated-tag envelope identity changed")
+    return (
+        {
+            "role": "A3",
+            "object_kind": "annotated_tag",
+            "oid": a3,
+            "target_commit": c3,
+            "name": S1_SUCCESSOR_V3_TAG_NAME,
+        },
+        {"bytes": len(raw.stdout), "sha256": raw_digest(raw.stdout)},
+    )
+
+
+def _successor_v3_exact_assertions(contract: Mapping[str, Any]) -> list[dict[str, Any]]:
+    success = _as_object(contract.get("success"), owner="node success contract")
+    forbidden = _required_string_array(success, "forbidden_statuses")
+    if len(forbidden) != len(set(forbidden)):
+        raise GovernanceError("signed node contract repeats a forbidden status")
+    requirements = _required_string_array(success, "requirements")
+    return [
+        {"id": "all_commands_exit_zero", "value": True},
+        {"id": "forbidden_status_counts", "value": {name: 0 for name in forbidden}},
+        *[
+            {"id": f"requirement.{index:02d}", "value": requirement}
+            for index, requirement in enumerate(requirements, start=1)
+        ],
+    ]
+
+
+def _successor_v3_execution_root_name_is_valid(name: str) -> bool:
+    """Recognize the compact root while retaining all UUID-v4 random bits."""
+
+    return re.fullmatch(r"s3-[0-9a-f]{12}4[0-9a-f]{3}[89ab][0-9a-f]{15}", name) is not None
+
+
+def _successor_v3_output_path(value: str, *, ordinal: int) -> Path:
+    """Constrain semantic output to the package tool's fresh UUID-v4 node root."""
+
+    if type(ordinal) is not int or not 1 <= ordinal <= 16:
+        raise GovernanceError("Generation-3 node execution ordinal is invalid")
+    output = Path(value)
+    if not output.is_absolute() or output.name != "semantic-output.json":
+        raise GovernanceError("Generation-3 semantic output path is not exact")
+    absolute = Path(os.path.abspath(output))
+    if absolute != output:
+        raise GovernanceError("Generation-3 semantic output path is not normalized")
+    if output.exists() or output.is_symlink():
+        raise GovernanceError("Generation-3 semantic output already exists")
+    _post_r2_safe_directory(output.parent, owner="Generation-3 node execution root")
+    if os.path.normcase(str(output.parent.parent)) != os.path.normcase(r"C:\tmp"):
+        raise GovernanceError("Generation-3 semantic output is outside C:\\tmp")
+    if not _successor_v3_execution_root_name_is_valid(output.parent.name):
+        raise GovernanceError("Generation-3 node execution root identity is invalid")
+    return output
+
+
+def _successor_v3_publish_observation(
+    output_value: str,
+    *,
+    ordinal: int,
+    observation: Mapping[str, Any],
+) -> None:
+    """Create one durable semantic output without replacement or partial publication."""
+
+    output = _successor_v3_output_path(output_value, ordinal=ordinal)
+    payload = _render_json_bytes(dict(observation))
+    if (
+        len(payload) > _SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES
+        or payload.startswith(b"\xef\xbb\xbf")
+        or b"\r" in payload
+        or not payload.endswith(b"\n")
+    ):
+        raise GovernanceError("Generation-3 semantic observation violates its byte contract")
+    created = False
+    try:
+        with output.open("xb") as handle:
+            created = True
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        _fsync_directory(output.parent)
+        if (
+            _successor_v3_read_bounded_file(
+                output,
+                owner="published Generation-3 semantic observation",
+                limit=_SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES,
+            )
+            != payload
+        ):
+            raise GovernanceError("Generation-3 semantic observation changed after publication")
+    except BaseException:
+        if created:
+            try:
+                output.unlink(missing_ok=True)
+                _fsync_directory(output.parent)
+            except OSError:
+                pass
+        raise
+
+
+def _successor_v3_observation(
+    contract: Mapping[str, Any],
+    *,
+    subject: Mapping[str, Any],
+    evidence: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not evidence:
+        raise GovernanceError("Generation-3 semantic evidence must not be empty")
+    success = _as_object(contract.get("success"), owner="node success contract")
+    forbidden = _required_string_array(success, "forbidden_statuses")
+    return {
+        "format": S1_SUCCESSOR_V3_OBSERVATION_FORMAT,
+        "node_id": _required_string(contract, "id"),
+        "predicate": copy.deepcopy(_as_object(contract.get("predicate"), owner="node predicate")),
+        "status": "passed",
+        "subject": copy.deepcopy(dict(subject)),
+        "assertions": _successor_v3_exact_assertions(contract),
+        "forbidden_status_counts": {name: 0 for name in forbidden},
+        "evidence": copy.deepcopy(dict(evidence)),
+    }
+
+
+def _validate_successor_v3_native_pytest_result(
+    completed: subprocess.CompletedProcess[bytes],
+    totals: Mapping[str, int],
+) -> None:
+    """Apply the signed Generation-3 native-suite terminal-totals rule."""
+
+    executed = sum(totals[name] for name in ("passed", "failed", "skipped", "xfailed", "xpassed"))
+    if (
+        completed.returncode != 0
+        or totals["collected"] != executed
+        or executed != totals["passed"] + totals["skipped"]
+        or totals["failed"] != 0
+        or totals["errors"] != 0
+        or totals["xfailed"] != 0
+        or totals["xpassed"] != 0
+        or totals["passed"] <= 0
+    ):
+        raise GovernanceError("Generation-3 native full suite did not meet its exact pass rule")
+
+
+@_require_frozen_runtime
+def successor_v3_run_node(args: argparse.Namespace) -> int:
+    """Execute one signed tracked-runner semantic predicate."""
+
+    _successor_v3_consume_tracked_launcher_handshake()
+    repository_root = _successor_v3_repository_root()
+    node_id = cast(str, args.node)
+    subject_role = cast(str, args.subject_role)
+    required_role = S1_SUCCESSOR_V3_RUN_NODE_ROLES.get(node_id)
+    if required_role is None or subject_role != required_role:
+        raise GovernanceError("Generation-3 node and subject role do not match")
+    signed_package = _successor_v3_validate_signed_package(repository_root)
+    contract, ordinal = _successor_v3_contract(
+        signed_package,
+        node_id,
+        expected_role=subject_role,
+    )
+    profile = (
+        "standalone"
+        if subject_role == "A3"
+        else ("c3-installed" if subject_role == "C3" else "r3-installed")
+    )
+    package_validation = _successor_v3_package_validation(
+        signed_package,
+        repository_root,
+        profile=profile,
+    )
+    evidence: dict[str, Any] = {
+        "signed_package_validation": package_validation,
+        "kickoff_signatures": signed_package["signature_evidence"],
+    }
+
+    if node_id == "g3.predecessor.v1_historical":
+        historical = _successor_v3_validate_historical_acceptance(
+            repository_root,
+            generation=1,
+        )
+        subject = cast(dict[str, Any], historical.pop("subject"))
+        evidence["historical_acceptance"] = historical
+    elif node_id == "g3.predecessor.v2_historical":
+        historical = _successor_v3_validate_historical_acceptance(
+            repository_root,
+            generation=2,
+        )
+        subject = cast(dict[str, Any], historical.pop("subject"))
+        evidence["historical_acceptance"] = historical
+    elif node_id == "g3.baseline.b3_control_replay":
+        replay = _successor_v3_validate_b3_replay(signed_package, repository_root)
+        subject = cast(dict[str, Any], replay.pop("subject"))
+        evidence["baseline_replay"] = replay
+    elif node_id == "g3.authorization.k3_anchor":
+        r3_subject, k3 = _successor_v3_r3_subject(repository_root)
+        del r3_subject
+        subject = _successor_v3_commit_subject(
+            repository_root,
+            role="K3",
+            oid=k3,
+            expected_parent=S1_SUCCESSOR_V3_B3_COMMIT,
+            expected_message=S1_SUCCESSOR_V3_K3_MESSAGE,
+        )
+        claim = _as_object(signed_package.get("claim"), owner="signed kickoff claim")
+        partition = _as_object(claim.get("change_partition"), owner="signed change partition")
+        k3_paths = tuple(_required_string_array(partition, "k3_exact_paths"))
+        evidence["delta"] = _successor_v3_exact_delta(
+            repository_root,
+            parent=S1_SUCCESSOR_V3_B3_COMMIT,
+            child=k3,
+            expected_paths=k3_paths,
+            expected_status="A",
+        )
+        evidence["authorization_effect"] = "prospective_only_from_import"
+    elif node_id in {
+        "g3.result.r3_topology_scope",
+        "g3.result.r3_schema_semantics",
+        "g3.result.r3_repository_surface",
+    }:
+        subject, _k3 = _successor_v3_r3_subject(repository_root)
+        if node_id == "g3.result.r3_topology_scope":
+            evidence["delta"] = _successor_v3_exact_delta(
+                repository_root,
+                parent=cast(str, subject["parent"]),
+                child=cast(str, subject["oid"]),
+                expected_paths=S1_SUCCESSOR_V3_R3_PATHS,
+                expected_status="M",
+            )
+        elif node_id == "g3.result.r3_schema_semantics":
+            evidence["schema_set"] = [
+                signed_package["schema_descriptors"][name] for name in S1_SUCCESSOR_V3_SCHEMA_FILES
+            ]
+        else:
+            evidence["repository_surface"] = _successor_v3_repository_surface(
+                repository_root,
+                r3=cast(str, subject["oid"]),
+            )
+    elif node_id == "g3.preflight.c3_records_signatures":
+        c3 = _successor_v3_git_oid(repository_root, "HEAD^{commit}", owner="C3 HEAD")
+        parents = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", c3])
+        fields = parents.stdout.decode("ascii", errors="strict").split()
+        if parents.returncode != 0 or len(fields) != 2 or fields[0] != c3:
+            raise GovernanceError("C3 must be a non-merge commit")
+        r3 = fields[1]
+        subject = _successor_v3_commit_subject(
+            repository_root,
+            role="C3",
+            oid=c3,
+            expected_parent=r3,
+            expected_message=S1_SUCCESSOR_V3_C3_MESSAGE,
+        )
+        r3_parents = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", r3])
+        r3_fields = r3_parents.stdout.decode("ascii", errors="strict").split()
+        if r3_parents.returncode != 0 or len(r3_fields) != 2:
+            raise GovernanceError("C3 parent is not an exact non-merge R3")
+        _successor_v3_commit_subject(
+            repository_root,
+            role="R3",
+            oid=r3,
+            expected_parent=r3_fields[1],
+            expected_message=S1_SUCCESSOR_V3_R3_MESSAGE,
+        )
+        evidence["delta"] = _successor_v3_exact_delta(
+            repository_root,
+            parent=r3,
+            child=c3,
+            expected_paths=S1_SUCCESSOR_V3_C3_PATHS,
+            expected_status="A",
+        )
+    elif node_id == "g3.tag.a3_fixed_annotated":
+        subject, tag_evidence = _successor_v3_a3_subject(repository_root)
+        evidence["annotated_tag"] = tag_evidence
+    else:  # pragma: no cover - map and parser choices make this unreachable
+        raise GovernanceError(f"unsupported Generation-3 node: {node_id}")
+
+    observation = _successor_v3_observation(contract, subject=subject, evidence=evidence)
+    _successor_v3_publish_observation(
+        cast(str, args.output),
+        ordinal=ordinal,
+        observation=observation,
+    )
+    print(json.dumps({"node_id": node_id, "status": "passed"}, sort_keys=True))
+    return 0
+
+
+@_require_frozen_runtime
+def successor_v3_native_suite(args: argparse.Namespace) -> int:
+    """Run the fresh full native suite under the activated Generation-3 runtime."""
+
+    _successor_v3_consume_tracked_launcher_handshake()
+    repository_root = _successor_v3_repository_root()
+    subject_argument = cast(str, args.subject)
+    if GIT_COMMIT_PATTERN.fullmatch(subject_argument) is None:
+        raise GovernanceError("--subject must be one full lowercase R3 commit ID")
+    signed_package = _successor_v3_validate_signed_package(repository_root)
+    contract, ordinal = _successor_v3_contract(
+        signed_package,
+        "g3.result.r3_native_windows_full_suite",
+        expected_role="R3",
+    )
+    subject, _k3 = _successor_v3_r3_subject(repository_root)
+    if subject.get("oid") != subject_argument:
+        raise GovernanceError("native-suite subject differs from exact current R3")
+    package_validation = _successor_v3_package_validation(
+        signed_package,
+        repository_root,
+        profile="r3-installed",
+    )
+    surface_before = _successor_v3_repository_surface(
+        repository_root,
+        r3=subject_argument,
+    )
+    runtime_before = _post_r2_test_runtime_evidence(
+        repository_root,
+        expected_identity=SUCCESSOR_V3_TEST_RUNTIME_IDENTITY,
+    )
+    (
+        basetemp,
+        argv,
+        environment,
+        descendant_runtime,
+        bootstrap_input,
+        started_at,
+        completed,
+        completed_at,
+    ) = _execute_post_r2_pytest(
+        repository_root,
+        test_surface=_as_object(surface_before.get("test_surface"), owner="R3 test surface"),
+        expected_runtime_identity=SUCCESSOR_V3_TEST_RUNTIME_IDENTITY,
+    )
+    totals = _parse_post_r2_pytest_execution_totals(completed)
+    _validate_successor_v3_native_pytest_result(completed, totals)
+    surface_after = _successor_v3_repository_surface(
+        repository_root,
+        r3=subject_argument,
+    )
+    runtime_after = _post_r2_test_runtime_evidence(
+        repository_root,
+        expected_identity=SUCCESSOR_V3_TEST_RUNTIME_IDENTITY,
+    )
+    package_validation_after = _successor_v3_package_validation(
+        signed_package,
+        repository_root,
+        profile="r3-installed",
+    )
+    if surface_after != surface_before:
+        raise GovernanceError("Generation-3 repository surface changed during native pytest")
+    if runtime_after != runtime_before:
+        raise GovernanceError("Generation-3 runtime changed during native pytest")
+    if package_validation_after != package_validation:
+        raise GovernanceError(
+            "Generation-3 signed package/runtime validation changed during native pytest"
+        )
+    environment_projection = [
+        {"name": name, "value": environment[name]}
+        for name in sorted(environment, key=_utf8_sort_key)
+    ]
+    evidence = {
+        "signed_package_validation": {
+            "pre_execution": package_validation,
+            "post_execution": package_validation_after,
+            "identical": True,
+        },
+        "repository_surface": surface_after,
+        "runtime": runtime_after,
+        "execution": {
+            "argv": argv,
+            "working_directory": str(repository_root),
+            "environment_sha256": domain_digest(
+                "agent-assure:s1-successor-native-environment/v1",
+                environment_projection,
+            ),
+            "basetemp": str(basetemp),
+            "descendant_runtime": descendant_runtime,
+            "bootstrap_input": bootstrap_input,
+            "started_at_utc": started_at,
+            "completed_at_utc": completed_at,
+            "clock_basis": "maintainer_host_utc_externally_unattested",
+            "exit_code": completed.returncode,
+            "pytest_totals": totals,
+            "stdout": {
+                "bytes": len(completed.stdout),
+                "sha256": raw_digest(completed.stdout),
+                "base64": base64.b64encode(completed.stdout).decode("ascii"),
+            },
+            "stderr": {
+                "bytes": len(completed.stderr),
+                "sha256": raw_digest(completed.stderr),
+                "base64": base64.b64encode(completed.stderr).decode("ascii"),
+            },
+        },
+    }
+    observation = _successor_v3_observation(contract, subject=subject, evidence=evidence)
+    _successor_v3_publish_observation(
+        cast(str, args.output),
+        ordinal=ordinal,
+        observation=observation,
+    )
+    print(json.dumps({"node_id": contract["id"], "status": "passed"}, sort_keys=True))
+    return 0
+
+
+@_require_frozen_runtime
+def successor_v3_historical_check(args: argparse.Namespace) -> int:
+    """Recompute all generations in the package-created standalone clone."""
+
+    _successor_v3_consume_tracked_launcher_handshake()
+    repository_root = _successor_v3_repository_root()
+    expected_c3 = cast(str, args.expected_c3)
+    expected_a3 = cast(str, args.expected_a3)
+    if (
+        GIT_COMMIT_PATTERN.fullmatch(expected_c3) is None
+        or GIT_COMMIT_PATTERN.fullmatch(expected_a3) is None
+    ):
+        raise GovernanceError("standalone replay expects full lowercase C3 and A3 object IDs")
+    signed_package = _successor_v3_validate_signed_package(repository_root)
+    contract, ordinal = _successor_v3_contract(
+        signed_package,
+        "g3.historical.standalone_replay",
+        expected_role="CEREMONY",
+    )
+    package_validation = _successor_v3_package_validation(
+        signed_package,
+        repository_root,
+        profile="standalone",
+    )
+    head = _successor_v3_git_oid(repository_root, "HEAD^{commit}", owner="standalone C3 HEAD")
+    if head != expected_c3:
+        raise GovernanceError("standalone replay HEAD differs from expected C3")
+    symbolic = _run_git(repository_root, ["symbolic-ref", "--quiet", "HEAD"])
+    if symbolic.returncode != 1 or symbolic.stdout or symbolic.stderr:
+        raise GovernanceError("standalone replay requires detached exact C3")
+    c3_parents = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", expected_c3])
+    c3_fields = c3_parents.stdout.decode("ascii", errors="strict").split()
+    if c3_parents.returncode != 0 or len(c3_fields) != 2 or c3_fields[0] != expected_c3:
+        raise GovernanceError("standalone C3 is not a non-merge commit")
+    r3 = c3_fields[1]
+    c3_subject = _successor_v3_commit_subject(
+        repository_root,
+        role="C3",
+        oid=expected_c3,
+        expected_parent=r3,
+        expected_message=S1_SUCCESSOR_V3_C3_MESSAGE,
+    )
+    r3_parents = _run_git(repository_root, ["rev-list", "--parents", "-n", "1", r3])
+    r3_fields = r3_parents.stdout.decode("ascii", errors="strict").split()
+    if r3_parents.returncode != 0 or len(r3_fields) != 2 or r3_fields[0] != r3:
+        raise GovernanceError("standalone R3 is not a non-merge commit")
+    k3 = r3_fields[1]
+    _successor_v3_commit_subject(
+        repository_root,
+        role="R3",
+        oid=r3,
+        expected_parent=k3,
+        expected_message=S1_SUCCESSOR_V3_R3_MESSAGE,
+    )
+    _successor_v3_commit_subject(
+        repository_root,
+        role="K3",
+        oid=k3,
+        expected_parent=S1_SUCCESSOR_V3_B3_COMMIT,
+        expected_message=S1_SUCCESSOR_V3_K3_MESSAGE,
+    )
+    a3_subject, tag_evidence = _successor_v3_a3_subject(
+        repository_root,
+        expected_c3=expected_c3,
+        expected_a3=expected_a3,
+    )
+    g1 = _successor_v3_validate_historical_acceptance(repository_root, generation=1)
+    g1.pop("subject")
+    g2 = _successor_v3_validate_historical_acceptance(repository_root, generation=2)
+    g2.pop("subject")
+    b3 = _successor_v3_validate_b3_replay(signed_package, repository_root)
+    b3.pop("subject")
+    private_roadmap = repository_root / "Agent_Assure_Implementation_Roadmap.md"
+    if private_roadmap.exists() or private_roadmap.is_symlink():
+        raise GovernanceError("standalone replay contains the private roadmap")
+    subject = {
+        "role": "CEREMONY",
+        "object_kind": "ceremony",
+        "c3_commit": expected_c3,
+        "a3_object": expected_a3,
+    }
+    evidence = {
+        "signed_package_validation": package_validation,
+        "generation_1": g1,
+        "generation_2": g2,
+        "baseline_replay": b3,
+        "topology": {
+            "b3": S1_SUCCESSOR_V3_B3_COMMIT,
+            "k3": k3,
+            "r3": r3,
+            "c3": c3_subject,
+            "a3": a3_subject,
+        },
+        "annotated_tag": tag_evidence,
+        "private_roadmap": "absent",
+    }
+    observation = _successor_v3_observation(contract, subject=subject, evidence=evidence)
+    _successor_v3_publish_observation(
+        cast(str, args.output),
+        ordinal=ordinal,
+        observation=observation,
+    )
+    print(json.dumps({"node_id": contract["id"], "status": "passed"}, sort_keys=True))
+    return 0
+
+
+def _derive_live_acceptance_generation(governance_root: Path) -> int:
+    """Derive the live generation from the installed bundle, never a legacy default."""
+
+    bundle = _read_json(governance_root / "governance-bundle.json")
+    bundle_format = bundle.get("format")
+    if not isinstance(bundle_format, str):
+        raise GovernanceError(
+            "cannot derive the live acceptance generation from governance-bundle.json"
+        )
+    generation = {
+        "agent-assure-governance-bundle/1": 1,
+        "agent-assure-governance-bundle/2": 2,
+    }.get(bundle_format)
+    if generation is None:
+        raise GovernanceError(
+            "cannot derive the live acceptance generation from governance-bundle.json"
+        )
+    recorded_generation = bundle.get("acceptance_generation")
+    if recorded_generation is not None and recorded_generation != generation:
+        raise GovernanceError("governance bundle format and acceptance generation disagree")
+    return generation
+
+
 @_require_frozen_runtime
 @_guard_acceptance_reader
 def check(args: argparse.Namespace) -> int:
     repository_root = Path(cast(str, args.repository_root)).resolve()
     root = Path(cast(str, args.governance_dir)).resolve()
+    if root != (repository_root / "docs/governance/v1").resolve():
+        raise GovernanceError("S1 governance directory must be docs/governance/v1")
     acceptance_generation_value = getattr(args, "acceptance_generation", None)
     if acceptance_generation_value is not None and (
         type(acceptance_generation_value) is not int or acceptance_generation_value not in {1, 2}
     ):
         raise GovernanceError("--acceptance-generation must be 1 or 2")
     requested_acceptance_generation: int | None = acceptance_generation_value
-    live_acceptance_generation = requested_acceptance_generation or 1
-    effective_acceptance_generation = live_acceptance_generation
     closure_commit_value = getattr(args, "closure_commit", None)
     acceptance_tag_object_value = getattr(args, "acceptance_tag_object", None)
     attestation_plan_dir_value = getattr(args, "attestation_plan_dir", None)
@@ -19027,14 +20634,10 @@ def check(args: argparse.Namespace) -> int:
     if closure_commit_value is not None and not isinstance(closure_commit_value, str):
         raise GovernanceError("--closure-commit must be a full 40-hex Git commit ID")
     closure_commit: str | None = closure_commit_value
-    if root != (repository_root / "docs/governance/v1").resolve():
-        raise GovernanceError("S1 governance directory must be docs/governance/v1")
     if args.allow_pending and (args.accept_now or args.historical):
         raise GovernanceError(
             "--allow-pending cannot be combined with --accept-now or --historical"
         )
-    if args.allow_pending and live_acceptance_generation == 2 and commitment_time_value is not None:
-        raise GovernanceError("generation-2 --allow-pending does not accept --commitment-time")
     if not args.allow_pending and bool(args.accept_now) == bool(args.historical):
         raise GovernanceError(
             "strict checking requires exactly one of --accept-now or --historical"
@@ -19062,6 +20665,18 @@ def check(args: argparse.Namespace) -> int:
         raise GovernanceError("--closure-commit is valid only with --historical")
     elif acceptance_tag_object_value is not None:
         raise GovernanceError("--acceptance-tag-object is valid only with --historical")
+    # Historical checks derive their generation from the signed selected tag.
+    # Live checks derive it from the installed bundle only after mode-shape
+    # validation, so malformed invocations fail independently of repository
+    # contents and never silently fall back to the legacy generation.
+    live_acceptance_generation = (
+        requested_acceptance_generation or 1
+        if args.historical
+        else requested_acceptance_generation or _derive_live_acceptance_generation(root)
+    )
+    effective_acceptance_generation = live_acceptance_generation
+    if args.allow_pending and live_acceptance_generation == 2 and commitment_time_value is not None:
+        raise GovernanceError("generation-2 --allow-pending does not accept --commitment-time")
     attestation_plan_directory: Path | None = None
     if args.accept_now:
         if not isinstance(attestation_plan_dir_value, str):
@@ -19577,7 +21192,10 @@ def acceptance_preflight(args: argparse.Namespace) -> int:
         type(acceptance_generation_value) is not int or acceptance_generation_value not in {1, 2}
     ):
         raise GovernanceError("--acceptance-generation must be 1 or 2")
-    acceptance_generation = acceptance_generation_value or 1
+    # Preflight has no bundle input from which to derive a generation.  The
+    # current live basis is Generation 2; historical Generation 1 callers must
+    # request it explicitly.
+    acceptance_generation = acceptance_generation_value or 2
     branch_name = S1_CORRECTIVE_BRANCH_NAME if acceptance_generation == 2 else S1_BRANCH_NAME
     acceptance_tag_name = (
         S1_ACCEPTANCE_V2_TAG_NAME if acceptance_generation == 2 else S1_ACCEPTANCE_TAG_NAME
@@ -19608,6 +21226,40 @@ def acceptance_preflight(args: argparse.Namespace) -> int:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    successor_node = subparsers.add_parser(
+        "successor-v3-run-node",
+        help="Evaluate one signed Generation-3 tracked-runner predicate",
+    )
+    successor_node.add_argument(
+        "--node",
+        choices=tuple(S1_SUCCESSOR_V3_RUN_NODE_ROLES),
+        required=True,
+    )
+    successor_node.add_argument(
+        "--subject-role",
+        choices=tuple(dict.fromkeys(S1_SUCCESSOR_V3_RUN_NODE_ROLES.values())),
+        required=True,
+    )
+    successor_node.add_argument("--output", required=True)
+    successor_node.set_defaults(handler=successor_v3_run_node)
+
+    successor_native = subparsers.add_parser(
+        "successor-v3-native-suite",
+        help="Run the exact frozen-host full suite for R3",
+    )
+    successor_native.add_argument("--subject", required=True)
+    successor_native.add_argument("--output", required=True)
+    successor_native.set_defaults(handler=successor_v3_native_suite)
+
+    successor_historical = subparsers.add_parser(
+        "successor-v3-historical-check",
+        help="Recompute all generations in the governed standalone clone",
+    )
+    successor_historical.add_argument("--expected-c3", required=True)
+    successor_historical.add_argument("--expected-a3", required=True)
+    successor_historical.add_argument("--output", required=True)
+    successor_historical.set_defaults(handler=successor_v3_historical_check)
+
     post_v2_control_suite = subparsers.add_parser(
         "post-v2-control-suite-capture",
         help="Capture control-only full-suite evidence at a clean non-merge post-C2 commit",
@@ -19877,8 +21529,8 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         choices=(1, 2),
         help=(
-            "Acceptance generation to prepare or require; omitted live checks preserve "
-            "generation 1 and historical checks infer the signed tag generation"
+            "Acceptance generation to prepare or require; omitted live checks derive it "
+            "from the installed bundle and historical checks infer the signed tag generation"
         ),
     )
     validate.add_argument("--commitment-time")
@@ -19907,7 +21559,10 @@ def _parser() -> argparse.ArgumentParser:
         "--acceptance-generation",
         type=int,
         choices=(1, 2),
-        help="Acceptance generation whose governed branch and fixed tag are being prepared",
+        help=(
+            "Acceptance generation whose governed branch and fixed tag are being prepared; "
+            "omission selects the current Generation 2 basis"
+        ),
     )
     preflight.set_defaults(handler=acceptance_preflight)
     return parser

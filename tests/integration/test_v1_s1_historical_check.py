@@ -1338,6 +1338,27 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
     ).stdout.strip()
 
     standalone = _load_governance_from_clone(repository)
+    standalone_historical = standalone._parser().parse_args(
+        [
+            "successor-v3-historical-check",
+            "--expected-c3",
+            "1" * 40,
+            "--expected-a3",
+            "2" * 40,
+            "--output",
+            r"C:\tmp\agent-assure-s1-v3-node-execution-test-15-00000000-0000-4000-8000-000000000000\semantic-output.json",
+        ]
+    )
+    assert standalone_historical.handler is standalone.successor_v3_historical_check
+    assert standalone_historical.expected_c3 == "1" * 40
+    assert standalone_historical.expected_a3 == "2" * 40
+    assert not hasattr(standalone_historical, "repository_root")
+    assert not hasattr(standalone_historical, "package")
+    with pytest.raises(
+        standalone.GovernanceError,
+        match="commands require successful frozen runtime bootstrap",
+    ):
+        standalone_historical.handler(standalone_historical)
     monkeypatch.setattr(standalone, "TRUSTED_EXECUTABLE_IDENTITIES", trusted_tools)
     monkeypatch.setattr(standalone, "MAINTAINER_PUBLIC_KEY", signing_key.public_key)
     monkeypatch.setattr(
