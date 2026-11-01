@@ -584,12 +584,8 @@ S1_ACCEPTANCE_V2_CLOSURE_COMMIT: Final = "db5133e09860d292047b963b0fb81b3e7385b7
 S1_ACCEPTANCE_V2_RESULT_COMMIT: Final = "022c44ca11b170d5843aa57a7b33fba9cd0ad38d"
 S1_ACCEPTANCE_V2_TAG_OBJECT: Final = "aba5ac9111fd2be3a1b0e8e3ac7c3ebb8cb002be"
 S1_SUCCESSOR_V3_PACKAGE_ID: Final = "a974a9e0-c780-4288-9238-21144a4a5b8d"
-S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT: Final = (
-    "agent-assure-s1-successor-check-contracts/2"
-)
-S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT: Final = (
-    "agent-assure-s1-successor-authorization-claim/13"
-)
+S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT: Final = "agent-assure-s1-successor-check-contracts/2"
+S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT: Final = "agent-assure-s1-successor-authorization-claim/13"
 S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT: Final = (
     "agent-assure-s1-successor-kickoff-authorization/14"
 )
@@ -1492,7 +1488,8 @@ def _post_r2_delete_readonly_file_by_handle(
     class FileDispositionInfoEx(ctypes.Structure):
         _fields_ = [("flags", wintypes.DWORD)]
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    # Typeshed exposes these Windows-only ctypes APIs only for a Windows target.
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined, unused-ignore]
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         wintypes.LPCWSTR,
@@ -1545,7 +1542,7 @@ def _post_r2_delete_readonly_file_by_handle(
     set_file_information.restype = wintypes.BOOL
 
     def last_error(operation: str, path: Path) -> GovernanceError:
-        cause = ctypes.WinError(ctypes.get_last_error())
+        cause = ctypes.WinError(ctypes.get_last_error())  # type: ignore[attr-defined, unused-ignore]
         failure = GovernanceError(f"post-R2 cleanup could not {operation}: {path}")
         failure.__cause__ = cause
         return failure
@@ -14818,9 +14815,7 @@ _SCHEMA_SINGLE_SUBSCHEMA_KEYWORDS: Final = frozenset(
         "unevaluatedProperties",
     }
 )
-_SCHEMA_ARRAY_SUBSCHEMA_KEYWORDS: Final = frozenset(
-    {"allOf", "anyOf", "oneOf", "prefixItems"}
-)
+_SCHEMA_ARRAY_SUBSCHEMA_KEYWORDS: Final = frozenset({"allOf", "anyOf", "oneOf", "prefixItems"})
 _SCHEMA_MAPPING_SUBSCHEMA_KEYWORDS: Final = frozenset(
     {"$defs", "definitions", "dependentSchemas", "patternProperties", "properties"}
 )
@@ -19617,19 +19612,12 @@ def _successor_v3_contract(
     return node, ordinal
 
 
-def _successor_v3_parse_package_validation_stdout(
-    raw: bytes, *, profile: str
-) -> dict[str, Any]:
+def _successor_v3_parse_package_validation_stdout(raw: bytes, *, profile: str) -> dict[str, Any]:
     """Validate the exact subprocess JSON bytes without normalizing transport."""
 
     if len(raw) > _SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES:
         raise GovernanceError("Generation-3 package validation exceeded its output bound")
-    if (
-        not raw
-        or raw.startswith(b"\xef\xbb\xbf")
-        or not raw.endswith(b"\n")
-        or b"\r" in raw
-    ):
+    if not raw or raw.startswith(b"\xef\xbb\xbf") or not raw.endswith(b"\n") or b"\r" in raw:
         raise GovernanceError("Generation-3 package validator output is not canonical LF JSON")
     try:
         rendered = raw.decode("utf-8", errors="strict")
@@ -20004,7 +19992,11 @@ def _successor_v3_require_private_roadmap_history_absent(repository_root: Path) 
     history = _run_git(
         repository_root,
         [
-            "log", "--all", "--full-history", "--format=%H", "--",
+            "log",
+            "--all",
+            "--full-history",
+            "--format=%H",
+            "--",
             ":(top,literal)Agent_Assure_Implementation_Roadmap.md",
         ],
     )

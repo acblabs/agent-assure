@@ -7,9 +7,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from agent_assure.artifact_io import file_sha256, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -1369,8 +1369,7 @@ def _project_manifest_json_snapshot(
         max_bytes=MAX_ARTIFACT_JSON_BYTES,
         label=artifact_kind.replace("-", " "),
     )
-    validate_loaded_artifact_payload(payload, artifact_kind)
-    return project_validated_artifact_payload(payload, model, kind=artifact_kind)
+    return validate_loaded_artifact_model(payload, model, kind=artifact_kind)
 
 
 def _project_runset_snapshot(
@@ -1383,8 +1382,7 @@ def _project_runset_snapshot(
         max_bytes=packet_artifact_max_bytes(role),
         label=role.replace("-", " "),
     )
-    validate_loaded_artifact_payload(payload, "run-set")
-    runset = project_validated_artifact_payload(payload, RunSet, kind="run-set")
+    runset = validate_loaded_artifact_model(payload, RunSet, kind="run-set")
     return _unchanged_privacy_safe_runset(runset)
 
 
@@ -1394,8 +1392,7 @@ def _project_compiled_suite_snapshot(contents: BoundedFileContents) -> CompiledS
         max_bytes=MAX_ARTIFACT_JSON_BYTES,
         label="compiled suite",
     )
-    validate_loaded_artifact_payload(payload, "compiled-suite")
-    return project_validated_artifact_payload(
+    return validate_loaded_artifact_model(
         payload,
         CompiledSuite,
         kind="compiled-suite",
@@ -1538,12 +1535,27 @@ def _admit_packet_artifact(
     kind: str,
 ) -> PacketInputT:
     payload = value.model_dump(mode="json", warnings="error")
-    # Revalidate the typed input first so this programmatic builder preserves
-    # its historical Pydantic ValidationError contract.  The full artifact
-    # boundary below remains authoritative and additionally enforces the
-    # trusted kind, writer schema, and archival policy.
-    model.model_validate(payload)
-    return validate_loaded_artifact_model(payload, model, kind=kind)
+    return _admit_packet_payload(payload, model, kind)
+
+
+def _admit_packet_payload(
+    payload: dict[str, Any],
+    model: type[PacketInputT],
+    kind: str,
+) -> PacketInputT:
+    # Keep the projection produced by the full artifact boundary rather than
+    # replaying the same semantic checks merely to discard their result.
+    try:
+        return validate_loaded_artifact_model(payload, model, kind=kind)
+    except ValueError:
+        # Programmatic callers historically receive actionable typed errors.
+        # This fallback only restores that error contract; it can never admit
+        # a payload rejected by the schema, trusted-kind, or archival checks.
+        try:
+            model.model_validate(payload)
+        except ValidationError as exc:
+            raise exc from None
+        raise
 
 
 def packet_artifact_digest(
@@ -1563,8 +1575,7 @@ def write_evidence_packet(packet: EvidencePacket, path: Path) -> None:
             mode="json",
         )
     )
-    EvidencePacket.model_validate(payload)
-    validate_loaded_artifact_payload(payload, "evidence-packet")
+    _admit_packet_payload(payload, EvidencePacket, "evidence-packet")
     write_text_atomic(
         path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -1593,23 +1604,18 @@ def load_evidence_packet_with_digest(path: Path) -> tuple[EvidencePacket, str]:
 
 def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
     source_payload = packet.model_dump(mode="json", warnings="error")
-    # Preserve actionable typed invariant errors for programmatic callers.
-    # Persisted/untrusted loaders retain normalized boundary errors; rendering
-    # still performs the complete schema-plus-model replay immediately after.
-    EvidencePacket.model_validate(source_payload)
-    packet = validate_loaded_artifact_model(
+    packet = _admit_packet_payload(
         source_payload,
         EvidencePacket,
-        kind="evidence-packet",
+        "evidence-packet",
     )
     validated_payload = packet.model_dump(mode="json", warnings="error")
     payload = redact_packet_payload(validated_payload)
     if payload != validated_payload:
-        EvidencePacket.model_validate(payload)
-        packet = validate_loaded_artifact_model(
+        packet = _admit_packet_payload(
             payload,
             EvidencePacket,
-            kind="evidence-packet",
+            "evidence-packet",
         )
     safe_payload = packet.model_dump(mode="json", warnings="error")
     if redact_packet_payload(safe_payload) != safe_payload:

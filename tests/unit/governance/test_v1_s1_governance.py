@@ -13,7 +13,7 @@ import sys
 from argparse import Namespace
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import pytest
@@ -633,7 +633,13 @@ def test_signing_key_schema_rejects_confirmation_without_out_of_band_evidence() 
         )
 
 
-def test_baseline_observations_bind_the_frozen_external_tool_identities() -> None:
+def test_baseline_observations_bind_the_frozen_external_tool_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The immutable record names Windows files even when this test runs on POSIX.
+    frozen_python_root = PureWindowsPath(str(governance._FROZEN_PYTHON_ROOT))
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_EXECUTABLE", frozen_python_root / "python.exe")
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_DLL", frozen_python_root / "python312.dll")
     record = _record("baseline-observations.json")
     snapshot = _minimal_snapshot()
     snapshot = governance.RoadmapSnapshot(
@@ -1445,12 +1451,15 @@ def test_read_commit_blob_handles_a_long_exact_repository_path(tmp_path: Path) -
         for packed in (False, True):
             if packed:
                 _git(deep_repository, "repack", "-a", "-d")
-            assert governance._read_commit_blob(
-                deep_repository,
-                deep_commit,
-                "evidence.json",
-                owner="deep object-store test artifact",
-            ) == payload
+            assert (
+                governance._read_commit_blob(
+                    deep_repository,
+                    deep_commit,
+                    "evidence.json",
+                    owner="deep object-store test artifact",
+                )
+                == payload
+            )
 
 
 def test_read_commit_blob_treats_pathspec_metacharacters_as_literal(tmp_path: Path) -> None:
@@ -3486,14 +3495,18 @@ def test_post_v2_pytest_argv_overrides_hostile_collection_and_path_configuration
     assert "2 passed" in completed.stdout
 
 
-def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy() -> None:
+def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import ast
 
-    basetemp = ROOT / ".tmp/s1-acceptance/synthetic-v3-basetemp"
-    process_temp = (
-        governance.POST_R2_PROCESS_TEMP_ROOT
-        / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}synthetic-v3"
+    _process_temp_root, process_temp = _fresh_post_r2_process_temp(
+        tmp_path,
+        monkeypatch,
+        suffix="synthetic-v3",
     )
+    basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
     legacy_command = governance._post_r2_pytest_bootstrap_source(
         ROOT,
         basetemp=basetemp,
@@ -5268,10 +5281,22 @@ def test_post_r2_execution_cleans_when_command_construction_fails(
         "_allocate_post_r2_run_paths",
         lambda _root: (basetemp, process_temp),
     )
+    monkeypatch.setattr(
+        governance,
+        "_FROZEN_PYTHON_EXECUTABLE",
+        tmp_path / "absent-frozen-python.exe",
+    )
+    prepared_marker = process_temp / "synthetic-runtime-prepared"
+
+    def prepare_runtime(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        prepared_marker.write_bytes(b"synthetic runtime\n")
+        return {"format": "synthetic-descendant-runtime"}
 
     def fail_argv(*_args: Any, **_kwargs: Any) -> list[str]:
+        assert prepared_marker.read_bytes() == b"synthetic runtime\n"
         raise primary
 
+    monkeypatch.setattr(governance, "_prepare_post_r2_descendant_runtime", prepare_runtime)
     monkeypatch.setattr(governance, "_post_r2_pytest_argv", fail_argv)
 
     with pytest.raises(RuntimeError, match="synthetic argv failure") as raised:
@@ -6045,7 +6070,8 @@ def _protect_local_roadmap(repository: Path) -> Path:
 
 
 def _prepare_successor_v3_surface_fixture(
-    repository: Path, monkeypatch: pytest.MonkeyPatch,
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> str:
     """Keep real Git/native prerequisites while isolating the full file inventory."""
     _git(repository, "checkout", "--quiet", "-b", governance.S1_SUCCESSOR_V3_BRANCH_NAME)
@@ -6058,7 +6084,8 @@ def _prepare_successor_v3_surface_fixture(
     assert committed_readme.returncode == 0
     assert committed_readme.stdout == readme, "fixture README differs from its raw Git blob"
     monkeypatch.setattr(
-        governance, "_post_r2_test_surface_evidence",
+        governance,
+        "_post_r2_test_surface_evidence",
         lambda *_args, **_kwargs: {"fixture": "synthetic tracked-file inventory"},
     )
     return _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip()
@@ -6077,8 +6104,14 @@ def test_local_only_roadmap_requires_local_exclusion_and_an_untracked_index(
     assert governance.validate_local_only_roadmap(repository, roadmap) == roadmap.name
     r3 = _prepare_successor_v3_surface_fixture(repository, monkeypatch)
     _git(
-        repository, "-c", "tag.gpgSign=false", "tag", "--annotate",
-        "--message", "public annotated tag", "synthetic-native-predecessor",
+        repository,
+        "-c",
+        "tag.gpgSign=false",
+        "tag",
+        "--annotate",
+        "--message",
+        "public annotated tag",
+        "synthetic-native-predecessor",
     )
     tag_oid = _git(repository, "rev-parse", "refs/tags/synthetic-native-predecessor").stdout.strip()
     assert _git(repository, "cat-file", "-t", tag_oid).stdout.strip() == "tag"
@@ -6106,17 +6139,26 @@ def test_local_only_roadmap_requires_local_exclusion_and_an_untracked_index(
     assert governance._successor_v3_repository_surface(repository, r3=r3) == surface
 
     expected_history_argv = [
-        "log", "--all", "--full-history", "--format=%H", "--",
+        "log",
+        "--all",
+        "--full-history",
+        "--format=%H",
+        "--",
         ":(top,literal)Agent_Assure_Implementation_Roadmap.md",
     ]
     original_run_git = governance._run_git
 
     def failed_history_inspection(
-        repository_root: Path, arguments: Any, **kwargs: Any,
+        repository_root: Path,
+        arguments: Any,
+        **kwargs: Any,
     ) -> subprocess.CompletedProcess[bytes]:
         if list(arguments) == expected_history_argv:
             return subprocess.CompletedProcess(
-                args=arguments, returncode=128, stdout=b"", stderr=b"synthetic history failure",
+                args=arguments,
+                returncode=128,
+                stdout=b"",
+                stderr=b"synthetic history failure",
             )
         return original_run_git(repository_root, arguments, **kwargs)
 
@@ -6135,7 +6177,8 @@ def test_local_only_roadmap_requires_local_exclusion_and_an_untracked_index(
 
 
 def test_local_only_roadmap_rejects_reachable_history(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
@@ -6153,7 +6196,8 @@ def test_local_only_roadmap_rejects_reachable_history(
     assert _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip() == r3
     assert not roadmap.exists()
     with pytest.raises(
-        governance.GovernanceError, match="private roadmap path.*reachable Git history",
+        governance.GovernanceError,
+        match="private roadmap path.*reachable Git history",
     ):
         governance._successor_v3_repository_surface(repository, r3=r3)
     roadmap = _protect_local_roadmap(repository)
@@ -6163,7 +6207,8 @@ def test_local_only_roadmap_rejects_reachable_history(
 
 
 def test_local_only_roadmap_rejects_identical_unreachable_blob(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
@@ -8424,17 +8469,19 @@ def _exercise_successor_v3_validator_output_transport() -> None:
             + "));sys.stdout.buffer.flush()"
         )
         encoded_program = base64.b64encode(program.encode("utf-8")).decode("ascii")
-        entry = (
-            "import base64;exec(base64.b64decode("
-            + repr(encoded_program)
-            + "))"
-        ).replace("'", "''")
+        entry = ("import base64;exec(base64.b64decode(" + repr(encoded_program) + "))").replace(
+            "'", "''"
+        )
         script = f"& '{interpreter}' -I -S -B -X utf8 -c '{entry}'"
         encoded_script = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
         completed = subprocess.run(
             [
-                str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive",
-                "-EncodedCommand", encoded_script,
+                str(powershell),
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded_script,
             ],
             cwd=ROOT,
             capture_output=True,
@@ -8509,18 +8556,14 @@ def _synthetic_successor_v3_signed_package(
                 {
                     "r3_exact_allowlist": strings,
                     "c3_exact_paths": strings,
-                    "canonical_commit_messages": closed(
-                        {"k3": string, "r3": string, "c3": string}
-                    ),
+                    "canonical_commit_messages": closed({"k3": string, "r3": string, "c3": string}),
                 }
             ),
             "protocol_bundle": closed(
                 {
                     "check_contracts_digest": string,
                     "artifacts": {"type": "array", "items": descriptor},
-                    "schema_set": closed(
-                        {"schemas": {"type": "array", "items": descriptor}}
-                    ),
+                    "schema_set": closed({"schemas": {"type": "array", "items": descriptor}}),
                 }
             ),
         }
@@ -8630,8 +8673,16 @@ def _synthetic_successor_v3_signed_package(
         signature.unlink(missing_ok=True)
         completed = _run_test_ssh_keygen(
             [
-                executable, "-Y", "sign", "-f", str(key.private_key),
-                "-n", governance.SIGNATURE_NAMESPACE, "-O", "hashalg=sha512", str(message),
+                executable,
+                "-Y",
+                "sign",
+                "-f",
+                str(key.private_key),
+                "-n",
+                governance.SIGNATURE_NAMESPACE,
+                "-O",
+                "hashalg=sha512",
+                str(message),
             ]
         )
         assert completed.returncode == 0, completed.stderr
@@ -8831,17 +8882,10 @@ def test_parser_supports_generation_2_timestamp_free_acceptance_inputs(
     signed = governance._successor_v3_validate_signed_package(synthetic_root)
     _exercise_successor_v3_validator_output_transport()
     assert signed["contracts"]["package_id"] == governance.S1_SUCCESSOR_V3_PACKAGE_ID
+    assert signed["contracts"]["format"] == governance.S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT
+    assert signed["claim"]["format"] == governance.S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT
     assert (
-        signed["contracts"]["format"]
-        == governance.S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT
-    )
-    assert (
-        signed["claim"]["format"]
-        == governance.S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT
-    )
-    assert (
-        signed["authorization"]["format"]
-        == governance.S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT
+        signed["authorization"]["format"] == governance.S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT
     )
 
     for symbol, message in [
@@ -9076,6 +9120,7 @@ def test_historical_bootstrap_docs_require_a_standalone_runtime_clone() -> None:
 @pytest.mark.skipif(os.name != "nt", reason="the documented bootstrap is PowerShell on Windows")
 def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_rejects_nonregular_paths(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
     bootstrap = documentation.split("### Historical-verifier bootstrap boundary", maxsplit=1)[
@@ -9099,6 +9144,9 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     )
     powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
     assert powershell.is_file()
+    inherited_module_path = tmp_path / "incompatible-parent-modules"
+    inherited_module_path.mkdir()
+    monkeypatch.setenv("PSModulePath", str(inherited_module_path))
 
     def run_setup(root: Path, source_exclude: Path) -> subprocess.CompletedProcess[str]:
         escaped_root = str(root).replace("'", "''")
@@ -9115,6 +9163,9 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
                 f"$SourceExcludePath = '{escaped_source_exclude}'\n"
                 f"{exclude_setup}",
             ],
+            # Python inherits PS7 module paths without its direct-child WinPS
+            # compatibility rewrite. Let Windows PowerShell rebuild its defaults.
+            env={key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"},
             capture_output=True,
             check=False,
             text=True,
@@ -9161,6 +9212,7 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     assert not (fresh / ".git/info").exists()
     completed = run_setup(fresh, source_exclude)
     assert completed.returncode == 0, completed.stderr
+    assert os.environ["PSModulePath"] == str(inherited_module_path)
     exclude_path = fresh / ".git/info/exclude"
     assert exclude_path.is_file() and not exclude_path.is_symlink()
     assert exclude_path.read_bytes() == synthetic_legacy_policy
