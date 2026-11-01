@@ -100,6 +100,38 @@ def _commit_paths(repository: Path, message: str, paths: Sequence[str]) -> str:
     return _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip()
 
 
+def _create_synthetic_predecessor_tag(repository: Path, *, target_commit: str) -> str:
+    """Create only a disposable tag-parser fixture, never a signed G1 acceptance."""
+
+    message_path = repository / ".tmp" / "synthetic-predecessor-attestation.json"
+    message_path.parent.mkdir(parents=True, exist_ok=True)
+    message_path.write_bytes(
+        governance._render_acceptance_attestation_bytes(
+            {
+                "format": governance.CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT,
+                "acceptance_tag_name": governance.S1_ACCEPTANCE_TAG_NAME,
+            }
+        )
+    )
+    _git(
+        repository,
+        "-c",
+        "tag.gpgSign=false",
+        "tag",
+        "--force",
+        "--annotate",
+        "--cleanup=verbatim",
+        f"--file={message_path}",
+        governance.S1_ACCEPTANCE_TAG_NAME,
+        target_commit,
+    )
+    return _git(
+        repository,
+        "rev-parse",
+        f"refs/tags/{governance.S1_ACCEPTANCE_TAG_NAME}^{{tag}}",
+    ).stdout.strip()
+
+
 def _copy_legacy_acceptance_blob(destination_root: Path, relative_path: str) -> None:
     """Copy generation-1 fixture bytes from its immutable accepted closure."""
 
@@ -1004,8 +1036,9 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
     """Exercise synthetic v2 topology, SSHSIG, tag, and self-binding on Windows.
 
     Focused unit tests cover the record validators. This integration deliberately
-    substitutes synthetic roadmap/record validators and therefore does not claim
-    accepted-configuration or full generation-2 end-to-end proof.
+    substitutes synthetic roadmap/record validators and a fixture-owned G1 tag;
+    it does not claim signed predecessor acceptance, accepted-configuration, or
+    full generation-2 end-to-end proof.
     """
 
     trusted_tools = _test_host_tool_identities()
@@ -1041,6 +1074,15 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
     exclude = repository / ".git/info/exclude"
     with exclude.open("a", encoding="utf-8", newline="\n") as stream:
         stream.write("\nAgent_Assure_Implementation_Roadmap.md\n.tmp/\n.venv/\n")
+    # Public ancestry contains the closure commit but need not contain the
+    # locally authored annotated G1 tag. Keep all production/schema-bound G1
+    # identities unchanged; only the already-synthetic callback below reads
+    # this disposable tag and its actual object ID.
+    synthetic_predecessor_tag = _create_synthetic_predecessor_tag(
+        repository,
+        target_commit=governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+    )
+    assert synthetic_predecessor_tag != governance.S1_ACCEPTANCE_V1_TAG_OBJECT
     roadmap = repository / "Agent_Assure_Implementation_Roadmap.md"
     _write_synthetic_roadmap(roadmap)
     snapshot = governance.load_roadmap(roadmap)
@@ -1479,7 +1521,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         assert expected_roadmap_digest == snapshot.raw_digest
         record = standalone._read_tagged_current_acceptance_attestation(
             root,
-            tag_object=standalone.S1_ACCEPTANCE_V1_TAG_OBJECT,
+            tag_object=synthetic_predecessor_tag,
             expected_closure_commit=standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
         )
         assert record["format"] == standalone.CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT
@@ -1490,6 +1532,51 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         "_validate_generation_1_predecessor_acceptance",
         validate_predecessor,
     )
+    predecessor_ref = f"refs/tags/{standalone.S1_ACCEPTANCE_TAG_NAME}"
+    try:
+        _git(repository, "tag", "--delete", standalone.S1_ACCEPTANCE_TAG_NAME)
+        with pytest.raises(
+            standalone.GovernanceError,
+            match="fixed S1 acceptance tag does not resolve",
+        ):
+            validate_predecessor(repository, expected_roadmap_digest=snapshot.raw_digest)
+
+        wrong_target_tag = _create_synthetic_predecessor_tag(
+            repository,
+            target_commit=result_commit,
+        )
+        assert wrong_target_tag != synthetic_predecessor_tag
+        with pytest.raises(
+            standalone.GovernanceError,
+            match="fixed S1 acceptance tag does not resolve",
+        ):
+            validate_predecessor(repository, expected_roadmap_digest=snapshot.raw_digest)
+        with pytest.raises(standalone.GovernanceError, match="targets another closure commit"):
+            standalone._read_tagged_current_acceptance_attestation(
+                repository,
+                tag_object=wrong_target_tag,
+                expected_closure_commit=standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            )
+
+        # A lightweight ref names a commit, not the required annotated object.
+        _git(
+            repository,
+            "update-ref",
+            predecessor_ref,
+            standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        )
+        with pytest.raises(
+            standalone.GovernanceError,
+            match="does not identify an annotated Git tag",
+        ):
+            standalone._read_tagged_current_acceptance_attestation(
+                repository,
+                tag_object=standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+                expected_closure_commit=standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+            )
+    finally:
+        _git(repository, "update-ref", predecessor_ref, synthetic_predecessor_tag)
+    validate_predecessor(repository, expected_roadmap_digest=snapshot.raw_digest)
     monkeypatch.setattr(
         standalone,
         "validate_approval_roster",

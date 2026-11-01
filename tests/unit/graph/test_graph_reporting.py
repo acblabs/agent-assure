@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
 
+from agent_assure.controls.efficacy import build_control_efficacy_report
+from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.graph.builder import build_evidence_graph
+from agent_assure.mutation.campaign import execute_mutation_campaign
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting import graph as graph_reporting
 from agent_assure.reporting.graph import (
@@ -14,7 +18,9 @@ from agent_assure.reporting.graph import (
     write_evidence_graph,
 )
 from agent_assure.schema.common import GateState, ReasonCode
+from agent_assure.schema.efficacy import ControlEfficacyReport, ThreatApplicabilityManifest
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
+from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.graph import (
     AssuranceEvidenceGraph,
     EvidenceGraphEdge,
@@ -30,8 +36,19 @@ from agent_assure.schema.graph import (
     EvidenceGraphSubjectPayload,
 )
 from agent_assure.schema.mutation import EvidenceEvaluationBasis, EvidenceState
+from agent_assure.schema.provenance import Provenance
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    EvidenceItem,
+    EvidenceRef,
+    RunSet,
+)
+from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
+from agent_assure.schema.validation import validate_loaded_artifact_model
 
 _CARD_LIKE_MUTATION_DIGEST = "2f0a75cc3e0a2aa2093465386277bf617e3b9a3199b661366fd1b4d1a242f035"
+_CARD_LIKE_CONTROL_DIGEST = "6746b6f9ac1290ee57d3950775d75931bc4270746184790e5ac32f382e56df7a"
 
 
 def _subject_only_graph() -> AssuranceEvidenceGraph:
@@ -173,6 +190,131 @@ def _mutation_digest_graph(
         edges=tuple(edges),
         compatibility=graph.compatibility,
         limitations=graph.limitations,
+    )
+
+
+@pytest.fixture(scope="module")
+def control_efficacy_report() -> ControlEfficacyReport:
+    # Keep this fixture independent of test-package import paths and runtime
+    # artifacts. Exercise the real one-operator campaign/report builders using
+    # a small deterministic, entirely synthetic source and suite.
+    operator = "drop-material-evidence-link"
+    expectation = Expectation(
+        expectation_id="expectation-case-a",
+        case_id="case-a",
+        material_claim_ids=("claim-a",),
+        forbidden_tools=("blocked-tool",),
+        required_human_review=True,
+    )
+    suite = CompiledSuite(
+        suite_id="graph-reporting-control-suite",
+        suite_version="1.0.0",
+        defaults=SuiteDefaults(runner_id="graph.reporting.tests", allowed_tools=("safe-tool",)),
+        cases=(
+            SuiteCase(
+                case_id="case-a",
+                title="Synthetic graph control case",
+                expectation_id=expectation.expectation_id,
+            ),
+        ),
+        resolved_expectations=(expectation,),
+        source_digest="a" * 64,
+    )
+    runset = RunSet(
+        runset_id="graph-reporting-control-runset",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id=suite.suite_id,
+        suite_version=suite.suite_version,
+        suite_digest=compiled_suite_digest(suite),
+        fixture_manifest_digest="c" * 64,
+        runs=(
+            AgentRunRecord(
+                run_id="run-case-a",
+                case_id="case-a",
+                pipeline_id="graph.reporting.tests",
+                recommendation="approve",
+                outcome="approved",
+                input_summary="synthetic input",
+                output_summary="synthetic output",
+                tools=("safe-tool",),
+                evidence_refs=(
+                    EvidenceRef(ref_id="evidence-a", source_id="source-a", claim_ids=("claim-a",)),
+                ),
+                evidence_items=(
+                    EvidenceItem(
+                        ref_id="evidence-a", source_id="source-a", content_digest="d" * 64
+                    ),
+                ),
+                claim_evidence_links=(
+                    ClaimEvidenceLink(claim_id="claim-a", evidence_ref_id="evidence-a"),
+                ),
+                human_review_required=True,
+                human_review_performed=True,
+                provenance=Provenance(fixture_manifest_digest="c" * 64),
+            ),
+        ),
+    )
+    execution = execute_mutation_campaign(
+        suite,
+        runset.model_dump(mode="json"),
+        seed=7331,
+        generated_at="2026-08-08T00:00:00Z",
+        operator_ids=(operator,),
+        evaluation_date=date(2026, 8, 8),
+    )
+    manifest = ThreatApplicabilityManifest.build(
+        threat_source={"name": "synthetic-graph-threats", "version": "1"},
+        present_control_ids=("material_claims_have_evidence",),
+        items=(
+            {
+                "threat_id": "AML.T0067.000",
+                "applicability": "applicable",
+                "critical": True,
+                "reviewed_at": "2026-08-08",
+            },
+        ),
+        limitations=("Synthetic graph control fixture only.",),
+    )
+    return build_control_efficacy_report(
+        execution.campaign,
+        execution.catalog,
+        manifest,
+        required_operator_ids=(operator,),
+    )
+
+
+def _control_digest_graph(
+    report: ControlEfficacyReport,
+    *,
+    campaign_digest: str = _CARD_LIKE_CONTROL_DIGEST,
+    subject_id: str = "graph-reporting-runset",
+    limitations: tuple[str, ...] | None = None,
+) -> AssuranceEvidenceGraph:
+    # Portable synthetic campaign identity: it need not be generated by the
+    # machine running this test. Rebuild and fully admit the real report and
+    # graph, including their relational projections and computed digests.
+    values = report.model_dump(mode="python", exclude={"report_digest", "campaign_digest"})
+    if limitations is not None:
+        values["limitations"] = limitations
+    updated_report = ControlEfficacyReport.build(**values, campaign_digest=campaign_digest)
+    admitted_report = validate_loaded_artifact_model(
+        updated_report.model_dump(mode="json"),
+        ControlEfficacyReport,
+        kind="control-efficacy-report",
+    )
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=subject_id,
+            subject_digest=admitted_report.source_digest,
+        ),
+        control_efficacy=admitted_report,
+    )
+    return validate_loaded_artifact_model(
+        graph.model_dump(mode="json"),
+        AssuranceEvidenceGraph,
+        kind="assurance-evidence-graph",
     )
 
 
@@ -399,6 +541,182 @@ def test_mutation_digest_alias_cannot_bypass_forged_identity_validation(tmp_path
         update={"nodes": tuple(forged_node if item is node else item for item in graph.nodes)}
     )
     destination = tmp_path / "not-created" / "mutation-evidence-graph.json"
+
+    with pytest.raises(ValueError, match="model validation"):
+        write_evidence_graph(forged_graph, destination)
+
+    assert not destination.parent.exists()
+
+
+@pytest.mark.parametrize(
+    "campaign_digest",
+    (
+        _CARD_LIKE_CONTROL_DIGEST,
+        _CARD_LIKE_MUTATION_DIGEST,
+        "cd18620ee20204105499754aa35d7ff45d9c37483cfb06df8ab3b461571d7993",
+    ),
+    ids=("runtime-reconstructed-control", "mutation-digest", "source-reference-digest"),
+)
+def test_control_campaign_digest_aliases_round_trip_without_changing_graph_identity(
+    campaign_digest: str,
+    control_efficacy_report: ControlEfficacyReport,
+    tmp_path: Path,
+) -> None:
+    graph = _control_digest_graph(control_efficacy_report, campaign_digest=campaign_digest)
+    before = graph.model_dump(mode="json")
+    destination = tmp_path / "control-evidence-graph.json"
+
+    write_evidence_graph(graph, destination)
+
+    assert (
+        destination.read_bytes() == (json.dumps(before, indent=2, sort_keys=True) + "\n").encode()
+    )
+    loaded = load_evidence_graph(destination)
+    assert loaded == graph
+    assert loaded.graph_digest == graph.graph_digest
+    assert tuple(node.node_id for node in loaded.nodes) == tuple(
+        node.node_id for node in graph.nodes
+    )
+    evidence_node = next(
+        node for node in loaded.nodes if node.kind is EvidenceGraphNodeKind.evidence
+    )
+    assert isinstance(evidence_node.payload, EvidenceGraphEvidencePayload)
+    assert evidence_node.payload.evidence_type is EvidenceGraphEvidenceType.control_efficacy
+    assert evidence_node.payload.source_id == campaign_digest
+    assert evidence_node.payload.source_digest != campaign_digest
+    assert evidence_node.identity.model_dump(mode="json")["source_id"] == campaign_digest
+    assert graph.model_dump(mode="json") == before
+
+
+@pytest.mark.parametrize(
+    ("section", "field", "replacement"),
+    (
+        ("node", "kind", "finding"),
+        ("identity", "identity_kind", "finding"),
+        ("payload", "payload_kind", "finding"),
+        ("identity", "evidence_type", "gate_profile"),
+        ("payload", "evidence_type", "gate_profile"),
+        ("identity", "source_artifact_kind", "evaluation-summary"),
+        ("payload", "source_artifact_kind", "evaluation-summary"),
+        ("identity", "source_id", "b" * 64),
+        ("payload", "source_digest", "not-a-digest"),
+        ("payload", "control_efficacy_projection", None),
+    ),
+)
+def test_control_digest_alias_review_requires_complete_typed_node_context(
+    section: str,
+    field: str,
+    replacement: object,
+    control_efficacy_report: ControlEfficacyReport,
+) -> None:
+    # Malformed evidence contexts cannot inherit the campaign-digest exemption.
+    # Public persistence rejects forged shapes at schema/model admission first.
+    payload = _control_digest_graph(control_efficacy_report).model_dump(mode="json")
+    node_index = next(
+        index for index, node in enumerate(payload["nodes"]) if node["kind"] == "evidence"
+    )
+    node = payload["nodes"][node_index]
+    target = node if section == "node" else node[section]
+    target[field] = replacement
+
+    review = graph_reporting._privacy_review_projection(payload)
+
+    reviewed_node = review["nodes"][node_index]
+    assert reviewed_node["payload"]["source_id"] == _CARD_LIKE_CONTROL_DIGEST
+    assert graph_reporting.redact_packet_payload(review) != review
+    assert node["payload"]["source_id"] == _CARD_LIKE_CONTROL_DIGEST
+
+
+@pytest.mark.parametrize(
+    "source_id",
+    (_CARD_LIKE_CONTROL_DIGEST.upper(), "4111111111111111", "g" * 64, "a" * 63),
+    ids=("uppercase", "card-number", "non-hex", "short"),
+)
+def test_control_campaign_alias_review_requires_lowercase_sha256_grammar(
+    source_id: str, control_efficacy_report: ControlEfficacyReport
+) -> None:
+    payload = _control_digest_graph(control_efficacy_report).model_dump(mode="json")
+    node = next(node for node in payload["nodes"] if node["kind"] == "evidence")
+    node["identity"]["source_id"] = node["payload"]["source_id"] = source_id
+
+    review = graph_reporting._privacy_review_projection(payload)
+
+    reviewed_node = next(node for node in review["nodes"] if node["kind"] == "evidence")
+    assert reviewed_node["identity"]["source_id"] == source_id
+    assert reviewed_node["payload"]["source_id"] == source_id
+
+
+def test_control_campaign_alias_exemption_is_limited_to_graph_root_nodes(
+    control_efficacy_report: ControlEfficacyReport,
+) -> None:
+    payload = _control_digest_graph(control_efficacy_report).model_dump(mode="json")
+    node = next(node for node in payload["nodes"] if node["kind"] == "evidence")
+    payload["diagnostic"] = node
+
+    review = graph_reporting._privacy_review_projection(payload)
+
+    assert review["diagnostic"]["identity"]["source_id"] == _CARD_LIKE_CONTROL_DIGEST
+    assert review["diagnostic"]["payload"]["source_id"] == _CARD_LIKE_CONTROL_DIGEST
+    assert graph_reporting.redact_packet_payload(review) != review
+    assert node["payload"]["source_id"] == _CARD_LIKE_CONTROL_DIGEST
+
+
+@pytest.mark.parametrize(
+    "sensitive", ("alice@example.com", "4111111111111111", _CARD_LIKE_CONTROL_DIGEST)
+)
+def test_control_campaign_alias_exemption_still_rejects_sensitive_content_without_writing(
+    sensitive: str, control_efficacy_report: ControlEfficacyReport, tmp_path: Path
+) -> None:
+    graph = _control_digest_graph(control_efficacy_report, limitations=(sensitive,))
+    destination = tmp_path / "not-created" / "control-evidence-graph.json"
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        write_evidence_graph(graph, destination)
+
+    assert not destination.parent.exists()
+
+
+def test_control_campaign_digest_remains_scanned_in_human_identifiers(
+    control_efficacy_report: ControlEfficacyReport,
+) -> None:
+    graph = _control_digest_graph(control_efficacy_report, subject_id=_CARD_LIKE_CONTROL_DIGEST)
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
+
+
+def test_control_campaign_digest_remains_scanned_in_unrelated_diagnostic_references() -> None:
+    graph = _evaluation_graph_with_reference(
+        _CARD_LIKE_CONTROL_DIGEST, role=EvidenceGraphReferenceRole.diagnostic
+    )
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
+
+
+def test_control_campaign_digest_requires_control_efficacy_evidence_role() -> None:
+    graph = _mutation_digest_graph(
+        source_id=_CARD_LIKE_CONTROL_DIGEST,
+        source_digest="b" * 64,
+        source_artifact_kind="control-efficacy-report",
+        evidence_type=EvidenceGraphEvidenceType.gate_profile,
+    )
+
+    with pytest.raises(ValueError, match="privacy-filtered"):
+        evidence_graph_json_text(graph)
+
+
+def test_control_campaign_alias_cannot_bypass_forged_identity_validation(
+    control_efficacy_report: ControlEfficacyReport, tmp_path: Path
+) -> None:
+    graph = _control_digest_graph(control_efficacy_report)
+    node = next(node for node in graph.nodes if node.kind is EvidenceGraphNodeKind.evidence)
+    forged_identity = node.identity.model_copy(update={"source_id": "b" * 64})
+    forged_node = node.model_copy(update={"identity": forged_identity})
+    forged_graph = graph.model_copy(
+        update={"nodes": tuple(forged_node if item is node else item for item in graph.nodes)}
+    )
+    destination = tmp_path / "not-created" / "control-evidence-graph.json"
 
     with pytest.raises(ValueError, match="model validation"):
         write_evidence_graph(forged_graph, destination)
