@@ -425,6 +425,48 @@ def _live_repository_evidence_v2(closure_commit: str) -> dict[str, Any]:
     return evidence
 
 
+_SYNTHETIC_FROZEN_RUNTIME_FIELDS = (
+    "_FROZEN_PYTHON_ROOT",
+    "_FROZEN_PYTHON_EXECUTABLE",
+    "_FROZEN_PYTHON_EXECUTABLE_SIZE",
+    "_FROZEN_PYTHON_EXECUTABLE_SHA256",
+    "_FROZEN_PYTHON_DLL",
+    "_FROZEN_PYTHON_DLL_SIZE",
+    "_FROZEN_PYTHON_DLL_SHA256",
+    "_FROZEN_BASE_RUNTIME_FILE_COUNT",
+    "_FROZEN_BASE_RUNTIME_SIZE_BYTES",
+    "_FROZEN_BASE_RUNTIME_SHA256",
+)
+
+
+def _install_synthetic_frozen_runtime(
+    runtime_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # These files are identity fixtures; no Python process executes them.
+    runtime_root.mkdir()
+    python_file = runtime_root / "python.exe"
+    python_dll = runtime_root / "python312.dll"
+    python_file.write_bytes(b"synthetic-frozen-python")
+    python_dll.write_bytes(b"synthetic-frozen-python-dll")
+    base_count, base_size, base_digest = governance._base_runtime_inventory(runtime_root)
+    bindings = {
+        "_FROZEN_PYTHON_ROOT": runtime_root,
+        "_FROZEN_PYTHON_EXECUTABLE": python_file,
+        "_FROZEN_PYTHON_EXECUTABLE_SIZE": python_file.stat().st_size,
+        "_FROZEN_PYTHON_EXECUTABLE_SHA256": hashlib.sha256(python_file.read_bytes()).hexdigest(),
+        "_FROZEN_PYTHON_DLL": python_dll,
+        "_FROZEN_PYTHON_DLL_SIZE": python_dll.stat().st_size,
+        "_FROZEN_PYTHON_DLL_SHA256": hashlib.sha256(python_dll.read_bytes()).hexdigest(),
+        "_FROZEN_BASE_RUNTIME_FILE_COUNT": base_count,
+        "_FROZEN_BASE_RUNTIME_SIZE_BYTES": base_size,
+        "_FROZEN_BASE_RUNTIME_SHA256": base_digest,
+    }
+    assert set(bindings) == set(_SYNTHETIC_FROZEN_RUNTIME_FIELDS)
+    for name, value in bindings.items():
+        monkeypatch.setattr(governance, name, value)
+
+
 def _write_synthetic_post_r2_evidence(
     repository: Path,
     *,
@@ -432,6 +474,10 @@ def _write_synthetic_post_r2_evidence(
     result_commit: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> Path:
+    _install_synthetic_frozen_runtime(
+        (repository.parent / "synthetic-frozen-runtime").resolve(),
+        monkeypatch,
+    )
     evidence_root = repository / governance.POST_R2_SUITE_EVIDENCE_DIRECTORY
     evidence_root.mkdir(parents=True)
     stdout = (
@@ -1185,12 +1231,41 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         "_generation_1_supersession_binding",
         lambda *_args, **_kwargs: predecessor_binding,
     )
+    # Force this fixture to work when the production laptop path is unavailable.
+    absent_python = tmp_path / "absent-production-runtime" / "python.exe"
+    assert not absent_python.exists()
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_EXECUTABLE", absent_python)
     post_r2_evidence = _write_synthetic_post_r2_evidence(
         repository,
         roadmap=roadmap,
         result_commit=result_commit,
         monkeypatch=monkeypatch,
     )
+    fixture_python = governance._FROZEN_PYTHON_EXECUTABLE
+    assert fixture_python != absent_python
+    assert fixture_python.parent == (repository.parent / "synthetic-frozen-runtime").resolve()
+    fixture_python_bytes = fixture_python.read_bytes()
+    try:
+        fixture_python.unlink()
+        with pytest.raises(
+            governance.GovernanceError, match="executable source is not a regular file"
+        ):
+            governance.validate_post_r2_suite_evidence_source(
+                post_r2_evidence,
+                expected_result_commit=result_commit,
+                expected_repository_root=repository,
+                require_passed=True,
+            )
+        fixture_python.write_bytes(bytes(byte ^ 1 for byte in fixture_python_bytes))
+        with pytest.raises(governance.GovernanceError, match="executable source bytes changed"):
+            governance.validate_post_r2_suite_evidence_source(
+                post_r2_evidence,
+                expected_result_commit=result_commit,
+                expected_repository_root=repository,
+                require_passed=True,
+            )
+    finally:
+        fixture_python.write_bytes(fixture_python_bytes)
 
     receipts: dict[str, dict[str, Any]] = {}
     receipt_times = {
@@ -1359,6 +1434,8 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         match="commands require successful frozen runtime bootstrap",
     ):
         standalone_historical.handler(standalone_historical)
+    for name in _SYNTHETIC_FROZEN_RUNTIME_FIELDS:
+        monkeypatch.setattr(standalone, name, getattr(governance, name))
     monkeypatch.setattr(standalone, "TRUSTED_EXECUTABLE_IDENTITIES", trusted_tools)
     monkeypatch.setattr(standalone, "MAINTAINER_PUBLIC_KEY", signing_key.public_key)
     monkeypatch.setattr(
