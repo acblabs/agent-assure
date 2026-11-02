@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/digest-domain-registry.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "registry_digest_domain",
+    "entries",
+    "registry_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-digest-domain-registry/1"
+    },
+    "registry_digest_domain": {
+      "const": "agent-assure:s1-successor-digest-domain-registry/v1"
+    },
+    "entries": {
+      "type": "array",
+      "minItems": 31,
+      "maxItems": 31,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "domain",
+          "projection",
+          "hash_algorithm",
+          "canonicalization",
+          "framing"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "domain": {
+            "type": "string",
+            "pattern": "^agent-assure:"
+          },
+          "projection": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hash_algorithm": {
+            "const": "sha256"
+          },
+          "canonicalization": {
+            "enum": [
+              "RFC8785/JCS",
+              "length-prefixed-binary-rows/v1"
+            ]
+          },
+          "framing": {
+            "enum": [
+              "UTF8(domain) || 0x00 || JCS(projection)",
+              "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(size)||raw_sha256)",
+              "UTF8(domain) || 0x00 || repeated(UInt64BE(path_bytes)||path_bytes||UInt64BE(expected_size)||expected_raw_sha256||UInt64BE(actual_size)||actual_raw_sha256)"
+            ]
+          }
+        }
+      }
+    },
+    "registry_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

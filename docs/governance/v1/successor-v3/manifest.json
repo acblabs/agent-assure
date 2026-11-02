@@ -1,0 +1,159 @@
+{
+  "format": "agent-assure-s1-successor-design-package-manifest/2",
+  "digest_domain": "agent-assure:s1-successor-design-package-manifest/v2",
+  "package_id": "257dc9a5-dcee-473a-a92e-74ef52c37687",
+  "scope": "immutable_unsigned_core_payload_excluding_manifest_validation_report_and_lifecycle_outputs",
+  "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 21,
+      "sha256": "sha256:be66f206ef9d3c211c2745a8ae8741b5fce91a4f9dac3c1c5d080cf424f18a52"
+    },
+    {
+      "path": "README.md",
+      "bytes": 98306,
+      "sha256": "sha256:0ebbebfb74bc6a3f7f8ffd4fab2d3f46e9d7beb1af42d27b6e7d3f45074deed9"
+    },
+    {
+      "path": "check-contracts.json",
+      "bytes": 131099,
+      "sha256": "sha256:745ae738c97061d7a2df79847edc8dc6c2e50981586902701f127430486b09e7"
+    },
+    {
+      "path": "check-contracts.schema.json",
+      "bytes": 22755,
+      "sha256": "sha256:771ff4b4fe310cd7e706e4135239afb4151d74d4c9f81581c172ac328e6220b8"
+    },
+    {
+      "path": "claims/kickoff.claim",
+      "bytes": 715833,
+      "sha256": "sha256:285ebaa04b8350a54203cda875cf18f16c61d283594940bcdc1095affd0b11bd"
+    },
+    {
+      "path": "digest-domain-registry.json",
+      "bytes": 10835,
+      "sha256": "sha256:b2062bbc945b6f01d13a42cfb6f6ef26ad75a5555a82fc2b45c7616bfac90534"
+    },
+    {
+      "path": "digest-domain-registry.schema.json",
+      "bytes": 1988,
+      "sha256": "sha256:e331618baf42c5325aa56e7ff301bb1316d5fe6e4dff8789ee4e8c88f7a7692e"
+    },
+    {
+      "path": "package-manifest.schema.json",
+      "bytes": 1503,
+      "sha256": "sha256:117aaa983e0e17ee838e5d6b8a0bfaa2419b3e28d871bfefe47d25a3cbc11c78"
+    },
+    {
+      "path": "plans/kickoff-signature-plan.json",
+      "bytes": 10628,
+      "sha256": "sha256:63a6879626e39e01e50706da0cb135de499710fee7c35ae04648391cb5735535"
+    },
+    {
+      "path": "signature-plan.schema.json",
+      "bytes": 12984,
+      "sha256": "sha256:50d962d77b40fe2d96226a72b463eb363aea93ba63679fbe36684678a613d7cc"
+    },
+    {
+      "path": "source-state.json",
+      "bytes": 22031,
+      "sha256": "sha256:d7a8877020cba28808ac33bb955b1435ce3e178b4a7446ad261f1908435b5106"
+    },
+    {
+      "path": "source-state.schema.json",
+      "bytes": 38782,
+      "sha256": "sha256:e5a9c1bcae73473da2389b98f0d9d78db6c4ca76632aa9388ba17f025993e5fb"
+    },
+    {
+      "path": "successor-acceptance-tag-claim.schema.json",
+      "bytes": 50050,
+      "sha256": "sha256:91c418bf5da6d37519727fe80418d975645ff35ec67492ecdc18f06d69b2e569"
+    },
+    {
+      "path": "successor-acceptance-tag-envelope.schema.json",
+      "bytes": 1425,
+      "sha256": "sha256:c4bec73d0cbfc64a5dcf846894296517f606266e4355ecf7cb251c01fd32c157"
+    },
+    {
+      "path": "successor-check-node-result.schema.json",
+      "bytes": 8230,
+      "sha256": "sha256:42811fefd13c267fcd6822500eb04e3e0624e515cccd3964c4c909979f322032"
+    },
+    {
+      "path": "successor-check-receipt.schema.json",
+      "bytes": 41895,
+      "sha256": "sha256:50da90d4bea6fff680238715f7029fa11573259c031d053176a1cdab40ddd675"
+    },
+    {
+      "path": "successor-closure-authorization.schema.json",
+      "bytes": 3537,
+      "sha256": "sha256:fc1fef71e2c8e902bda37e304da159aeb08b2b05ed83ce7ad65434be6c264b23"
+    },
+    {
+      "path": "successor-closure-claim.schema.json",
+      "bytes": 9648,
+      "sha256": "sha256:16fc890ffe1bbb8f7e756af6c80f8644fafc8b0fb1127179b0983b9a8949f1eb"
+    },
+    {
+      "path": "successor-final-verification.schema.json",
+      "bytes": 203160,
+      "sha256": "sha256:f5b729312d285eb0219f9877440a84f53b3302425f3498087c37a15bdb2d41a8"
+    },
+    {
+      "path": "successor-kickoff-authorization.schema.json",
+      "bytes": 749748,
+      "sha256": "sha256:017b4cf6b4800b4456cc024835fb5986bc75436b8afd0bef91e0e318471da6f8"
+    },
+    {
+      "path": "successor-kickoff-candidate.json",
+      "bytes": 941,
+      "sha256": "sha256:342713dea09cca3b76a70df6332974f5faf70ee4d2c1b08a2c7f5dbc07c45b57"
+    },
+    {
+      "path": "successor-kickoff-candidate.schema.json",
+      "bytes": 1948,
+      "sha256": "sha256:7e95860bb129bdb50add210d924cdf99013395c6c57ef4aaef5da7ae5cb0354b"
+    },
+    {
+      "path": "successor-kickoff-claim.schema.json",
+      "bytes": 764889,
+      "sha256": "sha256:9feedce428e4b620bc9e46cd4633d4a0a54305cc50c965463c978accacff5b3c"
+    },
+    {
+      "path": "successor-publication-authorization.schema.json",
+      "bytes": 3967,
+      "sha256": "sha256:c4d48d3044a4ee444896104edd508e1e237406bc99704fa2ecb2ebd024a99ef4"
+    },
+    {
+      "path": "successor-publication-claim.schema.json",
+      "bytes": 6061,
+      "sha256": "sha256:928169aa066dd2b6cbb95792aebe0a61e9dc80f0567f50650663c8927d7436d9"
+    },
+    {
+      "path": "successor-suite-evidence.schema.json",
+      "bytes": 596216,
+      "sha256": "sha256:a98acbfa17de6f8ce6803c4b8e2f051c90d3de11a2b9fe75bc37ca19acd28d74"
+    },
+    {
+      "path": "tools/build_design_package.py",
+      "bytes": 1153261,
+      "sha256": "sha256:785b5551eb4b622fe2b1c8f385855196a6c3ab3cf3fdc264bce32720b997eecb"
+    },
+    {
+      "path": "tools/successor_v3_launcher.ps1",
+      "bytes": 23257,
+      "sha256": "sha256:3aebbf325d099a0aecf876d5da8acfa5c0b6a2127aee0228c1f8d0beac03a9f2"
+    },
+    {
+      "path": "tools/successor_v3_tool.py",
+      "bytes": 1614846,
+      "sha256": "sha256:39c875fc512d87ba6ad4611f8f00dcdb009fc66548d7bbdde9c1e1420375c1e4"
+    },
+    {
+      "path": "validation-report.schema.json",
+      "bytes": 18971,
+      "sha256": "sha256:e3c67cc5d90c48fa9b61847dea1486c51ea6963c342d270c2c90a38877399c61"
+    }
+  ],
+  "manifest_digest": "sha256:d47d5f6b1250dcb0e77efca2a0e936aa2a6496323e77bca775753dedd07f31b3"
+}
