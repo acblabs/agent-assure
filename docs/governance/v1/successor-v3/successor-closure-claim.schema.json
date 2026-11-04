@@ -1,0 +1,351 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-closure-claim.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "claim_nonce",
+    "authority",
+    "subject",
+    "kickoff_authorization",
+    "publication_authorization",
+    "preclosure_evidence",
+    "intended_c3",
+    "decision",
+    "prohibitions",
+    "validity"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-closure-claim/1"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-closure-claim/v1"
+    },
+    "claim_nonce": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "authority": {
+      "const": {
+        "mode": "maintainer_development",
+        "accountable_human": "acblabs",
+        "authorized_roles": [
+          "repository_maintainer",
+          "technical_lead"
+        ],
+        "signing_key": {
+          "record_path": "docs/governance/v1/maintainer-signing-key.json",
+          "record_digest": "sha256:e92dc1f2759d9332a5116643d0370d2f6fca7c60ebb9ba7c7bfdb5d5e3ed423a",
+          "algorithm": "ssh-ed25519",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "fingerprint": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "signature_profile": "openssh-sshsig-ed25519/v1",
+          "namespace": "agent-assure-governance-v1"
+        },
+        "approval_roster": {
+          "path": "docs/governance/v1/approval-roster.json",
+          "bytes": 10036,
+          "raw_sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+        },
+        "review_status": "NO_INDEPENDENT_REVIEW"
+      }
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "commit",
+        "tree",
+        "parent"
+      ],
+      "properties": {
+        "role": {
+          "const": "R3"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "kickoff_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "successor-kickoff-authorization.json"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "publication_authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "successor-publication-authorization.json"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "preclosure_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "successor-suite-evidence.json"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "intended_c3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "parent_role",
+        "direct_nonmerge_child",
+        "commit_message",
+        "exact_paths",
+        "bound_preexisting_files"
+      ],
+      "properties": {
+        "parent_role": {
+          "const": "R3"
+        },
+        "direct_nonmerge_child": {
+          "const": true
+        },
+        "commit_message": {
+          "const": "Close Generation-3 governed S1 successor"
+        },
+        "exact_paths": {
+          "const": [
+            "docs/governance/v1/successor-v3/claims/closure.claim",
+            "docs/governance/v1/successor-v3/claims/closure.claim.sig",
+            "docs/governance/v1/successor-v3/claims/publication.claim",
+            "docs/governance/v1/successor-v3/claims/publication.claim.sig",
+            "docs/governance/v1/successor-v3/successor-closure-authorization.json",
+            "docs/governance/v1/successor-v3/successor-publication-authorization.json",
+            "docs/governance/v1/successor-v3/successor-suite-evidence.json",
+            "docs/governance/v1/successor-v3/successor-suite-evidence.json.sig"
+          ]
+        },
+        "bound_preexisting_files": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "claims/publication.claim"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "claims/publication.claim.sig"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "successor-publication-authorization.json"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "successor-suite-evidence.json"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path",
+                "bytes",
+                "sha256"
+              ],
+              "properties": {
+                "path": {
+                  "const": "successor-suite-evidence.json.sig"
+                },
+                "bytes": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                }
+              }
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "decision": {
+      "const": "authorize_exact_C3_construction_only_not_acceptance"
+    },
+    "prohibitions": {
+      "const": [
+        "claim_C3_already_exists",
+        "claim_C3_is_accepted",
+        "embed_C3_or_A3_object_id",
+        "publish_C3_or_A3",
+        "start_S2_release_or_method_admission"
+      ]
+    },
+    "validity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "not_before_utc",
+        "not_after_utc",
+        "clock_basis"
+      ],
+      "properties": {
+        "not_before_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "not_after_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "clock_basis": {
+          "const": "maintainer_host_utc_externally_unattested"
+        }
+      }
+    }
+  }
+}
