@@ -1,0 +1,18 @@
+{
+  "format": "agent-assure-s1-successor-kickoff-candidate/2",
+  "digest_domain": "agent-assure:s1-successor-kickoff-candidate/v2",
+  "package_id": "18dd650c-86ac-4f35-b7e0-7719fad06a7f",
+  "authorization_id": "5245b185-917d-4338-bcc2-677a68ad2bbd",
+  "state": "unsigned_candidate",
+  "authorization_effect": "none",
+  "claim": {
+    "path": "claims/kickoff.claim",
+    "bytes": 992952,
+    "raw_sha256": "sha256:9a0cea245d10d01cd9b4160fc7cf0476a0e6a699a2c59cc74783caccbe80e508",
+    "semantic_digest": "sha256:61a7725a9a8b706dd81dcfb242e6edec781b5074d390bc47c4e266307501fae4",
+    "schema_path": "successor-kickoff-claim.schema.json"
+  },
+  "source_state_digest": "sha256:3fd61180d842abc5d590a746fc392e21ce1da84d6dc5e693af07a4e23ce0fd10",
+  "protocol_bundle_digest": "sha256:f4a657467ca9a0d467e88bbad291b30d45428bbf90979b9e39446d42344848bc",
+  "candidate_digest": "sha256:f21c8c9eed30e1f8b3279605d7e848740e9cad82b2f1cca279e11c7fff868b7b"
+}

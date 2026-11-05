@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.invalid/governance/v3r2/successor-closure-authorization.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "digest_domain",
+    "state",
+    "subject",
+    "claim",
+    "signature",
+    "import",
+    "authorization_effect",
+    "authorization_record_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-closure-authorization/1"
+    },
+    "digest_domain": {
+      "const": "agent-assure:s1-successor-closure-authorization-record/v1"
+    },
+    "state": {
+      "const": "accepted_after_verified_human_signature"
+    },
+    "subject": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "commit",
+        "tree",
+        "parent"
+      ],
+      "properties": {
+        "role": {
+          "const": "R3"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "tree": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        }
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "raw_sha256",
+        "semantic_digest"
+      ],
+      "properties": {
+        "path": {
+          "const": "claims/closure.claim"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "raw_sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "semantic_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "bytes",
+        "sha256",
+        "profile",
+        "namespace",
+        "principal",
+        "fingerprint",
+        "verified",
+        "signing_time_claimed"
+      ],
+      "properties": {
+        "path": {
+          "const": "claims/closure.claim.sig"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "profile": {
+          "const": "openssh-sshsig-ed25519/v1"
+        },
+        "namespace": {
+          "const": "agent-assure-governance-v1"
+        },
+        "principal": {
+          "const": "acblabs"
+        },
+        "fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "verified": {
+          "const": true
+        },
+        "signing_time_claimed": {
+          "const": false
+        }
+      }
+    },
+    "import": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "validated_at_utc",
+        "clock_basis"
+      ],
+      "properties": {
+        "validated_at_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T.*Z$"
+        },
+        "clock_basis": {
+          "const": "maintainer_host_utc_externally_unattested"
+        }
+      }
+    },
+    "authorization_effect": {
+      "const": "C3_construction_authorized_not_yet_created_or_accepted"
+    },
+    "authorization_record_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}
