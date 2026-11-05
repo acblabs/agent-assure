@@ -2,6 +2,59 @@
 
 ## Unreleased
 
+- Corrected the Generation-3 native-suite roadmap-history guard to inspect
+  literal path-aware commit history rather than treating unrelated annotated
+  tag objects as file content. Existing local-only, index, exclusion, and
+  unreachable-blob checks remain enforced when the private input is present.
+  Regression controls cover tagged clean repositories, deleted roadmap history
+  on another reachable branch, unavailable Git inspection, and a matching
+  unreachable private blob. Both independently domain-separated runtime hashes
+  are derived from the same stable file inventory and exact editable-pointer
+  substitution before signing. Unsigned native prerequisites and full-regression
+  diagnostics confer no acceptance or publication authority.
+- Corrected the Generation-3 schema-walker regression fixture without relaxing
+  JSON Schema validation. Governed Git reads now explicitly enable Windows
+  long-path handling, with loose and packed object-store regression coverage.
+  Fresh execution roots use a compact complete UUID-v4 nonce and an explicit
+  short pytest basetemp; package/node provenance and distinct-root checks remain
+  receipt-bound. Native executable paths and Windows command lines have
+  explicit UTF-16 budgets. The Python 3.11 gate still requires all 311 exact
+  test identities with zero failures, errors, skips, or deselections.
+- Bound Generation-3 validator subprocess output to raw UTF-8 JSON with LF
+  framing. The package tool writes bytes directly, and the tracked runner
+  continues to reject CRLF, BOMs, malformed JSON, and substituted result
+  identities. All three real launcher preflight outputs now pass through the
+  descriptor-bound prospective runner's exact byte parser before signing;
+  Windows transport regressions cover preserved LF and rejected CRLF.
+- Corrected the Generation-3 JSON Schema vocabulary walk so instance data
+  carried by `const`, `enum`, `default`, or `examples` remains opaque. The
+  runner still rejects unsupported formats and nonlocal references in genuine
+  schema positions. The closed format checker now implements canonical
+  lowercase hyphenated UUIDs in addition to canonical UTC date-times and
+  absolute URIs, covering the successor's generated nonce schemas without
+  delegating to ambient format plugins. The authenticated prospective-R3 probe
+  now exercises the exact kickoff claim/schema pair plus positive and negative
+  schema-position controls before the claim can be signed.
+- Added the prospectively authorized Generation-3 S1 successor protocol. Its
+  fixed topology is `C2 -> B3 -> K3 -> R3 -> C3`, with the fixed annotated A3
+  tag targeting C3: B3 is a nonaccepting control baseline, K3 installs the
+  signed kickoff package, R3 is limited to the signed eight-path implementation
+  partition, and C3 is limited to the eight precreated closure records. The
+  package binds a 12-node/20-edge preclosure graph and a 16-node/24-edge full
+  ceremony graph. The tracked runner now supplies the independent
+  `successor-v3-run-node`, `successor-v3-native-suite`, and
+  `successor-v3-historical-check` predicates consumed by that graph. The
+  signed kickoff claim now also binds every intended R3 blob and the runner's
+  package, claim-format, authorization-format, and check-contract identities;
+  worktree, index, and installed-commit validation all reject divergence.
+- Bound the successor's declared Python 3.11 gate to the exact 311-test
+  governance collection and extended hosted compilation to all three
+  Generation-3 governance sources. Hosted acceptance evidence remains the
+  separately verified exact-R3 workflow run with 21 expected job instances.
+  Neither R3 nor a green workflow run makes Generation 3 current: that occurs
+  only after separately signed C3 records, the fixed A3 tag, standalone replay,
+  and final current-basis derivation. Kickoff authorization does not authorize
+  a push, S2, release, deployment, or method admission.
 - Hardened the local S1 governance verifier after adversarial review. New
   post-result suite captures use a versioned evidence policy that removes the
   repository root from the initial Python import path, enforces an exact

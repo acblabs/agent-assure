@@ -3,13 +3,16 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import json
 import stat
 import struct
 import tarfile
+import tomllib
 import zipfile
 from pathlib import Path
 
 import pytest
+from hatchling.builders.sdist import SdistBuilder
 
 import scripts.check_wheel_contents as wheel_content_checks
 from scripts.check_wheel_contents import (
@@ -352,6 +355,87 @@ def test_inspect_sdist_reports_unreleased_schema_files(tmp_path: Path) -> None:
     assert "agent_assure-0.3.1/schemas/unreleased/usage-summary.schema.json" in forbidden
 
     assert "pyproject.toml" in missing
+
+
+def test_generated_sdist_excludes_s1_planning_and_keeps_required_resources(tmp_path: Path) -> None:
+    policy = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["hatch"][
+        "build"
+    ]["targets"]["sdist"]
+    project = tmp_path / "source"
+    project.mkdir()
+    required = required_sdist_paths()
+    for relative_path in required:
+        path = project / relative_path
+        if relative_path.endswith("/"):
+            path = path / ".keep"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"")
+    planning = project / "docs/governance/v1/successor-v3"
+    planning.mkdir(parents=True)
+    (planning / "authorization.json").write_text("{}\n", encoding="utf-8")
+    (planning / "authorization.json.sig").write_text("public signature fixture\n", encoding="utf-8")
+    neighbor = project / "docs/governance/v10/README.md"
+    neighbor.parent.mkdir(parents=True)
+    neighbor.write_text("neighboring documentation\n", encoding="utf-8")
+    (project / "pyproject.toml").write_text(
+        '[project]\nname = "agent-assure"\nversion = "0.7.0"\n'
+        "[tool.hatch.build.targets.sdist]\n"
+        f"include = {json.dumps(policy['include'])}\n"
+        f"exclude = {json.dumps(policy['exclude'])}\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "dist"
+    output.mkdir()
+
+    [sdist] = SdistBuilder(str(project)).build(directory=str(output), versions=["standard"])
+
+    with tarfile.open(sdist, "r:gz") as archive:
+        regular_names = {
+            wheel_content_checks._strip_sdist_root(member.name)
+            for member in archive
+            if member.isfile()
+        }
+    assert not any(
+        path == "docs/governance/v1" or path.startswith("docs/governance/v1/")
+        for path in regular_names
+    )
+    assert "docs/governance/v10/README.md" in regular_names
+    assert all(
+        path in regular_names or any(name.startswith(path) for name in regular_names)
+        for path in required
+    )
+    assert inspect_sdist(Path(sdist)) == ([], [])
+
+
+@pytest.mark.parametrize(
+    ("path", "forbidden"),
+    (
+        ("docs/governance/v1", True),
+        ("docs/governance/v1/authorization.json", True),
+        ("DOCS/Governance/V1/authorization.json", True),
+        ("docs/governance/v10/README.md", False),
+        ("docs/governance/v1-notes.md", False),
+        ("docs/governance/v2/README.md", False),
+    ),
+)
+def test_sdist_planning_boundary_rejects_injected_members(
+    tmp_path: Path,
+    path: str,
+    forbidden: bool,
+) -> None:
+    sdist = tmp_path / "agent_assure-0.7.0.tar.gz"
+    name = "agent_assure-0.7.0/" + path
+    with tarfile.open(sdist, "w:gz") as archive:
+        if path == "docs/governance/v1":
+            directory = tarfile.TarInfo(name)
+            directory.type = tarfile.DIRTYPE
+            archive.addfile(directory)
+        else:
+            _write_tar_member(archive, name, "")
+
+    _missing, rejected = inspect_sdist(sdist)
+
+    assert (name in rejected) is forbidden
 
 
 def test_inspect_wheel_rejects_unsafe_paths_links_and_duplicates(tmp_path: Path) -> None:

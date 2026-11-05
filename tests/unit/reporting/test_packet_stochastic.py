@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Literal, cast
@@ -75,6 +76,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     StochasticGateEffect,
     StochasticSensitivityState,
 )
+from agent_assure.schema.validation import ArchivalOnlyArtifactError
 from tests.stochastic_source_support import (
     build_case_authority_bindings,
     materialize_stochastic_sources,
@@ -88,6 +90,101 @@ def test_packet_builder_rejects_unsafe_typed_evaluation_before_derivation() -> N
 
     with pytest.raises(ValidationError, match="artifact_kind"):
         build_evidence_packet(forged)
+
+
+@pytest.mark.parametrize("operation", ("build", "render", "write"))
+def test_packet_programmatic_boundaries_reject_typed_valid_archival_payloads(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    destination = tmp_path / "packet.json"
+    if operation == "build":
+        payload = _evaluation().model_dump(mode="json")
+        payload["schema_version"] = "0.4.3"
+        payload.pop("privacy_profile_id")
+        payload.pop("privacy_profile_digest")
+        evaluation = EvaluationSummary.model_validate(payload)
+        with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+            build_evidence_packet(evaluation)
+    else:
+        packet = build_evidence_packet(
+            _evaluation(),
+            artifact_digests=(_evaluation_digest(),),
+        )
+        payload = packet.model_dump(mode="json")
+        payload["schema_version"] = "0.4.3"
+        archival = EvidencePacket.model_validate(payload)
+        with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+            if operation == "render":
+                render_evidence_packet_markdown(archival)
+            else:
+                packet_reporting.write_evidence_packet(archival, destination)
+
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize("operation", ("render", "write"))
+def test_packet_output_boundaries_preserve_typed_invariant_errors(
+    tmp_path: Path,
+    operation: str,
+) -> None:
+    packet = build_evidence_packet(
+        _evaluation(),
+        artifact_digests=(_evaluation_digest(),),
+    )
+    forged = packet.model_copy(
+        update={"evaluation": packet.evaluation.model_copy(update={"runset_id": ""})}
+    )
+    destination = tmp_path / "packet.json"
+
+    with pytest.raises(ValidationError, match="runset_id"):
+        if operation == "render":
+            render_evidence_packet_markdown(forged)
+        else:
+            packet_reporting.write_evidence_packet(forged, destination)
+
+    assert not destination.exists()
+
+
+def test_packet_manifest_projection_revalidates_each_captured_byte_snapshot() -> None:
+    payload = _evaluation().model_dump(mode="json")
+
+    def snapshot() -> BoundedFileContents:
+        data = json.dumps(payload, sort_keys=True).encode("utf-8")
+        return BoundedFileContents(
+            data=data,
+            sha256=hashlib.sha256(data).hexdigest(),
+            device=1,
+            inode=1,
+            size=len(data),
+            modified_ns=1,
+            changed_ns=1,
+        )
+
+    original = snapshot()
+    first = packet_reporting._project_manifest_json_snapshot(
+        original,
+        artifact_kind="evaluation-summary",
+        model=EvaluationSummary,
+    )
+    payload["runset_id"] = "replacement-runsetxx"
+    replacement = snapshot()
+    second = packet_reporting._project_manifest_json_snapshot(
+        replacement,
+        artifact_kind="evaluation-summary",
+        model=EvaluationSummary,
+    )
+
+    assert first.runset_id == "deterministic-runset"
+    assert second.runset_id == "replacement-runsetxx"
+    assert original.data != replacement.data
+    payload["runset_id"] = ""
+    with pytest.raises(ValueError, match="artifact failed JSON Schema validation"):
+        packet_reporting._project_manifest_json_snapshot(
+            snapshot(),
+            artifact_kind="evaluation-summary",
+            model=EvaluationSummary,
+        )
 
 
 def test_packet_source_binding_rejects_public_invalid_typed_runset() -> None:
