@@ -140,6 +140,9 @@ include = [
   "Makefile",
 ]
 exclude = [
+  # S1 planning and acceptance records belong to the governed repository bundle.
+  # They are not installed runtime resources or software-distribution evidence.
+  "docs/governance/v1/**/*",
   ".tmp/**/*",
   "dist/**/*",
   "build/**/*",

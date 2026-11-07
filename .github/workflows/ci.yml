@@ -232,12 +232,12 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
-      - name: Compile the governance validator at the declared Python floor
+      - name: Compile every Generation-3 governance source at the declared Python floor
         if: matrix.shard == 'unit-a'
-        run: >-
-          python -c "from pathlib import Path;
-          source = Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8');
-          compile(source, 'scripts/v1_s1_governance.py', 'exec')"
+        run: |
+          python -X "pycache_prefix=$RUNNER_TEMP/pycache-governance-runner" -I -S -B -X utf8 -c "from pathlib import Path; source = Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8'); compile(source, 'scripts/v1_s1_governance.py', 'exec')"
+          python -X "pycache_prefix=$RUNNER_TEMP/pycache-successor-builder" -I -S -B -X utf8 -c "from pathlib import Path; source = Path('docs/governance/v1/successor-v3/tools/build_design_package.py').read_text(encoding='utf-8'); compile(source, 'build_design_package.py', 'exec')"
+          python -X "pycache_prefix=$RUNNER_TEMP/pycache-successor-validator" -I -S -B -X utf8 -c "from pathlib import Path; source = Path('docs/governance/v1/successor-v3/tools/successor_v3_tool.py').read_text(encoding='utf-8'); compile(source, 'successor_v3_tool.py', 'exec')"
       - name: Run branch-coverage shard
         run: >-
           python -m pytest -p no:cacheprovider
@@ -399,7 +399,7 @@ jobs:
           python -m pytest -q -p no:cacheprovider
           --basetemp "${{ runner.temp }}/pytest-windows-governance-unit"
           tests/unit/governance/test_v1_s1_governance.py
-      - name: Require native Windows runtime and historical fail-closed controls
+      - name: Require native Windows runtime and all-generation fail-closed controls
         run: >-
           python -m pytest -q -p no:cacheprovider --fail-on-skip
           --basetemp "${{ runner.temp }}/pytest-windows-governance-controls"
@@ -427,7 +427,7 @@ jobs:
           python -m pytest -q -p no:cacheprovider --fail-on-skip
           --basetemp "${{ runner.temp }}/pytest-windows-governance-self-binding"
           tests/unit/governance/test_v1_s1_governance.py::test_generation_2_historical_binding_checks_executing_validator_and_launcher_bytes
-      - name: Validate generation-1 closure and generation-2 topology/tag/self-binding
+      - name: Validate historical G1/G2 topology, tags, self-binding, and G3 CLI guard
         run: >-
           python -m pytest -q -p no:cacheprovider --fail-on-skip
           --basetemp "${{ runner.temp }}/pytest-windows-governance-historical"

@@ -18,7 +18,38 @@ _VALIDATED_DIGEST = "a" * 64
 _VALIDATED_GRAPH_NODE_ID = f"subject:{_VALIDATED_DIGEST}"
 
 
-def _privacy_review_projection(
+def _has_evidence_digest_aliases(value: dict[str, object]) -> bool:
+    identity = value.get("identity")
+    payload = value.get("payload")
+    if not isinstance(identity, dict) or not isinstance(payload, dict):
+        return False
+    source_id = payload.get("source_id")
+    if not (
+        value.get("kind") == "evidence"
+        and identity.get("identity_kind") == "evidence"
+        and payload.get("payload_kind") == "evidence"
+        and is_sha256_hex_digest(source_id)
+        and is_sha256_hex_digest(payload.get("source_digest"))
+        and source_id == identity.get("source_id")
+    ):
+        return False
+    if identity.get("evidence_type") == payload.get("evidence_type") == "mutation_result":
+        return identity.get("source_artifact_kind") == payload.get(
+            "source_artifact_kind"
+        ) == "assurance-mutation-result" and source_id == payload.get("source_digest")
+    # The control-efficacy builder projects campaign_digest into source_id;
+    # source_digest names the distinct report_digest. Both are DigestHex fields
+    # of the admitted report, so equality between them is not its contract.
+    return (
+        identity.get("evidence_type") == payload.get("evidence_type") == "control_efficacy"
+        and identity.get("source_artifact_kind")
+        == payload.get("source_artifact_kind")
+        == "control-efficacy-report"
+        and isinstance(payload.get("control_efficacy_projection"), dict)
+    )
+
+
+def _privacy_review_value(
     value: object,
     *,
     field_name: str | None = None,
@@ -47,11 +78,36 @@ def _privacy_review_projection(
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError("assurance evidence graph keys must be strings")
-            projected[key] = _privacy_review_projection(item, field_name=key)
+            projected[key] = _privacy_review_value(item, field_name=key)
         return projected
     if isinstance(value, list):
-        return [_privacy_review_projection(item) for item in value]
+        return [_privacy_review_value(item) for item in value]
     return value
+
+
+def _privacy_review_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Mask digest aliases only on actual nodes of the fully validated graph."""
+
+    projected = _privacy_review_value(payload)
+    if not isinstance(projected, dict):
+        raise TypeError("assurance evidence graph projection must be an object")
+    nodes = payload.get("nodes")
+    projected_nodes = projected.get("nodes")
+    if not isinstance(nodes, list) or not isinstance(projected_nodes, list):
+        raise TypeError("assurance evidence graph projection requires validated nodes")
+    for node, projected_node in zip(nodes, projected_nodes, strict=True):
+        if not isinstance(node, dict) or not isinstance(projected_node, dict):
+            raise TypeError("assurance evidence graph nodes must be objects")
+        if _has_evidence_digest_aliases(node):
+            identity = projected_node.get("identity")
+            evidence = projected_node.get("payload")
+            if not isinstance(identity, dict) or not isinstance(evidence, dict):
+                raise TypeError("digest aliases require validated evidence")
+            # These are newly allocated review dictionaries. The original graph,
+            # including its source IDs and canonical digests, is serialized below.
+            identity["source_id"] = _VALIDATED_DIGEST
+            evidence["source_id"] = _VALIDATED_DIGEST
+    return projected
 
 
 def evidence_graph_json_text(graph: AssuranceEvidenceGraph) -> str:

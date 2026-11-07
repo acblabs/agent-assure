@@ -1,10 +1,36 @@
 from __future__ import annotations
 
+from typing import TypeVar
+
+from pydantic import BaseModel, ValidationError
+
 from agent_assure.compare.runsets import compare_runsets
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.sensitivity import RAGSensitivityReport
-from agent_assure.schema.validation import validate_loaded_artifact_payload
+from agent_assure.schema.validation import validate_loaded_artifact_model
 from agent_assure.sensitivity_contract import SENSITIVITY_EVALUATION_DATE
+
+ComparisonInputT = TypeVar("ComparisonInputT", bound=BaseModel)
+
+
+def _admit_owned_comparison_input(
+    value: ComparisonInputT,
+    model: type[ComparisonInputT],
+    *,
+    kind: str,
+) -> ComparisonInputT:
+    payload = value.model_dump(mode="json", warnings="error")
+    try:
+        return validate_loaded_artifact_model(payload, model, kind=kind)
+    except ValueError:
+        # Preserve the public typed-error contract without a second semantic
+        # projection on successful admission. A typed-valid payload still must
+        # fail if the authoritative schema/archival boundary rejected it.
+        try:
+            model.model_validate(payload)
+        except ValidationError as exc:
+            raise exc from None
+        raise
 
 
 def derive_sensitivity_comparison(
@@ -16,9 +42,18 @@ def derive_sensitivity_comparison(
     those objects, rather than their human-readable IDs, makes the comparison a
     deterministic projection of the same evidence carried by the report.
     """
-    report_payload = report.model_dump(mode="json", warnings="error")
-    report = RAGSensitivityReport.model_validate(report_payload)
-    validate_loaded_artifact_payload(report_payload, "evidence-sensitivity-report")
+    report = _admit_owned_comparison_input(
+        report,
+        RAGSensitivityReport,
+        kind="evidence-sensitivity-report",
+    )
+    return _derive_validated_sensitivity_comparison(report)
+
+
+def _derive_validated_sensitivity_comparison(
+    report: RAGSensitivityReport,
+) -> ComparisonSummary:
+    """Derive only from this call's owned, fully admitted report projection."""
     return compare_runsets(
         report.compiled_suite,
         report.baseline_runset,
@@ -38,13 +73,17 @@ def sensitivity_comparison_binding_error(
     controlled sensitivity comparison. Every other persisted comparison field remains
     in the exact canonical comparison below.
     """
-    comparison_payload = comparison.model_dump(mode="json", warnings="error")
-    validated_comparison = ComparisonSummary.model_validate(comparison_payload)
-    validate_loaded_artifact_payload(comparison_payload, "comparison-summary")
-    report_payload = report.model_dump(mode="json", warnings="error")
-    validated_report = RAGSensitivityReport.model_validate(report_payload)
-    validate_loaded_artifact_payload(report_payload, "evidence-sensitivity-report")
-    expected = derive_sensitivity_comparison(validated_report)
+    validated_comparison = _admit_owned_comparison_input(
+        comparison,
+        ComparisonSummary,
+        kind="comparison-summary",
+    )
+    validated_report = _admit_owned_comparison_input(
+        report,
+        RAGSensitivityReport,
+        kind="evidence-sensitivity-report",
+    )
+    expected = _derive_validated_sensitivity_comparison(validated_report)
     if validated_comparison.baseline_runset_digest != validated_report.baseline_arm.runset_digest:
         return (
             "comparison baseline_runset_digest must exactly match the authenticated "

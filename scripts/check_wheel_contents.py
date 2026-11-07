@@ -367,6 +367,11 @@ FORBIDDEN_SDIST_PREFIXES = (
 
 FORBIDDEN_SDIST_EXACT_PATHS = ("schemas/unreleased",)
 
+# S1 planning records are authenticated through their repository closure, not
+# through the installable software distribution. Keep the packaging boundary
+# independently enforced when checking a supplied archive.
+NONRUNTIME_SDIST_PLANNING_PATH = "docs/governance/v1"
+
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
@@ -1475,6 +1480,11 @@ def _is_forbidden_archive_path(name: str) -> bool:
 
 def _is_forbidden_sdist_path(name: str) -> bool:
     normalized = _strip_sdist_root(name)
+    folded = normalized.casefold()
+    if folded == NONRUNTIME_SDIST_PLANNING_PATH or folded.startswith(
+        NONRUNTIME_SDIST_PLANNING_PATH + "/"
+    ):
+        return True
     if normalized in FORBIDDEN_SDIST_EXACT_PATHS:
         return True
     if any(normalized.startswith(prefix) for prefix in FORBIDDEN_SDIST_PREFIXES):

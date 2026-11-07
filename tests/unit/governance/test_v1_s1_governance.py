@@ -13,7 +13,7 @@ import sys
 from argparse import Namespace
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import pytest
@@ -633,7 +633,13 @@ def test_signing_key_schema_rejects_confirmation_without_out_of_band_evidence() 
         )
 
 
-def test_baseline_observations_bind_the_frozen_external_tool_identities() -> None:
+def test_baseline_observations_bind_the_frozen_external_tool_identities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The immutable record names Windows files even when this test runs on POSIX.
+    frozen_python_root = PureWindowsPath(str(governance._FROZEN_PYTHON_ROOT))
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_EXECUTABLE", frozen_python_root / "python.exe")
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_DLL", frozen_python_root / "python312.dll")
     record = _record("baseline-observations.json")
     snapshot = _minimal_snapshot()
     snapshot = governance.RoadmapSnapshot(
@@ -802,13 +808,14 @@ def test_corrective_kickoff_authorization_rejects_tampered_sshsig() -> None:
 
 
 def test_governance_schemas_use_only_the_closed_canonical_format_set() -> None:
-    schemas = [_schema(path.name) for path in sorted(GOVERNANCE_ROOT.glob("*.schema.json"))]
+    schema_paths = sorted(GOVERNANCE_ROOT.rglob("*.schema.json"))
+    schemas = [json.loads(path.read_text(encoding="utf-8")) for path in schema_paths]
 
     declared_formats = set().union(
         *(governance._schema_declared_formats(schema) for schema in schemas)
     )
     assert "date-time" in declared_formats
-    assert declared_formats <= {"date-time", "uri"}
+    assert declared_formats <= {"date-time", "uri", "uuid"}
 
     date_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -826,6 +833,13 @@ def test_governance_schemas_use_only_the_closed_canonical_format_set() -> None:
         "properties": {"source": {"type": "string", "format": "uri"}},
         "additionalProperties": False,
     }
+    uuid_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["claim_nonce"],
+        "properties": {"claim_nonce": {"type": "string", "format": "uuid"}},
+        "additionalProperties": False,
+    }
 
     governance._validate_json_schema(
         {"observed_at": "2026-10-15T15:00:00.123456Z"},
@@ -836,6 +850,11 @@ def test_governance_schemas_use_only_the_closed_canonical_format_set() -> None:
         {"source": "https://example.invalid/governance?revision=1"},
         uri_schema,
         owner="absolute URI fixture",
+    )
+    governance._validate_json_schema(
+        {"claim_nonce": "c5bac25e-b075-4d50-84b6-97703e341dbb"},
+        uuid_schema,
+        owner="canonical UUID fixture",
     )
     for invalid in (
         "2026-10-15T15:00:00+00:00",
@@ -863,6 +882,18 @@ def test_governance_schemas_use_only_the_closed_canonical_format_set() -> None:
                 uri_schema,
                 owner="non-absolute URI fixture",
             )
+    for invalid in (
+        "C5BAC25E-B075-4D50-84B6-97703E341DBB",
+        "c5bac25eb0754d5084b697703e341dbb",
+        "{c5bac25e-b075-4d50-84b6-97703e341dbb}",
+        "not-a-uuid",
+    ):
+        with pytest.raises(governance.GovernanceError, match="schema validation failed"):
+            governance._validate_json_schema(
+                {"claim_nonce": invalid},
+                uuid_schema,
+                owner="noncanonical UUID fixture",
+            )
 
     unsupported_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -872,9 +903,50 @@ def test_governance_schemas_use_only_the_closed_canonical_format_set() -> None:
     with pytest.raises(governance.GovernanceError, match="unsupported formats: email"):
         governance._closed_schema_format_checker(unsupported_schema)
 
+    opaque_instance = {
+        "format": "agent-assure-instance-record/1",
+        "$ref": "https://instance.example.invalid/not-a-schema-reference",
+    }
+    valid_instance = {"payload": opaque_instance}
+    instance_valued_keywords_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "required": ["payload"],
+        "properties": {"payload": {"const": opaque_instance}},
+        "default": {"format": "agent-assure-default-record/1"},
+        "enum": [valid_instance, {"format": "agent-assure-enum-record/1"}],
+        "examples": [{"$ref": "https://instance.example.invalid/example"}],
+    }
+    assert governance._schema_declared_formats(instance_valued_keywords_schema) == set()
+    assert governance._schema_external_references(instance_valued_keywords_schema) == set()
+    governance._validate_json_schema(
+        valid_instance,
+        instance_valued_keywords_schema,
+        owner="instance-valued schema keyword fixture",
+    )
+    contradictory_enum_schema = copy.deepcopy(instance_valued_keywords_schema)
+    contradictory_enum_schema["enum"] = [{"format": "agent-assure-enum-record/1"}]
+    with pytest.raises(governance.GovernanceError, match="schema validation failed"):
+        governance._validate_json_schema(
+            valid_instance,
+            contradictory_enum_schema,
+            owner="contradictory instance-valued enum fixture",
+        )
+
+    nested_unsupported_schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$defs": {"address": {"type": "string", "format": "email"}},
+        "allOf": [{"$ref": "#/$defs/address"}],
+    }
+    with pytest.raises(governance.GovernanceError, match="unsupported formats: email"):
+        governance._closed_schema_format_checker(nested_unsupported_schema)
+
     external_reference_schema = {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "file:///untrusted/external.schema.json",
+        "$defs": {
+            "external": {"$ref": "file:///untrusted/external.schema.json"},
+        },
+        "properties": {"payload": {"$ref": "#/$defs/external"}},
     }
     with pytest.raises(governance.GovernanceError, match="nonlocal references"):
         governance._validate_json_schema({}, external_reference_schema, owner="adversarial")
@@ -1245,7 +1317,7 @@ def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     if executable is None:
         pytest.skip("Git is unavailable")
     completed = subprocess.run(
-        [executable, "-C", str(repository), *arguments],
+        [executable, "-c", "core.longpaths=true", "-C", str(repository), *arguments],
         capture_output=True,
         check=False,
         text=True,
@@ -1365,6 +1437,29 @@ def test_read_commit_blob_handles_a_long_exact_repository_path(tmp_path: Path) -
         )
         == payload
     )
+    if os.name == "nt":
+        # Long artifact names alone do not exercise Git's object-store paths.
+        # Retain a sub-MAX_PATH repository root whose loose and packed objects
+        # cross that boundary, as in the retained node-7 integration failures.
+        padding = max(1, 230 - len(str(tmp_path.resolve())) - len("/repository-"))
+        deep_repository = tmp_path / ("repository-" + "r" * padding)
+        _initialize_git_repository(deep_repository)
+        assert len(str(deep_repository.resolve())) >= 230
+        deep_artifact = deep_repository / "evidence.json"
+        deep_artifact.write_bytes(payload)
+        deep_commit = _commit_all(deep_repository, "deep object-store fixture")
+        for packed in (False, True):
+            if packed:
+                _git(deep_repository, "repack", "-a", "-d")
+            assert (
+                governance._read_commit_blob(
+                    deep_repository,
+                    deep_commit,
+                    "evidence.json",
+                    owner="deep object-store test artifact",
+                )
+                == payload
+            )
 
 
 def test_read_commit_blob_treats_pathspec_metacharacters_as_literal(tmp_path: Path) -> None:
@@ -1430,11 +1525,13 @@ def test_shared_git_subprocess_policy_neutralizes_excludes_and_attributes(
 ) -> None:
     hooks_directory = tmp_path / "hooks"
     hooks_directory.mkdir()
-    monkeypatch.setenv("GIT_CONFIG_COUNT", "2")
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "3")
     monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.excludesFile")
     monkeypatch.setenv("GIT_CONFIG_VALUE_0", str(tmp_path / "hostile-excludes"))
     monkeypatch.setenv("GIT_CONFIG_KEY_1", "core.attributesFile")
     monkeypatch.setenv("GIT_CONFIG_VALUE_1", str(tmp_path / "hostile-attributes"))
+    monkeypatch.setenv("GIT_CONFIG_KEY_2", "core.longpaths")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_2", "false")
     monkeypatch.setenv("GIT_ATTR_NOSYSTEM", "0")
 
     environment = governance._governance_subprocess_environment()
@@ -1446,6 +1543,8 @@ def test_shared_git_subprocess_policy_neutralizes_excludes_and_attributes(
     assert "GIT_CONFIG_COUNT" not in environment
     assert "GIT_CONFIG_KEY_0" not in environment
     assert "GIT_CONFIG_VALUE_0" not in environment
+    assert "GIT_CONFIG_KEY_2" not in environment
+    assert "GIT_CONFIG_VALUE_2" not in environment
     assert prefix == [
         "trusted-git",
         "--no-replace-objects",
@@ -1453,6 +1552,8 @@ def test_shared_git_subprocess_policy_neutralizes_excludes_and_attributes(
         "core.fsmonitor=false",
         "-c",
         "core.untrackedCache=false",
+        "-c",
+        "core.longpaths=true",
         "-c",
         "core.excludesFile=",
         "-c",
@@ -1856,7 +1957,13 @@ def _post_r2_evidence_fixture(
         "sha256": "sha256:" + governance.POST_R2_TEST_RUNTIME_SHA256,
     }
 
-    def synthetic_site_inventory(_root: Path, _site_packages: Path) -> dict[str, Any]:
+    def synthetic_site_inventory(
+        _root: Path,
+        _site_packages: Path,
+        *,
+        expected_identity: tuple[int, int, str] = governance.POST_R2_TEST_RUNTIME_IDENTITY,
+    ) -> dict[str, Any]:
+        assert expected_identity == governance.POST_R2_TEST_RUNTIME_IDENTITY
         if runtime_source.read_bytes() != expected_runtime_source:
             raise governance.GovernanceError("post-R2 pytest site-packages inventory changed")
         return copy.deepcopy(frozen_site_inventory)
@@ -2493,10 +2600,11 @@ def test_post_r2_capture_marks_failed_and_passing_existing_evidence_as_reused(
 
 
 def test_post_r2_summary_parser_accepts_pass_and_skip_counts() -> None:
-    assert governance._parse_post_r2_pytest_totals(
+    totals = governance._parse_post_r2_pytest_totals(
         b"243 passed, 1 skipped in 90.25s\n",
         b"",
-    ) == {
+    )
+    assert totals == {
         "collected": 244,
         "passed": 243,
         "failed": 0,
@@ -2505,6 +2613,18 @@ def test_post_r2_summary_parser_accepts_pass_and_skip_counts() -> None:
         "xpassed": 0,
         "errors": 0,
     }
+    governance._validate_successor_v3_native_pytest_result(
+        subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr=b""),
+        totals,
+    )
+    with pytest.raises(
+        governance.GovernanceError,
+        match="Generation-3 native full suite did not meet its exact pass rule",
+    ):
+        governance._validate_successor_v3_native_pytest_result(
+            subprocess.CompletedProcess(args=[], returncode=0, stdout=b"", stderr=b""),
+            {**totals, "errors": 1},
+        )
 
     with pytest.raises(governance.GovernanceError, match="terminal summary"):
         governance._parse_post_r2_pytest_totals(
@@ -3067,7 +3187,6 @@ def test_post_r2_suite_evidence_source_binds_python_executable_bytes(
 
 def test_post_r2_runtime_inventory_excludes_only_cache_directories_and_rejects_direct_pyc(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = tmp_path / "repository"
     site_packages = repository / ".venv/Lib/site-packages"
@@ -3082,26 +3201,27 @@ def test_post_r2_runtime_inventory_excludes_only_cache_directories_and_rejects_d
         site_packages,
     )
     assert measured["file_count"] == 1
-    monkeypatch.setattr(
-        governance,
-        "POST_R2_TEST_RUNTIME_FILE_COUNT",
+    expected_identity = (
         measured["file_count"],
-    )
-    monkeypatch.setattr(
-        governance,
-        "POST_R2_TEST_RUNTIME_SIZE_BYTES",
         measured["size_bytes"],
-    )
-    monkeypatch.setattr(
-        governance,
-        "POST_R2_TEST_RUNTIME_SHA256",
         measured["sha256"].removeprefix("sha256:"),
     )
-    assert governance._post_r2_test_runtime_inventory(repository, site_packages) == measured
+    assert (
+        governance._post_r2_test_runtime_inventory(
+            repository,
+            site_packages,
+            expected_identity=expected_identity,
+        )
+        == measured
+    )
 
     (site_packages / "sourceless.pyc").write_bytes(b"direct bytecode")
     with pytest.raises(governance.GovernanceError, match="direct sourceless bytecode"):
-        governance._post_r2_test_runtime_inventory(repository, site_packages)
+        governance._post_r2_test_runtime_inventory(
+            repository,
+            site_packages,
+            expected_identity=expected_identity,
+        )
 
 
 def test_post_r2_bootstrap_authenticates_runtime_and_surface_before_pytest_import() -> None:
@@ -3375,14 +3495,18 @@ def test_post_v2_pytest_argv_overrides_hostile_collection_and_path_configuration
     assert "2 passed" in completed.stdout
 
 
-def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy() -> None:
+def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import ast
 
-    basetemp = ROOT / ".tmp/s1-acceptance/synthetic-v3-basetemp"
-    process_temp = (
-        governance.POST_R2_PROCESS_TEMP_ROOT
-        / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}synthetic-v3"
+    _process_temp_root, process_temp = _fresh_post_r2_process_temp(
+        tmp_path,
+        monkeypatch,
+        suffix="synthetic-v3",
     )
+    basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
     legacy_command = governance._post_r2_pytest_bootstrap_source(
         ROOT,
         basetemp=basetemp,
@@ -4360,11 +4484,9 @@ def test_post_v2_generated_bootstrap_rejects_every_unexpected_root_attack(
     monkeypatch.setattr(governance, "POST_R2_TEST_AFFECTING_DIRECTORIES", ("src", "tests"))
     monkeypatch.setattr(governance, "POST_R2_TRACKED_ROOT_FILES", ("pyproject.toml",))
     monkeypatch.setattr(governance, "POST_R2_ROOT_TEST_CONFIG_PATHS", ("pyproject.toml",))
-    monkeypatch.setattr(governance, "POST_R2_TEST_RUNTIME_FILE_COUNT", 0)
-    monkeypatch.setattr(governance, "POST_R2_TEST_RUNTIME_SIZE_BYTES", 0)
-    monkeypatch.setattr(
-        governance,
-        "POST_R2_TEST_RUNTIME_SHA256",
+    empty_runtime_identity = (
+        0,
+        0,
         hashlib.sha256(governance.POST_R2_TEST_RUNTIME_INVENTORY_DOMAIN).hexdigest(),
     )
     process_temp_root = (tmp_path / "process-temp-root").resolve()
@@ -4377,6 +4499,7 @@ def test_post_v2_generated_bootstrap_rejects_every_unexpected_root_attack(
         repository,
         basetemp=basetemp,
         process_temp=process_temp,
+        expected_runtime_identity=empty_runtime_identity,
     )
 
     completed = subprocess.run(
@@ -5158,10 +5281,22 @@ def test_post_r2_execution_cleans_when_command_construction_fails(
         "_allocate_post_r2_run_paths",
         lambda _root: (basetemp, process_temp),
     )
+    monkeypatch.setattr(
+        governance,
+        "_FROZEN_PYTHON_EXECUTABLE",
+        tmp_path / "absent-frozen-python.exe",
+    )
+    prepared_marker = process_temp / "synthetic-runtime-prepared"
+
+    def prepare_runtime(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        prepared_marker.write_bytes(b"synthetic runtime\n")
+        return {"format": "synthetic-descendant-runtime"}
 
     def fail_argv(*_args: Any, **_kwargs: Any) -> list[str]:
+        assert prepared_marker.read_bytes() == b"synthetic runtime\n"
         raise primary
 
+    monkeypatch.setattr(governance, "_prepare_post_r2_descendant_runtime", prepare_runtime)
     monkeypatch.setattr(governance, "_post_r2_pytest_argv", fail_argv)
 
     with pytest.raises(RuntimeError, match="synthetic argv failure") as raised:
@@ -5934,49 +6069,162 @@ def _protect_local_roadmap(repository: Path) -> Path:
     return roadmap
 
 
+def _prepare_successor_v3_surface_fixture(
+    repository: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> str:
+    """Keep real Git/native prerequisites while isolating the full file inventory."""
+    _git(repository, "checkout", "--quiet", "-b", governance.S1_SUCCESSOR_V3_BRANCH_NAME)
+    (repository / ".git/info/exclude").write_bytes(
+        governance.POST_V2_CONTROL_GIT_EXCLUDE_BYTES,
+    )
+    readme = (repository / "README.md").read_bytes()
+    assert b"\r" not in readme and readme.endswith(b"\n"), "fixture README must use LF bytes"
+    committed_readme = governance._run_git(repository, ["cat-file", "blob", "HEAD:README.md"])
+    assert committed_readme.returncode == 0
+    assert committed_readme.stdout == readme, "fixture README differs from its raw Git blob"
+    monkeypatch.setattr(
+        governance,
+        "_post_r2_test_surface_evidence",
+        lambda *_args, **_kwargs: {"fixture": "synthetic tracked-file inventory"},
+    )
+    return _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip()
+
+
 def test_local_only_roadmap_requires_local_exclusion_and_an_untracked_index(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
-    (repository / "README.md").write_text("repository\n", encoding="utf-8")
+    (repository / "README.md").write_text("repository\n", encoding="utf-8", newline="\n")
     _commit_all(repository, "base")
     roadmap = _protect_local_roadmap(repository)
 
     assert governance.validate_local_only_roadmap(repository, roadmap) == roadmap.name
+    r3 = _prepare_successor_v3_surface_fixture(repository, monkeypatch)
+    _git(
+        repository,
+        "-c",
+        "tag.gpgSign=false",
+        "tag",
+        "--annotate",
+        "--message",
+        "public annotated tag",
+        "synthetic-native-predecessor",
+    )
+    tag_oid = _git(repository, "rev-parse", "refs/tags/synthetic-native-predecessor").stdout.strip()
+    assert _git(repository, "cat-file", "-t", tag_oid).stdout.strip() == "tag"
+    # The old predicate returned this unrelated tag even for a nonexistent
+    # path. Exercise that real Git behavior, rather than fabricating stdout.
+    for path in (roadmap.name, "nonexistent-private-path-control.md"):
+        object_rows = _git(repository, "rev-list", "--all", "--objects", "--", path)
+        assert object_rows.stdout.splitlines() == [f"{tag_oid} synthetic-native-predecessor"]
 
+    surface = governance._successor_v3_repository_surface(repository, r3=r3)
+    assert surface["state"]["head_commit"] == r3
+    assert surface["branch"] == governance.S1_SUCCESSOR_V3_BRANCH_NAME
+    assert surface["test_surface"] == {"fixture": "synthetic tracked-file inventory"}
+    roadmap.unlink()
+    assert governance._successor_v3_repository_surface(repository, r3=r3) == surface
+
+    readme = repository / "README.md"
+    clean_readme = readme.read_bytes()
+    readme.write_bytes(clean_readme + b"intentional dirty-worktree negative control\n")
+    try:
+        with pytest.raises(governance.GovernanceError, match="requires clean exact R3"):
+            governance._successor_v3_repository_surface(repository, r3=r3)
+    finally:
+        readme.write_bytes(clean_readme)
+    assert governance._successor_v3_repository_surface(repository, r3=r3) == surface
+
+    expected_history_argv = [
+        "log",
+        "--all",
+        "--full-history",
+        "--format=%H",
+        "--",
+        ":(top,literal)Agent_Assure_Implementation_Roadmap.md",
+    ]
+    original_run_git = governance._run_git
+
+    def failed_history_inspection(
+        repository_root: Path,
+        arguments: Any,
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[bytes]:
+        if list(arguments) == expected_history_argv:
+            return subprocess.CompletedProcess(
+                args=arguments,
+                returncode=128,
+                stdout=b"",
+                stderr=b"synthetic history failure",
+            )
+        return original_run_git(repository_root, arguments, **kwargs)
+
+    with monkeypatch.context() as failure_patch:
+        failure_patch.setattr(governance, "_run_git", failed_history_inspection)
+        with pytest.raises(
+            governance.GovernanceError,
+            match="unable to inspect reachable Git history.*Git exited with status 128",
+        ):
+            governance._successor_v3_repository_surface(repository, r3=r3)
+
+    roadmap.write_text("private roadmap\n", encoding="utf-8")
     _git(repository, "add", "--force", roadmap.name)
     with pytest.raises(governance.GovernanceError, match="tracked or staged"):
         governance.validate_local_only_roadmap(repository, roadmap)
 
 
-def test_local_only_roadmap_rejects_reachable_history(tmp_path: Path) -> None:
+def test_local_only_roadmap_rejects_reachable_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
+    (repository / "README.md").write_text("public repository\n", encoding="utf-8", newline="\n")
+    _commit_all(repository, "public base")
+    r3 = _prepare_successor_v3_surface_fixture(repository, monkeypatch)
+    _git(repository, "checkout", "--quiet", "-b", "retained-private-history")
     roadmap = repository / "Agent_Assure_Implementation_Roadmap.md"
     roadmap.write_text("historical roadmap\n", encoding="utf-8")
     _git(repository, "add", "--force", roadmap.name)
     _git(repository, "commit", "--quiet", "--message", "mistaken roadmap commit")
     roadmap.unlink()
     _commit_all(repository, "remove roadmap")
+    _git(repository, "checkout", "--quiet", governance.S1_SUCCESSOR_V3_BRANCH_NAME)
+    assert _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip() == r3
+    assert not roadmap.exists()
+    with pytest.raises(
+        governance.GovernanceError,
+        match="private roadmap path.*reachable Git history",
+    ):
+        governance._successor_v3_repository_surface(repository, r3=r3)
     roadmap = _protect_local_roadmap(repository)
 
     with pytest.raises(governance.GovernanceError, match="reachable local Git history"):
         governance.validate_local_only_roadmap(repository, roadmap)
 
 
-def test_local_only_roadmap_rejects_identical_unreachable_blob(tmp_path: Path) -> None:
+def test_local_only_roadmap_rejects_identical_unreachable_blob(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
-    (repository / "README.md").write_text("repository\n", encoding="utf-8")
+    (repository / "README.md").write_text("repository\n", encoding="utf-8", newline="\n")
     _commit_all(repository, "base")
     roadmap = _protect_local_roadmap(repository)
 
     assert governance.validate_local_only_roadmap(repository, roadmap) == roadmap.name
+    r3 = _prepare_successor_v3_surface_fixture(repository, monkeypatch)
+    governance._successor_v3_repository_surface(repository, r3=r3)
     _git(repository, "hash-object", "-w", "--no-filters", "--", roadmap.name)
 
     with pytest.raises(governance.GovernanceError, match="Git object database"):
         governance.validate_local_only_roadmap(repository, roadmap)
+    with pytest.raises(governance.GovernanceError, match="Git object database"):
+        governance._successor_v3_repository_surface(repository, r3=r3)
 
 
 def test_generation_2_historical_checkout_requires_exact_clean_closure(
@@ -6059,6 +6307,7 @@ def test_pending_check_reports_nonaccepting_result(
         "completion-receipt-v1-base-01.json": {},
         "completion-receipt-v1-boot-01.json": {},
         "governance-bundle.json": {
+            "format": "agent-assure-governance-bundle/1",
             "bundle_status": "pending_human_acceptance",
             "bundle_digest": _digest("d"),
         },
@@ -8170,7 +8419,327 @@ def test_corrective_preflight_requires_head_reachable_from_predecessor_closure(
         )
 
 
-def test_parser_supports_generation_2_timestamp_free_acceptance_inputs() -> None:
+def _exercise_successor_v3_validator_output_transport() -> None:
+    """Exercise the real byte consumer without adding collected test identities."""
+
+    result = {
+        "status": "passed",
+        "profile": "preparation",
+        "package_id": governance.S1_SUCCESSOR_V3_PACKAGE_ID,
+    }
+    raw = (json.dumps(result, sort_keys=True) + "\n").encode("utf-8")
+    parse_output = governance._successor_v3_parse_package_validation_stdout
+    assert parse_output(raw, profile="preparation") == result
+
+    invalid_vectors = (
+        (raw.replace(b"\n", b"\r\n"), "canonical LF JSON"),
+        (b"\xef\xbb\xbf" + raw, "canonical LF JSON"),
+        (raw[:-1] + b"\xff\n", "not UTF-8"),
+        (raw[:-1], "canonical LF JSON"),
+        (b"", "canonical LF JSON"),
+        (raw[:-2] + b', "status": "passed"}\n', "duplicate JSON member"),
+        (raw + b"{}\n", "malformed JSON"),
+        (raw.replace(b'"preparation"', b'"r3-installed"'), "returned another result"),
+        (
+            raw.replace(
+                governance.S1_SUCCESSOR_V3_PACKAGE_ID.encode("ascii"),
+                b"00000000-0000-4000-8000-000000000000",
+            ),
+            "returned another result",
+        ),
+        (raw.replace(b'"passed"', b'"failed"'), "returned another result"),
+        (
+            b" " * (governance._SUCCESSOR_V3_MAX_SEMANTIC_OUTPUT_BYTES + 1),
+            "exceeded its output bound",
+        ),
+    )
+    for invalid, message in invalid_vectors:
+        with pytest.raises(governance.GovernanceError, match=message):
+            parse_output(invalid, profile="preparation")
+
+    if os.name != "nt":
+        return
+    powershell = governance._SUCCESSOR_V3_POWERSHELL_EXECUTABLE
+    assert powershell.is_file(), "Windows transport regression requires PowerShell 5.1"
+    interpreter = _independent_python_test_executable().replace("'", "''")
+    for emitted in (raw, raw.replace(b"\n", b"\r\n")):
+        program = (
+            "import sys;sys.stdout.buffer.write(bytes.fromhex("
+            + repr(emitted.hex())
+            + "));sys.stdout.buffer.flush()"
+        )
+        encoded_program = base64.b64encode(program.encode("utf-8")).decode("ascii")
+        entry = ("import base64;exec(base64.b64decode(" + repr(encoded_program) + "))").replace(
+            "'", "''"
+        )
+        script = f"& '{interpreter}' -I -S -B -X utf8 -c '{entry}'"
+        encoded_script = base64.b64encode(script.encode("utf-16-le")).decode("ascii")
+        completed = subprocess.run(
+            [
+                str(powershell),
+                "-NoLogo",
+                "-NoProfile",
+                "-NonInteractive",
+                "-EncodedCommand",
+                encoded_script,
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert completed.stderr == b""
+        assert completed.stdout == emitted
+        if emitted == raw:
+            assert parse_output(completed.stdout, profile="preparation") == result
+        else:
+            with pytest.raises(governance.GovernanceError, match="canonical LF JSON"):
+                parse_output(completed.stdout, profile="preparation")
+
+
+def _synthetic_successor_v3_signed_package(
+    root: Path,
+    executable: str,
+    key: SshKey,
+) -> dict[str, Any]:
+    """Build test-only structural evidence, signed solely by a disposable test key.
+
+    These inert artifacts and closed test schemas are never a governance package
+    or acceptance record.  The production verifier runs under temporary test-key
+    trust; preparation independently checks the real unsigned protocol and schemas.
+    """
+
+    repository = root / "s"
+    package = repository / governance.S1_SUCCESSOR_V3_PACKAGE_RELATIVE
+    (package / "claims").mkdir(parents=True)
+    (package / "tools").mkdir()
+    scope = "synthetic_test_only_no_acceptance_effect"
+
+    def closed(properties: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": properties,
+            "required": list(properties),
+            "additionalProperties": False,
+        }
+
+    string = {"type": "string"}
+    strings = {"type": "array", "items": string}
+    descriptor = closed(
+        {"path": string, "bytes": {"type": "integer", "minimum": 0}, "sha256": string}
+    )
+    tool_descriptor = closed(
+        {
+            **descriptor["properties"],
+            "private_key_access": {"const": False},
+        }
+    )
+    contracts_schema = closed(
+        {
+            "fixture_scope": {"const": scope},
+            "format": string,
+            "digest_domain": string,
+            "package_id": string,
+            "tooling": {"type": "array", "items": tool_descriptor},
+            "check_contracts_digest": string,
+        }
+    )
+    claim_schema = closed(
+        {
+            "fixture_scope": {"const": scope},
+            "format": string,
+            "digest_domain": string,
+            "package_id": string,
+            "proposed_acceptance_generation": {"type": "integer"},
+            "change_partition": closed(
+                {
+                    "r3_exact_allowlist": strings,
+                    "c3_exact_paths": strings,
+                    "canonical_commit_messages": closed({"k3": string, "r3": string, "c3": string}),
+                }
+            ),
+            "protocol_bundle": closed(
+                {
+                    "check_contracts_digest": string,
+                    "artifacts": {"type": "array", "items": descriptor},
+                    "schema_set": closed({"schemas": {"type": "array", "items": descriptor}}),
+                }
+            ),
+        }
+    )
+    authorization_schema = closed(
+        {
+            "fixture_scope": {"const": scope},
+            "format": string,
+            "digest_domain": string,
+            "package_id": string,
+            "state": string,
+            "authorization_effect": string,
+            "claim": closed(
+                {
+                    "path": string,
+                    "bytes": {"type": "integer", "minimum": 0},
+                    "raw_sha256": string,
+                    "semantic_digest": string,
+                }
+            ),
+            "signature": closed(
+                {
+                    "path": string,
+                    "bytes": {"type": "integer", "minimum": 0},
+                    "sha256": string,
+                    "principal": string,
+                    "fingerprint": string,
+                    "namespace": string,
+                    "verified": {"type": "boolean"},
+                    "signing_time_claimed": {"type": "boolean"},
+                }
+            ),
+            "authorization_record_digest": string,
+        }
+    )
+    schemas = {
+        "check-contracts.schema.json": contracts_schema,
+        "successor-kickoff-claim.schema.json": claim_schema,
+        "successor-kickoff-authorization.schema.json": authorization_schema,
+    }
+
+    def write_json(relative: str, value: dict[str, Any]) -> bytes:
+        raw = (json.dumps(value, indent=2, sort_keys=True) + "\n").encode("utf-8")
+        (package / relative).write_bytes(raw)
+        return raw
+
+    for name in governance.S1_SUCCESSOR_V3_SCHEMA_FILES:
+        write_json(
+            name,
+            {
+                "$schema": "https://json-schema.org/draft/2020-12/schema",
+                "$comment": scope,
+                **schemas.get(name, closed({})),
+            },
+        )
+
+    def describe(relative: str) -> dict[str, Any]:
+        raw = (package / relative).read_bytes()
+        return {"path": relative, "bytes": len(raw), "sha256": governance.raw_digest(raw)}
+
+    tools = (
+        "tools/successor_v3_launcher.ps1",
+        "tools/build_design_package.py",
+        "tools/successor_v3_tool.py",
+    )
+    for relative in tools:
+        (package / relative).write_bytes(b"# Inert synthetic test artifact; never executed.\n")
+    contracts = {
+        "fixture_scope": scope,
+        "format": governance.S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT,
+        "digest_domain": "agent-assure:s1-successor-check-contract-set/v2",
+        "package_id": governance.S1_SUCCESSOR_V3_PACKAGE_ID,
+        "tooling": [{**describe(relative), "private_key_access": False} for relative in tools],
+    }
+    contracts["check_contracts_digest"] = governance.domain_digest(
+        contracts["digest_domain"], contracts
+    )
+    write_json("check-contracts.json", contracts)
+    claim = {
+        "fixture_scope": scope,
+        "format": governance.S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT,
+        "digest_domain": "agent-assure:s1-successor-kickoff-claim/v"
+        + governance.S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT.rsplit("/", 1)[1],
+        "package_id": governance.S1_SUCCESSOR_V3_PACKAGE_ID,
+        "proposed_acceptance_generation": 3,
+        "change_partition": {
+            "r3_exact_allowlist": list(governance.S1_SUCCESSOR_V3_R3_PATHS),
+            "c3_exact_paths": list(governance.S1_SUCCESSOR_V3_C3_PATHS),
+            "canonical_commit_messages": {
+                "k3": governance.S1_SUCCESSOR_V3_K3_MESSAGE,
+                "r3": governance.S1_SUCCESSOR_V3_R3_MESSAGE,
+                "c3": governance.S1_SUCCESSOR_V3_C3_MESSAGE,
+            },
+        },
+        "protocol_bundle": {
+            "check_contracts_digest": contracts["check_contracts_digest"],
+            "artifacts": [describe(relative) for relative in (*tools, "check-contracts.json")],
+            "schema_set": {
+                "schemas": [describe(name) for name in governance.S1_SUCCESSOR_V3_SCHEMA_FILES]
+            },
+        },
+    }
+
+    def sign(relative: str) -> bytes:
+        message = package / relative
+        signature = Path(f"{message}.sig")
+        signature.unlink(missing_ok=True)
+        completed = _run_test_ssh_keygen(
+            [
+                executable,
+                "-Y",
+                "sign",
+                "-f",
+                str(key.private_key),
+                "-n",
+                governance.SIGNATURE_NAMESPACE,
+                "-O",
+                "hashalg=sha512",
+                str(message),
+            ]
+        )
+        assert completed.returncode == 0, completed.stderr
+        raw = _canonicalize_armor(signature.read_bytes())
+        signature.write_bytes(raw)
+        return raw
+
+    def write_signed_records(value: dict[str, Any]) -> dict[str, Any]:
+        claim_raw = write_json("claims/kickoff.claim", value)
+        claim_signature = sign("claims/kickoff.claim")
+        authorization = {
+            "fixture_scope": scope,
+            "format": governance.S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT,
+            "digest_domain": "agent-assure:s1-successor-kickoff-authorization-record/v"
+            + governance.S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT.rsplit("/", 1)[1],
+            "package_id": governance.S1_SUCCESSOR_V3_PACKAGE_ID,
+            "state": "accepted_after_verified_human_signature",
+            "authorization_effect": "prospective_only_from_import",
+            "claim": {
+                "path": "claims/kickoff.claim",
+                "bytes": len(claim_raw),
+                "raw_sha256": governance.raw_digest(claim_raw),
+                "semantic_digest": governance.domain_digest(value["digest_domain"], value),
+            },
+            "signature": {
+                "path": "claims/kickoff.claim.sig",
+                "bytes": len(claim_signature),
+                "sha256": governance.raw_digest(claim_signature),
+                "principal": "acblabs",
+                "fingerprint": key.fingerprint,
+                "namespace": governance.SIGNATURE_NAMESPACE,
+                "verified": True,
+                "signing_time_claimed": False,
+            },
+        }
+        authorization["authorization_record_digest"] = governance.domain_digest(
+            authorization["digest_domain"], authorization
+        )
+        write_json("successor-kickoff-authorization.json", authorization)
+        sign("successor-kickoff-authorization.json")
+        return authorization
+
+    authorization = write_signed_records(claim)
+    return {
+        "repository": repository,
+        "package": package,
+        "claim": claim,
+        "authorization": authorization,
+        "write_signed_records": write_signed_records,
+    }
+
+
+def test_parser_supports_generation_2_timestamp_free_acceptance_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    ssh_key_material: tuple[str, SshKey, SshKey],
+) -> None:
     parsed = governance._parser().parse_args(
         [
             "check",
@@ -8226,6 +8795,162 @@ def test_parser_supports_generation_2_timestamp_free_acceptance_inputs() -> None
     assert legacy.acceptance_generation is None
     assert legacy.commitment_time == ISSUED_AT
     assert legacy.attestation_signed_at == "2026-10-15T15:05:00Z"
+
+    successor_node = governance._parser().parse_args(
+        [
+            "successor-v3-run-node",
+            "--node",
+            "g3.result.r3_topology_scope",
+            "--subject-role",
+            "R3",
+            "--output",
+            r"C:\tmp\s3-00000000000040008000000000000000\semantic-output.json",
+        ]
+    )
+    assert successor_node.node == "g3.result.r3_topology_scope"
+    assert successor_node.subject_role == "R3"
+    assert successor_node.handler is governance.successor_v3_run_node
+    assert not hasattr(successor_node, "repository_root")
+    assert not hasattr(successor_node, "package")
+
+    native_suite = governance._parser().parse_args(
+        [
+            "successor-v3-native-suite",
+            "--subject",
+            "0" * 40,
+            "--output",
+            r"C:\tmp\s3-00000000000040008000000000000000\semantic-output.json",
+        ]
+    )
+    assert native_suite.subject == "0" * 40
+    assert native_suite.handler is governance.successor_v3_native_suite
+    assert not hasattr(native_suite, "repository_root")
+    assert not hasattr(native_suite, "package")
+
+    historical = governance._parser().parse_args(
+        [
+            "successor-v3-historical-check",
+            "--expected-c3",
+            "1" * 40,
+            "--expected-a3",
+            "2" * 40,
+            "--output",
+            r"C:\tmp\s3-00000000000040008000000000000000\semantic-output.json",
+        ]
+    )
+    assert historical.expected_c3 == "1" * 40
+    assert historical.expected_a3 == "2" * 40
+    assert historical.handler is governance.successor_v3_historical_check
+    assert not hasattr(historical, "repository_root")
+    assert not hasattr(historical, "package")
+
+    with pytest.raises(SystemExit):
+        governance._parser().parse_args(
+            [
+                "successor-v3-run-node",
+                "--node",
+                "not-a-signed-node",
+                "--subject-role",
+                "R3",
+                "--output",
+                "semantic-output.json",
+            ]
+        )
+
+    valid_token = "00000000000040008000000000000000"
+    root_name_is_valid = governance._successor_v3_execution_root_name_is_valid
+    for variant in "89ab":
+        assert root_name_is_valid("s3-" + valid_token[:16] + variant + valid_token[17:])
+    for invalid in (
+        "",
+        "s3-" + valid_token[:-1],
+        "s3-" + valid_token + "0",
+        "s3-" + valid_token[:12] + "3" + valid_token[13:],
+        "s3-" + valid_token[:16] + "7" + valid_token[17:],
+        "s3-" + valid_token[:-1] + "A",
+        "s3-00000000-0000-4000-8000-000000000000",
+        "s3-" + valid_token + "\n",
+        "prefix-s3-" + valid_token,
+    ):
+        assert not root_name_is_valid(invalid)
+
+    executable, key, other_key = ssh_key_material
+    _trust_key(monkeypatch, key)
+    fixture = _synthetic_successor_v3_signed_package(tmp_path, executable, key)
+    synthetic_root = fixture["repository"]
+    package = fixture["package"]
+    signed = governance._successor_v3_validate_signed_package(synthetic_root)
+    _exercise_successor_v3_validator_output_transport()
+    assert signed["contracts"]["package_id"] == governance.S1_SUCCESSOR_V3_PACKAGE_ID
+    assert signed["contracts"]["format"] == governance.S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT
+    assert signed["claim"]["format"] == governance.S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT
+    assert (
+        signed["authorization"]["format"] == governance.S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT
+    )
+
+    for symbol, message in [
+        ("S1_SUCCESSOR_V3_PACKAGE_ID", "Generation-3 check-contract identity mismatch"),
+        (
+            "S1_SUCCESSOR_V3_CHECK_CONTRACTS_FORMAT",
+            "Generation-3 check-contract identity mismatch",
+        ),
+        ("S1_SUCCESSOR_V3_KICKOFF_CLAIM_FORMAT", "Generation-3 kickoff claim identity mismatch"),
+        (
+            "S1_SUCCESSOR_V3_KICKOFF_AUTHORIZATION_FORMAT",
+            "Generation-3 kickoff authorization identity/state mismatch",
+        ),
+    ]:
+        with monkeypatch.context() as context:
+            context.setattr(governance, symbol, "invalid-stale-binding")
+            with pytest.raises(governance.GovernanceError, match=message):
+                governance._successor_v3_validate_signed_package(synthetic_root)
+
+    for relative in ("claims/kickoff.claim", "successor-kickoff-authorization.json"):
+        payload = package / relative
+        original = payload.read_bytes()
+        try:
+            payload.write_bytes(original[:-1] + b" \n")
+            with pytest.raises(governance.GovernanceError, match="signature verification failed"):
+                governance._successor_v3_validate_signed_package(synthetic_root)
+        finally:
+            payload.write_bytes(original)
+
+    with monkeypatch.context() as context:
+        _trust_key(context, other_key)
+        with pytest.raises(governance.GovernanceError, match="embeds another public key"):
+            governance._successor_v3_validate_signed_package(synthetic_root)
+
+    tool = package / "tools/successor_v3_tool.py"
+    original_tool = tool.read_bytes()
+    try:
+        tool.write_bytes(b"!" + original_tool[1:])
+        with pytest.raises(
+            governance.GovernanceError,
+            match="protocol artifact .* SHA-256 changed",
+        ):
+            governance._successor_v3_validate_signed_package(synthetic_root)
+    finally:
+        tool.write_bytes(original_tool)
+
+    invalid_claim = copy.deepcopy(fixture["claim"])
+    invalid_claim["protocol_bundle"]["artifacts"] = [
+        descriptor
+        for descriptor in invalid_claim["protocol_bundle"]["artifacts"]
+        if descriptor["path"] != "tools/build_design_package.py"
+    ]
+    fixture["write_signed_records"](invalid_claim)
+    with pytest.raises(governance.GovernanceError, match="missing required executable artifacts"):
+        governance._successor_v3_validate_signed_package(synthetic_root)
+
+    invalid_claim = copy.deepcopy(fixture["claim"])
+    invalid_claim["unsigned_extension"] = "rejected even when signed by the disposable test key"
+    fixture["write_signed_records"](invalid_claim)
+    with pytest.raises(governance.GovernanceError, match="kickoff claim schema validation failed"):
+        governance._successor_v3_validate_signed_package(synthetic_root)
+
+    fixture["write_signed_records"](fixture["claim"])
+    restored = governance._successor_v3_validate_signed_package(synthetic_root)
+    assert restored["claim"] == signed["claim"]
 
 
 def test_cli_rejects_execution_without_isolated_mode() -> None:
@@ -8306,6 +9031,9 @@ def test_every_parser_handler_fails_closed_without_the_frozen_runtime() -> None:
         "forecast_v2_signature_plan",
         "generate_draft",
         "post_v2_control_suite_capture",
+        "successor_v3_historical_check",
+        "successor_v3_native_suite",
+        "successor_v3_run_node",
     }
     for handler in handlers:
         assert handler.__dict__.get("__requires_frozen_runtime__") is True
@@ -8392,6 +9120,7 @@ def test_historical_bootstrap_docs_require_a_standalone_runtime_clone() -> None:
 @pytest.mark.skipif(os.name != "nt", reason="the documented bootstrap is PowerShell on Windows")
 def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_rejects_nonregular_paths(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
     bootstrap = documentation.split("### Historical-verifier bootstrap boundary", maxsplit=1)[
@@ -8415,6 +9144,9 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     )
     powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
     assert powershell.is_file()
+    inherited_module_path = tmp_path / "incompatible-parent-modules"
+    inherited_module_path.mkdir()
+    monkeypatch.setenv("PSModulePath", str(inherited_module_path))
 
     def run_setup(root: Path, source_exclude: Path) -> subprocess.CompletedProcess[str]:
         escaped_root = str(root).replace("'", "''")
@@ -8431,6 +9163,9 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
                 f"$SourceExcludePath = '{escaped_source_exclude}'\n"
                 f"{exclude_setup}",
             ],
+            # Python inherits PS7 module paths without its direct-child WinPS
+            # compatibility rewrite. Let Windows PowerShell rebuild its defaults.
+            env={key: value for key, value in os.environ.items() if key.upper() != "PSMODULEPATH"},
             capture_output=True,
             check=False,
             text=True,
@@ -8477,6 +9212,7 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     assert not (fresh / ".git/info").exists()
     completed = run_setup(fresh, source_exclude)
     assert completed.returncode == 0, completed.stderr
+    assert os.environ["PSModulePath"] == str(inherited_module_path)
     exclude_path = fresh / ".git/info/exclude"
     assert exclude_path.is_file() and not exclude_path.is_symlink()
     assert exclude_path.read_bytes() == synthetic_legacy_policy
@@ -10209,6 +10945,35 @@ def test_synthetic_v2_forecast_exercises_the_exact_inventory_shape(
     forecast_v2_evidence: dict[str, Any],
 ) -> None:
     _assert_v2_inventory_partition_slots_waits_and_rel02_sequence(forecast_v2_evidence)
+    snapshot = forecast_v2_evidence["snapshot"]
+    signed_roadmap_identity = governance.RoadmapSnapshot(
+        raw_digest=governance.CORRECTIVE_ROADMAP_DIGEST,
+        tickets=snapshot.tickets,
+        release_train=snapshot.release_train,
+        approval_roster_template=snapshot.approval_roster_template,
+        ticket_set_digest=snapshot.ticket_set_digest,
+        dependency_graph_digest=snapshot.dependency_graph_digest,
+        release_train_digest=snapshot.release_train_digest,
+    )
+    baseline = forecast_v2_evidence["baseline"]
+    targeted_pending_ledger = governance.build_authoring_ledger_v2(
+        signed_roadmap_identity,
+        forecast_v2_evidence["catalog"],
+        baseline_observations_digest_value=baseline["observations_digest"],
+        inventory_completed_at=baseline["inventory_completed_at_utc"],
+    )
+    with pytest.raises(
+        governance.GovernanceError,
+        match="ledger must contain exactly one V1-BASE-06 row",
+    ):
+        governance.validate_authoring_ledger_v2(
+            signed_roadmap_identity,
+            targeted_pending_ledger,
+            _record("delivery-forecast.authoring-ledger.schema.json"),
+            forecast_v2_evidence["catalog"],
+            baseline_observations=forecast_v2_evidence["baseline"],
+            allow_pending=True,
+        )
 
 
 def test_v2_proposal_digest_has_a_verifiable_finalized_state_projection() -> None:
@@ -11402,3 +12167,382 @@ def test_generation_2_operator_ceremony_is_absolute_ordered_and_fail_closed() ->
         ]
     )
     assert parsed.handler is governance.forecast_v2_documentation_check
+
+
+def test_successor_standalone_constructor_and_provenance_keep_exact_governance_refs(
+    tmp_path: Path,
+) -> None:
+    """Exercise the real constructor/ref-provenance boundary with synthetic authority.
+
+    The actor's bootstrap, transaction-lock decorator, authorization/profile
+    admission, frozen executable attestation, and production dependency
+    inventory are deliberately replaced. Git cloning, ref transactions, fsck,
+    source-state/provenance I/O, and the actor's complete provenance/ref and
+    local-file/object-independence validators execute against disposable files.
+    This is an integration regression, not a cryptographic ceremony or receipt.
+    """
+    import ast
+    import datetime as dt
+    import re
+    from collections.abc import Mapping
+
+    actor_path = ROOT / "docs/governance/v1/successor-v3/tools/successor_v3_tool.py"
+    if not actor_path.is_file():
+        pytest.skip("the Generation-3 actor is not materialized in this baseline checkout")
+    actor_raw = actor_path.read_bytes()
+    wanted = {
+        "prepare_standalone_clone",
+        "validate_standalone_clone_provenance",
+        "validate_standalone_file_independence",
+        "validate_standalone_object_store",
+        "standalone_direct_ref_snapshot",
+        "standalone_clone_ref_cleanup_transaction",
+        "require_standalone_ref_cleanup_postcondition",
+    }
+    definitions = [
+        node
+        for node in ast.parse(actor_raw).body
+        if isinstance(node, ast.FunctionDef) and node.name in wanted
+    ]
+    required = {
+        "prepare_standalone_clone",
+        "validate_standalone_clone_provenance",
+        "validate_standalone_file_independence",
+        "validate_standalone_object_store",
+    }
+    assert required <= {node.name for node in definitions}
+    assert len({node.name for node in definitions}) == len(definitions)
+    for definition in definitions:
+        if definition.name == "prepare_standalone_clone":
+            # The real lock is outside this synthetic constructor regression.
+            assert len(definition.decorator_list) == 1
+            definition.decorator_list = []
+        else:
+            assert not definition.decorator_list
+
+    git_name = shutil.which("git")
+    if git_name is None:
+        pytest.skip("Git is required for the standalone constructor integration regression")
+    git_path = Path(git_name).resolve()
+    source, destination = tmp_path / "s", tmp_path / "v"
+    template, hooks = tmp_path / "e", tmp_path / "h"
+    hooks.mkdir()
+    package_relative = "docs/governance/v1/successor-v3"
+    package = source / package_relative
+    branch = "synthetic-standalone"
+    tag_name = "agent-assure-s1-1.0.0a1-acceptance-v3-synthetic"
+    tag_names = [
+        "agent-assure-s1-1.0.0a1-acceptance",
+        "agent-assure-s1-1.0.0a1-acceptance-v2",
+        tag_name,
+    ]
+    safe_environment = {
+        name: value
+        for name, value in os.environ.items()
+        if name.upper() in {"SYSTEMROOT", "WINDIR", "COMSPEC", "TEMP", "TMP"}
+    }
+    safe_environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_ATTR_NOSYSTEM": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_AUTHOR_NAME": "Synthetic constructor test",
+            "GIT_AUTHOR_EMAIL": "constructor-test@invalid.example",
+            "GIT_COMMITTER_NAME": "Synthetic constructor test",
+            "GIT_COMMITTER_EMAIL": "constructor-test@invalid.example",
+            "GIT_AUTHOR_DATE": "2000-01-01T00:00:00+0000",
+            "GIT_COMMITTER_DATE": "2000-01-01T00:00:00+0000",
+        }
+    )
+    git_prefix = [
+        str(git_path),
+        "--no-replace-objects",
+        "-c",
+        "core.longpaths=true",
+        "-c",
+        "core.autocrlf=false",
+        "-c",
+        "core.eol=lf",
+        "-c",
+        "core.attributesFile=",
+        "-c",
+        "core.excludesFile=",
+        "-c",
+        f"core.hooksPath={hooks}",
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "tag.gpgsign=false",
+        "-c",
+        "protocol.allow=never",
+        "-c",
+        "protocol.file.allow=always",
+    ]
+
+    def run_git_result(
+        repository: Path, *arguments: str, data: bytes | None = None
+    ) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            [*git_prefix, "-C", str(repository), *arguments],
+            input=data,
+            env=safe_environment,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+
+    def run_git(repository: Path, *arguments: str) -> str:
+        completed = run_git_result(repository, *arguments)
+        assert completed.returncode == 0, completed.stderr.decode("utf-8", "replace")
+        return completed.stdout.decode("utf-8", "strict").rstrip("\n")
+
+    def run_git_input_result(
+        repository: Path, data: bytes, *arguments: str
+    ) -> subprocess.CompletedProcess[bytes]:
+        return run_git_result(repository, *arguments, data=data)
+
+    exec_path = Path(run_git(tmp_path, "--exec-path"))
+    upload_name = "git-upload-pack.exe" if os.name == "nt" else "git-upload-pack"
+    # Git for Windows keeps this helper in mingw64/bin, separately from
+    # both its cmd dispatcher and the reported libexec/git-core directory.
+    upload_pack = next(
+        (
+            path
+            for path in (
+                exec_path / upload_name,
+                git_path.with_name(upload_name),
+                exec_path.parent.parent / "bin" / upload_name,
+            )
+            if path.is_file()
+        ),
+        None,
+    )
+    assert upload_pack is not None
+    run_git(tmp_path, "init", "--initial-branch=" + branch, "--template=", str(source))
+    package.mkdir(parents=True)
+    exclude = source / ".git/info/exclude"
+    exclude.parent.mkdir(exist_ok=True)
+    exclude.write_bytes(b"# Synthetic exclude, no private input.\n")
+
+    def descriptor(path: Path, repository: Path) -> dict[str, Any]:
+        raw = path.read_bytes()
+        return {
+            "path": path.relative_to(repository).as_posix(),
+            "bytes": len(raw),
+            "sha256": "sha256:" + hashlib.sha256(raw).hexdigest(),
+        }
+
+    source_state = {
+        "repository": {
+            "absolute_root": str(source),
+            "git_info_exclude": descriptor(exclude, source),
+        }
+    }
+    (package / "source-state.json").write_text(json.dumps(source_state), encoding="utf-8")
+    (source / "tracked.txt").write_bytes(b"synthetic committed history\n")
+    run_git(source, "add", "--", ".")
+    run_git(source, "commit", "-m", "Synthetic constructor source")
+    c3 = run_git(source, "rev-parse", "HEAD^{commit}")
+    for name in tag_names:
+        run_git(source, "tag", "--annotate", "--message=" + name, name, c3)
+    run_git(source, "tag", "--annotate", "--message=historical", "v0.7.0", c3)
+    run_git(source, "tag", "release-recovery/synthetic-lightweight", c3)
+    before_refs = run_git(source, "for-each-ref", "--format=%(refname) %(objectname)")
+    before_history = run_git(source, "rev-list", "--all")
+    expected_refs = [
+        "refs/tags/" + name + " " + run_git(source, "rev-parse", "refs/tags/" + name)
+        for name in tag_names
+    ]
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+            raise ValueError(message)
+
+    def assert_no_reparse_chain(path: Path, _owner: str, **_kwargs: Any) -> None:
+        assert path.is_absolute()
+        for entry in (path, *path.parents):
+            if entry == tmp_path.parent:
+                break
+            assert not entry.is_symlink()
+
+    def assert_no_reparse_tree(
+        path: Path, owner: str, *, maximum_entries: int
+    ) -> list[tuple[Path, bool]]:
+        assert_no_reparse_chain(path, owner)
+        entries = sorted(path.rglob("*"))
+        assert len(entries) <= maximum_entries
+        for entry in entries:
+            assert not entry.is_symlink()
+            assert not (
+                getattr(entry.lstat(), "st_file_attributes", 0)
+                & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+            )
+        return [(entry, entry.is_dir()) for entry in entries]
+
+    def load_json(path: Path) -> tuple[Any, bytes]:
+        raw = path.read_bytes()
+        return json.loads(raw), raw
+
+    def exclusive_json(path: Path, value: Any) -> None:
+        with path.open("xb") as stream:
+            stream.write((json.dumps(value, indent=2) + "\n").encode("utf-8"))
+
+    dependency_payload = b"# Synthetic dependency inventory admission is stubbed.\n"
+    dependency_sha256 = hashlib.sha256(dependency_payload).hexdigest()
+
+    def dependency_inventory(repository: Path) -> dict[str, Any]:
+        site = repository / ".venv/Lib/site-packages"
+        assert (site / "typing_extensions.py").read_bytes() == dependency_payload
+        assert sorted(entry.name for entry in site.iterdir()) == ["typing_extensions.py"]
+        return {
+            "root": str(site),
+            "file_count": 1,
+            "size_bytes": len(dependency_payload),
+            "sha256": "sha256:" + dependency_sha256,
+        }
+
+    def stage_runtime(
+        observed_source: Path, repository: Path, observed_state: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+        assert observed_source == source and observed_state == source_state
+        site = repository / ".venv/Lib/site-packages"
+        site.mkdir(parents=True)
+        (site / "typing_extensions.py").write_bytes(dependency_payload)
+        copied_exclude = repository / ".git/info/exclude"
+        copied_exclude.parent.mkdir(exist_ok=True)
+        assert not copied_exclude.exists()
+        copied_exclude.write_bytes(exclude.read_bytes())
+        return (
+            dependency_inventory(repository),
+            {
+                "implementation": "authenticated_successor_tool_internal_copy/v1",
+                "source_runtime": str(source / ".venv/Lib/site-packages"),
+                "destination_runtime": str(site),
+                "source_exclude": str(exclude),
+                "destination_exclude": str(copied_exclude),
+            },
+            {
+                "status": "copied_exact_authenticated_bytes",
+                "copied_file_count": 1,
+                "copied_size_bytes": len(dependency_payload),
+                "runtime_sha256": "sha256:" + dependency_sha256,
+                "git_info_exclude": source_state["repository"]["git_info_exclude"],
+            },
+        )
+
+    def utc_text(value: dt.datetime) -> str:
+        return value.isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+    def tag_object_message(repository: Path, oid: str) -> tuple[bytes, dt.datetime, str]:
+        raw = run_git_result(repository, "cat-file", "tag", oid)
+        assert raw.returncode == 0
+        tagger = next(line for line in raw.stdout.splitlines() if line.startswith(b"tagger "))
+        match = re.search(rb" ([0-9]+) [+-][0-9]{4}$", tagger)
+        assert match is not None
+        return raw.stdout, dt.datetime.fromtimestamp(int(match[1]), dt.UTC), "synthetic"
+
+    profiles: list[str] = []
+    armed: list[bool] = []
+    git_identity = {
+        "fixture_scope": "synthetic_host_identity_not_frozen_runtime_attestation",
+        "path": str(git_path),
+        "sha256": hashlib.sha256(git_path.read_bytes()).hexdigest(),
+    }
+    namespace: dict[str, Any] = {
+        "Path": Path,
+        "Mapping": Mapping,
+        "Any": Any,
+        "dt": dt,
+        "os": os,
+        "stat": stat,
+        "re": re,
+        "require": require,
+        "PACKAGE_ID": "synthetic-constructor-test-only",
+        "GOVERNED_PACKAGE_ROOT": package_relative,
+        "SUCCESSOR_BRANCH": branch,
+        "TAG_NAME": tag_name,
+        "A1": expected_refs[0].split(" ")[1],
+        "A2": expected_refs[1].split(" ")[1],
+        "STANDALONE_CLONE_ROOT": destination,
+        "STANDALONE_TEMPLATE_ROOT": template,
+        "STANDALONE_PROVENANCE_FILE": "synthetic-standalone-provenance.json",
+        "FROZEN_GIT_UPLOAD_PACK": upload_pack,
+        "RUNTIME_FILE_COUNT": 1,
+        "RUNTIME_SIZE_BYTES": len(dependency_payload),
+        "RUNTIME_SHA256": dependency_sha256,
+        "REPOSITORY_MAX_TREE_ENTRIES": 4096,
+        "run_git": run_git,
+        "run_git_result": run_git_result,
+        "run_git_input_result": run_git_input_result,
+        "run_frozen_git_external": run_git_result,
+        "assert_no_reparse_chain": assert_no_reparse_chain,
+        "assert_no_reparse_tree": assert_no_reparse_tree,
+        "find_repository": lambda observed: source if observed == package else None,
+        "require_installed_package_path": lambda observed, root: require(
+            observed == root / package_relative, "synthetic package path differs"
+        ),
+        "arm_mutation_transaction": lambda: armed.append(True),
+        "preflight_git_administration": lambda root, **_kwargs: require(
+            (root / ".git").is_dir(), "synthetic Git directory is missing"
+        ),
+        "load_json": load_json,
+        "exclusive_json": exclusive_json,
+        "stage_standalone_runtime_payload": stage_runtime,
+        "validate_standalone_dependency_surface": dependency_inventory,
+        "descriptor": descriptor,
+        "frozen_git_runtime_identity": lambda: git_identity,
+        "attest_process_git_runtime": lambda: git_identity,
+        "utc_text": utc_text,
+        "parse_time": lambda value: dt.datetime.fromisoformat(value.replace("Z", "+00:00")),
+        "tag_object_message": tag_object_message,
+    }
+
+    def validate_package(observed: Path, profile: str) -> dict[str, Any]:
+        profiles.append(profile)
+        if profile == "a3-installed":
+            # Cryptographic/profile admission is outside this integration fixture.
+            assert observed == package
+        else:
+            assert profile == "standalone" and observed == destination / package_relative
+            namespace["validate_standalone_clone_provenance"](destination)
+        return {"status": "passed", "fixture_scope": "synthetic_authority_only"}
+
+    namespace["validate_package"] = validate_package
+    module = ast.Module(
+        body=[
+            ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0),
+            *definitions,
+        ],
+        type_ignores=[],
+    )
+    exec(compile(ast.fix_missing_locations(module), str(actor_path), "exec"), namespace)
+    result = namespace["prepare_standalone_clone"](Namespace(package=package))
+    assert result["status"] == "created_and_validated"
+    assert result["c3_commit"] == c3
+    assert result["a3_object"] == expected_refs[2].split(" ")[1]
+    assert profiles == ["a3-installed", "standalone"] and armed == [True]
+    provenance_path = Path(result["provenance"])
+    provenance_raw = provenance_path.read_bytes()
+    provenance = json.loads(provenance_raw)
+    assert provenance["refs"] == expected_refs
+    assert run_git(
+        destination, "for-each-ref", "--format=%(refname) %(objectname)"
+    ).splitlines() == (expected_refs)
+    assert run_git_result(destination, "symbolic-ref", "--quiet", "HEAD").returncode == 1
+    assert run_git(destination, "rev-list", "--all") == before_history
+    assert not (destination / "Agent_Assure_Implementation_Roadmap.md").exists()
+    assert run_git(source, "for-each-ref", "--format=%(refname) %(objectname)") == before_refs
+
+    # Both the recorded and live ref surfaces are checked by the real validator.
+    extra_ref = "refs/tags/v0.7.0 " + run_git(source, "rev-parse", "refs/tags/v0.7.0")
+    provenance["refs"].append(extra_ref)
+    provenance_path.write_text(json.dumps(provenance), encoding="utf-8")
+    with pytest.raises(ValueError, match="standalone clone ref surface mismatch"):
+        namespace["validate_standalone_clone_provenance"](destination)
+    provenance_path.write_bytes(provenance_raw)
+    run_git(destination, "update-ref", *extra_ref.split(" "))
+    with pytest.raises(ValueError, match="standalone clone ref surface mismatch"):
+        namespace["validate_standalone_clone_provenance"](destination)
+    assert run_git(source, "for-each-ref", "--format=%(refname) %(objectname)") == before_refs
+    assert actor_path.read_bytes() == actor_raw
