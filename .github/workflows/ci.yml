@@ -236,14 +236,17 @@ jobs:
         if: matrix.shard == 'unit-a'
         run: >-
           python -c "from pathlib import Path;
-          source = Path('scripts/v1_s1_governance.py').read_text(encoding='utf-8');
-          compile(source, 'scripts/v1_s1_governance.py', 'exec')"
+          paths = sorted(Path('scripts').glob('v1_*.py'));
+          [compile(path.read_text(encoding='utf-8'), str(path), 'exec') for path in paths]"
       - name: Run branch-coverage shard
         run: >-
           python -m pytest -p no:cacheprovider
           --basetemp "$RUNNER_TEMP/pytest-${{ matrix.shard }}"
           --cov=agent_assure --cov-branch --cov-report= --cov-fail-under=0
           ${{ matrix.test_paths }}
+      - name: Check the public v1 architecture draft without private inputs
+        if: matrix.shard == 'unit-a'
+        run: python scripts/v1_architecture_governance.py check
       - name: Upload exact coverage database
         if: ${{ always() }}
         # actions/upload-artifact@v7
@@ -398,7 +401,7 @@ jobs:
         run: >-
           python -m pytest -q -p no:cacheprovider
           --basetemp "${{ runner.temp }}/pytest-windows-governance-unit"
-          tests/unit/governance/test_v1_s1_governance.py
+          tests/unit/governance
       - name: Require native Windows runtime and historical fail-closed controls
         run: >-
           python -m pytest -q -p no:cacheprovider --fail-on-skip

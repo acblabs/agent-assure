@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/s1-successor-protocol.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "status",
+    "acceptance_generation",
+    "authorization_effect",
+    "predecessor_closure_commit",
+    "predecessor_fixed_tags_preserved",
+    "acceptance_tag_name",
+    "result_topology",
+    "closure_topology",
+    "attestation_location",
+    "acyclic_binding_order",
+    "mandatory_controls",
+    "required_local_check_targets",
+    "required_ci_job_ids",
+    "ci_subject_rule",
+    "old_v4_control_evidence_alone_is_acceptance",
+    "fresh_evidence_requires_prior_signed_successor_authorization",
+    "prior_S1_key_automatically_trusted_for_S2",
+    "acceptance_schema_required_before_execution",
+    "clock_basis",
+    "sshsig_claims_actual_signing_time",
+    "maximum_acceptance_age_days",
+    "finalization_window_seconds",
+    "forecast_rule",
+    "roster_rule",
+    "unresolved_acceptance_items",
+    "required_ci_instances"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-s1-successor-protocol/1"
+    },
+    "status": {
+      "const": "proposed_for_development"
+    },
+    "acceptance_generation": {
+      "const": 3
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "predecessor_closure_commit": {
+      "const": "db5133e09860d292047b963b0fb81b3e7385b7fa"
+    },
+    "predecessor_fixed_tags_preserved": {
+      "const": true
+    },
+    "acceptance_tag_name": {
+      "const": "agent-assure-s1-1.0.0a1-acceptance-v3"
+    },
+    "result_topology": {
+      "const": "proper_nonmerge_descendant_of_C2"
+    },
+    "closure_topology": {
+      "const": "single_nonmerge_direct_child_of_R3"
+    },
+    "attestation_location": {
+      "const": "annotated_fixed_tag_message_points_to_C3"
+    },
+    "acyclic_binding_order": {
+      "const": [
+        "signed_kickoff_before_result",
+        "result_R3",
+        "fresh_subject_bound_check_evidence",
+        "signed_completion_and_bundle_in_C3",
+        "fixed_tag_attestation_binds_C3",
+        "standalone_historical_verification"
+      ]
+    },
+    "mandatory_controls": {
+      "const": [
+        "python311_parse_and_import",
+        "private_input_free_hosted_tests",
+        "native_extension_and_reparse_inventory",
+        "hidden_pytest_config_isolation",
+        "complete_nondeselected_collection",
+        "strict_JSON_types_and_terminal_totals",
+        "frozen_runtime_and_absolute_host_tool_identities",
+        "canonical_v4_local_git_metadata",
+        "truthful_unattested_host_UTC_observations",
+        "immutable_no_clobber_evidence_paths"
+      ]
+    },
+    "required_local_check_targets": {
+      "const": [
+        "make check schema-check",
+        "native_full_suite_v4_capture",
+        "successor_specific_unit_and_integration_checks",
+        "standalone_historical_replay"
+      ]
+    },
+    "required_ci_job_ids": {
+      "const": [
+        "test",
+        "dependency-lower-bounds",
+        "composite-action-smoke",
+        "composite-action-strict-smoke",
+        "coverage-shards",
+        "coverage-gate",
+        "windows-containment",
+        "schema-immutability",
+        "windows-governance",
+        "langgraph-smoke",
+        "adk-smoke",
+        "otel-contract"
+      ]
+    },
+    "ci_subject_rule": {
+      "const": "every_required_matrix_instance_success_at_exact_R3_no_skips_cancel_or_neutral"
+    },
+    "old_v4_control_evidence_alone_is_acceptance": {
+      "const": false
+    },
+    "fresh_evidence_requires_prior_signed_successor_authorization": {
+      "const": true
+    },
+    "prior_S1_key_automatically_trusted_for_S2": {
+      "const": false
+    },
+    "acceptance_schema_required_before_execution": {
+      "const": true
+    },
+    "clock_basis": {
+      "const": "maintainer_host_utc_externally_unattested"
+    },
+    "sshsig_claims_actual_signing_time": {
+      "const": false
+    },
+    "maximum_acceptance_age_days": {
+      "const": 30
+    },
+    "finalization_window_seconds": {
+      "const": 3600
+    },
+    "forecast_rule": {
+      "const": "new_subject_bound_inventory_and_dispatch_scope_rebaseline_before_S2_commitment"
+    },
+    "roster_rule": {
+      "const": "explicit_human_competence_scope_capacity_conflicts_and_key_scope_extension"
+    },
+    "unresolved_acceptance_items": {
+      "const": [
+        "prospective_kickoff_signature",
+        "frozen_runtime_capture_on_committed_R3",
+        "complete_local_and_hosted_check_graph",
+        "successor_receipt_import_and_finalizer",
+        "new_fixed_tag_and_historical_replay",
+        "S2_scoped_key_and_roster_acceptance",
+        "fresh_forecast_acceptance"
+      ]
+    },
+    "required_ci_instances": {
+      "const": [
+        {
+          "job_id": "test",
+          "matrix": {
+            "python-version": "3.11"
+          }
+        },
+        {
+          "job_id": "test",
+          "matrix": {
+            "python-version": "3.12"
+          }
+        },
+        {
+          "job_id": "test",
+          "matrix": {
+            "python-version": "3.13"
+          }
+        },
+        {
+          "job_id": "test",
+          "matrix": {
+            "python-version": "3.14"
+          }
+        },
+        {
+          "job_id": "dependency-lower-bounds",
+          "matrix": {
+            "python-version": "3.11"
+          }
+        },
+        {
+          "job_id": "dependency-lower-bounds",
+          "matrix": {
+            "python-version": "3.14"
+          }
+        },
+        {
+          "job_id": "composite-action-smoke",
+          "matrix": {}
+        },
+        {
+          "job_id": "composite-action-strict-smoke",
+          "matrix": {}
+        },
+        {
+          "job_id": "coverage-shards",
+          "matrix": {
+            "shard": "unit-a"
+          }
+        },
+        {
+          "job_id": "coverage-shards",
+          "matrix": {
+            "shard": "unit-b1"
+          }
+        },
+        {
+          "job_id": "coverage-shards",
+          "matrix": {
+            "shard": "unit-b2"
+          }
+        },
+        {
+          "job_id": "coverage-shards",
+          "matrix": {
+            "shard": "unit-top"
+          }
+        },
+        {
+          "job_id": "coverage-shards",
+          "matrix": {
+            "shard": "integration"
+          }
+        },
+        {
+          "job_id": "coverage-gate",
+          "matrix": {}
+        },
+        {
+          "job_id": "windows-containment",
+          "matrix": {
+            "python-version": "3.11"
+          }
+        },
+        {
+          "job_id": "windows-containment",
+          "matrix": {
+            "python-version": "3.14"
+          }
+        },
+        {
+          "job_id": "schema-immutability",
+          "matrix": {}
+        },
+        {
+          "job_id": "windows-governance",
+          "matrix": {}
+        },
+        {
+          "job_id": "langgraph-smoke",
+          "matrix": {}
+        },
+        {
+          "job_id": "adk-smoke",
+          "matrix": {}
+        },
+        {
+          "job_id": "otel-contract",
+          "matrix": {}
+        }
+      ]
+    }
+  }
+}

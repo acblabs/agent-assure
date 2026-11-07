@@ -8306,6 +8306,7 @@ def test_every_parser_handler_fails_closed_without_the_frozen_runtime() -> None:
         "forecast_v2_signature_plan",
         "generate_draft",
         "post_v2_control_suite_capture",
+        "successor_host_command",
     }
     for handler in handlers:
         assert handler.__dict__.get("__requires_frozen_runtime__") is True

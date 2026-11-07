@@ -1,0 +1,40 @@
+{
+  "format": "agent-assure-v1-support-policy-proposal/1",
+  "policy_id": "POLICY-V1-SUPPORT",
+  "version": "1.0.0-proposal",
+  "status": "proposed_for_development",
+  "authorization_effect": "none",
+  "supported_line": "0.7.x",
+  "baseline_release": "0.7.0",
+  "policy_owner_role": "release_policy_owner",
+  "proposed_development_acceptor": "acblabs",
+  "human_acceptance": null,
+  "signature": null,
+  "competence_acceptance": null,
+  "critical_acknowledgment_target_hours": 24,
+  "high_acknowledgment_target_hours": 72,
+  "critical_remediation_target_days": 7,
+  "high_remediation_target_days": 30,
+  "targets_are_operational_commitments": false,
+  "target_basis": "unaccepted_capacity_unvalidated_policy_proposal",
+  "support_end_utc": null,
+  "minimum_overlap_days": 90,
+  "overlap_begins": "accepted_stable_v1_GA_and_signed_support_successor_policy",
+  "eol_rule": "no_implicit_EOL_or_support_gap",
+  "emergency_branch_pattern": "maintenance/0.7.x/<incident-id>",
+  "emergency_base": "exact_supported_release_commit",
+  "maintenance_profile": "maintenance-release/v1",
+  "required_controls": [
+    "exact_candidate_bytes",
+    "dependency_lock_and_SBOM",
+    "independent_release_review",
+    "channel_inventory_verification",
+    "authenticated_activation_readback"
+  ],
+  "preview_channels": [
+    "github",
+    "production_pypi"
+  ],
+  "testpypi_role": "optional_preflight_only",
+  "mixed_index_allowed": false
+}

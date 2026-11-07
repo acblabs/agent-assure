@@ -23,6 +23,11 @@ a separately authorized successor result and closure capture the repaired
 controls, the complete required check graph, and new signed evidence. The tag
 `agent-assure-s1-1.0.0a1-acceptance-v2` must never be moved or replaced.
 
+The staged [S1 successor and Sprint 2 architecture review package](sprint2/README.md)
+defines new proposal records and development validation without changing this
+historical acceptance state. Its checks do not supply a human signature or
+make S2 dispatch ready.
+
 ## Record set
 
 - `approval-roster.json` records all 38 roadmap roles. Only `technical_lead` and

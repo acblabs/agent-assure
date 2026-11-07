@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:agent-assure:governance:s1-successor-acceptance:3",
+  "title": "S1 successor generation-3 development acceptance receipt",
+  "$comment": "Closed planning-governance schema. Schema conformance is not cryptographic, Git, CI, authority, freshness, or historical-closure verification. The receipt is stored in C3 and must not contain C3's own commit identity; the external fixed tag binds C3 and exact receipt bytes. Unsigned human signing templates are not accepted receipts.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": "agent-assure-s1-successor-acceptance/3"},
+    "acceptance_generation": {"type": "integer", "const": 3},
+    "status": {"enum": ["pending_human_review", "accepted_for_development"]},
+    "authorization_effect": {"const": "development_governance_only"},
+    "predecessor_closure_commit": {"const": "db5133e09860d292047b963b0fb81b3e7385b7fa"},
+    "result_commit": {"$ref": "#/$defs/oid"},
+    "result_parent_commit": {"$ref": "#/$defs/oid"},
+    "scope_digest": {"$ref": "#/$defs/digest"},
+    "kickoff_claim_digest": {"$ref": "#/$defs/digest"},
+    "kickoff_evidence_digest": {"$ref": "#/$defs/digest"},
+    "result_evidence_digest": {"$ref": "#/$defs/digest"},
+    "native_suite_evidence_digest": {"$ref": "#/$defs/digest"},
+    "local_checks_evidence_digest": {"$ref": "#/$defs/digest"},
+    "hosted_ci_evidence_digest": {"$ref": "#/$defs/digest"},
+    "roster_evidence_digest": {"$ref": "#/$defs/digest"},
+    "forecast_evidence_digest": {"$ref": "#/$defs/digest"},
+    "signing_key_evidence_digest": {"$ref": "#/$defs/digest"},
+    "issued_at_utc": {"$ref": "#/$defs/time"},
+    "valid_until_utc": {"$ref": "#/$defs/time"},
+    "clock_basis": {"const": "maintainer_host_utc_externally_unattested"},
+    "actual_signature_time_claimed": {"const": false},
+    "receipt_digest": {"$ref": "#/$defs/digest"},
+    "signature_envelope": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "profile": {"const": "openssh-sshsig-ed25519/v1"},
+            "namespace": {"const": "agent-assure-governance-v1"},
+            "signer_person_id": {"$ref": "#/$defs/text"},
+            "key_id": {"$ref": "#/$defs/text"},
+            "signature": {"$ref": "#/$defs/text"}
+          },
+          "required": ["profile", "namespace", "signer_person_id", "key_id", "signature"]
+        }
+      ]
+    }
+  },
+  "required": [
+    "format", "acceptance_generation", "status", "authorization_effect",
+    "predecessor_closure_commit", "result_commit", "result_parent_commit",
+    "scope_digest", "kickoff_claim_digest", "kickoff_evidence_digest",
+    "result_evidence_digest", "native_suite_evidence_digest", "local_checks_evidence_digest",
+    "hosted_ci_evidence_digest", "roster_evidence_digest", "forecast_evidence_digest",
+    "signing_key_evidence_digest", "issued_at_utc", "valid_until_utc", "clock_basis",
+    "actual_signature_time_claimed", "receipt_digest", "signature_envelope"
+  ],
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "pending_human_review"}}, "required": ["status"]},
+      "then": {"properties": {"signature_envelope": {"type": "null"}}}
+    },
+    {
+      "if": {"properties": {"status": {"const": "accepted_for_development"}}, "required": ["status"]},
+      "then": {"properties": {"signature_envelope": {"type": "object"}}}
+    }
+  ],
+  "$defs": {
+    "kickoff_claim": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "format": {"const": "agent-assure-s1-successor-kickoff-claim/3"},
+        "acceptance_generation": {"type": "integer", "const": 3},
+        "receipt_purpose": {"const": "kickoff_authorization"},
+        "intended_effect": {"const": "bounded_corrective_development_only"},
+        "scope": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "predecessor_closure_commit": {"const": "db5133e09860d292047b963b0fb81b3e7385b7fa"},
+            "base_commit": {"$ref": "#/$defs/oid"},
+            "allowed_paths": {"type": "array", "minItems": 1, "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "minLength": 1, "maxLength": 512}},
+            "work_limits": {
+              "type": "object", "additionalProperties": false,
+              "properties": {
+                "maximum_changed_files": {"type": "integer", "minimum": 1, "maximum": 256},
+                "maximum_diff_lines": {"type": "integer", "minimum": 1},
+                "maximum_wall_clock_seconds": {"type": "integer", "minimum": 1}
+              },
+              "required": ["maximum_changed_files", "maximum_diff_lines", "maximum_wall_clock_seconds"]
+            }
+          },
+          "required": ["predecessor_closure_commit", "base_commit", "allowed_paths", "work_limits"]
+        },
+        "scope_digest": {"$ref": "#/$defs/digest"},
+        "policy_digest": {"$ref": "#/$defs/digest"},
+        "schema_digest": {"$ref": "#/$defs/digest"},
+        "requested_signer_person_id": {"$ref": "#/$defs/text"},
+        "requested_signer_role": {"const": "repository_maintainer"},
+        "required_competence_scope": {"const": "planning_governance:s1_successor"},
+        "permitted_operations": {"const": ["corrective_development", "governance_validation", "sprint2_design_preparation"]},
+        "exclusions": {"const": ["no_method_admission", "no_independent_review_claim", "no_runtime_deployment_or_release_authorization", "no_retrospective_authorization"]},
+        "signature_time_capability": {"const": "none"},
+        "trusted_import_observation_required_before_work": {"const": true}
+      },
+      "required": ["format", "acceptance_generation", "receipt_purpose", "intended_effect", "scope", "scope_digest", "policy_digest", "schema_digest", "requested_signer_person_id", "requested_signer_role", "required_competence_scope", "permitted_operations", "exclusions", "signature_time_capability", "trusted_import_observation_required_before_work"]
+    },
+    "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])", "maxLength": 71},
+    "oid": {"type": "string", "pattern": "^[0-9a-f]{40}(?![\\s\\S])", "maxLength": 40},
+    "text": {"type": "string", "minLength": 1, "maxLength": 4096},
+    "time": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z(?![\\s\\S])", "maxLength": 27}
+  }
+}

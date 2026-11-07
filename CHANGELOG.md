@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- Prepared six v1 architecture decisions, proposed support and
+  schema-first wire contracts, and a separate S1 successor acceptance protocol.
+  Added strict, private-input-free draft validation and immutable review
+  snapshots. Draft integrity grants no acceptance or dispatch authority;
+  successor signatures, frozen-host evidence, hosted CI, scoped competence,
+  forecast acceptance and independent qualification remain explicit gates.
+
+- Implemented the scoped successor host with authenticated bootstrap loading,
+  bounded local checks, authenticated hosted-CI read-back, receipt-only Git
+  closure creation, fixed-tag publication, standalone replay, and exact-byte
+  architecture acceptance. Added a complete operator runbook, real Git/SSHSIG
+  regression coverage and strict forecast reconciliation. Human signatures and
+  actual clean-host execution remain required for development acceptance.
+
+- Preserved the delivery forecast's external planning contract through an
+  explicit successor projection with frozen method/catalog identities, exact
+  occurrence and scenario reconciliation, bounded validity, and separate
+  producer and maintainer signature bindings.
+
 - Hardened the local S1 governance verifier after adversarial review. New
   post-result suite captures use a versioned evidence policy that removes the
   repository root from the initial Python import path, enforces an exact

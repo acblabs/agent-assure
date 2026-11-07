@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/support-policy.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "policy_id",
+    "version",
+    "status",
+    "authorization_effect",
+    "supported_line",
+    "baseline_release",
+    "policy_owner_role",
+    "proposed_development_acceptor",
+    "human_acceptance",
+    "signature",
+    "competence_acceptance",
+    "critical_acknowledgment_target_hours",
+    "high_acknowledgment_target_hours",
+    "critical_remediation_target_days",
+    "high_remediation_target_days",
+    "targets_are_operational_commitments",
+    "target_basis",
+    "support_end_utc",
+    "minimum_overlap_days",
+    "overlap_begins",
+    "eol_rule",
+    "emergency_branch_pattern",
+    "emergency_base",
+    "maintenance_profile",
+    "required_controls",
+    "preview_channels",
+    "testpypi_role",
+    "mixed_index_allowed"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-v1-support-policy-proposal/1"
+    },
+    "policy_id": {
+      "const": "POLICY-V1-SUPPORT"
+    },
+    "version": {
+      "const": "1.0.0-proposal"
+    },
+    "status": {
+      "const": "proposed_for_development"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "supported_line": {
+      "const": "0.7.x"
+    },
+    "baseline_release": {
+      "const": "0.7.0"
+    },
+    "policy_owner_role": {
+      "const": "release_policy_owner"
+    },
+    "proposed_development_acceptor": {
+      "const": "acblabs"
+    },
+    "human_acceptance": {
+      "const": null
+    },
+    "signature": {
+      "const": null
+    },
+    "competence_acceptance": {
+      "const": null
+    },
+    "critical_acknowledgment_target_hours": {
+      "const": 24
+    },
+    "high_acknowledgment_target_hours": {
+      "const": 72
+    },
+    "critical_remediation_target_days": {
+      "const": 7
+    },
+    "high_remediation_target_days": {
+      "const": 30
+    },
+    "targets_are_operational_commitments": {
+      "const": false
+    },
+    "target_basis": {
+      "const": "unaccepted_capacity_unvalidated_policy_proposal"
+    },
+    "support_end_utc": {
+      "const": null
+    },
+    "minimum_overlap_days": {
+      "const": 90
+    },
+    "overlap_begins": {
+      "const": "accepted_stable_v1_GA_and_signed_support_successor_policy"
+    },
+    "eol_rule": {
+      "const": "no_implicit_EOL_or_support_gap"
+    },
+    "emergency_branch_pattern": {
+      "const": "maintenance/0.7.x/<incident-id>"
+    },
+    "emergency_base": {
+      "const": "exact_supported_release_commit"
+    },
+    "maintenance_profile": {
+      "const": "maintenance-release/v1"
+    },
+    "required_controls": {
+      "const": [
+        "exact_candidate_bytes",
+        "dependency_lock_and_SBOM",
+        "independent_release_review",
+        "channel_inventory_verification",
+        "authenticated_activation_readback"
+      ]
+    },
+    "preview_channels": {
+      "const": [
+        "github",
+        "production_pypi"
+      ]
+    },
+    "testpypi_role": {
+      "const": "optional_preflight_only"
+    },
+    "mixed_index_allowed": {
+      "const": false
+    }
+  }
+}

@@ -1383,7 +1383,9 @@ def _post_r2_delete_readonly_file_by_handle(
     class FileDispositionInfoEx(ctypes.Structure):
         _fields_ = [("flags", wintypes.DWORD)]
 
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    # This function is Windows-only; Linux type stubs omit these native APIs.
+    windows_api = cast(Any, ctypes)
+    kernel32 = windows_api.WinDLL("kernel32", use_last_error=True)
     create_file = kernel32.CreateFileW
     create_file.argtypes = [
         wintypes.LPCWSTR,
@@ -1436,7 +1438,7 @@ def _post_r2_delete_readonly_file_by_handle(
     set_file_information.restype = wintypes.BOOL
 
     def last_error(operation: str, path: Path) -> GovernanceError:
-        cause = ctypes.WinError(ctypes.get_last_error())
+        cause = windows_api.WinError(windows_api.get_last_error())
         failure = GovernanceError(f"post-R2 cleanup could not {operation}: {path}")
         failure.__cause__ = cause
         return failure
@@ -19605,9 +19607,225 @@ def acceptance_preflight(args: argparse.Namespace) -> int:
     return 0
 
 
+_SUCCESSOR_MODULE_FILES: Final = (
+    ("agent_assure.io_limits", "src/agent_assure/io_limits.py"),
+    ("agent_assure.rooted_io", "src/agent_assure/rooted_io.py"),
+    ("scripts.v1_s1_successor", "scripts/v1_s1_successor.py"),
+    ("scripts.v1_successor_forecast", "scripts/v1_successor_forecast.py"),
+    ("scripts.v1_successor_io", "scripts/v1_successor_io.py"),
+    ("scripts.v1_successor_ci", "scripts/v1_successor_ci.py"),
+    ("scripts.v1_successor_checks", "scripts/v1_successor_checks.py"),
+    ("scripts.v1_successor_host", "scripts/v1_successor_host.py"),
+)
+
+
+def _successor_read_input(root: Path, relative: str) -> bytes:
+    """Bound and identify bytes before cryptographic bootstrap or compilation."""
+    path = _resolve_repository_path_without_links(root, relative, owner="successor bootstrap input")
+    before = path.lstat()
+    if not stat.S_ISREG(before.st_mode) or before.st_size > 4 * 1024 * 1024:
+        raise GovernanceError("successor bootstrap requires bounded regular files")
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags)
+    try:
+        opened = os.fstat(descriptor)
+        if (opened.st_dev, opened.st_ino, opened.st_size) != (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+        ):
+            raise GovernanceError("successor bootstrap file changed before opening")
+        with os.fdopen(os.dup(descriptor), "rb") as stream:
+            payload = stream.read(4 * 1024 * 1024 + 1)
+        after = os.fstat(descriptor)
+        current = path.lstat()
+        if (
+            len(payload) != opened.st_size
+            or len(payload) > 4 * 1024 * 1024
+            or (
+                opened.st_dev,
+                opened.st_ino,
+                opened.st_size,
+                opened.st_mtime_ns,
+                opened.st_ctime_ns,
+            )
+            != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)
+            or (current.st_dev, current.st_ino, current.st_size, current.st_mtime_ns)
+            != (opened.st_dev, opened.st_ino, opened.st_size, opened.st_mtime_ns)
+            or getattr(current, "st_file_attributes", 0) & 0x400
+        ):
+            raise GovernanceError("successor bootstrap file changed during bounded read")
+        return payload
+    finally:
+        os.close(descriptor)
+
+
+def _successor_load_modules(root: Path, document: Mapping[str, Any]) -> ModuleType:
+    """Authenticate ALL fixed local modules before executing any of them.
+
+    External review of the launcher and this entrypoint is still the initial
+    trust root. Self-comparison here is defense against substitution, not an
+    independent authentication of already executing Python.
+    """
+    if set(document) != {"claim", "signature_envelope"}:
+        raise GovernanceError("successor bootstrap has unexpected fields")
+    claim = _as_object(document.get("claim"), owner="successor bootstrap claim")
+    envelope = _as_object(document.get("signature_envelope"), owner="successor root signature")
+    if set(envelope) != {"profile", "namespace", "signer_person_id", "key_id", "signature"}:
+        raise GovernanceError("successor bootstrap signature has unexpected fields")
+    if (
+        claim.get("format") != "agent-assure-s1-successor-host-bootstrap/3"
+        or envelope.get("profile") != "openssh-sshsig-ed25519/v1"
+        or envelope.get("namespace") != SIGNATURE_NAMESPACE
+        or envelope.get("signer_person_id") != "acblabs"
+        or envelope.get("key_id") != MAINTAINER_KEY_FINGERPRINT
+    ):
+        raise GovernanceError("successor bootstrap root authority differs")
+    _verify_sshsig(
+        signature_base64=_required_string(envelope, "signature"),
+        payload=b"agent-assure:s1-successor-host-bootstrap/v3\x00" + canonical_bytes(claim),
+        signer_person_id="acblabs",
+        public_key=MAINTAINER_PUBLIC_KEY,
+    )
+    trust = _as_object(claim.get("trust"), owner="successor trust scope")
+    observed_now = datetime.now(UTC)
+    valid_from = _parse_utc(
+        _required_string(trust, "valid_from_utc"), owner="successor scope start"
+    )
+    valid_until = _parse_utc(
+        _required_string(trust, "valid_until_utc"), owner="successor scope expiry"
+    )
+    if (
+        not valid_from <= observed_now < valid_until
+        or valid_until - valid_from > timedelta(days=30)
+        or trust.get("person_id") != "acblabs"
+        or trust.get("public_key") != MAINTAINER_PUBLIC_KEY
+        or trust.get("key_id") != MAINTAINER_KEY_FINGERPRINT
+        or trust.get("mode") != "maintainer_development"
+        or trust.get("independence") != "NO_INDEPENDENT_REVIEW"
+        or not {"planning_governance:s1_successor", "schema_compatibility"}
+        <= set(_required_string_array(trust, "competence_scopes"))
+    ):
+        raise GovernanceError(
+            "successor bootstrap trust is expired, future, or insufficiently scoped"
+        )
+    fixed = {path for _, path in _SUCCESSOR_MODULE_FILES} | {
+        "scripts/v1_s1_governance.py",
+        "scripts/v1_s1_governance.ps1",
+        "docs/governance/v1/sprint2/s1-successor-acceptance.schema.json",
+        "docs/governance/v1/sprint2/s1-successor-host.schema.json",
+        "docs/governance/v1/sprint2/delivery-forecast.schema.json",
+        *(
+            "docs/governance/v1/delivery-forecast." + name
+            for name in (
+                "aggregation-registry.json",
+                "aggregation-registry.schema.json",
+                "estimation-catalog.json",
+                "estimation-catalog.schema.json",
+            )
+        ),
+        "scripts/v1_architecture_governance.py",
+        *(
+            f"docs/governance/v1/sprint2/{name}.schema.json"
+            for name in (
+                "architecture-package",
+                "support-policy",
+                "s1-successor-protocol",
+                "wire-contract-inventory",
+                "occurrence-graph-expectations",
+            )
+        ),
+    }
+    rows = _as_array(
+        claim.get("implementation_inventory"), owner="successor implementation inventory"
+    )
+    if len(rows) != len(fixed):
+        raise GovernanceError("successor bootstrap does not bind every fixed implementation file")
+    payloads: dict[str, bytes] = {}
+    for value in rows:
+        row = _as_object(value, owner="successor implementation binding")
+        if set(row) != {"path", "size_bytes", "sha256"}:
+            raise GovernanceError("malformed successor implementation binding")
+        path = _required_string(row, "path")
+        if path not in fixed or path in payloads:
+            raise GovernanceError(
+                "successor implementation inventory is duplicated or unrecognized"
+            )
+        payload = _successor_read_input(root, path)
+        if (
+            type(row["size_bytes"]) is not int
+            or len(payload) != row["size_bytes"]
+            or raw_digest(payload) != row["sha256"]
+        ):
+            raise GovernanceError("successor implementation byte identity changed")
+        payloads[path] = payload
+    for name in ("scripts", "agent_assure"):
+        if name in sys.modules:
+            raise GovernanceError("successor local namespace was imported before authentication")
+        namespace = ModuleType(name)
+        namespace.__path__ = []
+        sys.modules[name] = namespace
+    # New helpers share exactly this authenticated legacy module, not a second
+    # import of the entrypoint from an expanded repository search path.
+    sys.modules["scripts.v1_s1_governance"] = sys.modules[__name__]
+    for name, path in _SUCCESSOR_MODULE_FILES:
+        module = ModuleType(name)
+        module.__file__ = str(root / path)
+        module.__package__ = name.rpartition(".")[0]
+        sys.modules[name] = module
+        parent_name, _, leaf = name.rpartition(".")
+        setattr(sys.modules[parent_name], leaf, module)
+        exec(compile(payloads[path], str(root / path), "exec", dont_inherit=True), module.__dict__)
+    return sys.modules["scripts.v1_successor_host"]
+
+
+@_require_frozen_runtime
+def successor_host_command(args: argparse.Namespace) -> int:
+    root = Path(cast(str, args.repository_root)).resolve()
+    document = _as_object(
+        strict_json_loads(_successor_read_input(root, args.bootstrap).decode("utf-8")),
+        owner="successor bootstrap",
+    )
+    host = _successor_load_modules(root, document)
+    request = _as_object(
+        strict_json_loads(_successor_read_input(root, args.request).decode("utf-8")),
+        owner="successor host request",
+    )
+    try:
+        return int(
+            host.run_frozen(
+                sys.modules[__name__],
+                root,
+                document,
+                request,
+                ci_token_environment=args.ci_token_environment,
+            )
+        )
+    except (ValueError, TypeError) as exc:
+        raise GovernanceError(f"successor host rejected operation: {type(exc).__name__}") from exc
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    successor_host = subparsers.add_parser(
+        "successor", help="Run authenticated successor/S2 operations after explicit root signature"
+    )
+    successor_host.add_argument("--repository-root", default=".")
+    successor_host.add_argument(
+        "--bootstrap",
+        required=True,
+        help="Root-relative signed bootstrap document; never a private key",
+    )
+    successor_host.add_argument(
+        "--request", required=True, help="Root-relative closed operation request"
+    )
+    successor_host.add_argument(
+        "--ci-token-environment",
+        default=None,
+        help="Explicit token environment variable for authenticated CI read-back only",
+    )
+    successor_host.set_defaults(handler=successor_host_command)
     post_v2_control_suite = subparsers.add_parser(
         "post-v2-control-suite-capture",
         help="Capture control-only full-suite evidence at a clean non-merge post-C2 commit",

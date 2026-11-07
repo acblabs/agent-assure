@@ -1,0 +1,393 @@
+{
+  "format": "agent-assure-v1-architecture-package/1",
+  "spec_revision": "6.5",
+  "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "sprint": "S2",
+  "release": "1.0.0a2",
+  "maturity": "architecture-frozen-proposal",
+  "artifact_kind": "governance-bundle",
+  "status": "proposed_for_development",
+  "authorization_effect": "none",
+  "package_version": null,
+  "distribution_channels": [],
+  "approval_mode": "maintainer_development",
+  "independent_review_claimed": false,
+  "predecessor_closure_commit": "db5133e09860d292047b963b0fb81b3e7385b7fa",
+  "decisions": [
+    {
+      "ticket_id": "V1-BASE-02",
+      "decision_id": "ADR-V1-EVIDENCE",
+      "artifact": {
+        "path": "docs/adr/0017-v1-evidence-temporal-semantics.md",
+        "size_bytes": 26151,
+        "sha256": "sha256:6ea60f91d617c7c6993bda4f94b1a1844d717deb9d111a89527683aa2f222ddf"
+      },
+      "owner_role": "assurance_lead",
+      "reviewer_role": "telemetry_security_reviewer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    },
+    {
+      "ticket_id": "V1-BASE-03",
+      "decision_id": "ADR-V1-AUTH",
+      "artifact": {
+        "path": "docs/adr/0018-v1-verifier-authorization.md",
+        "size_bytes": 21629,
+        "sha256": "sha256:a77a74a060ebaf830aa67bb393420bb2a30514dfcca52ce2d544115ceb2dfbb6"
+      },
+      "owner_role": "release_policy_owner",
+      "reviewer_role": "security_reviewer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    },
+    {
+      "ticket_id": "V1-BASE-04",
+      "decision_id": "ADR-V1-NUM-STAT",
+      "artifact": {
+        "path": "docs/adr/0019-v1-numerical-statistical-contracts.md",
+        "size_bytes": 32783,
+        "sha256": "sha256:3e7e85501ee3ffd1002b1062b846f42aca5db15f535edfb17f433cdda02babd1"
+      },
+      "owner_role": "statistical_lead",
+      "reviewer_role": "independent_method_reviewer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    },
+    {
+      "ticket_id": "V1-BASE-05",
+      "decision_id": "ADR-V1-IO",
+      "artifact": {
+        "path": "docs/adr/0020-v1-bounded-artifact-io.md",
+        "size_bytes": 14710,
+        "sha256": "sha256:ceb4d41fc437dd20230a002b30f3883da0494fa1e29d6de73a6ae0f16ff7639a"
+      },
+      "owner_role": "platform_lead",
+      "reviewer_role": "security_reliability_reviewer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    },
+    {
+      "ticket_id": "V1-BASE-06",
+      "decision_id": "ADR-V1-RELEASE-REGISTRY",
+      "artifact": {
+        "path": "docs/adr/0021-v1-release-registry-dispatch.md",
+        "size_bytes": 10938,
+        "sha256": "sha256:805d6a0b991b094c0923ce28ad742e0d3fbe60cdfecfbb1bf1f04814fbe42be2"
+      },
+      "owner_role": "technical_lead",
+      "reviewer_role": "security_reviewer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    },
+    {
+      "ticket_id": "V1-BASE-09",
+      "decision_id": "ADR-V1-SCHEMA",
+      "artifact": {
+        "path": "docs/adr/0022-v1-schema-wire-contracts.md",
+        "size_bytes": 28772,
+        "sha256": "sha256:96996929ca648693ee45c98ee770f97fca6dc3856ed9f2d9d5313044c382809a"
+      },
+      "owner_role": "technical_lead",
+      "reviewer_role": "repository_maintainer",
+      "dependencies": [
+        "V1-BOOT-01",
+        "V1-BASE-01"
+      ],
+      "start_receipt": "drafting_authorization",
+      "completion_receipt": "development_design_acceptance",
+      "status": "proposed_for_development"
+    }
+  ],
+  "work_packages": [
+    "BASE-06R",
+    "BASE-06M",
+    "BASE-06D",
+    "BASE-06E"
+  ],
+  "supplementary_artifacts": [
+    {
+      "path": "docs/governance/v1/sprint2/support-policy.json",
+      "size_bytes": 1422,
+      "sha256": "sha256:425869cc4016f3eef166698248766e429b6267414dfa4645852757248158909d"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/wire-contract-inventory.json",
+      "size_bytes": 8673,
+      "sha256": "sha256:10b3255ce2215360fa1e4918b8f9d179893e479c055fc95155e1b70816a89f7f"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/s1-successor-protocol.json",
+      "size_bytes": 4748,
+      "sha256": "sha256:91b64af61277ddd4865e3fcdb95c9902f561574c727a60fa1145a1c4d7e3d271"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/occurrence-graph-expectations.json",
+      "size_bytes": 2786,
+      "sha256": "sha256:14fe1a8bd64cdb43ee8f81bf3dffa394743f222644f88eb1d75ed04f905ff477"
+    }
+  ],
+  "historical_artifacts": [
+    {
+      "path": "docs/governance/v1/approval-roster.json",
+      "size_bytes": 10036,
+      "sha256": "sha256:ea439f5832bec5af63d5b6be2a3d9118964671bfdb91f0fe660c485635c4a751"
+    },
+    {
+      "path": "docs/governance/v1/maintainer-signing-key.json",
+      "size_bytes": 1207,
+      "sha256": "sha256:12f6925ae7327050928861fee8ad02664b12614ef29f5e1b36d4c4783b4ae0e3"
+    },
+    {
+      "path": "docs/governance/v1/baseline-observations.json",
+      "size_bytes": 7888,
+      "sha256": "sha256:5d043a1e7e9f7734c1bfe9d55b37ba1cfb3b0a6bb7a48044b795096ef2c57985"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization-v1-boot-01.json",
+      "size_bytes": 3048,
+      "sha256": "sha256:b8f3cff124ff422110e94263f1fbcf448870418734c6847c1ac5c28bd9184e16"
+    },
+    {
+      "path": "docs/governance/v1/kickoff-authorization-v1-base-01.json",
+      "size_bytes": 3092,
+      "sha256": "sha256:c7b4e5ae96b29d1185d7a1115885e8971d070a55551fa6e992fc733f225b5f82"
+    },
+    {
+      "path": "docs/governance/v1/corrective-kickoff-authorization.json",
+      "size_bytes": 9555,
+      "sha256": "sha256:6976180e6eb59a6d0761fc6bda62bdbdb42c73f48ff41993382e349db76c09c5"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.json",
+      "size_bytes": 248536,
+      "sha256": "sha256:1ed3756302a133d0a574806643c7bd55441c687938a0df1a82387764cdec826d"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.authoring-ledger.json",
+      "size_bytes": 1052627,
+      "sha256": "sha256:93506b106041e4ae09fb8c857745bd07a76557a48b4aea7900960d5ab8681823"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+      "size_bytes": 20010,
+      "sha256": "sha256:64dfa1bd30a3da051b92bfc2a00a5581ee8e71a7aa2deaa4360670d08bd1f94d"
+    },
+    {
+      "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+      "size_bytes": 3366,
+      "sha256": "sha256:687622f6edf8bedc16d0b14a3126805cccdfcd73dd563f4f5ce445c128afd454"
+    },
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-base-01.json",
+      "size_bytes": 19282,
+      "sha256": "sha256:1ea21efefcb32d615734f84d0a56b63d373bdaa829018db9523ac9d195b5770d"
+    },
+    {
+      "path": "docs/governance/v1/completion-receipt-v1-boot-01.json",
+      "size_bytes": 30751,
+      "sha256": "sha256:45330151f43b1ed7d8ee993d1e5349f8577721b45d1d663b4ff6b4ec4bf3901d"
+    },
+    {
+      "path": "docs/governance/v1/governance-bundle.json",
+      "size_bytes": 29809,
+      "sha256": "sha256:032f847449998ad994671f7b221a97c0c1b6ace2595c97f232faa8c524c98818"
+    }
+  ],
+  "tooling_artifacts": [
+    {
+      "path": "scripts/v1_architecture_governance.py",
+      "size_bytes": 29302,
+      "sha256": "sha256:cf031b85954a507692bc0fd384e8b6402c3a5d0fe055bc0c68bf216a5fd607a3"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_architecture_governance.py",
+      "size_bytes": 27683,
+      "sha256": "sha256:9c3ffa1bdbf6ab7fdc786c54ff4bdf0c803ec54ee2c92fcb60f7852a5d2cedee"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/architecture-package.schema.json",
+      "size_bytes": 6256,
+      "sha256": "sha256:b3bed7dc5fda03cc4a89c88e482a71082ed841de7c8cdd954345a1c37298fdcc"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/support-policy.schema.json",
+      "size_bytes": 3195,
+      "sha256": "sha256:437162d8ac776adaeaf04eba8729f7662f494fa2549a22f1fdf4fe0b2a2eed54"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/s1-successor-protocol.schema.json",
+      "size_bytes": 7161,
+      "sha256": "sha256:3b41bbf5e023ddcf574c52f6aa5c9fd26a162cb1bf4988c0ba460277ed7440a5"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/wire-contract-inventory.schema.json",
+      "size_bytes": 11779,
+      "sha256": "sha256:e7f25c8a38c92cfde6e92f3a3fe0e07080af00be73ed22b242705d3d37f49fd6"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/occurrence-graph-expectations.schema.json",
+      "size_bytes": 3973,
+      "sha256": "sha256:c7b81105e9895587294a33696826ce27b099173a0f70bec118051de99302e832"
+    },
+    {
+      "path": "scripts/v1_s1_successor.py",
+      "size_bytes": 46982,
+      "sha256": "sha256:888e76be6ddfc21b216da8e930102b3a7c91f0921a51e07d749b980892d7ed52"
+    },
+    {
+      "path": "scripts/v1_s1_governance.py",
+      "size_bytes": 866526,
+      "sha256": "sha256:420546b238e775b6739b45e059e2857a56b4053a4a6bcef4cfc2d352d4162f0b"
+    },
+    {
+      "path": "scripts/v1_successor_host.py",
+      "size_bytes": 144101,
+      "sha256": "sha256:de736f666c0e428d1891d34218392957e72fa44de8c316663c24665f0899ed1d"
+    },
+    {
+      "path": "scripts/v1_successor_forecast.py",
+      "size_bytes": 19078,
+      "sha256": "sha256:fbf73f4a9b85352bd34cbb2ce1156def4958a400c26f88d3efc72ace4176c8ca"
+    },
+    {
+      "path": "scripts/v1_successor_io.py",
+      "size_bytes": 54323,
+      "sha256": "sha256:035625a36d7f991ad46bc08997cc33c641fc5adf0eb57aeaa3272d9315500d2b"
+    },
+    {
+      "path": "scripts/v1_successor_ci.py",
+      "size_bytes": 20854,
+      "sha256": "sha256:20cf058464006da6c6ba0aeb4f3ef5719fb39c03e8dc8147683eda24ef7a3e58"
+    },
+    {
+      "path": "scripts/v1_successor_checks.py",
+      "size_bytes": 37471,
+      "sha256": "sha256:2651f73dc2b7fbb80ae278f291a42888b23915297229e4580b16e24fc082cebc"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_s1_successor.py",
+      "size_bytes": 42565,
+      "sha256": "sha256:1cadca72c78693a28dfd7bb5d1f44ded24fc9917197eeec5ae7f9de757afe5d0"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_statistical_contract_vectors.py",
+      "size_bytes": 8779,
+      "sha256": "sha256:dc78a11212d6e13f5f4decdca8c482caaa382c8b835cb725d34e81db81be698c"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_host.py",
+      "size_bytes": 86969,
+      "sha256": "sha256:52b3b5135d1894dbbab0c330a2245176bd3ceb096a600512d8da89e0b72a6dbf"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_forecast.py",
+      "size_bytes": 25146,
+      "sha256": "sha256:ad9d2b1dfea409ff4869d66df313b8ac96afbfc45d4932d6f3e3f959c9198dbd"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_io.py",
+      "size_bytes": 35626,
+      "sha256": "sha256:3221475951dbc160eb5114bebe84b245e9070bc2c820b873ea5e69f32f6f03a8"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_ci.py",
+      "size_bytes": 17039,
+      "sha256": "sha256:efc74994ace8a6d4797a32b1f59f02aee286d495160aebba6ff9a8c00c4c0256"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_checks.py",
+      "size_bytes": 25215,
+      "sha256": "sha256:b4ae1f2e73a20c5db11f5d05d1d6b486ba6a4ebc189496510052ce7efc6767dc"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_bootstrap.py",
+      "size_bytes": 14782,
+      "sha256": "sha256:4c1e07a5c97b29a9596261d90f591c26c384b8f93c0346e550d79643a9a43eb9"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/s1-successor-host.schema.json",
+      "size_bytes": 29523,
+      "sha256": "sha256:bae7391aab2a2fe7c339d1e59432052e9834a783e1a39816030ba3db16f9ed17"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/delivery-forecast.schema.json",
+      "size_bytes": 19058,
+      "sha256": "sha256:2b3ec1f3b22f121db2ecf7b3a8297014c269390a259084ec8466a0ec46d1a590"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/forecast-compatibility.md",
+      "size_bytes": 4369,
+      "sha256": "sha256:8b1e04b53161ec284bf387549a1406d911f9fe87b58fbf12a6cd747c904a1303"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/host-runbook.md",
+      "size_bytes": 12265,
+      "sha256": "sha256:f8897936a45f182a40c211f50c20c13e94421d4e138e2d9e14bf6a9dc717a305"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/s1-successor-acceptance.schema.json",
+      "size_bytes": 6527,
+      "sha256": "sha256:deb6456d498b6e0260f9ad79d00423099105b003c0645afd9c5a4618a003691b"
+    },
+    {
+      "path": "Makefile",
+      "size_bytes": 7705,
+      "sha256": "sha256:823d06bc5d7e74d2efd1120542c511a4a0e2501bfbbc4e36c06df655e224dabe"
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "size_bytes": 24441,
+      "sha256": "sha256:39d77676060b1f068121e1100a0d56ae627da6877e1f81e051902c264d72579a"
+    },
+    {
+      "path": "mkdocs.yml",
+      "size_bytes": 3573,
+      "sha256": "sha256:71879bd3e01f171bbf717930c1fcfaf86cfc5e76af39d720b6ae4d3929d62459"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/README.md",
+      "size_bytes": 8506,
+      "sha256": "sha256:5b20f5933757a013f884273378276acf2a0ccdc122c203e01900a90df5514bc8"
+    }
+  ],
+  "pending_gates": [
+    "successor_kickoff_signature",
+    "successor_trusted_host_execution",
+    "successor_full_check_graph",
+    "successor_hosted_ci",
+    "successor_signed_closure_and_fixed_tag",
+    "successor_standalone_historical_verification",
+    "current_forecast_rebaseline",
+    "scoped_roster_and_key_trust",
+    "six_drafting_authorizations",
+    "six_development_design_acceptances",
+    "support_policy_acceptance",
+    "product_metric_policy_acceptance"
+  ],
+  "package_digest": "sha256:182cd3731dae8afcf9ae50386756b53d50a7a0dd918aa91f972574bde16d966d"
+}

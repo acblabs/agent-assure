@@ -20,9 +20,13 @@ V1_GOVERNANCE_COMMITMENT_TIME ?=
 V1_GOVERNANCE_CLOSURE_COMMIT ?=
 V1_GOVERNANCE_ACCEPTANCE_TAG_OBJECT ?=
 V1_GOVERNANCE_ACCEPTANCE_GENERATION ?= 2
+V1_SUCCESSOR_BOOTSTRAP ?=
+V1_SUCCESSOR_REQUEST ?=
+V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT ?=
+V1_SUCCESSOR_PLAN_DIR ?= .tmp/s1-acceptance/successor-v3/bootstrap-template
 V1_GOVERNANCE_PENDING_TIME_ARG = $(if $(filter 1,$(V1_GOVERNANCE_ACCEPTANCE_GENERATION)),--commitment-time "$(V1_GOVERNANCE_COMMITMENT_TIME)")
 
-.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo v1-governance-check v1-governance-check-nonaccepting
+.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo v1-governance-check v1-governance-check-nonaccepting v1-architecture-check v1-architecture-readiness v1-successor-profile-template v1-successor
 
 test:
 	$(PYTHON) -m pytest
@@ -73,7 +77,24 @@ examples-parity:
 reproduction-index-check:
 	$(PYTHON) scripts/update_process_equivalence_reproduction_index.py
 
-check: lint type dependency-lock-freshness test docs-align claim-boundary examples-parity reproduction-index-check build
+check: lint type dependency-lock-freshness test docs-align claim-boundary examples-parity reproduction-index-check build v1-architecture-check
+
+# Public draft integrity is checked without the private roadmap. A passing
+# integrity check grants no acceptance, qualification, or dispatch authority.
+v1-architecture-check:
+	$(PYTHON) scripts/v1_architecture_governance.py check
+
+# Deliberately nonzero while the signed prerequisite/design receipts are pending.
+v1-architecture-readiness:
+	$(PYTHON) scripts/v1_architecture_governance.py readiness
+
+# Preparation never signs or accepts. All accepting actions use the existing
+# authenticated PowerShell runtime plus an explicitly signed bootstrap/request.
+v1-successor-profile-template:
+	$(PYTHON) -m scripts.v1_successor_host profile-template --out "$(V1_SUCCESSOR_PLAN_DIR)"
+
+v1-successor:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" successor --repository-root . --bootstrap "$(V1_SUCCESSOR_BOOTSTRAP)" --request "$(V1_SUCCESSOR_REQUEST)" $(if $(V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT),--ci-token-environment "$(V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT)")
 
 release-check: check schema-check release-provenance
 	$(PYTHON) -m twine check dist/*

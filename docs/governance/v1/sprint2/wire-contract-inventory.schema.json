@@ -1,0 +1,353 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/wire-contract-inventory.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "status",
+    "authorization_effect",
+    "dependency_direction",
+    "schema_owner_work_package_id",
+    "production_wire_schema_contract_ids",
+    "contract_dependencies",
+    "historical_bindings",
+    "signature_projection",
+    "schema_first_receipt",
+    "work_package_dependencies"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-v1-wire-contract-inventory/1"
+    },
+    "status": {
+      "const": "proposed_for_development"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "dependency_direction": {
+      "const": "artifact_binds_dependency"
+    },
+    "schema_owner_work_package_id": {
+      "const": "SCHEMA-01D"
+    },
+    "production_wire_schema_contract_ids": {
+      "const": [
+        "approval-allocation-proof-bundle/v1",
+        "approval-receipt/v1",
+        "assurance-head-commit-proof/v1",
+        "assurance-registry-descriptor/v1",
+        "assurance-release-head/v1",
+        "authorization-artifact/v1",
+        "authorization-capability-preflight/v1",
+        "candidate-equivalence-transfer/v1",
+        "candidate-install-verification/v1",
+        "channel-artifact-manifest/v1",
+        "channel-publication-receipt/v1",
+        "dispatch-context/v1",
+        "evidence-consumer-disposition/v1",
+        "evidence-consumer-drain-completion/v1",
+        "exceptional-deployment-authorization/v1",
+        "model-identity/v1",
+        "optional-train-start-threshold-evaluation/v1",
+        "pilot-bundle/v1",
+        "pilot-readiness/v1",
+        "preview-publication/v1",
+        "product-evidence-snapshot/v1",
+        "product-exposure-floor-evaluation/v1",
+        "product-gate-generation/v1",
+        "product-gate-producer-consumer-binding/v1",
+        "product-gate-record/v1",
+        "product-gate-sequence-head/v1",
+        "product-gate-series-controller/v1",
+        "product-gate-trusted-time-order/v1",
+        "product-threshold-definition/v1",
+        "profile-lifecycle-transition/v1",
+        "qualification-bundle/v1",
+        "release-candidate-manifest/v1",
+        "required-claim-manifest/v1",
+        "rollback-consumption-receipt/v1",
+        "rollback-nonce-state/v1",
+        "signature-envelope/v1",
+        "source-event-identity/v1",
+        "statistical-bundle-close-receipt/v1",
+        "statistical-checkpoint/v1",
+        "statistical-registration/v1",
+        "structural-exploratory-topology-report/v1",
+        "veto-record/v1"
+      ]
+    },
+    "contract_dependencies": {
+      "const": {
+        "approval-allocation-proof-bundle/v1": [
+          "source-event-identity/v1"
+        ],
+        "approval-receipt/v1": [
+          "source-event-identity/v1"
+        ],
+        "assurance-head-commit-proof/v1": [
+          "assurance-registry-descriptor/v1",
+          "assurance-release-head/v1"
+        ],
+        "assurance-registry-descriptor/v1": [],
+        "assurance-release-head/v1": [
+          "candidate-equivalence-transfer/v1",
+          "candidate-install-verification/v1",
+          "channel-publication-receipt/v1",
+          "pilot-bundle/v1",
+          "product-gate-record/v1",
+          "profile-lifecycle-transition/v1",
+          "qualification-bundle/v1",
+          "release-candidate-manifest/v1",
+          "required-claim-manifest/v1"
+        ],
+        "authorization-artifact/v1": [
+          "assurance-head-commit-proof/v1",
+          "assurance-release-head/v1",
+          "evidence-consumer-drain-completion/v1",
+          "required-claim-manifest/v1",
+          "statistical-bundle-close-receipt/v1",
+          "veto-record/v1"
+        ],
+        "authorization-capability-preflight/v1": [
+          "model-identity/v1",
+          "required-claim-manifest/v1"
+        ],
+        "candidate-equivalence-transfer/v1": [
+          "release-candidate-manifest/v1"
+        ],
+        "candidate-install-verification/v1": [
+          "release-candidate-manifest/v1"
+        ],
+        "channel-artifact-manifest/v1": [
+          "release-candidate-manifest/v1"
+        ],
+        "channel-publication-receipt/v1": [
+          "channel-artifact-manifest/v1",
+          "release-candidate-manifest/v1"
+        ],
+        "dispatch-context/v1": [],
+        "evidence-consumer-disposition/v1": [
+          "required-claim-manifest/v1",
+          "source-event-identity/v1"
+        ],
+        "evidence-consumer-drain-completion/v1": [
+          "evidence-consumer-disposition/v1",
+          "required-claim-manifest/v1",
+          "statistical-bundle-close-receipt/v1"
+        ],
+        "exceptional-deployment-authorization/v1": [
+          "assurance-registry-descriptor/v1",
+          "assurance-release-head/v1",
+          "authorization-artifact/v1",
+          "statistical-checkpoint/v1"
+        ],
+        "model-identity/v1": [],
+        "optional-train-start-threshold-evaluation/v1": [
+          "product-evidence-snapshot/v1",
+          "product-exposure-floor-evaluation/v1",
+          "product-threshold-definition/v1"
+        ],
+        "pilot-bundle/v1": [
+          "pilot-readiness/v1",
+          "qualification-bundle/v1",
+          "release-candidate-manifest/v1"
+        ],
+        "pilot-readiness/v1": [
+          "qualification-bundle/v1",
+          "release-candidate-manifest/v1"
+        ],
+        "preview-publication/v1": [
+          "candidate-install-verification/v1",
+          "channel-artifact-manifest/v1",
+          "channel-publication-receipt/v1"
+        ],
+        "product-evidence-snapshot/v1": [
+          "product-threshold-definition/v1"
+        ],
+        "product-exposure-floor-evaluation/v1": [
+          "product-evidence-snapshot/v1",
+          "product-threshold-definition/v1"
+        ],
+        "product-gate-generation/v1": [
+          "product-gate-record/v1"
+        ],
+        "product-gate-producer-consumer-binding/v1": [],
+        "product-gate-record/v1": [
+          "optional-train-start-threshold-evaluation/v1",
+          "product-evidence-snapshot/v1",
+          "product-exposure-floor-evaluation/v1",
+          "product-gate-producer-consumer-binding/v1",
+          "product-gate-trusted-time-order/v1",
+          "product-threshold-definition/v1"
+        ],
+        "product-gate-sequence-head/v1": [
+          "product-gate-generation/v1",
+          "product-gate-series-controller/v1"
+        ],
+        "product-gate-series-controller/v1": [
+          "product-gate-generation/v1"
+        ],
+        "product-gate-trusted-time-order/v1": [
+          "product-threshold-definition/v1"
+        ],
+        "product-threshold-definition/v1": [],
+        "profile-lifecycle-transition/v1": [
+          "release-candidate-manifest/v1"
+        ],
+        "qualification-bundle/v1": [
+          "model-identity/v1",
+          "release-candidate-manifest/v1"
+        ],
+        "release-candidate-manifest/v1": [
+          "model-identity/v1"
+        ],
+        "required-claim-manifest/v1": [],
+        "rollback-consumption-receipt/v1": [
+          "exceptional-deployment-authorization/v1",
+          "rollback-nonce-state/v1"
+        ],
+        "rollback-nonce-state/v1": [
+          "exceptional-deployment-authorization/v1"
+        ],
+        "signature-envelope/v1": [],
+        "source-event-identity/v1": [],
+        "statistical-bundle-close-receipt/v1": [
+          "statistical-checkpoint/v1",
+          "statistical-registration/v1"
+        ],
+        "statistical-checkpoint/v1": [
+          "statistical-registration/v1"
+        ],
+        "statistical-registration/v1": [
+          "model-identity/v1",
+          "release-candidate-manifest/v1",
+          "required-claim-manifest/v1"
+        ],
+        "structural-exploratory-topology-report/v1": [
+          "source-event-identity/v1"
+        ],
+        "veto-record/v1": [
+          "required-claim-manifest/v1"
+        ]
+      }
+    },
+    "historical_bindings": {
+      "const": [
+        {
+          "contract_id": "candidate-equivalence-transfer/v1",
+          "target_contract_id": "release-candidate-manifest/v1",
+          "binding_role": "source_candidate",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "assurance-release-head/v1",
+          "target_contract_id": "assurance-release-head/v1",
+          "binding_role": "expected_predecessor",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "product-evidence-snapshot/v1",
+          "target_contract_id": "assurance-release-head/v1",
+          "binding_role": "committed_predecessor_release_basis",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "product-gate-generation/v1",
+          "target_contract_id": "product-gate-generation/v1",
+          "binding_role": "parent_generation",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "product-gate-series-controller/v1",
+          "target_contract_id": "product-gate-series-controller/v1",
+          "binding_role": "expected_predecessor",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "product-gate-trusted-time-order/v1",
+          "target_contract_id": "assurance-head-commit-proof/v1",
+          "binding_role": "already_committed_basis_time",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "profile-lifecycle-transition/v1",
+          "target_contract_id": "profile-lifecycle-transition/v1",
+          "binding_role": "signed_predecessor_state",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "rollback-nonce-state/v1",
+          "target_contract_id": "rollback-nonce-state/v1",
+          "binding_role": "expected_store_predecessor",
+          "strictly_earlier_generation": true
+        },
+        {
+          "contract_id": "statistical-checkpoint/v1",
+          "target_contract_id": "statistical-checkpoint/v1",
+          "binding_role": "accepted_predecessor_checkpoint",
+          "strictly_earlier_generation": true
+        }
+      ]
+    },
+    "signature_projection": {
+      "const": {
+        "envelope_contract_id": "signature-envelope/v1",
+        "envelope_is_detached": true,
+        "subject_projection_excludes": [
+          "self_digest",
+          "signature_envelope"
+        ],
+        "envelope_binds_finalized_subject": true,
+        "subject_binds_future_envelope": false,
+        "domain_separation_required": true,
+        "production_field_projections_owned_by": "SCHEMA-01D"
+      }
+    },
+    "schema_first_receipt": {
+      "const": {
+        "receipt_type": "implementation_acceptance",
+        "subject_type": "work_package",
+        "subject_work_package_id": "SCHEMA-01D",
+        "issuer_role": "repository_maintainer",
+        "issuer_competence_scope": "schema_compatibility",
+        "cardinality": "exactly_one",
+        "evidence_digest_required": true
+      }
+    },
+    "work_package_dependencies": {
+      "const": {
+        "CUT-01A": [
+          "SCHEMA-01D"
+        ],
+        "DIST-01A": [
+          "SCHEMA-01D"
+        ],
+        "DIST-01B": [
+          "SCHEMA-01D",
+          "QUAL-01C"
+        ],
+        "EVID-03A": [
+          "SCHEMA-01D"
+        ],
+        "NUM-01A": [
+          "SCHEMA-01D"
+        ],
+        "QUAL-01C": [
+          "SCHEMA-01D"
+        ],
+        "REL-01G": [
+          "SCHEMA-01D"
+        ],
+        "TEMP-01A": [
+          "SCHEMA-01A",
+          "SCHEMA-01D"
+        ],
+        "TRUST-01A": [
+          "SCHEMA-01D"
+        ]
+      }
+    }
+  }
+}
