@@ -825,6 +825,28 @@ def validate_bootstrap_claim(
     return policy
 
 
+def _native_totals_projection(value: object) -> dict[str, int]:
+    """Project validated legacy terminal totals without changing their format."""
+    original = _closed(
+        value, {"collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"}
+    )
+    totals = {key: core._integer(count) for key, count in original.items()}
+    _require(
+        totals["collected"] > 0
+        and totals["passed"] > 0
+        and all(totals[key] == 0 for key in ("failed", "errors", "xfailed", "xpassed"))
+        and totals["collected"] == totals["passed"] + totals["skipped"],
+        "native legacy totals are not complete and passing for successor acceptance",
+    )
+    # The authenticated legacy validator rejects deselection by requiring
+    # collected == passed + failed + skipped + xfailed + xpassed. Its immutable
+    # seven-field record has no deselected member; do not add one to the source.
+    return {
+        **{key: totals[key] for key in ("collected", "passed", "skipped", "failed", "errors")},
+        "deselected": 0,
+    }
+
+
 class FrozenHost:
     """A real host session, constructed only after old-bootstrap authentication."""
 
@@ -1586,17 +1608,14 @@ class FrozenHost:
             require_passed=True,
         )
         execution = native["execution"]
-        totals = execution["pytest_totals"]
+        totals = _native_totals_projection(execution["pytest_totals"])
         payload = {
             "source_format": native["format"],
             "kickoff_claim_digest": kickoff_digest,
             "started_at_utc": native["time_evidence"]["started_at_utc"],
             "completed_at_utc": native["time_evidence"]["completed_at_utc"],
             "exit_code": execution["exit_code"],
-            **{
-                key: totals[key]
-                for key in ("collected", "passed", "skipped", "failed", "errors", "deselected")
-            },
+            **totals,
             "control_ids": list(self.policy.required_native_controls),
             "source_record_digest": core.content_digest(read_bytes(self.root, path)),
         }
@@ -1970,15 +1989,10 @@ class FrozenHost:
                     and payload["completed_at_utc"] == native["time_evidence"]["completed_at_utc"]
                     and payload["exit_code"] == native["execution"]["exit_code"]
                     and all(
-                        payload[key] == native["execution"]["pytest_totals"][key]
-                        for key in (
-                            "collected",
-                            "passed",
-                            "skipped",
-                            "failed",
-                            "errors",
-                            "deselected",
-                        )
+                        payload[key] == count
+                        for key, count in _native_totals_projection(
+                            native["execution"]["pytest_totals"]
+                        ).items()
                     ),
                     "native normalized payload differs from original evidence",
                 )

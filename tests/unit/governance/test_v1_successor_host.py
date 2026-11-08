@@ -111,6 +111,78 @@ def test_host_json_retains_exact_integer_and_string_semantics() -> None:
     assert host.parse_json(b'{"x":3,"label":"abc"}') == {"x": 3, "label": "abc"}
 
 
+@pytest.mark.parametrize(
+    ("stdout", "passed", "skipped"),
+    [
+        (b"1 passed in 0.01s\n", 1, 0),
+        (b"3 passed, 2 skipped in 0.01s\n", 3, 2),
+        (b"2 passed, 1 warning in 0.01s\n", 2, 0),
+    ],
+)
+def test_native_projection_accepts_real_legacy_parser_output_without_mutation(
+    stdout: bytes, passed: int, skipped: int
+) -> None:
+    totals = legacy._parse_post_r2_pytest_totals(stdout, b"")
+    original = dict(totals)
+    assert set(totals) == {
+        "collected",
+        "passed",
+        "failed",
+        "skipped",
+        "xfailed",
+        "xpassed",
+        "errors",
+    }
+    assert host._native_totals_projection(totals) == {
+        "collected": passed + skipped,
+        "passed": passed,
+        "skipped": skipped,
+        "failed": 0,
+        "errors": 0,
+        "deselected": 0,
+    }
+    assert totals == original and "deselected" not in totals
+
+
+@pytest.mark.parametrize(
+    "field", ["collected", "passed", "failed", "skipped", "xfailed", "xpassed", "errors"]
+)
+@pytest.mark.parametrize("value", [True, -1, 1.0, "1", None])
+def test_native_projection_rejects_noninteger_or_negative_source_counts(
+    field: str, value: object
+) -> None:
+    totals = legacy._parse_post_r2_pytest_totals(b"1 passed in 0.01s\n", b"")
+    totals[field] = value  # type: ignore[assignment]
+    with pytest.raises(core.SuccessorError):
+        host._native_totals_projection(totals)
+
+
+@pytest.mark.parametrize("mutation", ["missing", "extra", "accounting", "zero", "no-passes"])
+def test_native_projection_rejects_incomplete_or_incompatible_source_totals(mutation: str) -> None:
+    totals = legacy._parse_post_r2_pytest_totals(b"1 passed in 0.01s\n", b"")
+    if mutation == "missing":
+        totals.pop("xfailed")
+    elif mutation == "extra":
+        totals["deselected"] = 0
+    elif mutation == "accounting":
+        totals["collected"] += 1
+    elif mutation == "zero":
+        totals.update(collected=0, passed=0)
+    else:
+        totals.update(passed=0, skipped=1)
+    with pytest.raises(core.SuccessorError):
+        host._native_totals_projection(totals)
+
+
+@pytest.mark.parametrize("category", ["failed", "errors", "xfailed", "xpassed", "deselected"])
+def test_native_projection_rejects_terminal_outcomes_excluded_by_successor_policy(
+    category: str,
+) -> None:
+    totals = legacy._parse_post_r2_pytest_totals(f"1 passed, 1 {category} in 0.01s\n".encode(), b"")
+    with pytest.raises(core.SuccessorError, match="complete and passing"):
+        host._native_totals_projection(totals)
+
+
 def test_pinned_private_publication_is_no_clobber(tmp_path: Path) -> None:
     path = host.PRIVATE_PREFIX + "run-001/record.json"
     host.write_new(tmp_path, path, b"exact original")
@@ -584,7 +656,7 @@ class Pipeline:
                 assert subject_commit == fixture.result
                 destination = root / evidence_directory
                 destination.mkdir(parents=True, exist_ok=False)
-                stdout, stderr = b"1 passed in synthetic collector\n", b""
+                stdout, stderr = b"1 passed in 0.01s\n", b""
                 record = {
                     "format": "agent-assure-s1-post-r2-suite-evidence/4",
                     "subject_commit": subject_commit,
@@ -594,14 +666,7 @@ class Pipeline:
                     },
                     "execution": {
                         "exit_code": 0,
-                        "pytest_totals": {
-                            "collected": 1,
-                            "passed": 1,
-                            "skipped": 0,
-                            "failed": 0,
-                            "errors": 0,
-                            "deselected": 0,
-                        },
+                        "pytest_totals": legacy._parse_post_r2_pytest_totals(stdout, stderr),
                         "stdout_sha256": core.content_digest(stdout),
                         "stderr_sha256": core.content_digest(stderr),
                     },
@@ -631,6 +696,15 @@ class Pipeline:
                 }
                 record = host.parse_json(path.read_bytes())
                 assert record["subject_commit"] == fixture.result
+                assert set(record["execution"]["pytest_totals"]) == {
+                    "collected",
+                    "passed",
+                    "failed",
+                    "skipped",
+                    "xfailed",
+                    "xpassed",
+                    "errors",
+                }
                 for stream in ("stdout", "stderr"):
                     assert (
                         core.content_digest(
@@ -1257,7 +1331,16 @@ def test_real_signature_import_creates_only_receipt_c3_and_keeps_capture_checkou
     pipeline = Pipeline(public_root, ephemeral_signer, monkeypatch)
     pipeline.stage_signed_kickoff_and_result()
     pipeline.collect()
+    pending = host.read_json(public_root, host.PRIVATE_PREFIX + "collection/pending-receipt.json")
+    store = host.read_json(public_root, host.PRIVATE_PREFIX + "collection/evidence.json")
+    native_payload = store[pending["native_suite_evidence_digest"]]["document"]["payload"]
+    assert {
+        key: native_payload[key]
+        for key in ("collected", "passed", "skipped", "failed", "errors", "deselected")
+    } == {"collected": 1, "passed": 1, "skipped": 0, "failed": 0, "errors": 0, "deselected": 0}
+    calls_before_import = pipeline.native_calls
     result = pipeline.import_receipt(pipeline.sign_receipt())
+    assert pipeline.native_calls > calls_before_import
     closure = result["closure_commit"]
     assert result["authorization_effect"] == "none"
     assert pipeline.publisher.resolve_commit(closure).parents == (pipeline.result,)
@@ -1282,6 +1365,41 @@ def test_real_signature_import_creates_only_receipt_c3_and_keeps_capture_checkou
     assert claim["receipt_sha256"] == core.content_digest(
         pipeline.publisher.read_commit_artifact(closure, core.RECEIPT_PATH)
     )
+
+
+def test_receipt_replay_rejects_legacy_projection_that_differs_from_signed_evidence(
+    public_root: Path,
+    ephemeral_signer: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pipeline = Pipeline(public_root, ephemeral_signer, monkeypatch)
+    pipeline.stage_signed_kickoff_and_result()
+    pipeline.collect()
+    signature = pipeline.sign_receipt()
+    original = pipeline.legacy.validate_post_v2_control_suite_evidence_source
+
+    def changed_totals(path: Path, **kwargs: Any) -> dict[str, Any]:
+        native = copy.deepcopy(original(path, **kwargs))
+        native["execution"]["pytest_totals"].update(collected=2, passed=2)
+        return native
+
+    monkeypatch.setattr(
+        pipeline.legacy, "validate_post_v2_control_suite_evidence_source", changed_totals
+    )
+    fresh = host.FrozenHost(pipeline.legacy, public_root, pipeline.bootstrap, clock=pipeline.clock)
+    previous = fresh.boundary._evidence
+    with pytest.raises(core.SuccessorError, match="native normalized payload"):
+        fresh.receipt_import(
+            {
+                "action": "receipt-import",
+                "collection": host.PRIVATE_PREFIX + "collection",
+                "signature_envelope": signature,
+                "out": host.PRIVATE_PREFIX + "rejected-native-projection",
+            }
+        )
+    assert fresh.boundary._evidence is previous and previous == {}
+    assert not (public_root / (host.PRIVATE_PREFIX + "rejected-native-projection")).exists()
+    assert pipeline._git(("rev-parse", "HEAD")).decode().strip() == pipeline.result
 
 
 def test_failed_persisted_source_admission_restores_empty_registry_and_does_not_create_closure(

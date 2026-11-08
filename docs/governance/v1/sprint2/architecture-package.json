@@ -266,8 +266,8 @@
     },
     {
       "path": "scripts/v1_successor_host.py",
-      "size_bytes": 144101,
-      "sha256": "sha256:de736f666c0e428d1891d34218392957e72fa44de8c316663c24665f0899ed1d"
+      "size_bytes": 144876,
+      "sha256": "sha256:bfbcc88fb6d40c217de70116d3cbe231e4e273137b4095655058794b615aff06"
     },
     {
       "path": "scripts/v1_successor_forecast.py",
@@ -301,8 +301,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_host.py",
-      "size_bytes": 87869,
-      "sha256": "sha256:4f271d53a5596be49c044b0bef8f38a06cfc28d93fb3edd43d38d9da2025d01d"
+      "size_bytes": 92627,
+      "sha256": "sha256:1aa973b390c874da20d2a643ac590385195a19c2b7d863bf5cea130862cdd4f4"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_forecast.py",
@@ -389,5 +389,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:cb473d27f2af4533dd9f8074fa9ad1572c8f2275f29d0e6409ccb5433e4530d1"
+  "package_digest": "sha256:a82befdf097fe3b0eb66acc606e4cc1b720e4ef371778569f3ea8235ceff57f7"
 }
