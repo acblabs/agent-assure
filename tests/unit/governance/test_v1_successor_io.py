@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -678,9 +679,24 @@ def test_native_frozen_clone_uses_authenticated_upload_pack_with_spaces(
 ) -> None:
     prepared, git, closure = tagged_closure(local_git)
     root = prepared.repository_root
-    executable = Path(legacy.FROZEN_S1_EXECUTABLE_IDENTITIES["git"].path)
-    assert executable.is_file()
-    payload = executable.read_bytes()
+    # PATH can name the Windows cmd/ launcher. Ask that installed Git for its
+    # runtime directory rather than assuming the maintainer's mingw64 layout.
+    discovered = shutil.which("git")
+    assert discovered is not None
+    runtime = Path(git("--exec-path").decode("utf-8").strip()).resolve(strict=True)
+    candidates = (
+        runtime.parent.parent / "bin/git.exe",
+        runtime / "git.exe",
+        Path(discovered).resolve(strict=True),
+    )
+    for executable in candidates:
+        upload_pack = executable.with_name("git-upload-pack.exe")
+        if executable.is_file() and upload_pack.is_file():
+            payload = executable.read_bytes()
+            if upload_pack.read_bytes() == payload:
+                break
+    else:
+        pytest.fail(f"installed Git has no byte-identical git/upload-pack pair: {candidates!r}")
     monkeypatch.setattr(
         legacy,
         "TRUSTED_EXECUTABLE_IDENTITIES",
@@ -697,8 +713,10 @@ def test_native_frozen_clone_uses_authenticated_upload_pack_with_spaces(
     publisher = io.frozen_tag_publisher(legacy, root)
     normal_process = io._bounded_process
     failures: list[bytes] = []
+    commands: list[list[str]] = []
 
     def capture_failure(*args: Any, **kwargs: Any) -> subprocess.CompletedProcess[bytes]:
+        commands.append(list(args[0]))
         result = normal_process(*args, **kwargs)
         if result.returncode:
             failures.append(result.stderr)
@@ -706,6 +724,8 @@ def test_native_frozen_clone_uses_authenticated_upload_pack_with_spaces(
 
     monkeypatch.setattr(io, "_bounded_process", capture_failure)
     helper = io.frozen_upload_pack_identity(legacy)
+    assert helper["path"] == str(upload_pack)
+    assert helper["size_bytes"] == len(payload)
     assert helper["sha256"] == "sha256:" + hashlib.sha256(payload).hexdigest()
     prefix = root / ".tmp/s1-acceptance/successor-v3"
     base_bytes = len(str((prefix / "clone/.git").absolute()).encode("utf-8"))
@@ -720,6 +740,13 @@ def test_native_frozen_clone_uses_authenticated_upload_pack_with_spaces(
         )
     except io.SuccessorIOError:
         pytest.fail(repr(failures))
+    clone_commands = [command for command in commands if "clone" in command]
+    assert len(clone_commands) == 1
+    upload_arguments = [value for value in clone_commands[0] if value.startswith("--upload-pack=")]
+    assert len(upload_arguments) == 1
+    assert shlex.split(upload_arguments[0].removeprefix("--upload-pack=")) == [
+        str(upload_pack).replace("\\", "/")
+    ]
     assert git("-C", str(destination), "rev-parse", "HEAD").strip().decode() == closure
 
 

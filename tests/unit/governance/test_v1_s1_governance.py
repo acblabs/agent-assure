@@ -13,7 +13,7 @@ import sys
 from argparse import Namespace
 from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 import pytest
@@ -633,7 +633,16 @@ def test_signing_key_schema_rejects_confirmation_without_out_of_band_evidence() 
         )
 
 
-def test_baseline_observations_bind_the_frozen_external_tool_identities() -> None:
+@pytest.mark.parametrize("artifact_kind", ["external-tool", "python-executable", "python-dll"])
+def test_baseline_observations_bind_the_frozen_external_tool_identities(
+    monkeypatch: pytest.MonkeyPatch,
+    artifact_kind: str,
+) -> None:
+    # These are immutable Windows inventory facts, not measurements of the
+    # pytest host. Preserve their native spelling even when hosted on POSIX.
+    frozen_root = PureWindowsPath(str(governance._FROZEN_PYTHON_ROOT))
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_EXECUTABLE", frozen_root / "python.exe")
+    monkeypatch.setattr(governance, "_FROZEN_PYTHON_DLL", frozen_root / "python312.dll")
     record = _record("baseline-observations.json")
     snapshot = _minimal_snapshot()
     snapshot = governance.RoadmapSnapshot(
@@ -653,12 +662,23 @@ def test_baseline_observations_bind_the_frozen_external_tool_identities() -> Non
     )
 
     tampered = copy.deepcopy(record)
-    tampered["environment"]["trusted_executables"]["artifacts"][0]["sha256"] = _digest("0")
+    if artifact_kind == "external-tool":
+        tampered["environment"]["trusted_executables"]["artifacts"][0]["sha256"] = _digest("0")
+        expected_error = "trusted executable changed"
+    else:
+        name = "python.exe" if artifact_kind == "python-executable" else "python312.dll"
+        runtime_file = next(
+            item
+            for item in tampered["environment"]["trusted_python_runtime"]["files"]
+            if item["name"] == name
+        )
+        runtime_file["sha256"] = _digest("0")
+        expected_error = "trusted Python files changed"
     tampered["observations_digest"] = governance.domain_digest(
         governance.BASELINE_OBSERVATIONS_V2_DOMAIN,
         governance._record_projection(tampered, "observations_digest"),
     )
-    with pytest.raises(governance.GovernanceError, match="trusted executable changed"):
+    with pytest.raises(governance.GovernanceError, match=expected_error):
         governance.validate_baseline_observations(
             snapshot,
             tampered,
@@ -3375,14 +3395,16 @@ def test_post_v2_pytest_argv_overrides_hostile_collection_and_path_configuration
     assert "2 passed" in completed.stdout
 
 
-def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy() -> None:
+def test_post_r2_legacy_v3_bootstrap_and_runtime_bytes_reconstruct_under_explicit_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     import ast
 
-    basetemp = ROOT / ".tmp/s1-acceptance/synthetic-v3-basetemp"
-    process_temp = (
-        governance.POST_R2_PROCESS_TEMP_ROOT
-        / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}synthetic-v3"
-    )
+    process_temp_root = (tmp_path / "synthetic-external-process-temp").resolve()
+    monkeypatch.setattr(governance, "POST_R2_PROCESS_TEMP_ROOT", process_temp_root)
+    process_temp = process_temp_root / f"{governance.POST_R2_PROCESS_TEMP_PREFIX}synthetic-v3"
+    basetemp = process_temp / governance.POST_R2_PYTEST_BASETEMP_DIRECTORY
     legacy_command = governance._post_r2_pytest_bootstrap_source(
         ROOT,
         basetemp=basetemp,
@@ -5158,16 +5180,29 @@ def test_post_r2_execution_cleans_when_command_construction_fails(
         "_allocate_post_r2_run_paths",
         lambda _root: (basetemp, process_temp),
     )
+    prepared_payload = process_temp / "synthetic-prepared-runtime"
+    calls = []
+
+    def prepare_runtime(root: Path, **kwargs: Any) -> dict[str, str]:
+        assert root == ROOT.resolve()
+        assert kwargs == {"basetemp": basetemp, "process_temp": process_temp}
+        prepared_payload.write_bytes(b"synthetic preparation completed before argv failure")
+        calls.append("prepare")
+        return {"format": "synthetic-descendant-runtime"}
 
     def fail_argv(*_args: Any, **_kwargs: Any) -> list[str]:
+        assert prepared_payload.is_file()
+        calls.append("argv")
         raise primary
 
+    monkeypatch.setattr(governance, "_prepare_post_r2_descendant_runtime", prepare_runtime)
     monkeypatch.setattr(governance, "_post_r2_pytest_argv", fail_argv)
 
     with pytest.raises(RuntimeError, match="synthetic argv failure") as raised:
         governance._execute_post_r2_pytest(ROOT, test_surface={})
 
     assert raised.value is primary
+    assert calls == ["prepare", "argv"]
     assert not process_temp.exists()
 
 
@@ -8393,6 +8428,7 @@ def test_historical_bootstrap_docs_require_a_standalone_runtime_clone() -> None:
 @pytest.mark.skipif(os.name != "nt", reason="the documented bootstrap is PowerShell on Windows")
 def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_rejects_nonregular_paths(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     documentation = (GOVERNANCE_ROOT / "README.md").read_text(encoding="utf-8")
     bootstrap = documentation.split("### Historical-verifier bootstrap boundary", maxsplit=1)[
@@ -8416,10 +8452,16 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     )
     powershell = Path(r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe")
     assert powershell.is_file()
+    native_modules = powershell.parent / "Modules"
+    assert (native_modules / "Microsoft.PowerShell.Utility").is_dir()
+    inherited_modules = str(tmp_path / "inherited-pwsh7-modules")
+    monkeypatch.setenv("PSModulePath", inherited_modules)
 
     def run_setup(root: Path, source_exclude: Path) -> subprocess.CompletedProcess[str]:
         escaped_root = str(root).replace("'", "''")
         escaped_source_exclude = str(source_exclude).replace("'", "''")
+        environment = os.environ.copy()
+        environment["PSModulePath"] = str(native_modules)
         return subprocess.run(
             [
                 str(powershell),
@@ -8432,6 +8474,7 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
                 f"$SourceExcludePath = '{escaped_source_exclude}'\n"
                 f"{exclude_setup}",
             ],
+            env=environment,
             capture_output=True,
             check=False,
             text=True,
@@ -8481,6 +8524,7 @@ def test_historical_bootstrap_exclude_setup_handles_an_empty_template_and_reject
     exclude_path = fresh / ".git/info/exclude"
     assert exclude_path.is_file() and not exclude_path.is_symlink()
     assert exclude_path.read_bytes() == synthetic_legacy_policy
+    assert os.environ["PSModulePath"] == inherited_modules
 
     corrupt_source = tmp_path / "corrupt-source-exclude"
     corrupt_source.write_bytes(b"!" + synthetic_legacy_policy[1:])

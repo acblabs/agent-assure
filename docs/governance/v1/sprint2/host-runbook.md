@@ -123,8 +123,11 @@ producer decision. See the [compatibility contract](forecast-compatibility.md).
 Publish R3 and obtain its same-repository push CI run through the normal human
 workflow. The adapter never pushes, dispatches a workflow or sends a message.
 Use a freshly allocated output for the native current `/4` capture and local
-checks. The native suite and exact Makefile check expansion must all pass;
-skips, deselection, partial runs and altered check recipes cannot satisfy closure.
+checks. The native suite and exact Makefile check expansion must all pass.
+Native totals must account for every collected test as passed or skipped, with
+at least one pass and zero failures, errors or deselections. Skipped tests remain
+reported as skipped. Partial runs and altered check recipes cannot satisfy closure;
+each required hosted CI job must complete successfully.
 
 Submit `collect` with `kickoff`, `result_observation`, `roadmap`, `native_dir`,
 `checks_dir`, `forecast_producer`, `forecast_acceptance`, integer `run_id`,

@@ -603,19 +603,57 @@ def _running(pid: int) -> bool:
         api.CloseHandle.argtypes = [wintypes.HANDLE]
         handle = api.OpenProcess(0x00100000, False, pid)
         if not handle:
-            return False
+            error = ctypes.get_last_error()
+            if error == 87:  # ERROR_INVALID_PARAMETER: the PID no longer exists.
+                return False
+            raise ctypes.WinError(error)
         try:
-            return api.WaitForSingleObject(handle, 1000) == 0x102
+            wait_status = int(api.WaitForSingleObject(handle, 0))
+            if wait_status == 0xFFFFFFFF:
+                raise ctypes.WinError(ctypes.get_last_error())
+            assert wait_status in (0, 0x102)
+            return wait_status == 0x102
         finally:
             api.CloseHandle(handle)
     try:
         status = Path(f"/proc/{pid}/stat")
-        if status.exists() and status.read_text().split()[2] == "Z":
-            return False
+        try:
+            # The process name is parenthesized and may itself contain spaces.
+            state = status.read_text().rsplit(")", 1)[1].split()[0]
+            if state == "Z":
+                return False
+        except FileNotFoundError:
+            # /proc may be unavailable, or the process may have just been reaped.
+            pass
         os.kill(pid, 0)
         return True
     except ProcessLookupError:
         return False
+
+
+def _wait_until_stopped(pid: int, *, timeout_seconds: float = 5) -> bool:
+    deadline = time.monotonic() + timeout_seconds
+    while _running(pid):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return False
+        time.sleep(min(0.01, remaining))
+    return True
+
+
+def test_termination_probe_rejects_a_live_process_and_accepts_its_exit() -> None:
+    process = subprocess.Popen(
+        [sys.executable, "-B", "-c", "import time;time.sleep(30)"],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        assert not _wait_until_stopped(process.pid, timeout_seconds=0.05)
+    finally:
+        process.kill()
+        process.wait(timeout=5)
+    assert _wait_until_stopped(process.pid)
 
 
 def test_descendant_is_killed_even_after_successful_parent_exit(tmp_path: Path) -> None:
@@ -637,7 +675,9 @@ def test_descendant_is_killed_even_after_successful_parent_exit(tmp_path: Path) 
     pid = int(pid_file.read_text())
     try:
         assert result[0] == 0 and b"parent done" in result[1]
-        assert not _running(pid)
+        # SIGKILL and Windows job close request termination; process state can
+        # remain live briefly while the kernel completes that request.
+        assert _wait_until_stopped(pid), "bounded runner left a live descendant"
     finally:
         if _running(pid):
             # Clean up only this test's own exact child, never a path/shell tree.

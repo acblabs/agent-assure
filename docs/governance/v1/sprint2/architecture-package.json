@@ -311,8 +311,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_io.py",
-      "size_bytes": 35626,
-      "sha256": "sha256:3221475951dbc160eb5114bebe84b245e9070bc2c820b873ea5e69f32f6f03a8"
+      "size_bytes": 36889,
+      "sha256": "sha256:0e069456b1b1888e1f04f49b3f03c4d5ea919639d978e5541238df3db4883b87"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_ci.py",
@@ -321,8 +321,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_checks.py",
-      "size_bytes": 25215,
-      "sha256": "sha256:b4ae1f2e73a20c5db11f5d05d1d6b486ba6a4ebc189496510052ce7efc6767dc"
+      "size_bytes": 26828,
+      "sha256": "sha256:8f4376b6826455e68d340536974012a11ac8d8b5af077d462932a3d56ecccded"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_bootstrap.py",
@@ -346,8 +346,8 @@
     },
     {
       "path": "docs/governance/v1/sprint2/host-runbook.md",
-      "size_bytes": 12265,
-      "sha256": "sha256:f8897936a45f182a40c211f50c20c13e94421d4e138e2d9e14bf6a9dc717a305"
+      "size_bytes": 12483,
+      "sha256": "sha256:bae11dd42d54d97c21d2785c9347a7cd5edcdfa9ef2cf7ddc4df44eb849efd7c"
     },
     {
       "path": "docs/governance/v1/sprint2/s1-successor-acceptance.schema.json",
@@ -389,5 +389,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:182cd3731dae8afcf9ae50386756b53d50a7a0dd918aa91f972574bde16d966d"
+  "package_digest": "sha256:557cfb617935580d409634a01442c138102da5d5a5935a0694efa83c8c832e04"
 }
