@@ -7,6 +7,7 @@ import importlib.util
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from argparse import Namespace
@@ -23,6 +24,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import scripts.v1_s1_governance as governance  # noqa: E402, I001
+
+UNPUBLISHED_ACCEPTANCE_TAG_OBJECTS = (
+    governance.S1_ACCEPTANCE_V1_TAG_OBJECT,
+    "aba5ac9111fd2be3a1b0e8e3ac7c3ebb8cb002be",
+)
 
 
 @dataclass(frozen=True)
@@ -151,7 +157,7 @@ def _run_ssh_keygen(
         return _run(arguments, cwd=cwd, env=environment)
 
 
-def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+def _git(repository: Path, *arguments: str, timeout: int = 30) -> subprocess.CompletedProcess[str]:
     hooks = repository / ".git/historical-integration-empty-hooks"
     hooks.mkdir(exist_ok=True)
     return _run(
@@ -172,6 +178,7 @@ def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
         ],
         cwd=repository,
         env=_git_environment(),
+        timeout=timeout,
     )
 
 
@@ -179,6 +186,82 @@ def _commit_paths(repository: Path, message: str, paths: Sequence[str]) -> str:
     _git(repository, "add", "--", *paths)
     _git(repository, "commit", "--quiet", "--message", message, "--", *paths)
     return _git(repository, "rev-parse", "HEAD^{commit}").stdout.strip()
+
+
+def _assert_unpublished_tag_objects_absent(repository: Path) -> None:
+    for object_id in UNPUBLISHED_ACCEPTANCE_TAG_OBJECTS:
+        result = governance._run_git(repository, ["cat-file", "-e", object_id])
+        assert result.returncode != 0, "fixture imported a maintainer-only acceptance tag object"
+
+
+def _qualify_public_commit_clone(repository: Path, *, owned_parent: Path) -> None:
+    owned = (owned_parent.resolve() / "repository").resolve()
+    assert repository.resolve() == owned and owned != ROOT.resolve()
+    git_directory = repository / ".git"
+    assert git_directory.is_dir() and not git_directory.is_symlink()
+    assert not git_directory.lstat().st_file_attributes & 0x400
+    assert Path(_git(repository, "rev-parse", "--absolute-git-dir").stdout.strip()).resolve() == (
+        owned / ".git"
+    )
+    assert not (git_directory / "objects/info/alternates").exists()
+    for path in (git_directory / "objects").rglob("*"):
+        metadata = path.lstat()
+        assert not stat.S_ISLNK(metadata.st_mode)
+        assert not getattr(metadata, "st_file_attributes", 0) & 0x400
+        assert stat.S_ISDIR(metadata.st_mode) or (
+            stat.S_ISREG(metadata.st_mode) and metadata.st_nlink == 1
+        )
+    # These flags restrict object transfer, while the verifier's closed local
+    # config contract still requires its ordinary inert fetch specification.
+    _git(repository, "config", "--unset", "remote.origin.tagOpt")
+    _git(repository, "config", "remote.origin.fetch", "+refs/heads/*:refs/remotes/origin/*")
+    head = _git(repository, "rev-parse", "HEAD").stdout
+    refs = _git(repository, "for-each-ref", "--format=%(refname) %(objectname)").stdout
+    # Upload-pack may reuse a pack containing unreferenced local-only tag
+    # objects even with --no-tags. Prune only this fresh unshared fixture clone.
+    _git(repository, "gc", "--prune=now", "--no-cruft", timeout=60)
+    assert _git(repository, "rev-parse", "HEAD").stdout == head
+    assert _git(repository, "for-each-ref", "--format=%(refname) %(objectname)").stdout == refs
+    _assert_unpublished_tag_objects_absent(repository)
+
+
+def _synthetic_predecessor_tag(repository: Path) -> tuple[str, dict[str, Any]]:
+    """Exercise the actual tag reader with an owned synthetic predecessor.
+
+    The generation-2 test substitutes record validation deliberately; this
+    minimal reader fixture is never signed acceptance or a maintainer tag copy.
+    """
+    record = {
+        "format": governance.CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT,
+        "acceptance_tag_name": governance.S1_ACCEPTANCE_TAG_NAME,
+        "closure_commit": governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        "authorization_effect": "none",
+        "fixture_purpose": "synthetic_predecessor_tag_reader_only",
+    }
+    tag_message = repository / ".tmp/synthetic-v1-predecessor.json"
+    tag_message.write_bytes(governance._render_acceptance_attestation_bytes(record))
+    _git(
+        repository,
+        "tag",
+        "--annotate",
+        "--cleanup=verbatim",
+        f"--file={tag_message}",
+        governance.S1_ACCEPTANCE_TAG_NAME,
+        governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+    )
+    object_id = _git(
+        repository, "rev-parse", f"refs/tags/{governance.S1_ACCEPTANCE_TAG_NAME}^{{tag}}"
+    ).stdout.strip()
+    assert object_id not in UNPUBLISHED_ACCEPTANCE_TAG_OBJECTS
+    assert (
+        governance._read_tagged_current_acceptance_attestation(
+            repository,
+            tag_object=object_id,
+            expected_closure_commit=governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        )
+        == record
+    )
+    return object_id, record
 
 
 def _copy_legacy_acceptance_blob(destination_root: Path, relative_path: str) -> None:
@@ -739,6 +822,8 @@ def test_historical_check_validates_the_full_signed_closure_after_a_descendant(
             "--quiet",
             "--no-local",
             "--no-checkout",
+            "--no-tags",
+            "--single-branch",
             str(ROOT),
             str(repository),
         ],
@@ -746,6 +831,7 @@ def test_historical_check_validates_the_full_signed_closure_after_a_descendant(
         timeout=60,
         env=_git_environment(),
     )
+    _qualify_public_commit_clone(repository, owned_parent=tmp_path)
     _git(
         repository,
         "checkout",
@@ -1029,6 +1115,7 @@ def test_historical_check_validates_the_full_signed_closure_after_a_descendant(
         "result": "valid_historical_accepted",
         "signatures": "all_required_verified",
     }
+    _assert_unpublished_tag_objects_absent(repository)
 
 
 @pytest.mark.skipif(os.name != "nt", reason="the governed S1 toolchain is Windows-host-bound")
@@ -1058,6 +1145,8 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
             "--quiet",
             "--no-local",
             "--no-checkout",
+            "--no-tags",
+            "--single-branch",
             str(ROOT),
             str(repository),
         ],
@@ -1065,6 +1154,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         timeout=60,
         env=_git_environment(),
     )
+    _qualify_public_commit_clone(repository, owned_parent=tmp_path)
     _git(
         repository,
         "checkout",
@@ -1090,6 +1180,14 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         "MAINTAINER_KEY_FINGERPRINT",
         signing_key.fingerprint,
     )
+    predecessor_tag_object, predecessor_tag_record = _synthetic_predecessor_tag(repository)
+    with pytest.raises(governance.GovernanceError, match="does not identify an annotated Git tag"):
+        governance._read_tagged_current_acceptance_attestation(
+            repository,
+            tag_object=UNPUBLISHED_ACCEPTANCE_TAG_OBJECTS[0],
+            expected_closure_commit=governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
+        )
+    monkeypatch.setattr(governance, "S1_ACCEPTANCE_V1_TAG_OBJECT", predecessor_tag_object)
 
     result_paths = {
         path
@@ -1202,7 +1300,9 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
             bound_roadmap_digest = schema_record["properties"]["full_roadmap_digest"]["const"]
             source = source.replace(bound_roadmap_digest, snapshot.raw_digest)
         schema_path.write_text(
-            source.replace(source_fingerprint, signing_key.fingerprint),
+            source.replace(source_fingerprint, signing_key.fingerprint).replace(
+                UNPUBLISHED_ACCEPTANCE_TAG_OBJECTS[0], predecessor_tag_object
+            ),
             encoding="utf-8",
             newline="\n",
         )
@@ -1252,7 +1352,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         "disposition": "superseded_nonconforming",
         "noncurrent_reason": "forecast_and_governance_provenance_nonconformance",
         "tag_name": governance.S1_ACCEPTANCE_TAG_NAME,
-        "tag_object": governance.S1_ACCEPTANCE_V1_TAG_OBJECT,
+        "tag_object": predecessor_tag_object,
         "baseline_commit": governance.PINNED_BASE_COMMIT,
         "result_commit": governance.S1_ACCEPTANCE_V1_RESULT_COMMIT,
         "closure_commit": governance.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
@@ -1446,6 +1546,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
 
     standalone = _load_governance_from_clone(repository)
     monkeypatch.setattr(standalone, "TRUSTED_EXECUTABLE_IDENTITIES", trusted_tools)
+    monkeypatch.setattr(standalone, "S1_ACCEPTANCE_V1_TAG_OBJECT", predecessor_tag_object)
     _bind_synthetic_python_runtime(standalone, synthetic_python_runtime, monkeypatch)
     monkeypatch.setattr(standalone, "MAINTAINER_PUBLIC_KEY", signing_key.public_key)
     monkeypatch.setattr(
@@ -1493,6 +1594,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
             expected_closure_commit=standalone.S1_ACCEPTANCE_V1_CLOSURE_COMMIT,
         )
         assert record["format"] == standalone.CURRENT_ACCEPTANCE_ATTESTATION_V1_FORMAT
+        assert record == predecessor_tag_record
         return record
 
     monkeypatch.setattr(
@@ -1562,6 +1664,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         "result": "valid_historical_accepted",
         "signatures": "all_required_verified",
     }
+    _assert_unpublished_tag_objects_absent(repository)
 
     later = repository / "later-generation.txt"
     later.write_text("later generation descendant\n", encoding="utf-8", newline="\n")
