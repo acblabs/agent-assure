@@ -1518,6 +1518,9 @@ def _closure_bundle() -> dict[str, Any]:
 
 
 def _create_result_commit(repository: Path) -> str:
+    # Closure fixture writes and governed reads share the project's LF policy
+    # even when the host Git installation enables automatic CRLF conversion.
+    (repository / ".gitattributes").write_bytes((ROOT / ".gitattributes").read_bytes())
     (repository / "base.txt").write_text("base\n", encoding="utf-8")
     _commit_all(repository, "base")
     (repository / "result.txt").write_text("reviewed result\n", encoding="utf-8")
@@ -1537,11 +1540,22 @@ def _write_closure_files(repository: Path, bundle: dict[str, Any]) -> None:
     governance._write_json(governance_root / "governance-bundle.json", bundle)
 
 
+@pytest.mark.parametrize("autocrlf", ("false", "true"))
 def test_s1_closure_remains_verifiable_after_a_later_descendant(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, autocrlf: str
 ) -> None:
+    global_configuration = tmp_path / "synthetic-gitconfig"
+    global_configuration.write_text(
+        f"[core]\n\tautocrlf = {autocrlf}\n", encoding="utf-8", newline="\n"
+    )
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", str(global_configuration))
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_ATTR_NOSYSTEM", "1")
+    monkeypatch.delenv("GIT_CONFIG_COUNT", raising=False)
+    monkeypatch.delenv("GIT_CONFIG_PARAMETERS", raising=False)
     repository = tmp_path / "repository"
     _initialize_git_repository(repository)
+    assert _git(repository, "config", "--get", "core.autocrlf").stdout.strip() == autocrlf
     result_commit = _create_result_commit(repository)
     bundle = _closure_bundle()
     _write_closure_files(repository, bundle)
@@ -1566,12 +1580,26 @@ def test_s1_closure_remains_verifiable_after_a_later_descendant(
         )
 
     _git(repository, "checkout", "--quiet", "--detach", closure_commit)
+    # Force byte validation: a matching index stat cache can otherwise mask
+    # disagreement between inherited Git settings and governed inspection.
+    for relative_path in ("base.txt", "result.txt"):
+        path = repository / relative_path
+        metadata = path.stat()
+        os.utime(path, ns=(metadata.st_atime_ns, metadata.st_mtime_ns - 2_000_000_000))
     governance._validate_s1_closure_checkout(
         repository,
         result_commit=result_commit,
         bundle=bundle,
         require_current_checkout=True,
     )
+    (repository / "result.txt").write_bytes(b"uncommitted result\n")
+    with pytest.raises(governance.GovernanceError, match="accepted S1 checkout is not clean"):
+        governance._validate_s1_closure_checkout(
+            repository,
+            result_commit=result_commit,
+            bundle=bundle,
+            require_current_checkout=True,
+        )
 
 
 def test_s1_closure_rejects_a_commit_with_extra_paths(tmp_path: Path) -> None:
