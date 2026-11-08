@@ -1131,13 +1131,28 @@ def test_public_signature_scalar_remains_bound_when_document_pin_is_reapproved(
 def test_sdist_accepts_actual_public_attribute_and_dependency_inputs(
     tmp_path: Path, member: str
 ) -> None:
-    _wheel, sdist = _write_payload_pair(
-        tmp_path, extra_sdist={member: (ROOT / member).read_bytes()}
-    )
+    data = (ROOT / member).read_bytes()
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: data})
     inspect_sdist(sdist)
+    with tarfile.open(sdist, "r:gz") as archive:
+        path = "agent_assure-0.6.4/" + member
+        extracted = archive.extractfile(path)
+        assert extracted is not None and extracted.read() == data
+        assert path + ".ini" not in archive.getnames()
 
 
-@pytest.mark.parametrize("member", [".gitattributes", "requirements.lock"])
+@pytest.mark.parametrize(
+    "member",
+    (
+        ".gitattributes",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
+    ),
+)
 @pytest.mark.parametrize("payload", [b"api_key=opaque-credential-value\n", b"\xff\xfe\n"])
 def test_new_source_input_types_retain_structural_and_utf8_privacy_checks(
     tmp_path: Path, member: str, payload: bytes
@@ -1153,6 +1168,33 @@ def test_new_source_input_types_reject_private_key_literals(tmp_path: Path, memb
     header = b"-----BEGIN PRIVATE KEY-----\n"
     _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: header})
     with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("member", [".gitattributes", "requirements.lock"])
+@pytest.mark.parametrize("prefix", ["docs/", "src/agent_assure/"])
+def test_sdist_source_type_allowance_does_not_follow_moved_members(
+    tmp_path: Path, member: str, prefix: str
+) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path, extra_sdist={prefix + member: b"dependency==1.0\n"}
+    )
+    with pytest.raises(ValueError, match="outside the closed text inventory"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("member", [".gitattributes", "requirements.lock"])
+def test_sdist_source_type_allowance_does_not_apply_to_wheels(tmp_path: Path, member: str) -> None:
+    wheel, _sdist = _write_payload_pair(tmp_path, extra_wheel={member: b"dependency==1.0\n"})
+    with pytest.raises(ValueError, match="outside the closed text inventory"):
+        inspect_wheel(wheel)
+
+
+def test_sdist_source_type_allowance_requires_exact_member_spelling(tmp_path: Path) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path, extra_sdist={"Requirements.lock": b"dependency==1.0\n"}
+    )
+    with pytest.raises(ValueError, match="outside the closed text inventory"):
         inspect_sdist(sdist)
 
 

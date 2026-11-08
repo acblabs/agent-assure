@@ -470,6 +470,17 @@ FORBIDDEN_SDIST_EXACT_PATHS = (
     "schemas/unreleased",
     "docs/governance/v1/sprint2/s1-successor-acceptance.json",
 )
+SDIST_STRUCTURED_SOURCE_INPUTS = frozenset(
+    {
+        ".gitattributes",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
+    }
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -798,6 +809,16 @@ def _validate_wheel_privacy(
         remaining_lines -= scanned_lines
 
 
+def _sdist_privacy_scan_name(name: str) -> str:
+    """Apply structured scanning to exact public source-check inputs only.
+
+    The existing INI text classifier retains UTF-8, literal, structural and
+    resource checks. Only the scanner receives this name; archive membership,
+    content, signature probes and identity checks retain the original name.
+    """
+    return name + ".ini" if name in SDIST_STRUCTURED_SOURCE_INPUTS else name
+
+
 def _sdist_privacy_probe(name: str, data: bytes) -> bytes:
     """Rename reviewed public-proof keys only, preserving all other bytes.
 
@@ -882,7 +903,7 @@ def _validate_sdist_privacy(sdist: Path) -> None:
             data = _read_tar_member_bytes(archive, member)
             name = _strip_sdist_root(member.name)
             scanned_lines = validate_distribution_member_privacy(
-                name,
+                _sdist_privacy_scan_name(name),
                 _sdist_privacy_probe(name, data),
                 max_structural_scan_lines=remaining_lines,
                 max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
