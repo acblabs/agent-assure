@@ -151,11 +151,16 @@ def test_successor_pytest_recipe_enforces_socket_guard_without_plugin_autoload(
 ) -> None:
     import pytest_socket
 
-    # Isolated Python receives only the same installed test packages as this
-    # process. No site initialization, entry-point autoload or inherited pytest
-    # settings can supply a plugin omitted from the registered recipe.
+    # Isolated Python receives the same installed test packages as this
+    # process. An active descendant guard retains its mandatory launch policy;
+    # entry-point autoload and inherited pytest settings cannot supply a plugin
+    # omitted from the registered recipe.
     packages = Path(pytest.__file__).resolve().parent.parent
     assert Path(pytest_socket.__file__).resolve().is_relative_to(packages)
+    launch_guard = getattr(subprocess, "_agent_assure_s1_post_r2_launch_guard", None)
+    if launch_guard is not None:
+        assert launch_guard == (sys.executable, sys.pycache_prefix)
+        assert sys.pycache_prefix is not None
     project = tmp_path / "recipe-project"
     project.mkdir()
     (project / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
@@ -185,7 +190,11 @@ def test_successor_pytest_recipe_enforces_socket_guard_without_plugin_autoload(
     encoded = (
         "exec("
         + repr(
-            "import runpy,sys\n"
+            "import runpy,subprocess,sys\n"
+            "assert sys.flags.isolated and sys.dont_write_bytecode\n"
+            "assert sys.pycache_prefix == sys.argv[1]\n"
+            "assert getattr(subprocess, '_agent_assure_s1_post_r2_launch_guard', None) "
+            f"== {launch_guard!r}\n"
             f"sys.path.append({str(packages)!r})\n"
             "pytest_arguments = ['-p', 'pytest_socket']\n"
             'sys.argv = ["pytest", *pytest_arguments]\n'
@@ -211,16 +220,17 @@ def test_successor_pytest_recipe_enforces_socket_guard_without_plugin_autoload(
             value.format(root=str(project), basetemp=str(tmp_path / (label + "-pytest")))
             for value in arguments
         ]
+        command = [sys.executable, "-I", "-S", "-B"]
+        cache = str(tmp_path / (label + "-cache"))
+        if launch_guard is None:
+            command.extend(("-X", "pycache_prefix=" + cache))
+        else:
+            # The inherited Popen boundary injects the frozen cache itself and
+            # rejects even an identical caller-supplied pycache_prefix option.
+            cache = str(sys.pycache_prefix)
+        command.extend(("-", cache))
         result = subprocess.run(
-            [
-                sys.executable,
-                "-I",
-                "-S",
-                "-B",
-                "-X",
-                "pycache_prefix=" + str(tmp_path / (label + "-cache")),
-                "-",
-            ],
+            command,
             input=checks.transform_bootstrap(encoded, spec, arguments),
             cwd=project,
             env=environment,

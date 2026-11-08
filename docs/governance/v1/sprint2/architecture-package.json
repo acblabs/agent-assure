@@ -321,8 +321,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_checks.py",
-      "size_bytes": 30464,
-      "sha256": "sha256:185dfcb5895f56d7e73a8834497aedf2f476ba8f1bf54134d149749e1e4a68af"
+      "size_bytes": 31237,
+      "sha256": "sha256:90ce6b1c1f66312880d117fad02721afe65ff1d4b817ecaa3e0b032ca3d144af"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_bootstrap.py",
@@ -389,5 +389,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:a2936fda8ad00d97924bf24c98d851102f0d15527ab981dc07cee8538a93b7ab"
+  "package_digest": "sha256:20269bf79daa59ca0a103e98fb1d5913665fed974fd8a6001e0fbfd6afa145bf"
 }
