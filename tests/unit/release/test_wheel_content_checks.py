@@ -3,10 +3,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import io
+import json
 import stat
 import struct
 import tarfile
 import zipfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -513,6 +515,21 @@ def test_required_sdist_paths_cover_installed_sources_and_resources() -> None:
         "SECURITY.md",
     ):
         assert governance_path in required
+    for development_input in (
+        ".gitattributes",
+        ".github/workflows/ci.yml",
+        "Makefile",
+        "mkdocs.yml",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
+        "scripts/v1_architecture_governance.py",
+        "docs/governance/v1/sprint2/architecture-package.json",
+    ):
+        assert development_input in required
 
 
 def test_mitre_atlas_catalog_has_packaged_attribution_and_upstream_license() -> None:
@@ -542,6 +559,44 @@ def test_mitre_atlas_catalog_has_packaged_attribution_and_upstream_license() -> 
     assert "TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION" in license_text
     assert "(a) You must give any other recipients" in license_text
     assert "END OF TERMS AND CONDITIONS" in license_text
+
+
+def test_sdist_requires_every_declared_public_architecture_input(tmp_path: Path) -> None:
+    paths = wheel_content_checks._architecture_source_input_paths()
+    assert "docs/adr/0017-v1-evidence-temporal-semantics.md" in paths
+    assert "docs/governance/v1/baseline-observations.json" in paths
+    assert "docs/governance/v1/sprint2/support-policy.schema.json" in paths
+    assert ".github/workflows/ci.yml" in paths and "mkdocs.yml" in paths
+    payloads = {path: (ROOT / path).read_bytes() for path in paths}
+    _wheel, complete = _write_payload_pair(tmp_path, extra_sdist=payloads)
+    missing, forbidden = inspect_sdist(complete)
+    assert not set(paths).intersection(missing) and not forbidden
+    omitted = "docs/governance/v1/baseline-observations.json"
+    del payloads[omitted]
+    _wheel, incomplete = _write_payload_pair(tmp_path, extra_sdist=payloads)
+    missing, forbidden = inspect_sdist(incomplete)
+    assert set(paths).intersection(missing) == {omitted} and not forbidden
+
+
+def test_architecture_source_closure_rejects_private_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts import v1_architecture_governance
+
+    monkeypatch.setattr(v1_architecture_governance, "TOOLING", (".git/config",))
+    with pytest.raises(ValueError, match="not a public portable path"):
+        wheel_content_checks._architecture_source_input_paths()
+
+
+def test_sdist_rejects_repository_only_successor_acceptance_receipt(tmp_path: Path) -> None:
+    receipt = "docs/governance/v1/sprint2/s1-successor-acceptance.json"
+    assert receipt not in required_sdist_paths()
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={receipt: b'{"fixture": "nonaccepting", "accepted": false}\n'},
+    )
+    _missing, forbidden = inspect_sdist(sdist)
+    assert forbidden == ["agent_assure-0.6.4/" + receipt]
 
 
 def test_distribution_identity_rejects_mismatched_wheel_and_sdist_versions(
@@ -937,6 +992,175 @@ def test_sdist_privacy_scan_applies_structural_checks_to_citation_cff(tmp_path: 
     )
 
     with pytest.raises(ValueError, match="structural privacy review"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize(
+    "member", sorted(wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON)
+)
+def test_sdist_public_governance_proof_review_preserves_archive_bytes(
+    tmp_path: Path, member: str
+) -> None:
+    raw = (ROOT / member).read_bytes()
+    probe = wheel_content_checks._sdist_privacy_probe(member, raw)
+    assert probe.replace(b'"public_governance_proof"', b'"signature"') == raw
+    assert probe.count(b"\n") == raw.count(b"\n")
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: raw})
+    inspect_sdist(sdist)
+    with tarfile.open(sdist, "r:gz") as archive:
+        source = archive.extractfile("agent_assure-0.6.4/" + member)
+        assert source is not None and source.read() == raw
+
+
+@pytest.mark.parametrize("mutation", ["whitespace", "extra-field", "missing", "moved", "scalar"])
+def test_sdist_public_proof_review_rejects_any_changed_document_bytes(
+    tmp_path: Path, mutation: str
+) -> None:
+    member = "docs/governance/v1/sprint2/support-policy.json"
+    raw = (ROOT / member).read_bytes()
+    if mutation == "whitespace":
+        changed = raw + b"\n"
+    elif mutation == "extra-field":
+        changed = raw.replace(b"{", b'{"api_key":"opaque-review-bypass",', 1)
+    elif mutation == "missing":
+        changed = raw.replace(b'  "signature": null,\n', b"")
+    elif mutation == "moved":
+        changed = raw.replace(b'"signature": null', b'"other": {"signature": null}')
+    else:
+        changed = raw.replace(b'"signature": null', b'"signature": "substituted"')
+    assert changed != raw
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
+    with pytest.raises(ValueError, match="original bytes changed"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("placement", ["moved-sdist", "wheel"])
+def test_public_proof_review_does_not_follow_data_to_another_path_or_wheel(
+    tmp_path: Path, placement: str
+) -> None:
+    member = "docs/governance/v1/sprint2/support-policy.json"
+    raw = (ROOT / member).read_bytes()
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={"docs/unreviewed-public-proposal.json": raw}
+        if placement == "moved-sdist"
+        else None,
+        extra_wheel={member: raw} if placement == "wheel" else None,
+    )
+    with pytest.raises(ValueError, match="structural privacy review"):
+        (inspect_sdist if placement == "moved-sdist" else inspect_wheel)(
+            sdist if placement == "moved-sdist" else wheel
+        )
+
+
+@pytest.mark.parametrize("mutation", ["duplicate", "pointer", "scalar", "encoded-key"])
+def test_public_proof_pointer_scalar_and_count_checks_survive_a_bad_raw_pin_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    member = "docs/governance/v1/sprint2/support-policy.json"
+    raw = (ROOT / member).read_bytes()
+    changes = {
+        "duplicate": b'"signature": null, "signature": null',
+        "pointer": b'"other": {"signature": null}',
+        "scalar": b'"signature": "substituted"',
+        "encoded-key": b'"\\u0073ignature": null',
+    }
+    changed = raw.replace(b'"signature": null', changes[mutation])
+    review = wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON[member]
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON,
+        member,
+        replace(review, size_bytes=len(changed), sha256=hashlib.sha256(changed).hexdigest()),
+    )
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
+    with pytest.raises(ValueError, match="reviewed governance JSON"):
+        inspect_sdist(sdist)
+
+
+def test_reviewed_public_proof_does_not_suppress_other_structural_credentials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member = "docs/governance/v1/sprint2/support-policy.json"
+    raw = (ROOT / member).read_bytes()
+    changed = raw.replace(b"{", b'{"api_key":"opaque-review-bypass",', 1)
+    review = wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON[member]
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON,
+        member,
+        replace(review, size_bytes=len(changed), sha256=hashlib.sha256(changed).hexdigest()),
+    )
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
+    with pytest.raises(ValueError, match="structural privacy review"):
+        inspect_sdist(sdist)
+
+
+def test_public_signature_scalar_remains_bound_when_document_pin_is_reapproved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    member = "docs/governance/v1/kickoff-authorization-v1-base-01.json"
+    raw = (ROOT / member).read_bytes()
+    other = json.loads(
+        (ROOT / "docs/governance/v1/kickoff-authorization-v1-boot-01.json").read_bytes()
+    )
+    original = json.loads(raw)["signature_envelope"]["signature"].encode()
+    changed = raw.replace(original, other["signature_envelope"]["signature"].encode())
+    assert changed != raw
+    review = wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON[member]
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON,
+        member,
+        replace(review, size_bytes=len(changed), sha256=hashlib.sha256(changed).hexdigest()),
+    )
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
+    with pytest.raises(ValueError, match="public signature scalar changed"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize(
+    "member",
+    (
+        ".gitattributes",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
+    ),
+)
+def test_sdist_accepts_actual_public_attribute_and_dependency_inputs(
+    tmp_path: Path, member: str
+) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path, extra_sdist={member: (ROOT / member).read_bytes()}
+    )
+    inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("member", [".gitattributes", "requirements.lock"])
+@pytest.mark.parametrize("payload", [b"api_key=opaque-credential-value\n", b"\xff\xfe\n"])
+def test_new_source_input_types_retain_structural_and_utf8_privacy_checks(
+    tmp_path: Path, member: str, payload: bytes
+) -> None:
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: payload})
+    with pytest.raises(ValueError, match="structural privacy review|not UTF-8"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("member", [".gitattributes", "requirements.lock"])
+def test_new_source_input_types_reject_private_key_literals(tmp_path: Path, member: str) -> None:
+    # A header-only detector vector, with no private-key material.
+    header = b"-----BEGIN PRIVATE KEY-----\n"
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: header})
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+def test_source_input_inventory_does_not_admit_other_lock_files(tmp_path: Path) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path, extra_sdist={"unreviewed.lock": b"dependency==1.0\n"}
+    )
+    with pytest.raises(ValueError, match="outside the closed text inventory"):
         inspect_sdist(sdist)
 
 

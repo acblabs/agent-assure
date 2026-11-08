@@ -301,8 +301,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_host.py",
-      "size_bytes": 86969,
-      "sha256": "sha256:52b3b5135d1894dbbab0c330a2245176bd3ceb096a600512d8da89e0b72a6dbf"
+      "size_bytes": 87869,
+      "sha256": "sha256:4f271d53a5596be49c044b0bef8f38a06cfc28d93fb3edd43d38d9da2025d01d"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_forecast.py",
@@ -311,8 +311,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_io.py",
-      "size_bytes": 36889,
-      "sha256": "sha256:0e069456b1b1888e1f04f49b3f03c4d5ea919639d978e5541238df3db4883b87"
+      "size_bytes": 37791,
+      "sha256": "sha256:1d19cc2430cbc3be78134d4c5614cedaff543b10433181048eafb89de05f0143"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_ci.py",
@@ -389,5 +389,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:557cfb617935580d409634a01442c138102da5d5a5935a0694efa83c8c832e04"
+  "package_digest": "sha256:cb473d27f2af4533dd9f8074fa9ad1572c8f2275f29d0e6409ccb5433e4530d1"
 }

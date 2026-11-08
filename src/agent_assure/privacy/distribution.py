@@ -50,18 +50,32 @@ DISTRIBUTION_UTF8_SUFFIXES = frozenset(
         ".yml",
     }
 )
-DISTRIBUTION_TEXT_BASENAMES = frozenset(
+_STRUCTURED_TEXT_BASENAMES = frozenset(
     {
-        "license",
-        "makefile",
-        "metadata",
-        "pkg-info",
-        "py.typed",
-        "record",
-        "wheel",
-        ".gitignore",
-        ".keep",
+        ".gitattributes",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
     }
+)
+DISTRIBUTION_TEXT_BASENAMES = (
+    frozenset(
+        {
+            "license",
+            "makefile",
+            "metadata",
+            "pkg-info",
+            "py.typed",
+            "record",
+            "wheel",
+            ".gitignore",
+            ".keep",
+        }
+    )
+    | _STRUCTURED_TEXT_BASENAMES
 )
 _STRUCTURED_TEXT_SUFFIXES = frozenset(
     {".cfg", ".cff", ".env", ".ini", ".json", ".jsonl", ".toml", ".yaml", ".yml"}
@@ -194,7 +208,9 @@ def validate_distribution_member_privacy(
             )
 
     _reject_credential_literals(privacy_text)
-    if suffix in _STRUCTURED_TEXT_SUFFIXES and not normalized_name.endswith(".schema.json"):
+    if (
+        suffix in _STRUCTURED_TEXT_SUFFIXES or basename in _STRUCTURED_TEXT_BASENAMES
+    ) and not normalized_name.endswith(".schema.json"):
         _reject_structural_credentials(privacy_text)
     return line_count
 

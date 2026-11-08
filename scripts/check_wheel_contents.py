@@ -5,6 +5,7 @@ import base64
 import csv
 import hashlib
 import io
+import json
 import os
 import re
 import stat
@@ -13,6 +14,7 @@ import sys
 import tarfile
 import unicodedata
 import zipfile
+from dataclasses import dataclass
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
@@ -122,6 +124,7 @@ SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS = {
         "077244c46e1bb12d01ca4114d5c9b3d5bf5e3332ee0cf463c5b1892f95f136c5": 3,
         "8c26c86892dbbde264a25af7accd7eab357bf7e12b27fce6a69a043af4713b4e": 1,
         "977adbbdc310d3eec375fce3b54399f4a152f28a4d73e898e0388a50af22c4dd": 3,
+        "aa3e9f09b87d9d817aab8c8585ea0bd37d50afe93e0680ba8ce1b442e214057c": 1,
     },
     "tests/unit/schema/test_pilot_evidence.py": {
         "64b05836c8d265895de27f93e7dcbab9ce8bbe70d7b3d88e4c6f9903c22ecf05": 1,
@@ -130,6 +133,102 @@ SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS = {
         "e7034274132b39aafe5f02d4cd2a78049cb6aebcdd280503277c908c94443135": 1,
     },
 }
+
+
+@dataclass(frozen=True)
+class _ReviewedGovernanceJson:
+    size_bytes: int
+    sha256: str
+    # Exact JSON pointers and UTF-8 scalar hashes; None means the JSON null.
+    signature_fields: tuple[tuple[str, str | None], ...]
+
+
+# Public source-governance records are needed by the sdist's development tools.
+# Their SSHSIG values are public proofs, not credentials; the unsigned support
+# proposal has an explicitly absent signature. Only these fully reviewed bytes
+# may use a key-only privacy probe. Archive bytes and all values stay untouched.
+SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON = {
+    "docs/governance/v1/completion-receipt-v1-base-01.json": _ReviewedGovernanceJson(
+        19282,
+        "1ea21efefcb32d615734f84d0a56b63d373bdaa829018db9523ac9d195b5770d",
+        (
+            (
+                "/signature_envelope/signature",
+                "005087730ded2f15c45c7fd3ba6718d1535b61e66cb59f955b075c943250976c",
+            ),
+        ),
+    ),
+    "docs/governance/v1/completion-receipt-v1-boot-01.json": _ReviewedGovernanceJson(
+        30751,
+        "45330151f43b1ed7d8ee993d1e5349f8577721b45d1d663b4ff6b4ec4bf3901d",
+        (
+            (
+                "/signature_envelope/signature",
+                "417a6ed668442f0777dd339b204cb613a94bc58270d086b5118a8ce2c36c07b9",
+            ),
+        ),
+    ),
+    "docs/governance/v1/delivery-forecast.authoring-ledger.json": _ReviewedGovernanceJson(
+        1052627,
+        "93506b106041e4ae09fb8c857745bd07a76557a48b4aea7900960d5ab8681823",
+        (
+            (
+                "/decision_evidence/signature_envelope/signature",
+                "625aa5b63f34adeee3f941caabdec712ff4cd93423e22c3afabb81e4f84cda06",
+            ),
+        ),
+    ),
+    "docs/governance/v1/delivery-forecast.json": _ReviewedGovernanceJson(
+        248536,
+        "1ed3756302a133d0a574806643c7bd55441c687938a0df1a82387764cdec826d",
+        (
+            (
+                "/signature_envelope/signature",
+                "2640a1e93df824ded251e7bbaa8d45abe95aa5a730c024d24dd4d12d8ec96c6d",
+            ),
+            (
+                "/acceptance_receipt/signature_envelope/signature",
+                "b7d9add4ed73fee30fc0b2db8c9aec5808b03737a447fe91ff1fc4a95cf7c337",
+            ),
+        ),
+    ),
+    "docs/governance/v1/governance-bundle.json": _ReviewedGovernanceJson(
+        29809,
+        "032f847449998ad994671f7b221a97c0c1b6ace2595c97f232faa8c524c98818",
+        (
+            (
+                "/signature_envelope/signature",
+                "78bc4339de5a91c40be0bb29b6c37e4a9e48a3769e092675fa9713a2939b598e",
+            ),
+        ),
+    ),
+    "docs/governance/v1/kickoff-authorization-v1-base-01.json": _ReviewedGovernanceJson(
+        3092,
+        "c7b4e5ae96b29d1185d7a1115885e8971d070a55551fa6e992fc733f225b5f82",
+        (
+            (
+                "/signature_envelope/signature",
+                "c8e3305b90d01c35e3526262be707436fd0465d103c106c44164e482f545af43",
+            ),
+        ),
+    ),
+    "docs/governance/v1/kickoff-authorization-v1-boot-01.json": _ReviewedGovernanceJson(
+        3048,
+        "b8f3cff124ff422110e94263f1fbcf448870418734c6847c1ac5c28bd9184e16",
+        (
+            (
+                "/signature_envelope/signature",
+                "f882bd7307720c4a27b37aa1cf0d65981dd493946986b5445b93c581b9ef6474",
+            ),
+        ),
+    ),
+    "docs/governance/v1/sprint2/support-policy.json": _ReviewedGovernanceJson(
+        1422,
+        "425869cc4016f3eef166698248766e429b6267414dfa4645852757248158909d",
+        (("/signature", None),),
+    ),
+}
+_GOVERNANCE_SIGNATURE_KEY = re.compile(rb'"signature"(?=\s*:)')
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _WINDOWS_FORBIDDEN_FILENAME_CHARACTERS = frozenset('<>"|?*')
 _WINDOWS_RESERVED_NAMES = {
@@ -365,7 +464,12 @@ FORBIDDEN_SDIST_PREFIXES = (
     ".ruff_cache/",
 )
 
-FORBIDDEN_SDIST_EXACT_PATHS = ("schemas/unreleased",)
+# Future signed closure receipts remain repository/tag evidence, outside SDist.
+# The public architecture source check requires their schema, not live receipts.
+FORBIDDEN_SDIST_EXACT_PATHS = (
+    "schemas/unreleased",
+    "docs/governance/v1/sprint2/s1-successor-acceptance.json",
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -694,6 +798,71 @@ def _validate_wheel_privacy(
         remaining_lines -= scanned_lines
 
 
+def _sdist_privacy_probe(name: str, data: bytes) -> bytes:
+    """Rename reviewed public-proof keys only, preserving all other bytes.
+
+    This is a scan view, never a rewritten archive member. Exact original
+    member bytes, pointers, scalar values and key occurrence counts must agree
+    before a probe can be used. Credential literals in every value and all
+    unrelated fields still pass through the ordinary privacy scanner.
+    """
+    review = SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON.get(name)
+    if review is None:
+        return data
+    if len(data) != review.size_bytes or hashlib.sha256(data).hexdigest() != review.sha256:
+        raise ValueError("reviewed governance JSON original bytes changed")
+
+    def unique_members(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("reviewed governance JSON contains a duplicate member")
+            result[key] = value
+        return result
+
+    signature_fields: dict[str, object] = {}
+
+    def visit(value: object, pointer: str = "") -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                escaped = key.replace("~", "~0").replace("/", "~1")
+                child = pointer + "/" + escaped
+                if key == "signature":
+                    signature_fields[child] = item
+                visit(item, child)
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                visit(item, pointer + "/" + str(index))
+
+    visit(json.loads(data, object_pairs_hook=unique_members))
+    expected = dict(review.signature_fields)
+    if len(expected) != len(review.signature_fields) or signature_fields.keys() != expected.keys():
+        raise ValueError("reviewed governance JSON signature pointers changed")
+    for pointer, expected_digest in review.signature_fields:
+        value = signature_fields[pointer]
+        if expected_digest is None:
+            if value is not None:
+                raise ValueError("reviewed governance JSON absent signature changed")
+            continue
+        if (
+            not isinstance(value, str)
+            or hashlib.sha256(value.encode()).hexdigest() != expected_digest
+        ):
+            raise ValueError("reviewed governance JSON public signature scalar changed")
+        try:
+            armor = base64.b64decode(value, validate=True)
+        except ValueError:
+            raise ValueError("reviewed governance JSON public proof is not SSHSIG armor") from None
+        if not (
+            armor.startswith(b"-----BEGIN SSH SIGNATURE-----\n")
+            and armor.endswith(b"-----END SSH SIGNATURE-----\n")
+        ):
+            raise ValueError("reviewed governance JSON public proof is not SSHSIG armor")
+    if len(_GOVERNANCE_SIGNATURE_KEY.findall(data)) != len(expected):
+        raise ValueError("reviewed governance JSON signature key count changed")
+    return _GOVERNANCE_SIGNATURE_KEY.sub(b'"public_governance_proof"', data)
+
+
 def _validate_sdist_privacy(sdist: Path) -> None:
     remaining_lines = MAX_DISTRIBUTION_PRIVACY_SCAN_LINES
     expanded_bytes = 0
@@ -714,7 +883,7 @@ def _validate_sdist_privacy(sdist: Path) -> None:
             name = _strip_sdist_root(member.name)
             scanned_lines = validate_distribution_member_privacy(
                 name,
-                data,
+                _sdist_privacy_probe(name, data),
                 max_structural_scan_lines=remaining_lines,
                 max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
                 max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
@@ -784,13 +953,49 @@ def required_archive_paths(
     )
 
 
+def _architecture_source_input_paths() -> tuple[str, ...]:
+    """Require the public inputs of the shipped architecture development check.
+
+    Use the checker-owned static contracts, not paths supplied by a mutable
+    package manifest. Importing these constants performs no architecture check,
+    signing operation, private-roadmap read or Git-history lookup.
+    """
+    from scripts.v1_architecture_governance import (
+        DECISIONS,
+        DIRECTORY,
+        HISTORICAL_FILES,
+        SUPPLEMENTARY,
+        TOOLING,
+    )
+
+    governance_directory = DIRECTORY.rsplit("/", 1)[0]
+    paths = (
+        f"{DIRECTORY}/architecture-package.json",
+        *(f"{governance_directory}/{name}" for name in HISTORICAL_FILES),
+        *SUPPLEMENTARY,
+        *TOOLING,
+        *(decision[1] for decision in DECISIONS.values()),
+    )
+    for path in paths:
+        if (
+            _portable_archive_member_error(path) is not None
+            or _is_forbidden_sdist_path("source/" + path)
+            or not (
+                path.startswith(("docs/", "scripts/", "tests/", ".github/workflows/"))
+                or path in {"Makefile", "mkdocs.yml"}
+            )
+        ):
+            raise ValueError("architecture source input is not a public portable path")
+    return tuple(dict.fromkeys(paths))
+
+
 def required_sdist_paths(
     *,
     schema_root: Path = SCHEMA_ROOT,
     schema_versions: tuple[str, ...] | None = None,
     release_trust_source_root: Path | None = None,
 ) -> tuple[str, ...]:
-    """Return source-tree paths that must back every required installed resource."""
+    """Return installed-resource sources and public source-check dependencies."""
     versions = schema_versions or frozen_schema_versions(schema_root)
     trust_source_root = (
         RELEASE_TRUST_SOURCE_ROOT
@@ -807,6 +1012,8 @@ def required_sdist_paths(
         f"agent_assure/schema_resources/{version}/" for version in versions
     )
     mapped: list[str] = [
+        ".gitattributes",
+        ".github/workflows/ci.yml",
         "CHANGELOG.md",
         "CITATION.cff",
         "CODE_OF_CONDUCT.md",
@@ -816,7 +1023,19 @@ def required_sdist_paths(
         "README.md",
         "SECURITY.md",
         "THIRD_PARTY_NOTICES.md",
+        "Makefile",
+        "mkdocs.yml",
         "pyproject.toml",
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-min.constraints.txt",
+        "requirements-adk.lock",
+        "requirements-langgraph.lock",
+        "requirements-otel.lock",
+        "scripts/check_wheel_contents.py",
+        "scripts/v1_architecture_governance.py",
+        "docs/governance/v1/sprint2/architecture-package.json",
+        *_architecture_source_input_paths(),
         *(f"study/registration/{filename}" for filename in trust_filenames),
     ]
     for path in required:

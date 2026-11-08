@@ -58,6 +58,10 @@ def public_root(tmp_path: Path) -> Path:
     root = tmp_path / "repository"
     root.mkdir()
     paths = set(host.BOOTSTRAP_FILES) | {
+        # Real replay requires exact JSON/source bytes even when the governed
+        # Git environment sets core.autocrlf=true. Preserve that repository
+        # contract in synthetic clones instead of normalizing assertions.
+        ".gitattributes",
         "Makefile",
         ".github/workflows/ci.yml",
         "docs/governance/v1/delivery-forecast.estimation-catalog.json",
@@ -295,9 +299,26 @@ def ephemeral_signer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
         ),
     )
     key = tmp_path / "test-only-signing-key"
-    subprocess.run(
-        [ssh, "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True, capture_output=True
-    )
+
+    def run(arguments: list[str]) -> None:
+        # Native Windows OpenSSH exits 255 without PROGRAMDATA in the governed
+        # child environment. Use the same fresh, pristine machine-data scope as
+        # actual verification instead of inheriting the user's SSH state.
+        with legacy._isolated_openssh_environment() as environment:
+            completed = subprocess.run(
+                [str(executable), *arguments],
+                cwd=tmp_path,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                timeout=15,
+                check=False,
+                capture_output=True,
+            )
+        assert completed.returncode == 0, (
+            f"test-only OpenSSH exited {completed.returncode}; stderr={completed.stderr[:4096]!r}"
+        )
+
+    run(["-q", "-t", "ed25519", "-N", "", "-f", str(key)])
     public = (key.with_suffix(".pub")).read_text().strip().split()
     public_key = " ".join(public[:2])
     monkeypatch.setattr(host, "ROOT_PUBLIC_KEY", public_key)
@@ -308,9 +329,8 @@ def ephemeral_signer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
         counter += 1
         source = tmp_path / f"test-payload-{counter}.bin"
         source.write_bytes(payload)
-        subprocess.run(
+        run(
             [
-                ssh,
                 "-Y",
                 "sign",
                 "-n",
@@ -320,9 +340,7 @@ def ephemeral_signer(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
                 "-O",
                 "hashalg=sha512",
                 str(source),
-            ],
-            check=True,
-            capture_output=True,
+            ]
         )
         armor = legacy._canonical_sshsig_armor(
             source.with_suffix(source.suffix + ".sig").read_bytes()

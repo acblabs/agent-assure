@@ -777,17 +777,39 @@ def signed_example(
         },
     )
     private = tmp_path / "ephemeral-test-key"
-    subprocess.run(
-        [str(executable_path), "-t", "ed25519", "-N", "", "-C", "test-only", "-f", str(private)],
-        capture_output=True,
-        check=True,
-        timeout=15,
+
+    def run_test_openssh(stage: str, arguments: list[str]) -> None:
+        # Native Windows OpenSSH needs PROGRAMDATA even for local keygen.
+        # The frozen test environment deliberately supplies no ambient value;
+        # use the existing fresh, pristine per-call machine-data isolation.
+        with legacy._isolated_openssh_environment() as environment:
+            completed = subprocess.run(
+                [str(executable_path), *arguments],
+                cwd=tmp_path,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+                capture_output=True,
+                check=False,
+                timeout=15,
+            )
+        if completed.returncode != 0:
+            detail = repr(completed.stderr[:512])
+            if len(detail) > 512:
+                detail = detail[:509] + "..."
+            pytest.fail(
+                f"ephemeral test-only OpenSSH {stage} exited {completed.returncode}; "
+                f"bounded escaped stderr: {detail}",
+                pytrace=False,
+            )
+
+    run_test_openssh(
+        "key generation", ["-t", "ed25519", "-N", "", "-C", "test-only", "-f", str(private)]
     )
     subject = tmp_path / "subject"
     subject.write_bytes(b"exact domain-separated test bytes\x00\n")
-    subprocess.run(
+    run_test_openssh(
+        "SSHSIG signing",
         [
-            str(executable_path),
             "-Y",
             "sign",
             "-f",
@@ -798,9 +820,6 @@ def signed_example(
             "hashalg=sha512",
             str(subject),
         ],
-        capture_output=True,
-        check=True,
-        timeout=15,
     )
     public = private.with_suffix(".pub").read_text().strip().split()
     key = io.TrustedKey(
