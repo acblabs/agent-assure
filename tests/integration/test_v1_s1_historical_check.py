@@ -32,6 +32,77 @@ class SigningKey:
     fingerprint: str
 
 
+def _git_environment() -> dict[str, str]:
+    environment = {
+        key: value for key, value in os.environ.items() if not key.upper().startswith("GIT_")
+    }
+    environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+        }
+    )
+    return environment
+
+
+@pytest.fixture
+def synthetic_python_runtime(tmp_path: Path) -> dict[str, Any]:
+    """Measure public pytest-host binaries, never the maintainer's installation.
+
+    This tiny copied runtime supplies source-pin fixtures only. No test launches
+    it or claims that these two files are an executable accepted configuration.
+    """
+    source_python = Path(getattr(sys, "_base_executable", sys.executable)).resolve(strict=True)
+    source_dll = (
+        Path(sys.base_prefix) / f"python{sys.version_info.major}{sys.version_info.minor}.dll"
+    ).resolve(strict=True)
+    runtime_root = tmp_path / "synthetic-base-python"
+    runtime_root.mkdir()
+    python = runtime_root / "python.exe"
+    dll = runtime_root / source_dll.name
+    shutil.copyfile(source_python, python)
+    shutil.copyfile(source_dll, dll)
+    python_bytes, dll_bytes = python.read_bytes(), dll.read_bytes()
+    count, size, digest = governance._base_runtime_inventory(runtime_root)
+    tools = _test_host_tool_identities()
+    windows = Path(os.environ["SystemRoot"])
+    child_paths = [runtime_root, runtime_root / "DLLs"]
+    child_paths.extend(Path(tool.path).parent for tool in tools.values())
+    child_paths.extend((windows / "System32", windows))
+    return {
+        "_FROZEN_PYTHON_ROOT": runtime_root,
+        "_FROZEN_PYTHON_EXECUTABLE": python,
+        "_FROZEN_PYTHON_EXECUTABLE_SIZE": len(python_bytes),
+        "_FROZEN_PYTHON_EXECUTABLE_SHA256": hashlib.sha256(python_bytes).hexdigest(),
+        "_FROZEN_PYTHON_DLL": dll,
+        "_FROZEN_PYTHON_DLL_SIZE": len(dll_bytes),
+        "_FROZEN_PYTHON_DLL_SHA256": hashlib.sha256(dll_bytes).hexdigest(),
+        "_FROZEN_BASE_RUNTIME_FILE_COUNT": count,
+        "_FROZEN_BASE_RUNTIME_SIZE_BYTES": size,
+        "_FROZEN_BASE_RUNTIME_SHA256": digest,
+        "POST_R2_CHILD_PATH": ";".join(str(path) for path in dict.fromkeys(child_paths)),
+    }
+
+
+def _bind_synthetic_python_runtime(
+    module: Any,
+    bindings: Mapping[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Always reproduce the hosted runner's missing maintainer installation,
+    # even on a local machine where that historical installation still exists.
+    missing = bindings["_FROZEN_PYTHON_ROOT"].with_name("missing-maintainer-python")
+    assert not missing.exists()
+    monkeypatch.setattr(module, "_FROZEN_PYTHON_ROOT", missing)
+    monkeypatch.setattr(module, "_FROZEN_PYTHON_EXECUTABLE", missing / "python.exe")
+    monkeypatch.setattr(module, "_FROZEN_PYTHON_DLL", missing / "python312.dll")
+    assert not module._FROZEN_PYTHON_EXECUTABLE.is_file()
+    for name, value in bindings.items():
+        monkeypatch.setattr(module, name, value)
+
+
 def _test_host_tool_identities() -> dict[str, governance.TrustedExecutableIdentity]:
     identities: dict[str, governance.TrustedExecutableIdentity] = {}
     for name in ("git", "ssh-keygen"):
@@ -81,16 +152,26 @@ def _run_ssh_keygen(
 
 
 def _git(repository: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    hooks = repository / ".git/historical-integration-empty-hooks"
+    hooks.mkdir(exist_ok=True)
     return _run(
         [
             governance._trusted_executable("git"),
+            "--no-replace-objects",
             "-c",
             "core.longpaths=true",
+            "-c",
+            f"core.hooksPath={hooks}",
+            "-c",
+            "commit.gpgSign=false",
+            "-c",
+            "tag.gpgSign=false",
             "-C",
             str(repository),
             *arguments,
         ],
         cwd=repository,
+        env=_git_environment(),
     )
 
 
@@ -663,6 +744,7 @@ def test_historical_check_validates_the_full_signed_closure_after_a_descendant(
         ],
         cwd=tmp_path,
         timeout=60,
+        env=_git_environment(),
     )
     _git(
         repository,
@@ -954,6 +1036,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
+    synthetic_python_runtime: dict[str, Any],
 ) -> None:
     """Exercise synthetic v2 topology, SSHSIG, tag, and self-binding on Windows.
 
@@ -964,6 +1047,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
 
     trusted_tools = _test_host_tool_identities()
     monkeypatch.setattr(governance, "TRUSTED_EXECUTABLE_IDENTITIES", trusted_tools)
+    _bind_synthetic_python_runtime(governance, synthetic_python_runtime, monkeypatch)
     repository = tmp_path / "repository"
     _run(
         [
@@ -979,6 +1063,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         ],
         cwd=tmp_path,
         timeout=60,
+        env=_git_environment(),
     )
     _git(
         repository,
@@ -1191,6 +1276,28 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
         result_commit=result_commit,
         monkeypatch=monkeypatch,
     )
+    python = synthetic_python_runtime["_FROZEN_PYTHON_EXECUTABLE"]
+    python_bytes = python.read_bytes()
+    try:
+        python.write_bytes(python_bytes + b"synthetic source substitution")
+        with pytest.raises(
+            governance.GovernanceError,
+            match="Python executable source bytes changed",
+        ):
+            governance.validate_post_r2_suite_evidence_source(
+                post_r2_evidence,
+                expected_result_commit=result_commit,
+                expected_repository_root=repository,
+                require_passed=True,
+            )
+    finally:
+        python.write_bytes(python_bytes)
+    governance.validate_post_r2_suite_evidence_source(
+        post_r2_evidence,
+        expected_result_commit=result_commit,
+        expected_repository_root=repository,
+        require_passed=True,
+    )
 
     receipts: dict[str, dict[str, Any]] = {}
     receipt_times = {
@@ -1339,6 +1446,7 @@ def test_generation_2_topology_tag_and_self_binding_in_standalone_clone(
 
     standalone = _load_governance_from_clone(repository)
     monkeypatch.setattr(standalone, "TRUSTED_EXECUTABLE_IDENTITIES", trusted_tools)
+    _bind_synthetic_python_runtime(standalone, synthetic_python_runtime, monkeypatch)
     monkeypatch.setattr(standalone, "MAINTAINER_PUBLIC_KEY", signing_key.public_key)
     monkeypatch.setattr(
         standalone,
