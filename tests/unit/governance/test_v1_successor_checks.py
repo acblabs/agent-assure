@@ -146,6 +146,96 @@ def test_actual_authenticated_bootstrap_has_the_expected_dispatch_shape(tmp_path
     ]
 
 
+def test_successor_pytest_recipe_enforces_socket_guard_without_plugin_autoload(
+    tmp_path: Path,
+) -> None:
+    import pytest_socket
+
+    # Isolated Python receives only the same installed test packages as this
+    # process. No site initialization, entry-point autoload or inherited pytest
+    # settings can supply a plugin omitted from the registered recipe.
+    packages = Path(pytest.__file__).resolve().parent.parent
+    assert Path(pytest_socket.__file__).resolve().is_relative_to(packages)
+    project = tmp_path / "recipe-project"
+    project.mkdir()
+    (project / "pyproject.toml").write_text("[tool.pytest.ini_options]\n", encoding="utf-8")
+    guarded_test = (
+        "import os, socket\n"
+        "import pytest\n"
+        "from pytest_socket import SocketBlockedError\n"
+        "def test_socket_constructor_is_blocked():\n"
+        "    assert os.environ['PYTEST_DISABLE_PLUGIN_AUTOLOAD'] == '1'\n"
+        "    assert 'PYTEST_PLUGINS' not in os.environ\n"
+        "    assert 'PYTEST_ADDOPTS' not in os.environ\n"
+        "    with pytest.raises(SocketBlockedError):\n"
+        "        socket.socket()\n"
+    )
+    for relative in (
+        "tests/unit/governance/test_socket_guard.py",
+        "tests/integration/test_v1_s1_historical_check.py",
+    ):
+        target = project / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(guarded_test, encoding="utf-8")
+    spec = next(
+        row for row in checks.make_check_expansion() if row.check_id == "successor-specific"
+    )
+    # The original dispatch loads the plugin; transform_bootstrap replaces the
+    # entire argv. The replacement must retain its own explicit plugin loading.
+    encoded = (
+        "exec("
+        + repr(
+            "import runpy,sys\n"
+            f"sys.path.append({str(packages)!r})\n"
+            "pytest_arguments = ['-p', 'pytest_socket']\n"
+            'sys.argv = ["pytest", *pytest_arguments]\n'
+            'runpy.run_module("pytest", run_name="__main__", alter_sys=True)\n'
+        )
+        + ")"
+    )
+    environment = {
+        key: os.environ[key]
+        for key in ("SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "TEMP", "TMP")
+        if key in os.environ
+    }
+    environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
+    for missing_plugin in (True, False):
+        arguments = list(spec.arguments)
+        if missing_plugin:
+            for index in range(len(arguments) - 1):
+                if arguments[index : index + 2] == ["-p", "pytest_socket"]:
+                    del arguments[index : index + 2]
+                    break
+        label = "missing-plugin" if missing_plugin else "registered-recipe"
+        arguments = [
+            value.format(root=str(project), basetemp=str(tmp_path / (label + "-pytest")))
+            for value in arguments
+        ]
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                "-X",
+                "pycache_prefix=" + str(tmp_path / (label + "-cache")),
+                "-",
+            ],
+            input=checks.transform_bootstrap(encoded, spec, arguments),
+            cwd=project,
+            env=environment,
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if missing_plugin:
+            assert result.returncode == 4, (result.stdout, result.stderr)
+            assert b"unrecognized arguments: --disable-socket" in result.stderr
+        else:
+            assert result.returncode == 0, (result.stdout, result.stderr)
+            assert b"2 passed" in result.stdout
+
+
 class SuccessfulBackend:
     def __init__(self) -> None:
         self.calls: list[str] = []

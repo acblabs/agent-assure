@@ -286,8 +286,8 @@
     },
     {
       "path": "scripts/v1_successor_checks.py",
-      "size_bytes": 37471,
-      "sha256": "sha256:2651f73dc2b7fbb80ae278f291a42888b23915297229e4580b16e24fc082cebc"
+      "size_bytes": 37526,
+      "sha256": "sha256:520bedbe6529a6e107ff23c9a3f7069419704e860aa87f01b3a9c4ca8e834612"
     },
     {
       "path": "tests/unit/governance/test_v1_s1_successor.py",
@@ -321,8 +321,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_checks.py",
-      "size_bytes": 26828,
-      "sha256": "sha256:8f4376b6826455e68d340536974012a11ac8d8b5af077d462932a3d56ecccded"
+      "size_bytes": 30464,
+      "sha256": "sha256:185dfcb5895f56d7e73a8834497aedf2f476ba8f1bf54134d149749e1e4a68af"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_bootstrap.py",
@@ -389,5 +389,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:a82befdf097fe3b0eb66acc606e4cc1b720e4ef371778569f3ea8235ceff57f7"
+  "package_digest": "sha256:a2936fda8ad00d97924bf24c98d851102f0d15527ab981dc07cee8538a93b7ab"
 }

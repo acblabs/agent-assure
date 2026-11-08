@@ -152,6 +152,8 @@ def make_check_expansion() -> tuple[CheckSpec, ...]:
             None,
             (
                 "-p",
+                "pytest_socket",
+                "-p",
                 "no:cacheprovider",
                 "-c",
                 "{root}/pyproject.toml",
