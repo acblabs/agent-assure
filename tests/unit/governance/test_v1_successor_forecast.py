@@ -573,3 +573,267 @@ def test_forecast_freshness_is_half_open_bounded_and_follows_inventory(
     ledger, selected, source = _fixture()
     with pytest.raises(core.SuccessorError):
         _build(ledger, selected, source, **times)
+
+
+def _v4_fixture() -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+    ledger, selected, source = _fixture()
+    for index, row in enumerate(selected):
+        row.update(
+            confidence="medium" if index == 0 else "low",
+            dependency_assumptions=[f"Synthetic dependency receipt for {row['ticket_id']}"],
+            risk_assumptions=["Synthetic capacity and file scopes remain explicitly unresolved"],
+            current_status="in_progress" if index == 0 else "blocked",
+            trusted_issue_time=_stamp(ISSUED - timedelta(minutes=index)),
+        )
+    return ledger, selected, source
+
+
+def _build_v4(
+    ledger: dict[str, Any], selected: list[dict[str, Any]], source: dict[str, Any], **times: Any
+) -> dict[str, Any]:
+    return forecast.build_projection_v4(
+        authoring_ledger=ledger,
+        human_estimates=selected,
+        source=source,
+        issued_at_utc=times.get("issued_at_utc", _stamp(ISSUED)),
+        valid_until_utc=times.get("valid_until_utc", _stamp(VALID_UNTIL)),
+        now=times.get("now", NOW),
+    )
+
+
+def _validate(
+    record: dict[str, Any],
+    ledger: dict[str, Any],
+    selected: list[dict[str, Any]],
+    source: dict[str, Any],
+    *,
+    now: datetime = NOW,
+) -> dict[str, Any]:
+    return forecast.validate_projection(
+        record, authoring_ledger=ledger, human_estimates=selected, source=source, now=now
+    )
+
+
+def _rehash_v4(record: dict[str, Any]) -> None:
+    record["record_digest"] = (
+        "sha256:"
+        + hashlib.sha256(
+            b"agent-assure:delivery-forecast/v4\x00"
+            + rfc8785.dumps({key: value for key, value in record.items() if key != "record_digest"})
+        ).hexdigest()
+    )
+
+
+def test_v4_rows_express_complete_roadmap_contract_and_preserve_exact_arithmetic() -> None:
+    ledger, selected, source = _v4_fixture()
+    before = copy.deepcopy((ledger, selected, source))
+    record = _build_v4(ledger, selected, source)
+    assert (ledger, selected, source) == before
+    assert record["format"] == "agent-assure-delivery-forecast/4"
+    assert record["authorization_effect"] == "none"
+    required = {
+        "ticket_id",
+        "estimate_scope",
+        "planned_execution_count",
+        "execution_estimates",
+        "aggregate_p50_effort_hours",
+        "aggregate_p90_effort_hours",
+        "aggregate_reviewer_effort_hours",
+        "aggregate_method_id",
+        "aggregate_method_definition_digest",
+        "aggregate_dependence_assumptions",
+        "confidence",
+        "dependency_assumptions",
+        "risk_assumptions",
+        "current_status",
+        "trusted_issue_time",
+    }
+    for row, adopted in zip(record["rows"], selected, strict=True):
+        assert required <= row.keys()
+        for key in (
+            "confidence",
+            "dependency_assumptions",
+            "risk_assumptions",
+            "current_status",
+            "trusted_issue_time",
+        ):
+            assert row[key] == adopted[key]
+        executions = adopted["execution_estimates"]
+        assert row["aggregate_p50_effort_hours"] == sum(
+            item["p50_effort_hours"] for item in executions
+        )
+        assert row["aggregate_p90_effort_hours"] == sum(
+            item["p90_effort_hours"] for item in executions
+        )
+        assert row["aggregate_reviewer_effort_hours"] == sum(
+            item["reviewer_p50_effort_hours"] for item in executions
+        )
+        assert row["aggregate_method_id"] == "comonotonic-quantile-sum/v1"
+        assert (
+            row["aggregate_method_definition_digest"]
+            == record["aggregation_method"]["definition_digest"]
+        )
+        assert row["aggregate_dependence_assumptions"] == [
+            "full_positive_rank_dependence_no_diversification_credit",
+            "reported_quantile_sums_are_exact_only_under_the_bound_comonotonic_construction",
+        ]
+        for occurrence, chosen in zip(row["execution_estimates"], executions, strict=True):
+            assert occurrence["p50_effort_hours"] == chosen["p50_effort_hours"]
+            assert occurrence["p90_effort_hours"] == chosen["p90_effort_hours"]
+            assert occurrence["reviewer_effort_hours"] == chosen["reviewer_p50_effort_hours"]
+    legacy_selection = [
+        {
+            key: value
+            for key, value in row.items()
+            if key in {"ticket_id", "estimate_scope", "execution_estimates"}
+        }
+        for row in selected
+    ]
+    historical = _build(ledger, legacy_selection, source)
+    assert record["portfolio_aggregate"] == historical["portfolio_aggregate"]
+    assert record["portfolio_scenarios"] == historical["portfolio_scenarios"]
+    assert record["portfolio_aggregate"]["combined_p90_effort_hours"] is None
+    assert historical["format"] == "agent-assure-delivery-forecast/3"
+    assert record["record_digest"] != historical["record_digest"]
+    assert record["human_estimates_digest"] != historical["human_estimates_digest"]
+    expected = copy.deepcopy(record)
+    _rehash_v4(expected)
+    assert expected == record
+    assert _validate(record, ledger, selected, source) == record
+    assert _validate(historical, ledger, legacy_selection, source) == historical
+
+
+def test_v4_closed_schema_and_replay_reject_omissions_overclaims_and_rehashed_tampering() -> None:
+    schema = json.loads((ROOT / forecast.V4_SCHEMA_PATH).read_bytes())
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    ledger, selected, source = _v4_fixture()
+    record = _build_v4(ledger, selected, source)
+    validator.validate(record)
+    for field in (
+        "confidence",
+        "dependency_assumptions",
+        "risk_assumptions",
+        "current_status",
+        "trusted_issue_time",
+    ):
+        changed = copy.deepcopy(record)
+        changed["rows"][0].pop(field)
+        _rehash_v4(changed)
+        with pytest.raises(ValidationError):
+            validator.validate(changed)
+        with pytest.raises(core.SuccessorError):
+            _validate(changed, ledger, selected, source)
+    # Each value here satisfies the schema. A fresh attacker-computed digest
+    # cannot replace the independently supplied human selections or arithmetic.
+    mutations = [
+        ("confidence", "high"),
+        ("risk_assumptions", ["Unreviewed substitution"]),
+        ("dependency_assumptions", ["Unreviewed dependency replacement"]),
+        ("current_status", "done"),
+        ("aggregate_p50_effort_hours", 0),
+        ("trusted_issue_time", _stamp(ISSUED - timedelta(minutes=2))),
+    ]
+    for key, value in mutations:
+        changed = copy.deepcopy(record)
+        changed["rows"][0][key] = value
+        _rehash_v4(changed)
+        validator.validate(changed)
+        with pytest.raises(core.SuccessorError, match="complete reconstruction"):
+            _validate(changed, ledger, selected, source)
+    changed = copy.deepcopy(record)
+    changed["rows"][0]["execution_estimates"][0]["p50_effort_hours"] += 1
+    _rehash_v4(changed)
+    validator.validate(changed)
+    with pytest.raises(core.SuccessorError):
+        _validate(changed, ledger, selected, source)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("confidence", None),
+        ("confidence", "certain"),
+        ("confidence", True),
+        ("dependency_assumptions", []),
+        ("dependency_assumptions", ["same", "same"]),
+        ("dependency_assumptions", [" "]),
+        ("risk_assumptions", "not an array"),
+        ("risk_assumptions", [""]),
+        ("risk_assumptions", ["x" * 4097]),
+        ("current_status", "accepted_for_development"),
+        ("current_status", False),
+        ("trusted_issue_time", None),
+        ("trusted_issue_time", "2026-11-07T12:00:00+00:00"),
+        ("trusted_issue_time", "2026-11-07T12:00:00.000001Z"),
+        ("trusted_issue_time", "2026-11-07T11:54:59Z"),
+    ],
+)
+def test_v4_never_invents_or_accepts_invalid_human_row_metadata(field: str, value: Any) -> None:
+    ledger, selected, source = _v4_fixture()
+    selected[0][field] = value
+    with pytest.raises(core.SuccessorError):
+        _build_v4(ledger, selected, source)
+
+
+def test_v4_requires_each_metadata_field_and_version_changes_are_not_implicit() -> None:
+    for field in (
+        "confidence",
+        "dependency_assumptions",
+        "risk_assumptions",
+        "current_status",
+        "trusted_issue_time",
+    ):
+        ledger, selected, source = _v4_fixture()
+        selected[0].pop(field)
+        with pytest.raises(core.SuccessorError, match="unexpected or missing fields"):
+            _build_v4(ledger, selected, source)
+    with pytest.raises(core.SuccessorError):
+        _build_v4(*_fixture())
+    ledger, selected, source = _v4_fixture()
+    with pytest.raises(core.SuccessorError):
+        _build(ledger, selected, source)
+    record = _build_v4(ledger, selected, source)
+    record["format"] = "agent-assure-delivery-forecast/5"
+    with pytest.raises(core.SuccessorError, match="unsupported"):
+        _validate(record, ledger, selected, source)
+
+
+@pytest.mark.parametrize("value", [True, 1.0])
+def test_replay_does_not_alias_booleans_or_integral_floats_with_exact_integers(value: Any) -> None:
+    for version in (3, 4):
+        ledger, selected, source = _v4_fixture() if version == 4 else _fixture()
+        record = (
+            _build_v4(ledger, selected, source)
+            if version == 4
+            else _build(ledger, selected, source)
+        )
+        record["portfolio_scenarios"][1]["ticket_count"] = value
+        domain = f"agent-assure:delivery-forecast/v{version}".encode() + b"\x00"
+        record["record_digest"] = (
+            "sha256:"
+            + hashlib.sha256(
+                domain
+                + rfc8785.dumps(
+                    {key: item for key, item in record.items() if key != "record_digest"}
+                )
+            ).hexdigest()
+        )
+        with pytest.raises(core.SuccessorError, match="JSON types"):
+            _validate(record, ledger, selected, source)
+
+
+def test_v4_expiry_cannot_be_refreshed_by_rehashing_or_metadata_review() -> None:
+    ledger, selected, source = _v4_fixture()
+    record = _build_v4(ledger, selected, source)
+    with pytest.raises(core.SuccessorError, match="future, stale, or excessive"):
+        _validate(record, ledger, selected, source, now=VALID_UNTIL)
+    # Selection changes yield another signed subject, not a silent refresh of
+    # the original record or an assertion that the new subject was accepted.
+    changed = copy.deepcopy(selected)
+    changed[0]["confidence"] = "high"
+    revised = _build_v4(ledger, changed, source)
+    assert revised["record_digest"] != record["record_digest"]
+    assert revised["issued_at_utc"] == record["issued_at_utc"]
+    assert revised["valid_until_utc"] == record["valid_until_utc"]
+    assert revised["projection_status"] == "prepared_non_authorizing"

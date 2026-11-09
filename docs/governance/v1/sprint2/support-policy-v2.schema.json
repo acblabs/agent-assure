@@ -1,0 +1,784 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/support-policy-v2.schema.json",
+  "title": "Immutable support-policy-v2 proposal preserving existing security intake",
+  "description": "This closed schema freezes a pending maintenance proposal, not operational acceptance. Existing SECURITY.md intake objectives continue independently. Only a separately verified exact-digest receipt from the scoped release-policy owner can adopt the new maintenance targets. Null owner identity is not an assignment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "policy_id",
+    "version",
+    "status",
+    "authorization_effect",
+    "supported_line",
+    "baseline_release",
+    "supersedes_policy_path",
+    "supersedes_policy_sha256",
+    "policy_owner_role",
+    "operational_owner_person_id",
+    "targets_are_operational_commitments",
+    "activation_rule",
+    "operational_acceptance_required",
+    "security_backport_eligibility",
+    "response_targets",
+    "maintenance",
+    "support_end_utc",
+    "minimum_overlap_days",
+    "overlap_begins",
+    "eol_rule",
+    "replacement_policy_required_before_support_ends",
+    "silent_support_gap_allowed",
+    "preview_channels",
+    "testpypi_role",
+    "mixed_index_allowed",
+    "targets_state_scope",
+    "existing_security_intake_objectives_remain_in_force",
+    "security_intake_precedence",
+    "security_escalation",
+    "organization_id"
+  ],
+  "properties": {
+    "format": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "agent-assure-v1-support-policy-proposal/2"
+    },
+    "policy_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "POLICY-V1-SUPPORT"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "2.0.0-proposal"
+    },
+    "status": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "pending_human_operational_acceptance"
+    },
+    "authorization_effect": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "none"
+    },
+    "supported_line": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "0.7.x"
+    },
+    "baseline_release": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "0.7.0"
+    },
+    "supersedes_policy_path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "docs/governance/v1/sprint2/support-policy.json"
+    },
+    "supersedes_policy_sha256": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "sha256:425869cc4016f3eef166698248766e429b6267414dfa4645852757248158909d"
+    },
+    "policy_owner_role": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "release_policy_owner"
+    },
+    "operational_owner_person_id": {
+      "type": "null"
+    },
+    "targets_are_operational_commitments": {
+      "type": "boolean",
+      "const": false
+    },
+    "activation_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "verified_detached_operational_acceptance_only"
+    },
+    "operational_acceptance_required": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "receipt_purpose",
+        "decision",
+        "issuer_role",
+        "competence_scope",
+        "exact_subject_digest_required",
+        "trusted_scope_and_signature_required",
+        "explicit_capacity_and_backup_required",
+        "conflicts_and_limitations_required",
+        "targets_become_operational_commitments",
+        "maximum_receipt_validity_days",
+        "receipt_expiry_terminates_support",
+        "identity_disclosure",
+        "signed_private_roster_reference_and_revision_required",
+        "public_individual_names_or_destinations_required",
+        "verifier_checks_signed_owner_role_separation_attestation",
+        "private_roster_assurance_level",
+        "private_roster_revision_rule",
+        "private_roster_content_hash_required",
+        "private_roster_revision_retained_and_auditable"
+      ],
+      "properties": {
+        "receipt_purpose": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "sprint12-support-policy/v1"
+        },
+        "decision": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "adopt_operational_support_policy"
+        },
+        "issuer_role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "release_policy_owner"
+        },
+        "competence_scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "operational_support:0.7.x"
+        },
+        "exact_subject_digest_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "trusted_scope_and_signature_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "explicit_capacity_and_backup_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "conflicts_and_limitations_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "targets_become_operational_commitments": {
+          "type": "boolean",
+          "const": true
+        },
+        "maximum_receipt_validity_days": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 30,
+          "const": 30
+        },
+        "receipt_expiry_terminates_support": {
+          "type": "boolean",
+          "const": false
+        },
+        "identity_disclosure": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "organizational_role_refs_with_access_controlled_roster"
+        },
+        "signed_private_roster_reference_and_revision_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "public_individual_names_or_destinations_required": {
+          "type": "boolean",
+          "const": false
+        },
+        "verifier_checks_signed_owner_role_separation_attestation": {
+          "type": "boolean",
+          "const": true
+        },
+        "private_roster_assurance_level": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "owner_attested_not_independently_verified"
+        },
+        "private_roster_revision_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "immutable_owner_supplied_revision_not_mutable_alias_or_placeholder"
+        },
+        "private_roster_content_hash_required": {
+          "type": "boolean",
+          "const": false
+        },
+        "private_roster_revision_retained_and_auditable": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "security_backport_eligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assessment_scope",
+        "eligible_conditions",
+        "unknown_applicability",
+        "severity_authority",
+        "feature_only_changes",
+        "not_affected_requires_signed_evidence",
+        "unsupported_backport_requires_containment_and_signed_resolution_plan",
+        "required_disposition_fields"
+      ],
+      "properties": {
+        "assessment_scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "supported_line_and_its_declared_dependency_and_distribution_boundary"
+        },
+        "eligible_conditions": {
+          "type": "array",
+          "minItems": 6,
+          "maxItems": 6,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "const": [
+            "exploitable_vulnerability_in_supported_runtime_or_distribution",
+            "privacy_confidentiality_or_integrity_boundary_failure",
+            "authorization_policy_signature_or_evidence_verification_bypass",
+            "untrusted_input_resource_exhaustion_or_path_containment_failure",
+            "supported_dependency_security_fix_required_for_a_reachable_vulnerability",
+            "regression_of_a_previously_shipped_security_control"
+          ]
+        },
+        "unknown_applicability": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "pending_triage_never_implicit_not_affected"
+        },
+        "severity_authority": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "human_policy_owner_records_advisory_identity_applicability_exploitability_and_impact"
+        },
+        "feature_only_changes": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "not_security_backports_without_a_recorded_security_requirement"
+        },
+        "not_affected_requires_signed_evidence": {
+          "type": "boolean",
+          "const": true
+        },
+        "unsupported_backport_requires_containment_and_signed_resolution_plan": {
+          "type": "boolean",
+          "const": true
+        },
+        "required_disposition_fields": {
+          "type": "array",
+          "minItems": 11,
+          "maxItems": 11,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "const": [
+            "incident_id",
+            "advisory_or_report_identity",
+            "supported_release_and_dependency_identities",
+            "applicability_evidence",
+            "severity_and_rationale",
+            "eligibility_and_rationale",
+            "owner_role_reference_and_private_roster_binding",
+            "original_target_deadlines",
+            "containment_or_backport_plan",
+            "source_and_candidate_evidence_digests",
+            "decision_time_and_signature"
+          ]
+        }
+      }
+    },
+    "response_targets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "clock_basis",
+        "critical_acknowledgment_hours",
+        "high_acknowledgment_hours",
+        "critical_remediation_days",
+        "high_remediation_days",
+        "other_severity_rule",
+        "acknowledgment_requires",
+        "remediation_requires",
+        "containment_is_release_completion",
+        "containment_satisfies_remediation_target",
+        "missed_target_rule",
+        "deadline_reset_on_reclassification",
+        "incident_can_suspend_feature_publication",
+        "incident_can_waive_release_controls",
+        "maintenance_coordination_critical_acknowledgment_hours",
+        "maintenance_coordination_high_acknowledgment_hours",
+        "effective_acknowledgment_rule",
+        "critical_initial_assessment_hours",
+        "high_initial_assessment_hours",
+        "critical_containment_or_safe_state_hours",
+        "high_containment_or_safe_state_hours",
+        "containment_objective_requires"
+      ],
+      "properties": {
+        "clock_basis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "elapsed_UTC_from_earlier_report_receipt_or_internal_detection_never_actionability_validation_or_reclassification"
+        },
+        "critical_acknowledgment_hours": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "const": 1
+        },
+        "high_acknowledgment_hours": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 4,
+          "const": 4
+        },
+        "critical_remediation_days": {
+          "type": "integer",
+          "minimum": 7,
+          "maximum": 7,
+          "const": 7
+        },
+        "high_remediation_days": {
+          "type": "integer",
+          "minimum": 30,
+          "maximum": 30,
+          "const": 30
+        },
+        "other_severity_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "preserve_SECURITY_md_medium_low_objectives_and_record_a_dated_remediation_plan"
+        },
+        "acknowledgment_requires": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "accountable_owner_role_reference_report_identity_initial_applicability_and_next_update"
+        },
+        "remediation_requires": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "verified_qualified_exact_byte_maintenance_release_resolving_the_recorded_security_defect"
+        },
+        "containment_is_release_completion": {
+          "type": "boolean",
+          "const": false
+        },
+        "containment_satisfies_remediation_target": {
+          "type": "boolean",
+          "const": false
+        },
+        "missed_target_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "preserve_original_deadline_record_the_miss_and_sign_a_revised_incident_plan"
+        },
+        "deadline_reset_on_reclassification": {
+          "type": "boolean",
+          "const": false
+        },
+        "incident_can_suspend_feature_publication": {
+          "type": "boolean",
+          "const": true
+        },
+        "incident_can_waive_release_controls": {
+          "type": "boolean",
+          "const": false
+        },
+        "maintenance_coordination_critical_acknowledgment_hours": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 24,
+          "const": 24
+        },
+        "maintenance_coordination_high_acknowledgment_hours": {
+          "type": "integer",
+          "minimum": 72,
+          "maximum": 72,
+          "const": 72
+        },
+        "effective_acknowledgment_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "minimum_of_existing_security_intake_and_proposed_maintenance_coordination_targets"
+        },
+        "critical_initial_assessment_hours": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 4,
+          "const": 4
+        },
+        "high_initial_assessment_hours": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 24,
+          "const": 24
+        },
+        "critical_containment_or_safe_state_hours": {
+          "type": "integer",
+          "minimum": 4,
+          "maximum": 4,
+          "const": 4
+        },
+        "high_containment_or_safe_state_hours": {
+          "type": "integer",
+          "minimum": 24,
+          "maximum": 24,
+          "const": 24
+        },
+        "containment_objective_requires": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "verified_containment_verified_no_supported_exposure_or_documented_safe_state"
+        }
+      }
+    },
+    "maintenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "branch_pattern",
+        "base",
+        "profile",
+        "required_controls",
+        "rebuild_during_promotion_allowed",
+        "feature_head_is_maintenance_base"
+      ],
+      "properties": {
+        "branch_pattern": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "maintenance/0.7.x/<incident-id>"
+        },
+        "base": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "exact_supported_release_commit"
+        },
+        "profile": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "maintenance-release/v1"
+        },
+        "required_controls": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "const": [
+            "exact_candidate_bytes",
+            "dependency_lock_and_SBOM",
+            "independent_release_review",
+            "channel_inventory_verification",
+            "authenticated_activation_readback"
+          ]
+        },
+        "rebuild_during_promotion_allowed": {
+          "type": "boolean",
+          "const": false
+        },
+        "feature_head_is_maintenance_base": {
+          "type": "boolean",
+          "const": false
+        }
+      }
+    },
+    "support_end_utc": {
+      "type": "null"
+    },
+    "minimum_overlap_days": {
+      "type": "integer",
+      "minimum": 90,
+      "maximum": 90,
+      "const": 90
+    },
+    "overlap_begins": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "accepted_stable_v1_GA_and_signed_support_successor_policy"
+    },
+    "eol_rule": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "separate_signed_owner_decision_after_the_minimum_overlap_never_preview_install_or_receipt_expiry"
+    },
+    "replacement_policy_required_before_support_ends": {
+      "type": "boolean",
+      "const": true
+    },
+    "silent_support_gap_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "preview_channels": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256
+      },
+      "const": [
+        "github",
+        "production_pypi"
+      ]
+    },
+    "testpypi_role": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "optional_preflight_only"
+    },
+    "mixed_index_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "targets_state_scope": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "new_maintenance_targets_only_existing_security_intake_unmodified"
+    },
+    "existing_security_intake_objectives_remain_in_force": {
+      "type": "boolean",
+      "const": true
+    },
+    "security_intake_precedence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "source_path",
+        "source_sha256",
+        "replacement_authorized",
+        "objective_selection_rule",
+        "clock_start",
+        "clock_is_continuous_24_7",
+        "forwarding_validation_actionability_or_reclassification_resets_clock",
+        "uncertain_credible_critical_signal",
+        "source_change_requires_fresh_subject_review"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "agent-assure/security-vulnerability-intake/v1"
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "SECURITY.md"
+        },
+        "source_sha256": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "sha256:a3224d87ef2aadccf79c06095e03080ad0287189af90e6be6d4c98d6d492ee3b"
+        },
+        "replacement_authorized": {
+          "type": "boolean",
+          "const": false
+        },
+        "objective_selection_rule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "strictest_applicable_public_or_explicitly_bound_organizational_objective_prevails"
+        },
+        "clock_start": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "earlier_of_report_received_at_utc_and_internally_detected_at_utc"
+        },
+        "clock_is_continuous_24_7": {
+          "type": "boolean",
+          "const": true
+        },
+        "forwarding_validation_actionability_or_reclassification_resets_clock": {
+          "type": "boolean",
+          "const": false
+        },
+        "uncertain_credible_critical_signal": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "apply_critical_objectives_until_named_owner_records_lower_severity_evidence"
+        },
+        "source_change_requires_fresh_subject_review": {
+          "type": "boolean",
+          "const": true
+        }
+      }
+    },
+    "security_escalation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coverage",
+        "critical_primary_page",
+        "critical_delivery_confirmation_minutes",
+        "primary_unavailable_or_delivery_failure",
+        "critical_no_human_acknowledgment_fallback_minutes",
+        "fallback_requires_distinct_person",
+        "fallback_requires_distinct_durable_route",
+        "fallback_can_depend_solely_on_same_github_account_identity_provider_or_notification_path",
+        "destinations_and_on_duty_people",
+        "missing_coverage_or_missed_objective",
+        "temporary_risk_acceptance_policy_path",
+        "temporary_risk_acceptance_can_authorize_release_or_publication",
+        "organization_label_is_staffing_evidence",
+        "distinct_people_attested_in_private_roster_required",
+        "private_roster_attestation",
+        "verifier_access"
+      ],
+      "properties": {
+        "coverage": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "continuous_24_7_primary_and_independent_fallback_on_call"
+        },
+        "critical_primary_page": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "immediate"
+        },
+        "critical_delivery_confirmation_minutes": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 5,
+          "const": 5
+        },
+        "primary_unavailable_or_delivery_failure": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "activate_independent_fallback_immediately"
+        },
+        "critical_no_human_acknowledgment_fallback_minutes": {
+          "type": "integer",
+          "minimum": 15,
+          "maximum": 15,
+          "const": 15
+        },
+        "fallback_requires_distinct_person": {
+          "type": "boolean",
+          "const": true
+        },
+        "fallback_requires_distinct_durable_route": {
+          "type": "boolean",
+          "const": true
+        },
+        "fallback_can_depend_solely_on_same_github_account_identity_provider_or_notification_path": {
+          "type": "boolean",
+          "const": false
+        },
+        "destinations_and_on_duty_people": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "access_controlled_incident_response_system_not_public_repository"
+        },
+        "missing_coverage_or_missed_objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "incident_control_failure_escalate_preserve_UTC_and_enter_safe_state_by_applicable_objective_if_exposure_unbounded"
+        },
+        "temporary_risk_acceptance_policy_path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "docs/security_release_containment.md"
+        },
+        "temporary_risk_acceptance_can_authorize_release_or_publication": {
+          "type": "boolean",
+          "const": false
+        },
+        "organization_label_is_staffing_evidence": {
+          "type": "boolean",
+          "const": false
+        },
+        "distinct_people_attested_in_private_roster_required": {
+          "type": "boolean",
+          "const": true
+        },
+        "private_roster_attestation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "signed_owner_binds_access_controlled_roster_reference_revision_and_role_separation_no_public_person_names_or_destinations"
+        },
+        "verifier_access": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "const": "verify_signed_owner_separation_attestation_and_distinct_role_refs_private_roster_remains_access_controlled"
+        }
+      }
+    },
+    "organization_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "const": "acblabs"
+    }
+  }
+}

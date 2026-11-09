@@ -1,0 +1,153 @@
+{
+  "format": "agent-assure-sprint12-correction-source-bindings/1",
+  "status": "prepared_for_human_review",
+  "authorization_effect": "none",
+  "predecessor_package_digest": "sha256:598248c782262629d8b0afa3a9661911f34bcaf9d177115cbbe84c22f15bef08",
+  "replacements": [
+    {
+      "path": "scripts/v1_architecture_governance.py",
+      "predecessor": {
+        "path": "scripts/v1_architecture_governance.py",
+        "size_bytes": 29363,
+        "sha256": "sha256:7f0c87d1f6ff69dbd502592de2b58a5895ebc775474b1d57d3c7190f5145d7aa"
+      },
+      "current": {
+        "path": "scripts/v1_architecture_governance.py",
+        "size_bytes": 29893,
+        "sha256": "sha256:5236cce7c1c925e41a13a8f60d6c06fb16f59f8d629f4808cd91f9792394a887"
+      }
+    },
+    {
+      "path": "scripts/v1_successor_forecast.py",
+      "predecessor": {
+        "path": "scripts/v1_successor_forecast.py",
+        "size_bytes": 19078,
+        "sha256": "sha256:fbf73f4a9b85352bd34cbb2ce1156def4958a400c26f88d3efc72ace4176c8ca"
+      },
+      "current": {
+        "path": "scripts/v1_successor_forecast.py",
+        "size_bytes": 25681,
+        "sha256": "sha256:75f3376a5d263dbcc7279699d2410c235531163edbde0e2e7e27724a245fe0d7"
+      }
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_forecast.py",
+      "predecessor": {
+        "path": "tests/unit/governance/test_v1_successor_forecast.py",
+        "size_bytes": 25146,
+        "sha256": "sha256:ad9d2b1dfea409ff4869d66df313b8ac96afbfc45d4932d6f3e3f959c9198dbd"
+      },
+      "current": {
+        "path": "tests/unit/governance/test_v1_successor_forecast.py",
+        "size_bytes": 36016,
+        "sha256": "sha256:b8bb87180dbb9f696e4cd2064872479dc3c5ab8e557773deb5b2ba6d58442e2b"
+      }
+    },
+    {
+      "path": "Makefile",
+      "predecessor": {
+        "path": "Makefile",
+        "size_bytes": 7705,
+        "sha256": "sha256:823d06bc5d7e74d2efd1120542c511a4a0e2501bfbbc4e36c06df655e224dabe"
+      },
+      "current": {
+        "path": "Makefile",
+        "size_bytes": 7887,
+        "sha256": "sha256:fbda2add232c267fc84c2127370e754f68f678de4d532f8cb310bba0a957908f"
+      }
+    },
+    {
+      "path": "mkdocs.yml",
+      "predecessor": {
+        "path": "mkdocs.yml",
+        "size_bytes": 3573,
+        "sha256": "sha256:71879bd3e01f171bbf717930c1fcfaf86cfc5e76af39d720b6ae4d3929d62459"
+      },
+      "current": {
+        "path": "mkdocs.yml",
+        "size_bytes": 3731,
+        "sha256": "sha256:dbf188a7cf2b0e02db0a39c5a1b6e3077962deff3f990e6889bc9cdc69401851"
+      }
+    }
+  ],
+  "added_artifacts": [
+    {
+      "path": "scripts/v1_governance_corrections.py",
+      "size_bytes": 32150,
+      "sha256": "sha256:0f2fe97f7c6647ffbecab0608e67549b37c50604cb69faf0cdc53ee675ec9288"
+    },
+    {
+      "path": "scripts/v1_correction_acceptance.py",
+      "size_bytes": 10171,
+      "sha256": "sha256:9b593f3bdaa8e2bf45e1648b7acc6fc1682721a2353c727a415e7aaf72060815"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_governance_corrections.py",
+      "size_bytes": 19396,
+      "sha256": "sha256:a9c0cf661d508bf0acae5fcdcfe5246ac8d298b6e966f71406089603658fd458"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_correction_acceptance.py",
+      "size_bytes": 13303,
+      "sha256": "sha256:946fdec32c0d206b87d13acfa599214a78f037aa78a14c507b63199fbe4a49c2"
+    },
+    {
+      "path": "docs/adr/0023-v1-governance-closure-corrections.md",
+      "size_bytes": 15462,
+      "sha256": "sha256:5a719ca2d6981931932b5d595ff16c32a6c8681617af65a4bc3cada937a9d01c"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/delivery-forecast-v4.schema.json",
+      "size_bytes": 21408,
+      "sha256": "sha256:196a14e4588933c9b3435581d2853ed325e4d5bccf4b223423eb9a4432a4c0c4"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/forecast-v4-compatibility.md",
+      "size_bytes": 4952,
+      "sha256": "sha256:5180f88e5df37e42e6f952a35b600367c7d4bd0c8a6ffbfaa095d9d844af4d8c"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/support-policy-v2.json",
+      "size_bytes": 8348,
+      "sha256": "sha256:ed5758a2f587190a0a8fd2bc4dd990205fb5bb275589952aa60c391ac8c66fa7"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/support-policy-v2.schema.json",
+      "size_bytes": 25290,
+      "sha256": "sha256:fff67afc1582c12eebec3edd355943982036f1fd74d24f311ebfa190eba0a2bd"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/closure-corrections.md",
+      "size_bytes": 6513,
+      "sha256": "sha256:669790eee3d8f0eaf982201bee786ffb8391d730a9b9f96aaf0d39a142c93732"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/closure-handoff.json",
+      "size_bytes": 3550,
+      "sha256": "sha256:5bf3efc325a5ceb6756351b43ab47557a23aa590c2f0bca9dfae61d885af07c1"
+    },
+    {
+      "path": "docs/governance/v1/sprint2/foundation-review.json",
+      "size_bytes": 10559,
+      "sha256": "sha256:c96bfe83f650129d16b64c361dae3d010bb6b9067cd069cb96903399a7c60b6b"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_support_policy_v2.py",
+      "size_bytes": 10842,
+      "sha256": "sha256:9ea8a6db5a31490e29d2dc7a0148e6329079210cfe5c4562c91677f64e80f9c2"
+    }
+  ],
+  "external_dependencies": [
+    {
+      "path": "SECURITY.md",
+      "size_bytes": 12257,
+      "sha256": "sha256:a3224d87ef2aadccf79c06095e03080ad0287189af90e6be6d4c98d6d492ee3b"
+    },
+    {
+      "path": ".github/CODEOWNERS",
+      "size_bytes": 2243,
+      "sha256": "sha256:ee80a3537b0a638efba9bae8e9ae6be4f4d4b1a9a57aab5596d601293b7d365d"
+    }
+  ],
+  "record_digest": "sha256:efdcc37aaa44713b4bf782b9a274b7e968584762c1907e05292bd734e582f25f"
+}

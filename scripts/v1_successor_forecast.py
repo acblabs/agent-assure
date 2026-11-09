@@ -18,6 +18,8 @@ from scripts import v1_s1_successor as core
 
 SCHEMA_PATH = "docs/governance/v1/sprint2/delivery-forecast.schema.json"
 RECORD_DOMAIN = b"agent-assure:delivery-forecast/v3\x00"
+V4_SCHEMA_PATH = "docs/governance/v1/sprint2/delivery-forecast-v4.schema.json"
+V4_RECORD_DOMAIN = b"agent-assure:delivery-forecast/v4\x00"
 METHOD_ID = "comonotonic-quantile-sum/v1"
 METHOD_VERSION = "1.1.0"
 METHOD_DEFINITION_DIGEST = "sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7"
@@ -71,6 +73,17 @@ _ROSTER_FIELDS = {
     "independence",
 }
 _HUMAN_ROW_FIELDS = {"ticket_id", "estimate_scope", "execution_estimates"}
+_V4_METADATA_FIELDS = {
+    "confidence",
+    "dependency_assumptions",
+    "risk_assumptions",
+    "current_status",
+    "trusted_issue_time",
+}
+V4_DEPENDENCE_ASSUMPTIONS = (
+    "full_positive_rank_dependence_no_diversification_credit",
+    "reported_quantile_sums_are_exact_only_under_the_bound_comonotonic_construction",
+)
 _HUMAN_OCCURRENCE_FIELDS = {
     "occurrence_id",
     "p50_effort_hours",
@@ -440,3 +453,141 @@ def build_projection(
         **projection,
         "record_digest": core.content_digest(RECORD_DOMAIN + core.canonical_bytes(projection)),
     }
+
+
+def build_projection_v4(
+    *,
+    authoring_ledger: Mapping[str, Any],
+    human_estimates: object,
+    source: Mapping[str, Any],
+    issued_at_utc: str,
+    valid_until_utc: str,
+    now: datetime,
+) -> dict[str, Any]:
+    """Build a complete, explicitly selected planning row contract.
+
+    Version 3 remains a historical replay surface. Version 4 requires fresh,
+    explicit per-ticket planning metadata; it does not turn a prior signature,
+    machine suggestion, or global confidence statement into a human decision.
+    The caller must authenticate the source and obtain the separate signatures.
+    """
+    selected_rows = copy.deepcopy(_array(human_estimates, "generation-4 human rows"))
+    inventory_time = core._time(authoring_ledger.get("inventory_completed_at_utc"))
+    issue = core._time(issued_at_utc)
+    legacy_selections: list[dict[str, Any]] = []
+    metadata: list[dict[str, Any]] = []
+    for raw_row in selected_rows:
+        selected = _closed(
+            raw_row, _HUMAN_ROW_FIELDS | _V4_METADATA_FIELDS, "generation-4 human row"
+        )
+        _require(selected["confidence"] in ("low", "medium", "high"), "invalid row confidence")
+        _require(
+            selected["current_status"] in ("not_started", "in_progress", "blocked", "done"),
+            "invalid row current status",
+        )
+        for field in ("dependency_assumptions", "risk_assumptions"):
+            assumptions = _strings(selected[field], f"row {field}")
+            _require(all(item.strip() for item in assumptions), f"row {field}: blank assumption")
+        row_issue = core._time(selected["trusted_issue_time"])
+        _require(
+            inventory_time <= row_issue <= issue,
+            "row issue time must follow inventory and not exceed record issue time",
+        )
+        legacy_selections.append({key: selected[key] for key in _HUMAN_ROW_FIELDS})
+        metadata.append({key: copy.deepcopy(selected[key]) for key in _V4_METADATA_FIELDS})
+
+    # Reuse the exact checked arithmetic and ordered occurrence reconstruction.
+    # This creates a new projection, never mutates a historical record or input.
+    previous = build_projection(
+        authoring_ledger=authoring_ledger,
+        human_estimates=legacy_selections,
+        source=source,
+        issued_at_utc=issued_at_utc,
+        valid_until_utc=valid_until_utc,
+        now=now,
+    )
+    projection = {key: value for key, value in previous.items() if key != "record_digest"}
+    projection["format"] = "agent-assure-delivery-forecast/4"
+    projection["human_estimates_digest"] = _digest(
+        "agent-assure:delivery-forecast-human-estimates/v4", selected_rows
+    )
+    projection["approval_roster_digest"] = _digest(
+        "agent-assure:delivery-forecast-approval-roster/v4", projection["source"]["approval_roster"]
+    )
+    for row, adopted in zip(projection["rows"], metadata, strict=True):
+        aggregate = row["aggregate"]
+        row.update(
+            aggregate_p50_effort_hours=aggregate["engineering_p50_effort_hours"],
+            aggregate_p90_effort_hours=aggregate["engineering_p90_effort_hours"],
+            aggregate_reviewer_effort_hours=aggregate["reviewer_p50_effort_hours"],
+            aggregate_method_id=METHOD_ID,
+            aggregate_method_definition_digest=METHOD_DEFINITION_DIGEST,
+            aggregate_dependence_assumptions=list(V4_DEPENDENCE_ASSUMPTIONS),
+            **adopted,
+        )
+        for execution in row["execution_estimates"]:
+            execution.update(
+                p50_effort_hours=execution["selected_p50_effort_hours"],
+                p90_effort_hours=execution["selected_p90_effort_hours"],
+                reviewer_effort_hours=execution["selected_reviewer_p50_effort_hours"],
+            )
+    return {
+        **projection,
+        "record_digest": core.content_digest(V4_RECORD_DOMAIN + core.canonical_bytes(projection)),
+    }
+
+
+def validate_projection(
+    record: Mapping[str, Any],
+    *,
+    authoring_ledger: Mapping[str, Any],
+    human_estimates: object,
+    source: Mapping[str, Any],
+    now: datetime,
+) -> dict[str, Any]:
+    """Reconstruct a supported projection from authenticated external inputs.
+
+    This checks the entire value graph, including exact types and digest bytes.
+    A caller must separately verify signatures, source authenticity and scope;
+    a schema-valid or correctly hashed record is not acceptance evidence.
+    """
+    supplied = _object(record, "forecast projection")
+    version = supplied.get("format")
+    _require(
+        version in ("agent-assure-delivery-forecast/3", "agent-assure-delivery-forecast/4"),
+        "unsupported forecast projection format",
+    )
+    builder = (
+        build_projection_v4 if version == "agent-assure-delivery-forecast/4" else build_projection
+    )
+    expected = builder(
+        authoring_ledger=authoring_ledger,
+        human_estimates=human_estimates,
+        source=source,
+        issued_at_utc=core._text(supplied.get("issued_at_utc"), owner="forecast issue time"),
+        valid_until_utc=core._text(supplied.get("valid_until_utc"), owner="forecast expiry time"),
+        now=now,
+    )
+    # Python value equality aliases True with 1 and 1.0 with 1. Canonical bytes
+    # distinguish booleans, but JCS normalizes integral floats. Enforce the
+    # recursive JSON types before comparing either representation.
+    _require(_same_json_types(supplied, expected), "forecast projection JSON types differ")
+    _require(
+        core.canonical_bytes(supplied) == core.canonical_bytes(expected),
+        "forecast projection differs from complete reconstruction",
+    )
+    return expected
+
+
+def _same_json_types(value: Any, expected: Any) -> bool:
+    if type(value) is not type(expected):
+        return False
+    if type(expected) is dict:
+        return set(value) == set(expected) and all(
+            _same_json_types(value[key], item) for key, item in expected.items()
+        )
+    if type(expected) is list:
+        return len(value) == len(expected) and all(
+            _same_json_types(item, other) for item, other in zip(value, expected, strict=True)
+        )
+    return True

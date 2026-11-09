@@ -30,6 +30,10 @@ from agent_assure.rooted_io import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+# Preserve the documented direct-script entry point when additive draft
+# validation needs another repository tooling module.
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 DIRECTORY = "docs/governance/v1/sprint2"
 MAX_JSON_BYTES = 2_097_152
 MAX_ARTIFACT_BYTES = 4_194_304
@@ -490,7 +494,13 @@ def check_package(root: Path) -> dict[str, Any]:
     validate_schema(root, package, "architecture-package")
     expected = build_package(root)
     if package != expected:
-        raise ArchitectureError("package does not bind the exact current decision/source bytes")
+        # Accepted v3 subjects are immutable. An additive correction inventory
+        # can bind explicitly reviewed tooling replacements, never acceptance.
+        if not (root / DIRECTORY / "correction-source-bindings.json").is_file():
+            raise ArchitectureError("package does not bind the exact current decision/source bytes")
+        from scripts.v1_governance_corrections import check_sources
+
+        check_sources(root)
     check_supplementary(root)
     return package
 

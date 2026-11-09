@@ -88,6 +88,11 @@ v1-architecture-check:
 v1-architecture-readiness:
 	$(PYTHON) scripts/v1_architecture_governance.py readiness
 
+# Additive correction integrity; no signatures or acceptance are generated.
+.PHONY: v1-corrections-check
+v1-corrections-check:
+	$(PYTHON) -m scripts.v1_governance_corrections check
+
 # Preparation never signs or accepts. All accepting actions use the existing
 # authenticated PowerShell runtime plus an explicitly signed bootstrap/request.
 v1-successor-profile-template:

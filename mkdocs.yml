@@ -32,6 +32,8 @@ nav:
   - V1 S2 architecture review package: governance/v1/sprint2/README.md
   - V1 successor host runbook: governance/v1/sprint2/host-runbook.md
   - V1 forecast compatibility: governance/v1/sprint2/forecast-compatibility.md
+  - V1 S1/S2 correction close: governance/v1/sprint2/closure-corrections.md
+  - V1 complete forecast rows: governance/v1/sprint2/forecast-v4-compatibility.md
   - Privacy model: privacy_model.md
   - Threat model: threat_model.md
   - Security correction containment: security_release_containment.md
