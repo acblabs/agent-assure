@@ -52,8 +52,8 @@
     },
     {
       "path": "docs/governance/v1/sprint2/closure-handoff.json",
-      "sha256": "sha256:9440b6f8697682f9b22e4428dcf78c306a990692a941bc83dbfbd65f0b55c478",
-      "size_bytes": 3464
+      "sha256": "sha256:9f937826911be1eb0394a4a260e21910d78c0813916b8ce7fc27866e3e674fde",
+      "size_bytes": 4320
     },
     {
       "path": "docs/governance/v1/sprint2/foundation-review.json",
@@ -81,7 +81,7 @@
   ],
   "format": "agent-assure-sprint12-correction-source-bindings/1",
   "predecessor_package_digest": "sha256:598248c782262629d8b0afa3a9661911f34bcaf9d177115cbbe84c22f15bef08",
-  "record_digest": "sha256:57265159352db20210d0f71e8ded2298d8d065288422fc7599e844895e12ce79",
+  "record_digest": "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2",
   "replacements": [
     {
       "current": {

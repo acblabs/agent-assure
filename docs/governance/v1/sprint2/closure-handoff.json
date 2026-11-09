@@ -1,86 +1,103 @@
 {
-  "format": "agent-assure-sprint12-evidence-handoff/1",
-  "status": "retained_records_not_new_acceptance",
   "authorization_effect": "none",
-  "result_commit": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
-  "closure_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb",
-  "fixed_tag_name": "agent-assure-s1-1.0.0a1-acceptance-v3",
-  "fixed_tag_object": "9f57de66e57a18a74a154524841dd055fe26a090",
-  "original_capture": ".tmp/s1-acceptance/successor-v3/capture-idna-20261108/clone",
-  "retained_head_must_remain": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
-  "private_archive": ".governance-archive/s1-s2-v3-20261109",
-  "git_bundle_verified": true,
   "bundle_is_complete_git_history": true,
-  "off_device_backup_claimed": false,
-  "portable_replay_claimed": false,
-  "original_witness_host_required": true,
-  "stored_verification_result": "successful_standalone_replay_record_inspected_not_rerun_by_this_change",
-  "prerequisite_valid_until_utc": "2026-12-07T23:31:10.233520Z",
+  "closure_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb",
   "files": [
     {
       "path": "accepted-v3.bundle",
-      "size_bytes": 6410817,
-      "sha256": "sha256:af0905bd402e9ae1056547c4531f1fa9504bd6b74195ba510d9a0cd9f3383459"
+      "sha256": "sha256:af0905bd402e9ae1056547c4531f1fa9504bd6b74195ba510d9a0cd9f3383459",
+      "size_bytes": 6410817
     },
     {
       "path": "records/bootstrap-signed/document.json",
-      "size_bytes": 15562,
-      "sha256": "sha256:31e31dac4ce071a08c2d6a12625e1c97879b63b58623437525476bfe53dcf854"
+      "sha256": "sha256:31e31dac4ce071a08c2d6a12625e1c97879b63b58623437525476bfe53dcf854",
+      "size_bytes": 15562
     },
     {
       "path": "records/collection-20261108-01/evidence.json",
-      "size_bytes": 13247,
-      "sha256": "sha256:5f31b648fde903f57d18ba87bebea6d2d28c398e4e9c460d52b20bf9b99abae1"
+      "sha256": "sha256:5f31b648fde903f57d18ba87bebea6d2d28c398e4e9c460d52b20bf9b99abae1",
+      "size_bytes": 13247
     },
     {
       "path": "records/finish-i08/publication-signed/document.json",
-      "size_bytes": 2611,
-      "sha256": "sha256:15b960f4d6f5aba3c12bf5a5c212ee59a156d6091c273ba8bda54ac6a692ad9e"
+      "sha256": "sha256:15b960f4d6f5aba3c12bf5a5c212ee59a156d6091c273ba8bda54ac6a692ad9e",
+      "size_bytes": 2611
     },
     {
       "path": "records/finish-i08/receipt-import/accepted-receipt.json",
-      "size_bytes": 2289,
-      "sha256": "sha256:6cddb4159706eb2098bdf5267b15f33045b5af638801759f8268cba76ca9c0dd"
+      "sha256": "sha256:6cddb4159706eb2098bdf5267b15f33045b5af638801759f8268cba76ca9c0dd",
+      "size_bytes": 2289
     },
     {
       "path": "records/finish-i08/receipt-import/closure.json",
-      "size_bytes": 400,
-      "sha256": "sha256:716c12f6ca095f5539504aea11aa9f9e66dabda8ad83fa5cf87d5c15b5e6db58"
+      "sha256": "sha256:716c12f6ca095f5539504aea11aa9f9e66dabda8ad83fa5cf87d5c15b5e6db58",
+      "size_bytes": 400
     },
     {
       "path": "records/finish-i08/receipt-signed/document.json",
-      "size_bytes": 2325,
-      "sha256": "sha256:1e2b519506b7cc0bacf60741f3203fe2fa8465e2a3c46405c2f1263f646517b9"
+      "sha256": "sha256:1e2b519506b7cc0bacf60741f3203fe2fa8465e2a3c46405c2f1263f646517b9",
+      "size_bytes": 2325
     },
     {
       "path": "records/finish-i08/s2-import/accepted-bundle.json",
-      "size_bytes": 27809,
-      "sha256": "sha256:65dcd429a9bca2936c2fa1b4354e8af98cf0c3c76113b75212637dc32ca12062"
+      "sha256": "sha256:65dcd429a9bca2936c2fa1b4354e8af98cf0c3c76113b75212637dc32ca12062",
+      "size_bytes": 27809
     },
     {
       "path": "records/finish-i08/tag-signed/document.json",
-      "size_bytes": 1283,
-      "sha256": "sha256:09c1f2671f378a53ee4d5f82b5f955894a7861d965be43c09321adc23d19e6d1"
+      "sha256": "sha256:09c1f2671f378a53ee4d5f82b5f955894a7861d965be43c09321adc23d19e6d1",
+      "size_bytes": 1283
     },
     {
       "path": "records/forecast-acceptance-signed/document.json",
-      "size_bytes": 1132,
-      "sha256": "sha256:266a7b239b6288043d214261c70b63385f108ee6fcb876e21bccf7f8e3722da6"
+      "sha256": "sha256:266a7b239b6288043d214261c70b63385f108ee6fcb876e21bccf7f8e3722da6",
+      "size_bytes": 1132
     },
     {
       "path": "records/forecast-producer-signed/document.json",
-      "size_bytes": 858277,
-      "sha256": "sha256:514f1dcb76c59e36c2b2dbab391ff8d27dbe90275b06ad45e70521b4719a6452"
+      "sha256": "sha256:514f1dcb76c59e36c2b2dbab391ff8d27dbe90275b06ad45e70521b4719a6452",
+      "size_bytes": 858277
     },
     {
       "path": "records/kickoff-signed/document.json",
-      "size_bytes": 1900,
-      "sha256": "sha256:32d4c5eabdfd0212b06f62ed641da1e38221e0badd76df8ec9662abe9c90175a"
+      "sha256": "sha256:32d4c5eabdfd0212b06f62ed641da1e38221e0badd76df8ec9662abe9c90175a",
+      "size_bytes": 1900
     },
     {
       "path": "standalone-verification.json",
-      "size_bytes": 3988,
-      "sha256": "sha256:5f76c4a98ad6e2e44b894ce6eb686d27c1d1af7f737c2d87d9b21d2596aea12c"
+      "sha256": "sha256:5f76c4a98ad6e2e44b894ce6eb686d27c1d1af7f737c2d87d9b21d2596aea12c",
+      "size_bytes": 3988
     }
-  ]
+  ],
+  "fixed_tag_name": "agent-assure-s1-1.0.0a1-acceptance-v3",
+  "fixed_tag_object": "9f57de66e57a18a74a154524841dd055fe26a090",
+  "format": "agent-assure-sprint12-evidence-handoff/1",
+  "fresh_original_host_verification": {
+    "acceptance_scope": "original_v3_S1_successor_and_S2_bundle_only",
+    "captured_at_utc": "2026-11-09T19:03:11.046974Z",
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "new_correction_acceptance_claimed": false,
+    "original_capture_modified_tracked_files": false,
+    "reported_result": {
+      "authorization_effect": "development_governance_only",
+      "qualified": false,
+      "result": "s2_accepted_for_development",
+      "s2_dispatch_ready": true
+    },
+    "retained_replay": ".governance-archive/original-acceptance-recheck-001/verification.json",
+    "retained_replay_sha256": "sha256:d06c7b39529e517e7d3db67f00775d11cb71d48f624fbd0db2c94438b6a03fbc",
+    "source_request": ".tmp/s1-acceptance/successor-v3/final-review-20261109-001/s2-verify.json",
+    "status": "passed"
+  },
+  "git_bundle_verified": true,
+  "off_device_backup_claimed": false,
+  "original_capture": ".tmp/s1-acceptance/successor-v3/capture-idna-20261108/clone",
+  "original_witness_host_required": true,
+  "portable_replay_claimed": false,
+  "prerequisite_valid_until_utc": "2026-12-07T23:31:10.233520Z",
+  "private_archive": ".governance-archive/s1-s2-v3-20261109",
+  "result_commit": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
+  "retained_head_must_remain": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
+  "status": "retained_records_not_new_acceptance",
+  "stored_verification_result": "successful_standalone_replay_record_inspected_not_rerun_by_this_change"
 }
