@@ -73,8 +73,8 @@
   "added_artifacts": [
     {
       "path": "scripts/v1_governance_corrections.py",
-      "size_bytes": 32150,
-      "sha256": "sha256:0f2fe97f7c6647ffbecab0608e67549b37c50604cb69faf0cdc53ee675ec9288"
+      "size_bytes": 32496,
+      "sha256": "sha256:a93577b1d697b6287261bdc51a3132b95aaf469a256d5a6b7839223bbd8d4cbf"
     },
     {
       "path": "scripts/v1_correction_acceptance.py",
@@ -83,8 +83,8 @@
     },
     {
       "path": "tests/unit/governance/test_v1_governance_corrections.py",
-      "size_bytes": 19396,
-      "sha256": "sha256:a9c0cf661d508bf0acae5fcdcfe5246ac8d298b6e966f71406089603658fd458"
+      "size_bytes": 20028,
+      "sha256": "sha256:3a4bcccc1a51ffba778090e4cb5c0fc45e5b12e3255f6f2407f487df24b1b40c"
     },
     {
       "path": "tests/unit/governance/test_v1_correction_acceptance.py",
@@ -108,13 +108,13 @@
     },
     {
       "path": "docs/governance/v1/sprint2/support-policy-v2.json",
-      "size_bytes": 8348,
-      "sha256": "sha256:ed5758a2f587190a0a8fd2bc4dd990205fb5bb275589952aa60c391ac8c66fa7"
+      "size_bytes": 8200,
+      "sha256": "sha256:45981d7a3bc9a98973f3d9b62d625982fda8b38fb08e0cbdc689eb0e00b47a27"
     },
     {
       "path": "docs/governance/v1/sprint2/support-policy-v2.schema.json",
-      "size_bytes": 25290,
-      "sha256": "sha256:fff67afc1582c12eebec3edd355943982036f1fd74d24f311ebfa190eba0a2bd"
+      "size_bytes": 24506,
+      "sha256": "sha256:8e16768d5523834f722ffcdb2defbae61e081cc61d0b16c19ed77ecbe30e6053"
     },
     {
       "path": "docs/governance/v1/sprint2/closure-corrections.md",
@@ -123,13 +123,13 @@
     },
     {
       "path": "docs/governance/v1/sprint2/closure-handoff.json",
-      "size_bytes": 3550,
-      "sha256": "sha256:5bf3efc325a5ceb6756351b43ab47557a23aa590c2f0bca9dfae61d885af07c1"
+      "size_bytes": 3464,
+      "sha256": "sha256:9440b6f8697682f9b22e4428dcf78c306a990692a941bc83dbfbd65f0b55c478"
     },
     {
       "path": "docs/governance/v1/sprint2/foundation-review.json",
-      "size_bytes": 10559,
-      "sha256": "sha256:c96bfe83f650129d16b64c361dae3d010bb6b9067cd069cb96903399a7c60b6b"
+      "size_bytes": 10539,
+      "sha256": "sha256:d1622463fa161cd68d1e30f893e6d053a52294504ce3b48118dae7a367481f81"
     },
     {
       "path": "tests/unit/governance/test_v1_support_policy_v2.py",
@@ -149,5 +149,5 @@
       "sha256": "sha256:ee80a3537b0a638efba9bae8e9ae6be4f4d4b1a9a57aab5596d601293b7d365d"
     }
   ],
-  "record_digest": "sha256:efdcc37aaa44713b4bf782b9a274b7e968584762c1907e05292bd734e582f25f"
+  "record_digest": "sha256:d3b0c971f5dbbad2c2fa5de16b22df2570ae1530f8b84b8ff818f446d04f5c16"
 }

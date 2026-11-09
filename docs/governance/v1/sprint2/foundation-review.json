@@ -105,9 +105,9 @@
       "native_windows_sandbox": "outside_sandbox_for_required_directory_handle_operations"
     },
     "final_focused_correction_suite": {
-      "passed": 170,
+      "passed": 171,
       "failed": 0,
-      "command": "python -m pytest tests/unit/governance/test_v1_governance_corrections.py tests/unit/governance/test_v1_correction_acceptance.py tests/unit/governance/test_v1_successor_forecast.py tests/unit/governance/test_v1_support_policy_v2.py --basetemp .tmp/corrections-focused-main-20261109-07 -p no:cacheprovider -o addopts=--disable-socket -q"
+      "command": "python -m pytest tests/unit/governance/test_v1_governance_corrections.py tests/unit/governance/test_v1_correction_acceptance.py tests/unit/governance/test_v1_successor_forecast.py tests/unit/governance/test_v1_support_policy_v2.py --basetemp .tmp/corrections-focused-main-20261109-08 -p no:cacheprovider -o addopts=--disable-socket -q"
     },
     "other_checks": {
       "ruff_check_repository": "passed",
@@ -138,7 +138,7 @@
     "tested_correction_artifacts": [
       {
         "path": "scripts/v1_governance_corrections.py",
-        "sha256": "sha256:0f2fe97f7c6647ffbecab0608e67549b37c50604cb69faf0cdc53ee675ec9288"
+        "sha256": "sha256:a93577b1d697b6287261bdc51a3132b95aaf469a256d5a6b7839223bbd8d4cbf"
       },
       {
         "path": "scripts/v1_correction_acceptance.py",
@@ -154,7 +154,7 @@
       },
       {
         "path": "tests/unit/governance/test_v1_governance_corrections.py",
-        "sha256": "sha256:a9c0cf661d508bf0acae5fcdcfe5246ac8d298b6e966f71406089603658fd458"
+        "sha256": "sha256:3a4bcccc1a51ffba778090e4cb5c0fc45e5b12e3255f6f2407f487df24b1b40c"
       },
       {
         "path": "tests/unit/governance/test_v1_correction_acceptance.py",
@@ -168,6 +168,7 @@
         "path": "tests/unit/governance/test_v1_support_policy_v2.py",
         "sha256": "sha256:9ea8a6db5a31490e29d2dc7a0148e6329079210cfe5c4562c91677f64e80f9c2"
       }
-    ]
+    ],
+    "post_review_byte_conformance": "New unsigned JSON uses LF exactly as Git stores it; source binder rejects CRLF before creating raw-byte bindings."
   }
 }

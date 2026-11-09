@@ -56,6 +56,23 @@ def test_source_check_rejects_changed_accepted_decision(monkeypatch: pytest.Monk
         corrections.build_source_bindings(ROOT)
 
 
+def test_source_bindings_reject_text_that_git_would_normalize(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    read = architecture.read_bytes
+    path = f"{corrections.DIRECTORY}/support-policy-v2.json"
+
+    def crlf_policy(
+        root: Path, relative: str, limit: int = architecture.MAX_ARTIFACT_BYTES
+    ) -> bytes:
+        data = read(root, relative, limit)
+        return data.replace(b"\n", b"\r\n") if relative == path else data
+
+    monkeypatch.setattr(architecture, "read_bytes", crlf_policy)
+    with pytest.raises(architecture.ArchitectureError, match="LF bytes"):
+        corrections.build_source_bindings(ROOT)
+
+
 def test_metadata_proposals_are_complete_but_not_human_decisions() -> None:
     prior = {
         "authoring_ledger": {

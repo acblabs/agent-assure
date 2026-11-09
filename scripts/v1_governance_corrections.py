@@ -167,6 +167,13 @@ def build_source_bindings(root: Path) -> dict[str, Any]:
         if old != new:
             _require(old["path"] in REPLACED, "unapproved predecessor tooling replacement")
             changes.append({"path": old["path"], "predecessor": old, "current": new})
+    # Git normalizes these reviewed text paths to LF. Binding CRLF working-copy
+    # bytes would create a package that cannot verify in a clean checkout.
+    for path in (*ADDED, *REPLACED):
+        _require(
+            b"\r" not in architecture.read_bytes(root, path),
+            "correction text must use LF bytes before binding",
+        )
     policy = _load(root, f"{DIRECTORY}/support-policy-v2.json")
     foundation = _load(root, f"{DIRECTORY}/foundation-review.json")
     dependencies = []
