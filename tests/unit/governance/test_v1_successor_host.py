@@ -38,6 +38,13 @@ DIGEST = "sha256:" + "a" * 64
 
 
 @pytest.fixture(autouse=True)
+def _synthetic_host_dependency_preparation(monkeypatch: pytest.MonkeyPatch) -> None:
+    # These composition fixtures deliberately do not establish a real frozen
+    # runtime. The codec loader has separate isolated exact-guard regressions.
+    monkeypatch.setattr(host, "_prepare_authenticated_idna_codec", lambda legacy: None)
+
+
+@pytest.fixture(autouse=True)
 def _synthetic_powershell_on_nonwindows(monkeypatch: pytest.MonkeyPatch) -> None:
     if os.name != "nt":
         # Hosted Linux tests exercise composition, never claim a Windows host.

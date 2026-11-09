@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 import base64
+import codecs
+import encodings
 import json
 import os
 import re
@@ -17,7 +19,10 @@ import unicodedata
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime, timedelta
+from importlib.machinery import ModuleSpec
 from pathlib import Path
+from threading import RLock
+from types import ModuleType
 from typing import Any, cast
 
 import jsonschema
@@ -87,6 +92,16 @@ DECISIONS = (
 )
 S2_BUNDLE_PATH = "docs/governance/v1/sprint2/accepted-bundle.json"
 START_MARKER_PATH = "docs/governance/v1/sprint2/successor-start.json"
+_IDNA_RUNTIME_ROOT = Path(
+    r"C:\Users\user\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none"
+)
+_IDNA_CODEC_SOURCE = _IDNA_RUNTIME_ROOT / "Lib/encodings/idna.py"
+_IDNA_CODEC_SIZE = 9710
+_IDNA_CODEC_SHA256 = "sha256:9ca58e82d12b171f25d57239ad237dae5c44214a70f2f4f39358c2759b8b9013"
+_IDNA_CODEC_LOCK = RLock()
+_IDNA_CODEC_MODULE: ModuleType | None = None
+_IDNA_CODEC_INFO: codecs.CodecInfo | None = None
+_IDNA_CODEC_BINDINGS: dict[str, Any] | None = None
 
 
 class HostError(core.SuccessorError):
@@ -105,6 +120,129 @@ def timestamp(value: datetime) -> str:
 def _require(value: bool, message: str) -> None:
     if not value:
         raise HostError(message)
+
+
+def _idna_runtime_matches() -> bool:
+    return (
+        os.name == "nt"
+        and sys.version_info[:3] == (3, 12, 13)
+        and Path(sys.executable).absolute() == _IDNA_RUNTIME_ROOT / "python.exe"
+        and bool(sys.flags.isolated and sys.flags.no_site and sys.dont_write_bytecode)
+    )
+
+
+def _prepare_authenticated_idna_codec(legacy: Any) -> None:
+    """Load one pinned stdlib dependency without changing the legacy guard.
+
+    The immutable guard's site-only probe mistakes ``encodings.idna`` for the
+    unrelated third-party ``idna`` package. The external launcher has already
+    authenticated the full base runtime. Lease and recheck this exact source,
+    execute its raw bytes, and retain the normal public codec/TLS behavior.
+    This runs before collection or any HTTP timeout begins. Unexpected cached
+    modules, including independently preloaded stdlib modules, fail closed.
+    """
+    global _IDNA_CODEC_MODULE, _IDNA_CODEC_INFO, _IDNA_CODEC_BINDINGS
+    _require(
+        legacy._main_has_active_runtime_bootstrap() is True and _idna_runtime_matches(),
+        "authenticated IDNA preparation requires the frozen base runtime",
+    )
+    guard = getattr(legacy, "_BOOTSTRAPPED_RUNTIME_GUARD", None)
+    guard_type = getattr(legacy, "_GovernanceRuntimeImportGuard", None)
+    _require(
+        guard_type is not None
+        and type(guard) is guard_type
+        and bool(sys.meta_path)
+        and sys.meta_path[0] is guard
+        and sum(candidate is guard for candidate in sys.meta_path) == 1,
+        "authenticated IDNA preparation requires the unchanged legacy guard",
+    )
+    finders = tuple(sys.meta_path)
+
+    def guard_unchanged() -> bool:
+        return len(sys.meta_path) == len(finders) and all(
+            current is original for current, original in zip(sys.meta_path, finders, strict=True)
+        )
+
+    with _IDNA_CODEC_LOCK:
+        try:
+            with open_rooted_bounded_file(
+                Path(_IDNA_CODEC_SOURCE.anchor),
+                _IDNA_CODEC_SOURCE.relative_to(_IDNA_CODEC_SOURCE.anchor),
+                max_bytes=_IDNA_CODEC_SIZE,
+                label="authenticated stdlib IDNA source",
+            ) as descriptor:
+                raw = descriptor.contents.data
+                _require(
+                    len(raw) == _IDNA_CODEC_SIZE and core.content_digest(raw) == _IDNA_CODEC_SHA256,
+                    "authenticated stdlib IDNA source bytes changed",
+                )
+                if _IDNA_CODEC_MODULE is not None:
+                    module = _IDNA_CODEC_MODULE
+                    _require(
+                        sys.modules.get("encodings.idna") is module
+                        and vars(encodings).get("idna") is module
+                        and module.__name__ == "encodings.idna"
+                        and module.__file__ == str(_IDNA_CODEC_SOURCE)
+                        and module.__package__ == "encodings"
+                        and type(module.__spec__) is ModuleSpec
+                        and module.__spec__.origin == str(_IDNA_CODEC_SOURCE)
+                        and module.__spec__.loader is None
+                        and module.__cached__ is None
+                        and _IDNA_CODEC_BINDINGS is not None
+                        and module.__dict__.keys() == _IDNA_CODEC_BINDINGS.keys()
+                        and all(
+                            module.__dict__[key] is value
+                            for key, value in _IDNA_CODEC_BINDINGS.items()
+                        )
+                        and codecs.lookup("idna") is _IDNA_CODEC_INFO
+                        and "api.github.com".encode("idna") == b"api.github.com"
+                        and guard_unchanged(),
+                        "authenticated stdlib IDNA module identity changed",
+                    )
+                    return
+                _require(
+                    "encodings.idna" not in sys.modules and "idna" not in vars(encodings),
+                    "unexpected preloaded stdlib IDNA module",
+                )
+                module = ModuleType("encodings.idna")
+                module.__file__ = str(_IDNA_CODEC_SOURCE)
+                module.__package__ = "encodings"
+                module.__spec__ = ModuleSpec(
+                    "encodings.idna", loader=None, origin=str(_IDNA_CODEC_SOURCE)
+                )
+                module.__dict__["__cached__"] = None
+                try:
+                    # Compile leased source directly; never consult or create pyc.
+                    exec(
+                        compile(raw, str(_IDNA_CODEC_SOURCE), "exec", dont_inherit=True),
+                        module.__dict__,
+                    )
+                    sys.modules["encodings.idna"] = module
+                    vars(encodings)["idna"] = module
+                    info = codecs.lookup("idna")
+                    _require(
+                        type(info) is codecs.CodecInfo
+                        and info.name == "idna"
+                        and getattr(info.encode, "__func__", None) is module.Codec.encode
+                        and getattr(info.decode, "__func__", None) is module.Codec.decode
+                        and info.incrementalencoder is module.IncrementalEncoder
+                        and info.incrementaldecoder is module.IncrementalDecoder
+                        and "api.github.com".encode("idna") == b"api.github.com"
+                        and guard_unchanged(),
+                        "authenticated stdlib IDNA codec registration failed",
+                    )
+                    _IDNA_CODEC_MODULE, _IDNA_CODEC_INFO = module, info
+                    _IDNA_CODEC_BINDINGS = dict(module.__dict__)
+                except BaseException:
+                    if sys.modules.get("encodings.idna") is module:
+                        del sys.modules["encodings.idna"]
+                    if vars(encodings).get("idna") is module:
+                        delattr(encodings, "idna")
+                    raise
+        except HostError:
+            raise
+        except Exception as exc:
+            raise HostError("authenticated stdlib IDNA preparation failed") from exc
 
 
 def _closed(value: object, fields: set[str]) -> dict[str, Any]:
@@ -880,6 +1018,7 @@ class FrozenHost:
             now=self.clock,
             purpose="successor-host-bootstrap/v3",
         )
+        _prepare_authenticated_idna_codec(legacy)
         self.boundary = HostBoundary(
             root=self.root,
             reader=self.reader,

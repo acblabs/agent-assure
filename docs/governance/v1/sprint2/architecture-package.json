@@ -221,8 +221,8 @@
   "tooling_artifacts": [
     {
       "path": "scripts/v1_architecture_governance.py",
-      "size_bytes": 29302,
-      "sha256": "sha256:cf031b85954a507692bc0fd384e8b6402c3a5d0fe055bc0c68bf216a5fd607a3"
+      "size_bytes": 29363,
+      "sha256": "sha256:7f0c87d1f6ff69dbd502592de2b58a5895ebc775474b1d57d3c7190f5145d7aa"
     },
     {
       "path": "tests/unit/governance/test_v1_architecture_governance.py",
@@ -266,8 +266,8 @@
     },
     {
       "path": "scripts/v1_successor_host.py",
-      "size_bytes": 144876,
-      "sha256": "sha256:bfbcc88fb6d40c217de70116d3cbe231e4e273137b4095655058794b615aff06"
+      "size_bytes": 151657,
+      "sha256": "sha256:f922d161de20f3b97461871325b76e29805656a7d2e426e6932018bbe021ca10"
     },
     {
       "path": "scripts/v1_successor_forecast.py",
@@ -301,8 +301,13 @@
     },
     {
       "path": "tests/unit/governance/test_v1_successor_host.py",
-      "size_bytes": 92627,
-      "sha256": "sha256:1aa973b390c874da20d2a643ac590385195a19c2b7d863bf5cea130862cdd4f4"
+      "size_bytes": 92988,
+      "sha256": "sha256:17958206ee33382da0dff92e73b2202cf1e6803dae6d12ad8f72a3151001bd25"
+    },
+    {
+      "path": "tests/unit/governance/test_v1_successor_host_codec.py",
+      "size_bytes": 10287,
+      "sha256": "sha256:2f4cb9a7130156174114921a5a09806fda0c1d69aa66631a4788982309d1f135"
     },
     {
       "path": "tests/unit/governance/test_v1_successor_forecast.py",
@@ -346,8 +351,8 @@
     },
     {
       "path": "docs/governance/v1/sprint2/host-runbook.md",
-      "size_bytes": 12483,
-      "sha256": "sha256:bae11dd42d54d97c21d2785c9347a7cd5edcdfa9ef2cf7ddc4df44eb849efd7c"
+      "size_bytes": 13171,
+      "sha256": "sha256:3b218a80984341ee5f082636fc5599641c58484cbceb463fad00f7a6809fde20"
     },
     {
       "path": "docs/governance/v1/sprint2/s1-successor-acceptance.schema.json",
@@ -389,5 +394,5 @@
     "support_policy_acceptance",
     "product_metric_policy_acceptance"
   ],
-  "package_digest": "sha256:20269bf79daa59ca0a103e98fb1d5913665fed974fd8a6001e0fbfd6afa145bf"
+  "package_digest": "sha256:598248c782262629d8b0afa3a9661911f34bcaf9d177115cbbe84c22f15bef08"
 }

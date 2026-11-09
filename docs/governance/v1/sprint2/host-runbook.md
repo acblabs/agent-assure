@@ -44,6 +44,16 @@ key scope and at-most-30-day validity interval. The supported mode is
 establish independent mathematical or schema-review competence. The bootstrap
 also binds the capture checkout's absolute root and pinned tool identities.
 
+The authenticated successor host prepares the frozen base runtime's standard
+library IDNA codec before expensive checks or HTTPS read-back. It verifies the
+exact `Lib/encodings/idna.py` source bytes through a rooted file lease and
+compiles those bytes directly. This handles the legacy import guard's name
+collision between `encodings.idna` and the installed `idna` package. The original
+guard remains first and unchanged; ordinary HTTPS certificate, hostname, proxy,
+redirect and timeout controls remain in effect. Unexpected preloaded codec
+identities or changed source bytes fail before collection begins. This
+preparation is part of the prospectively bound successor implementation.
+
 ## Exact-byte signing and request transport
 
 Every signing directory contains readable `claim.json`, exact raw `claim`, and

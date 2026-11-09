@@ -157,6 +157,7 @@ TOOLING = (
     "tests/unit/governance/test_v1_s1_successor.py",
     "tests/unit/governance/test_v1_statistical_contract_vectors.py",
     "tests/unit/governance/test_v1_successor_host.py",
+    "tests/unit/governance/test_v1_successor_host_codec.py",
     "tests/unit/governance/test_v1_successor_forecast.py",
     "tests/unit/governance/test_v1_successor_io.py",
     "tests/unit/governance/test_v1_successor_ci.py",
