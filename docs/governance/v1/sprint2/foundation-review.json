@@ -1,78 +1,14 @@
 {
-  "format": "agent-assure-sprint12-foundation-review/1",
-  "status": "pending_prospective_human_adoption",
   "authorization_effect": "none",
   "base_commit": "db5133e09860d292047b963b0fb81b3e7385b7fa",
-  "result_commit": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
   "closure_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb",
-  "prior_authorization_for_production_edits": "not_established_by_this_review",
-  "retrospective_authorization_claimed": false,
-  "requested_decision": "accept_exact_existing_source_for_future_development_and_record_scope_exception",
-  "production_changes": [
-    {
-      "path": "pyproject.toml",
-      "before_sha256": "sha256:4007734e095fd75ef2c8ad8a2deffa927306ad876a41067655ad13791bfb8ffe",
-      "after_sha256": "sha256:78b74440ae4799266e22020358c3923b37c04d0259352346fbb7a38126d9f062",
-      "purpose": "Include reproducible build inputs in source archives; exclude dynamic closure evidence.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/evaluation/evaluator.py",
-      "before_sha256": "sha256:8bceeb42ab336504f58838a511ccb7e7055dd8f95d9a526d53f7e18b7673fdb1",
-      "after_sha256": "sha256:5d851960b719c49ac06e4e03639962bec32ad80462b320c7b06bf1dd4a2c7613",
-      "purpose": "Return the already schema-admitted RunSet projection and exact byte size once.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/rag/repeated_sensitivity.py",
-      "before_sha256": "sha256:896be0347097059c6654cedc00f49b0c50cdd3f899e05ba712bd33349073f81e",
-      "after_sha256": "sha256:f33da940d328b6c389e552eab7ed0a7d3c6618c6b0665996f0af9aa96e52e771",
-      "purpose": "Reuse validated paired projections while preserving forged-model re-admission checks.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/reporting/study.py",
-      "before_sha256": "sha256:8f6d6033bfd41ece2404263f964aee44beba30300424ebcb35d412ae9fbf494b",
-      "after_sha256": "sha256:26d0d460e9e09e65e20fb0928be65ba65a168b74a6830943c845e3ef4359bb6c",
-      "purpose": "Serialize an already admitted and privacy-checked payload without repeating expensive admission.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/schema/validation.py",
-      "before_sha256": "sha256:4bf75c40a444573a9a7b387bd66452518c95bf2259813e4af9acafb2b5823829",
-      "after_sha256": "sha256:cd3131e44fa4e296a4f71f804c75db6796d9adb7c2f3eb4e447889aed7ae9bbe",
-      "purpose": "Expose single snapshot admission with size; preserve existing projection checks.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/study_artifact_serialization.py",
-      "before_sha256": "sha256:fae2c49888644557d19e362f0926b57d68d24717a350a953c222040bcb41bc6d",
-      "after_sha256": "sha256:210331d4a00faef3b38c48fb8e99d187c770f577a27964fcc4755c1f80b5d97e",
-      "purpose": "Factor canonical JSON payload encoding while preserving model admission in public writers.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    },
-    {
-      "path": "src/agent_assure/study_bundle.py",
-      "before_sha256": "sha256:8451b37ff6c8ff3b1028877fe5ece7bcf9af5c69e86b754e9330e808696c7c6a",
-      "after_sha256": "sha256:3ddee0706b959c7bfdd44ed8f87de1fab04d5a8abb34c254ec852e9ceef2992f",
-      "purpose": "Compare exact canonical payload bytes after the existing model admission boundary.",
-      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof.",
-      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance"
-    }
-  ],
   "codeowners_inspection": {
-    "source_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb",
-    "path": ".github/CODEOWNERS",
-    "sha256": "sha256:ee80a3537b0a638efba9bae8e9ae6be4f4d4b1a9a57aab5596d601293b7d365d",
-    "observed_at_utc": "2026-11-09T18:04:49.992300Z",
+    "branch_protection_verified": false,
     "command": "Get-Content .github/CODEOWNERS; exact required owner-routing line inspection",
     "exit_code": 0,
+    "independent_review_established": false,
+    "limitations": "File routing is not proof of GitHub enforcement, availability, capacity or independence.",
+    "observed_at_utc": "2026-11-09T18:04:49.992300Z",
     "observed_routing": [
       "/.github/** @acblabs",
       "/src/agent_assure/** @acblabs",
@@ -83,62 +19,62 @@
       "/pyproject.toml @acblabs",
       "/Makefile @acblabs"
     ],
-    "branch_protection_verified": false,
-    "independent_review_established": false,
-    "limitations": "File routing is not proof of GitHub enforcement, availability, capacity or independence."
+    "path": ".github/CODEOWNERS",
+    "sha256": "sha256:ee80a3537b0a638efba9bae8e9ae6be4f4d4b1a9a57aab5596d601293b7d365d",
+    "source_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb"
   },
-  "new_implementation_changes_production_files": false,
   "correction_engineering_validation": {
-    "status": "engineering_evidence_only_pending_human_and_trusted_acceptance",
-    "observed_at_utc": "2026-11-09T18:41:52.465093Z",
-    "independent_review_claimed": false,
-    "governed_full_check_graph_acceptance_claimed": false,
-    "source_note": "Complete regression run plus final focused tests for subsequent input/dependency and atomic-write guard refinements; not a signed frozen-host or hosted-CI admission.",
+    "final_focused_correction_suite": {
+      "command": "python -m pytest tests/unit/governance/test_v1_governance_corrections.py tests/unit/governance/test_v1_correction_acceptance.py tests/unit/governance/test_v1_successor_forecast.py tests/unit/governance/test_v1_support_policy_v2.py --basetemp .tmp/corrections-focused-main-20261109-09 -p no:cacheprovider -o addopts=--disable-socket -q",
+      "failed": 0,
+      "passed": 172
+    },
     "full_governance_and_historical_suite": {
       "command": "python -m pytest tests/unit/governance tests/integration/test_v1_s1_historical_check.py --basetemp .tmp/corrections-governance-full-main-20261109-02 -p no:cacheprovider --junitxml .tmp/corrections-governance-full-main-20261109-02.xml -o addopts=--disable-socket -q",
-      "passed": 1176,
-      "failed": 0,
-      "skipped": 0,
       "elapsed_seconds": "666.022",
+      "failed": 0,
       "junit_path": ".tmp/corrections-governance-full-main-20261109-02.xml",
       "junit_sha256": "sha256:db4c8c66443cd95ec6e53e83e0f993ad9c431318fc1b2d61e5d466e530d00c47",
-      "native_windows_sandbox": "outside_sandbox_for_required_directory_handle_operations"
+      "native_windows_sandbox": "outside_sandbox_for_required_directory_handle_operations",
+      "passed": 1176,
+      "skipped": 0
     },
-    "final_focused_correction_suite": {
-      "passed": 171,
-      "failed": 0,
-      "command": "python -m pytest tests/unit/governance/test_v1_governance_corrections.py tests/unit/governance/test_v1_correction_acceptance.py tests/unit/governance/test_v1_successor_forecast.py tests/unit/governance/test_v1_support_policy_v2.py --basetemp .tmp/corrections-focused-main-20261109-08 -p no:cacheprovider -o addopts=--disable-socket -q"
-    },
-    "other_checks": {
-      "ruff_check_repository": "passed",
-      "ruff_format_modified_python": "passed",
-      "mypy_src_scripts": "passed_300_files",
-      "strict_mkdocs_build": "passed",
-      "docs_alignment": "passed",
-      "dependency_lock_freshness": "passed",
-      "frozen_schema_exports": "passed",
-      "schema_staging": "passed",
-      "schema_force_includes": "passed",
-      "tagged_schema_immutability": "passed_14_release_baselines",
-      "development_environment_dependency_check": "passed_81_packages",
-      "full_portfolio_in_memory_preparation": "passed_68_tickets_121_occurrences_6_claims_94_files_no_acceptance"
-    },
+    "governed_full_check_graph_acceptance_claimed": false,
+    "independent_review_claimed": false,
     "initial_environment_findings": {
-      "initial_full_run_passed": 1143,
-      "initial_full_run_failed": 6,
-      "initial_full_run_skipped": 1,
       "causes": [
         "development environment used lower-bound rpds-py and typing-extensions versions rather than frozen requirements.lock versions",
         "sandbox denied native directory handles for four isolated codec tests"
       ],
-      "resolution": "Preserved original lower-bound environment in .governance-archive/lower-bound-development-env-001; restored complete captured compatible environment and installed this workspace editably offline; all native frozen-runtime tests pass without changing pins.",
+      "initial_full_run_failed": 6,
+      "initial_full_run_passed": 1143,
+      "initial_full_run_skipped": 1,
       "original_capture_modified": false,
+      "resolution": "Preserved original lower-bound environment in .governance-archive/lower-bound-development-env-001; restored complete captured compatible environment and installed this workspace editably offline; all native frozen-runtime tests pass without changing pins.",
       "uv_lock_modified": false
     },
+    "observed_at_utc": "2026-11-09T18:41:52.465093Z",
+    "other_checks": {
+      "dependency_lock_freshness": "passed",
+      "development_environment_dependency_check": "passed_81_packages",
+      "docs_alignment": "passed",
+      "frozen_schema_exports": "passed",
+      "full_portfolio_in_memory_preparation": "passed_68_tickets_121_occurrences_6_claims_94_files_no_acceptance",
+      "mypy_src_scripts": "passed_300_files",
+      "ruff_check_repository": "passed",
+      "ruff_format_modified_python": "passed",
+      "schema_force_includes": "passed",
+      "schema_staging": "passed",
+      "strict_mkdocs_build": "passed",
+      "tagged_schema_immutability": "passed_14_release_baselines"
+    },
+    "post_review_byte_conformance": "LF-only source bindings and recursively sorted readable JSON; three fresh Python hash seeds produce identical raw review subject bytes.",
+    "source_note": "Complete regression run plus final focused tests for subsequent input/dependency and atomic-write guard refinements; not a signed frozen-host or hosted-CI admission.",
+    "status": "engineering_evidence_only_pending_human_and_trusted_acceptance",
     "tested_correction_artifacts": [
       {
         "path": "scripts/v1_governance_corrections.py",
-        "sha256": "sha256:a93577b1d697b6287261bdc51a3132b95aaf469a256d5a6b7839223bbd8d4cbf"
+        "sha256": "sha256:0854ed7cb6e06b8f3a7e6001a78577e2623c27fc10c27aab381c5c57b5fa7416"
       },
       {
         "path": "scripts/v1_correction_acceptance.py",
@@ -154,7 +90,7 @@
       },
       {
         "path": "tests/unit/governance/test_v1_governance_corrections.py",
-        "sha256": "sha256:3a4bcccc1a51ffba778090e4cb5c0fc45e5b12e3255f6f2407f487df24b1b40c"
+        "sha256": "sha256:2f8202f217b1fad37f371659b6ae146f538f40ee4f992fc9d541e1c93a262e38"
       },
       {
         "path": "tests/unit/governance/test_v1_correction_acceptance.py",
@@ -168,7 +104,71 @@
         "path": "tests/unit/governance/test_v1_support_policy_v2.py",
         "sha256": "sha256:9ea8a6db5a31490e29d2dc7a0148e6329079210cfe5c4562c91677f64e80f9c2"
       }
-    ],
-    "post_review_byte_conformance": "New unsigned JSON uses LF exactly as Git stores it; source binder rejects CRLF before creating raw-byte bindings."
-  }
+    ]
+  },
+  "format": "agent-assure-sprint12-foundation-review/1",
+  "new_implementation_changes_production_files": false,
+  "prior_authorization_for_production_edits": "not_established_by_this_review",
+  "production_changes": [
+    {
+      "after_sha256": "sha256:78b74440ae4799266e22020358c3923b37c04d0259352346fbb7a38126d9f062",
+      "before_sha256": "sha256:4007734e095fd75ef2c8ad8a2deffa927306ad876a41067655ad13791bfb8ffe",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "pyproject.toml",
+      "purpose": "Include reproducible build inputs in source archives; exclude dynamic closure evidence.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:5d851960b719c49ac06e4e03639962bec32ad80462b320c7b06bf1dd4a2c7613",
+      "before_sha256": "sha256:8bceeb42ab336504f58838a511ccb7e7055dd8f95d9a526d53f7e18b7673fdb1",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/evaluation/evaluator.py",
+      "purpose": "Return the already schema-admitted RunSet projection and exact byte size once.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:f33da940d328b6c389e552eab7ed0a7d3c6618c6b0665996f0af9aa96e52e771",
+      "before_sha256": "sha256:896be0347097059c6654cedc00f49b0c50cdd3f899e05ba712bd33349073f81e",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/rag/repeated_sensitivity.py",
+      "purpose": "Reuse validated paired projections while preserving forged-model re-admission checks.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:26d0d460e9e09e65e20fb0928be65ba65a168b74a6830943c845e3ef4359bb6c",
+      "before_sha256": "sha256:8f6d6033bfd41ece2404263f964aee44beba30300424ebcb35d412ae9fbf494b",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/reporting/study.py",
+      "purpose": "Serialize an already admitted and privacy-checked payload without repeating expensive admission.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:cd3131e44fa4e296a4f71f804c75db6796d9adb7c2f3eb4e447889aed7ae9bbe",
+      "before_sha256": "sha256:4bf75c40a444573a9a7b387bd66452518c95bf2259813e4af9acafb2b5823829",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/schema/validation.py",
+      "purpose": "Expose single snapshot admission with size; preserve existing projection checks.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:210331d4a00faef3b38c48fb8e99d187c770f577a27964fcc4755c1f80b5d97e",
+      "before_sha256": "sha256:fae2c49888644557d19e362f0926b57d68d24717a350a953c222040bcb41bc6d",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/study_artifact_serialization.py",
+      "purpose": "Factor canonical JSON payload encoding while preserving model admission in public writers.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    },
+    {
+      "after_sha256": "sha256:3ddee0706b959c7bfdd44ed8f87de1fab04d5a8abb34c254ec852e9ceef2992f",
+      "before_sha256": "sha256:8451b37ff6c8ff3b1028877fe5ece7bcf9af5c69e86b754e9330e808696c7c6a",
+      "disposition": "prospective_scope_exception_requires_explicit_maintainer_acceptance",
+      "path": "src/agent_assure/study_bundle.py",
+      "purpose": "Compare exact canonical payload bytes after the existing model admission boundary.",
+      "risk": "Admission, canonical bytes and package behavior require existing regression checks; this review does not claim an independently qualified equivalence proof."
+    }
+  ],
+  "requested_decision": "accept_exact_existing_source_for_future_development_and_record_scope_exception",
+  "result_commit": "6ad62f67825e2abbe97bcec32e90dcaa501900d4",
+  "retrospective_authorization_claimed": false,
+  "status": "pending_prospective_human_adoption"
 }

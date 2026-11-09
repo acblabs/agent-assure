@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +19,38 @@ if str(ROOT) not in sys.path:
 
 from scripts import v1_architecture_governance as architecture  # noqa: E402
 from scripts import v1_governance_corrections as corrections  # noqa: E402
+
+
+def test_review_json_bytes_are_stable_across_fresh_hash_seeds() -> None:
+    code = (
+        "import sys; from scripts.v1_governance_corrections import _json; "
+        "sys.stdout.buffer.write(_json({key: {'z': 2, 'a': 1} "
+        "for key in {'confidence', 'risk', 'status', 'dependencies'}}))"
+    )
+    outputs = []
+    for seed in ("1", "2", "391"):
+        result = subprocess.run(
+            [sys.executable, "-B", "-c", code],
+            cwd=ROOT,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            capture_output=True,
+            check=True,
+            timeout=30,
+        )
+        outputs.append(result.stdout)
+    assert outputs[0] == outputs[1] == outputs[2]
+    assert (
+        outputs[0]
+        == (
+            json.dumps(
+                {key: {"z": 2, "a": 1} for key in ("confidence", "risk", "status", "dependencies")},
+                sort_keys=True,
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n"
+        ).encode()
+    )
 
 
 def test_current_source_binding_preserves_original_package() -> None:
@@ -234,7 +268,7 @@ def test_support_coverage_cannot_be_implied(field: str, value: Any) -> None:
 
 def _review() -> tuple[dict[str, Any], dict[str, bytes]]:
     """Independent tiny subject set; no production forecast or human signatures."""
-    encode = lambda value: (json.dumps(value, indent=2) + "\n").encode()  # noqa: E731
+    encode = lambda value: (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()  # noqa: E731
     policy_path = f"{corrections.DIRECTORY}/support-policy-v2.json"
     security_bytes = b"Synthetic public security objectives\n"
     ownership_bytes = b"/scripts/** @synthetic-owner\n"

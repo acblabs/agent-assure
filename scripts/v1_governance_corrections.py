@@ -90,7 +90,11 @@ def _require(value: bool, message: str) -> None:
 
 
 def _json(value: Any) -> bytes:
-    return (json.dumps(value, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
+    # Human-readable subjects also have raw-byte identities. Nested maps may
+    # originate from sets, so insertion order cannot define replay bytes.
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False) + "\n"
+    ).encode()
 
 
 def _load(root: Path, relative: str) -> dict[str, Any]:

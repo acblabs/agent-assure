@@ -69,6 +69,11 @@ replace the null template. Preparation does not accept the selected metadata.
 It freezes a complete review snapshot and emits six domain-separated raw
 `.claim` inputs, separate from their readable JSON representations:
 
+Machine-generated readable JSON uses sorted keys at every depth, two-space
+indentation, UTF-8 and a terminal LF. This makes raw subject identities stable
+across fresh processes and Python hash seeds. Cryptographic claims still use
+their separately specified domain-separated RFC 8785 bytes.
+
 1. Prospective adoption of the exact current foundation and scope deviation,
    without retrospectively authorizing earlier edits.
 2. The complete generation-4 forecast producer decision.
