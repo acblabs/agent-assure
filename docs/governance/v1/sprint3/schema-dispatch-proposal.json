@@ -1,0 +1,1376 @@
+{
+  "assignment_proposal": {
+    "adopted": false,
+    "approval_mode": "maintainer_development",
+    "backup_person_id": null,
+    "backup_status": "not_declared_for_this_development_assignment",
+    "capacity_proposal": "One implementation work stream; maintainer reviews exact evidence before each A/D completion decision.",
+    "conflicts": [
+      "One human owns and reviews the development work; no independent approval is supplied."
+    ],
+    "implementation_agents": [
+      "Codex"
+    ],
+    "independence": "NO_INDEPENDENT_REVIEW",
+    "operational_support_capacity_reused_as_schema_review_capacity": false,
+    "owner_person_id": "acblabs",
+    "owner_role": "platform_lead",
+    "review_capacity_confirmed": false,
+    "reviewer_competence_scope": "schema_compatibility",
+    "reviewer_person_id": "acblabs",
+    "reviewer_role": "repository_maintainer"
+  },
+  "authorization_effect": "none",
+  "base_commit": "9e9fc9937b1a5436343ced8fdac47ccbde379d4a",
+  "candidate_null_meaning": "Proposed bootstrap planning occurrence only: no immutable candidate or active profile exists. This is not runtime dispatch-context/v1 conformance.",
+  "deferred": [
+    "SCHEMA-01B",
+    "SCHEMA-01C",
+    "TEMP-01A",
+    "all other Sprint 3 ticket implementation",
+    "preview publication",
+    "qualification and release admission"
+  ],
+  "editing_authorized": false,
+  "exact_file_scope": [
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "docs/governance/v1/sprint3/schema-implementation-evidence.md",
+      "purpose": "Requirement-to-test mapping, exact commands and outputs, limitations and pending actual human completion receipts."
+    },
+    {
+      "baseline": {
+        "path": "docs/reason_code_registry.md",
+        "sha256": "sha256:b0e521104db562e5d5e8e812a1ada98923546d2371e9c6f6bff2def07bb61874",
+        "size_bytes": 6635
+      },
+      "operation": "modify",
+      "path": "docs/reason_code_registry.md",
+      "purpose": "Document only reviewed compatibility/digest failures exposed by these work packages."
+    },
+    {
+      "baseline": {
+        "path": "docs/schema_evolution.md",
+        "sha256": "sha256:f05326bf722ad257af884bad1df72f4a186defa77b13daab2c61dc2a9d2c48b8",
+        "size_bytes": 34269
+      },
+      "operation": "modify",
+      "path": "docs/schema_evolution.md",
+      "purpose": "Document distinct writer/package identities, coexistence, explicit matrix and migration boundaries."
+    },
+    {
+      "baseline": {
+        "path": "docs/schema_reference.md",
+        "sha256": "sha256:77c91d4dc36138f7343b9493420ef06a8def027bf3be3bc848e7a0f8b29c9ca5",
+        "size_bytes": 73718
+      },
+      "operation": "modify",
+      "path": "docs/schema_reference.md",
+      "purpose": "Document the exact new contract set and explicit writer selection."
+    },
+    {
+      "baseline": {
+        "path": "pyproject.toml",
+        "sha256": "sha256:78b74440ae4799266e22020358c3923b37c04d0259352346fbb7a38126d9f062",
+        "size_bytes": 5412
+      },
+      "operation": "modify",
+      "path": "pyproject.toml",
+      "purpose": "Only proposed package version 1.0.0a3 and generated schema force-includes; no dependencies, extras or lock changes."
+    },
+    {
+      "baseline": null,
+      "contract_id": "approval-allocation-proof-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/approval-allocation-proof-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "approval-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/approval-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-head-commit-proof/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/assurance-head-commit-proof.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-registry-descriptor/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/assurance-registry-descriptor.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-release-head/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/assurance-release-head.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "authorization-artifact/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/authorization-artifact.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "authorization-capability-preflight/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/authorization-capability-preflight.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "candidate-equivalence-transfer/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/candidate-equivalence-transfer.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "candidate-install-verification/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/candidate-install-verification.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "channel-artifact-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/channel-artifact-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "channel-publication-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/channel-publication-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": null,
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/compatibility-matrix.json",
+      "purpose": "Immutable explicit package/writer/artifact/reader matrix; no wildcard cells."
+    },
+    {
+      "baseline": null,
+      "contract_id": "dispatch-context/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/dispatch-context.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "evidence-consumer-disposition/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/evidence-consumer-disposition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "evidence-consumer-drain-completion/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/evidence-consumer-drain-completion.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "exceptional-deployment-authorization/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/exceptional-deployment-authorization.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "model-identity/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/model-identity.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "optional-train-start-threshold-evaluation/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/optional-train-start-threshold-evaluation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "pilot-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/pilot-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "pilot-readiness/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/pilot-readiness.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "preview-publication/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/preview-publication.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-evidence-snapshot/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-evidence-snapshot.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-exposure-floor-evaluation/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-exposure-floor-evaluation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-generation/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-generation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-producer-consumer-binding/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-producer-consumer-binding.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-record/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-record.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-sequence-head/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-sequence-head.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-series-controller/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-series-controller.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-trusted-time-order/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-gate-trusted-time-order.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-threshold-definition/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/product-threshold-definition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "profile-lifecycle-transition/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/profile-lifecycle-transition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "qualification-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/qualification-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "release-candidate-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/release-candidate-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "required-claim-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/required-claim-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "rollback-consumption-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/rollback-consumption-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "rollback-nonce-state/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/rollback-nonce-state.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "signature-envelope/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/signature-envelope.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "source-event-identity/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/source-event-identity.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-bundle-close-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/statistical-bundle-close-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-checkpoint/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/statistical-checkpoint.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-registration/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/statistical-registration.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "structural-exploratory-topology-report/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/structural-exploratory-topology-report.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "veto-record/v1",
+      "operation": "generate_new",
+      "path": "schemas/unreleased/v1.0.0rc1/veto-record.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "approval-allocation-proof-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/approval-allocation-proof-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "approval-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/approval-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-head-commit-proof/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/assurance-head-commit-proof.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-registry-descriptor/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/assurance-registry-descriptor.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "assurance-release-head/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/assurance-release-head.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "authorization-artifact/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/authorization-artifact.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "authorization-capability-preflight/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/authorization-capability-preflight.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "candidate-equivalence-transfer/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/candidate-equivalence-transfer.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "candidate-install-verification/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/candidate-install-verification.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "channel-artifact-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/channel-artifact-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "channel-publication-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/channel-publication-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": null,
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/compatibility-matrix.json",
+      "purpose": "Immutable explicit package/writer/artifact/reader matrix; no wildcard cells."
+    },
+    {
+      "baseline": null,
+      "contract_id": "dispatch-context/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/dispatch-context.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "evidence-consumer-disposition/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/evidence-consumer-disposition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "evidence-consumer-drain-completion/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/evidence-consumer-drain-completion.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "exceptional-deployment-authorization/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/exceptional-deployment-authorization.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "model-identity/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/model-identity.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "optional-train-start-threshold-evaluation/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/optional-train-start-threshold-evaluation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "pilot-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/pilot-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "pilot-readiness/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/pilot-readiness.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "preview-publication/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/preview-publication.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-evidence-snapshot/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-evidence-snapshot.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-exposure-floor-evaluation/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-exposure-floor-evaluation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-generation/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-generation.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-producer-consumer-binding/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-producer-consumer-binding.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-record/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-record.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-sequence-head/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-sequence-head.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-series-controller/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-series-controller.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-gate-trusted-time-order/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-gate-trusted-time-order.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "product-threshold-definition/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/product-threshold-definition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "profile-lifecycle-transition/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/profile-lifecycle-transition.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "qualification-bundle/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/qualification-bundle.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "release-candidate-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/release-candidate-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "required-claim-manifest/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/required-claim-manifest.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "rollback-consumption-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/rollback-consumption-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "rollback-nonce-state/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/rollback-nonce-state.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "signature-envelope/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/signature-envelope.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "source-event-identity/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/source-event-identity.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-bundle-close-receipt/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/statistical-bundle-close-receipt.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-checkpoint/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/statistical-checkpoint.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "statistical-registration/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/statistical-registration.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "structural-exploratory-topology-report/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/structural-exploratory-topology-report.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": null,
+      "contract_id": "veto-record/v1",
+      "operation": "generate_new",
+      "path": "schemas/v1.0.0rc1/veto-record.schema.json",
+      "purpose": "Reviewed explicit new-writer export; never overwrite a released snapshot."
+    },
+    {
+      "baseline": {
+        "path": "scripts/check_frozen_schemas.py",
+        "sha256": "sha256:c3549cb01cd5206c2218a3ddab42a99a4159d0200c42778f7aaaee62ecce2923",
+        "size_bytes": 3372
+      },
+      "operation": "modify",
+      "path": "scripts/check_frozen_schemas.py",
+      "purpose": "Check the new writer independently while retaining all legacy frozen parity checks."
+    },
+    {
+      "baseline": {
+        "path": "scripts/check_schema_staging.py",
+        "sha256": "sha256:227f5f06bc02f5fc44826dd6ed460e79df2db873f1ddf5782e81c7303a336f89",
+        "size_bytes": 1584
+      },
+      "operation": "modify",
+      "path": "scripts/check_schema_staging.py",
+      "purpose": "Check explicit new-writer staging in addition to legacy staging."
+    },
+    {
+      "baseline": {
+        "path": "scripts/check_tagged_schema_immutability.py",
+        "sha256": "sha256:bc39b84ad73c74a8d9c01c8237abe3e71736df3d57bfb62aae7f6837004708c9",
+        "size_bytes": 11259
+      },
+      "operation": "modify",
+      "path": "scripts/check_tagged_schema_immutability.py",
+      "purpose": "Handle the explicitly registered new candidate writer without exempting any existing released snapshot or arbitrary new directory."
+    },
+    {
+      "baseline": {
+        "path": "scripts/check_version_matches_tag.py",
+        "sha256": "sha256:e213255fca699a00f7888505e06fa01fd1213d3e3c21c4428cdf2d09f2e418fb",
+        "size_bytes": 16456
+      },
+      "operation": "modify",
+      "path": "scripts/check_version_matches_tag.py",
+      "purpose": "Declare the new preview-package/writer relationship explicitly; preserve every released mapping and all version agreement checks."
+    },
+    {
+      "baseline": {
+        "path": "scripts/check_wheel_contents.py",
+        "sha256": "sha256:c203268e26e403bd53074208534d3b1a01c72ce51768b998b0797ce29804777b",
+        "size_bytes": 72681
+      },
+      "operation": "modify",
+      "path": "scripts/check_wheel_contents.py",
+      "purpose": "Require and validate the immutable compatibility matrix and new schema resources."
+    },
+    {
+      "baseline": {
+        "path": "scripts/schema_versions.py",
+        "sha256": "sha256:b427782e101876ac5e0300d2c4fc981a3f4ef978c850a7d717788e47c94e46c8",
+        "size_bytes": 4397
+      },
+      "operation": "modify",
+      "path": "scripts/schema_versions.py",
+      "purpose": "Enumerate explicit dual writer profiles and required schema/matrix resources."
+    },
+    {
+      "baseline": {
+        "path": "src/agent_assure/__init__.py",
+        "sha256": "sha256:c3a23ec21196cde7417a49c98c20c65ddaf9c3e09f6eb3d7590bec3c2dc54ef0",
+        "size_bytes": 83
+      },
+      "operation": "modify",
+      "path": "src/agent_assure/__init__.py",
+      "purpose": "Only proposed __version__ 1.0.0a3; retain legacy SCHEMA_VERSION 0.6.6."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/canonical/v1.py",
+      "purpose": "Reviewed contract-specific digest projections reusing existing RFC8785 canonicalization."
+    },
+    {
+      "baseline": {
+        "path": "src/agent_assure/cli/schema_cmd.py",
+        "sha256": "sha256:d192b823a7a8f4e157dfa1bb0dd201cd57426d44eead674ac2e07279e97873f4",
+        "size_bytes": 492
+      },
+      "operation": "modify",
+      "path": "src/agent_assure/cli/schema_cmd.py",
+      "purpose": "Select the new writer explicitly without changing legacy default behavior."
+    },
+    {
+      "baseline": {
+        "path": "src/agent_assure/schema/export.py",
+        "sha256": "sha256:85cfd5ee7c8968bf7c7c282ffe5a03566c969bc9688e5dade5eae0af5b8e1ea7",
+        "size_bytes": 10942
+      },
+      "operation": "modify",
+      "path": "src/agent_assure/schema/export.py",
+      "purpose": "Add explicit new-writer export; preserve the legacy default export bytes and identities."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_authorization.py",
+      "purpose": "Approval, allocation proof, claim manifest, veto, capability and authorization schemas."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_base.py",
+      "purpose": "Strict new-writer roots, explicit identities, closed bounded primitives; no global legacy writer bump."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_compatibility.py",
+      "purpose": "Strict immutable matrix-cell models and lookup helpers; not a second dispatch registry."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_digest_graph.py",
+      "purpose": "Exact instance/projection dependency and historical ancestry validation with cycle rejection."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_dispatch.py",
+      "purpose": "Define and export the production dispatch-context data schema as part of SCHEMA-01D. Production record writers remain prohibited until the exact SCHEMA-01D implementation-acceptance receipt exists."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_evidence.py",
+      "purpose": "Consumer disposition and drain-completion schemas; no downstream evaluator implementation."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_identity.py",
+      "purpose": "Signature envelope, model identity and source-event identity models."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_product.py",
+      "purpose": "Closed purpose-discriminated product evidence/threshold/gate/controller schemas; no operational gate controller."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_release.py",
+      "purpose": "Candidate, equivalence, install, qualification, pilot, lifecycle, channel, preview and assurance registry/head/proof schemas."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_rollback.py",
+      "purpose": "Exceptional authorization, nonce-state and consumption-receipt schemas; no deployment or nonce-store side effects."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_statistics.py",
+      "purpose": "Registration, checkpoint and statistical bundle-close schemas; no statistical method implementation."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "src/agent_assure/schema/v1_topology.py",
+      "purpose": "Nonauthorizing exploratory topology report schema."
+    },
+    {
+      "baseline": {
+        "path": "src/agent_assure/schema/validation.py",
+        "sha256": "sha256:cd3131e44fa4e296a4f71f804c75db6796d9adb7c2f3eb4e447889aed7ae9bbe",
+        "size_bytes": 40353
+      },
+      "operation": "modify",
+      "path": "src/agent_assure/schema/validation.py",
+      "purpose": "Extend the sole existing compatibility dispatch and immutable resource/minimum-reader checks; preserve legacy policies."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/fixtures/v1/schema/schema-001-case.json",
+      "purpose": "Production-schema conversion of the accepted SCHEMA-001 design case; expected conclusions require separate review."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/fixtures/v1/schema/schema-002-case.json",
+      "purpose": "No-invented-semantics SCHEMA-002 conversion; B/C execution remains deferred."
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/campaigns/prior_auth_synthetic_baseline.summary.json",
+        "sha256": "sha256:72d062daffd7b1bed1b9dd798c924aba0bbcefc21d2de320cfcf207e2be2a00d",
+        "size_bytes": 25509
+      },
+      "operation": "modify",
+      "path": "tests/golden/campaigns/prior_auth_synthetic_baseline.summary.json",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/campaigns/streaming_process_regression_baseline.summary.json",
+        "sha256": "sha256:1904149433187ace3de54572e51f8d2f37b79236a0e9e78663c13c59ead4c983",
+        "size_bytes": 25511
+      },
+      "operation": "modify",
+      "path": "tests/golden/campaigns/streaming_process_regression_baseline.summary.json",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-inertial.html",
+        "sha256": "sha256:0dc2027d1095ebad65270c463f8192cc9e0b8d5c248bb836d94a8236d904e2a1",
+        "size_bytes": 12365
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-inertial.html",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-inertial.json",
+        "sha256": "sha256:79d45a775fccbd0c5133be3d3e50ab2727af527034944deee0df45033dc70c53",
+        "size_bytes": 49312
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-inertial.json",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-inertial.md",
+        "sha256": "sha256:18c1db35907ede09569324b7ba90b007be01506688d59bcb33d4b06f307d0c26",
+        "size_bytes": 8119
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-inertial.md",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-responsive.html",
+        "sha256": "sha256:cf6dc2faf32f551ebe267a4f1b87454522f85f6dac178ebb771bd8412065e94b",
+        "size_bytes": 12287
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-responsive.html",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-responsive.json",
+        "sha256": "sha256:b95799da764fdd1b63feab9d084bbeb45fdf055a23e0bc4f4aa7b85e17a1ad9c",
+        "size_bytes": 48983
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-responsive.json",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-responsive.md",
+        "sha256": "sha256:4b263fa72239e701baf6a23d6906fb3226837935bca415f885d8487907438462",
+        "size_bytes": 8019
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-responsive.md",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-reversed.html",
+        "sha256": "sha256:84251cc8473219269a7fdd3660d4f52a903c60659501a2a4c13de0797e758a29",
+        "size_bytes": 12369
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-reversed.html",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-reversed.json",
+        "sha256": "sha256:e4a870b392ca0821689c22c90f8c3b12797f395349413b72449d00cd73fb9c0c",
+        "size_bytes": 49200
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-reversed.json",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "allowed_changes": "version_metadata_and_its_derived_hashes_only",
+      "baseline": {
+        "path": "tests/golden/reports/evidence-sensitivity-reversed.md",
+        "sha256": "sha256:00711914edecd8b7aea18d5c84fd4783ae5301d2968428d0f2c3b61b88cf61f6",
+        "size_bytes": 8103
+      },
+      "operation": "modify",
+      "path": "tests/golden/reports/evidence-sensitivity-reversed.md",
+      "purpose": "Explicitly reviewed current producer/evaluator version metadata refresh and derived hashes only; no changes to conclusions, scores, decisions, cases or expected behavior. Historical version-labelled fixtures are excluded.",
+      "semantic_oracle_changes_allowed": false
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/integration/test_v1_schema_wheel.py",
+      "purpose": "Exact new reader wheel, offline discovery outside source, clean environment and metadata/version/resource checks."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/governance/test_v1_schema_first_writer_receipts.py",
+      "purpose": "Exact A/D package and contract membership/issuer/competence/expiry gates; no self-generated acceptance."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_digest_graph.py",
+      "purpose": "Dangling/cyclic/current-versus-historical instance dependencies and future-proof reachability negatives."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_digest_projections.py",
+      "purpose": "Domain separation, self-exclusion, exact projection and signature-boundary mutations."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_schema_compatibility.py",
+      "purpose": "Absent cells, minimum reader, no semantic promotion, malformed matrix and resource tamper negatives."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_schema_export.py",
+      "purpose": "Explicit writer selection, legacy byte preservation and closed schema export parity."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_tagged_schema_immutability.py",
+      "purpose": "All released baselines protected; only the exact registered new candidate profile can be untagged."
+    },
+    {
+      "baseline": null,
+      "operation": "create",
+      "path": "tests/unit/schema/test_v1_wire_contracts.py",
+      "purpose": "Exact 42-ID coverage, required/nullability rules, hostile bounds and cross-purpose rejection."
+    }
+  ],
+  "forecast_scope_review": {
+    "accepted_forecast": {
+      "path": "docs/governance/v1/sprint2/delivery-forecast.accepted-v4.json",
+      "sha256": "sha256:6bbcd903c19960f8f5f0c746fcf18fad46e1bb3b69b4303387d4b1b394c30802",
+      "size_bytes": 291385
+    },
+    "estimate_reconfirmed_or_reestimated": false,
+    "human_decision": null,
+    "instruction": "Re-estimate or explicitly reconfirm the whole-ticket estimates with a scoped rationale for the concrete A/D first wave and unresolved B/C remainder. Do not allocate quantiles proportionally, drop remaining work, or treat this as an A/D-only forecast.",
+    "new_proposed_exact_path_count": 135,
+    "prior_resolved_ticket_count": 0,
+    "record_digest": "sha256:b2087c737e495d78ec7d18b42fbdce1c6cd3d4cccf19c16e1576a08d2ecf4839",
+    "resolved_work_packages": [
+      "SCHEMA-01A",
+      "SCHEMA-01D"
+    ],
+    "scoped_rebaseline_required": true,
+    "selected_row_scope": "whole_ticket_A_B_C_D_not_first_wave_A_D_only",
+    "selected_ticket_row": {
+      "aggregate": {
+        "combined_p50_effort_hours": 132,
+        "combined_p90_effort_hours": null,
+        "elapsed_waits_included": false,
+        "engineering_p50_effort_hours": 70,
+        "engineering_p90_effort_hours": 174,
+        "occurrence_count": 1,
+        "reviewer_p50_effort_hours": 62,
+        "ticket_count": 1,
+        "ticket_ids": [
+          "V1-SCHEMA-01"
+        ]
+      },
+      "aggregate_dependence_assumptions": [
+        "full_positive_rank_dependence_no_diversification_credit",
+        "reported_quantile_sums_are_exact_only_under_the_bound_comonotonic_construction"
+      ],
+      "aggregate_method_definition_digest": "sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7",
+      "aggregate_method_id": "comonotonic-quantile-sum/v1",
+      "aggregate_p50_effort_hours": 70,
+      "aggregate_p90_effort_hours": 174,
+      "aggregate_reviewer_effort_hours": 62,
+      "confidence": "low",
+      "current_status": "not_started",
+      "dependency_assumptions": [
+        "Scoped prerequisite receipts must be current before dispatch: V1-BASE-01, V1-BASE-02, V1-BASE-09",
+        "Exact future source/generated file scopes require separate dispatch approval."
+      ],
+      "derivation_disposition": "reestimated_after_inventory",
+      "estimate_scope": "ticket_completion",
+      "execution_estimates": [
+        {
+          "calendar_critical_path_modeled": false,
+          "derivation_disposition": "reestimated_after_inventory",
+          "elapsed_wait_included": false,
+          "maximum_single_known_wait_hours": 0,
+          "occurrence_id": "V1-SCHEMA-01@S3/1.0.0a3",
+          "p50_effort_hours": 70,
+          "p90_effort_hours": 174,
+          "proposal_digest": "sha256:889ef6bd80cf3fc23409a244805f265e4fd4eb73b2b6967ec50682c14561cb28",
+          "proposed_p50_effort_hours": 70,
+          "proposed_p90_effort_hours": 174,
+          "proposed_reviewer_p50_effort_hours": 62,
+          "rationale": "Machine proposal: retain the previously signed selected effort for review; the new metadata and current scope require explicit human adoption.",
+          "release": "1.0.0a3",
+          "reviewer_effort_hours": 62,
+          "scenario_class": "stable_core_committed",
+          "selected_p50_effort_hours": 70,
+          "selected_p90_effort_hours": 174,
+          "selected_reviewer_p50_effort_hours": 62,
+          "selection_mode": "adopt_machine_proposal",
+          "serial_sum_known_wait_hours": 0,
+          "sprint": "S3",
+          "unquantified_wait_dependency_count": 3,
+          "workload_vector_digest": "sha256:be085dee02488b9ac5af0ad53495f8c00cbeaabf463e7850017736d8dc3206c4"
+        }
+      ],
+      "planned_execution_count": 1,
+      "prior_disposition": "stale_not_used_as_anchor",
+      "risk_assumptions": [
+        "Subjective planning quantities remain uncalibrated; review and resource availability may change effort and calendar duration.",
+        "Engineering P90 excludes reviewer P90; no combined P90 is identified."
+      ],
+      "ticket_id": "V1-SCHEMA-01",
+      "trusted_issue_time": "2026-11-09T19:56:47.187684Z"
+    },
+    "unresolved_remaining_scope_is_zero_work": false,
+    "unresolved_remaining_work_packages": [
+      "SCHEMA-01B",
+      "SCHEMA-01C"
+    ]
+  },
+  "format": "agent-assure-schema-dispatch-scope-proposal/1",
+  "generated_workflow": {
+    "freeze": "Review raw generated bytes and matrix before creating enumerated schemas/v1.0.0rc1 files",
+    "old_default_export_preserved": true,
+    "source": "Strict reviewed v1 models and contract-specific projections",
+    "staging": "Explicit new-writer export to the enumerated schemas/unreleased/v1.0.0rc1 files",
+    "wheel": "Existing generated Hatch force-includes copy frozen resources into agent_assure/schema_resources/v1.0.0rc1; no source mirror"
+  },
+  "occurrence": {
+    "candidate": null,
+    "profile": "stable-core",
+    "profile_instance": null,
+    "release": "1.0.0a3",
+    "sprint": "S3"
+  },
+  "production_wire_schema_contract_ids": [
+    "approval-allocation-proof-bundle/v1",
+    "approval-receipt/v1",
+    "assurance-head-commit-proof/v1",
+    "assurance-registry-descriptor/v1",
+    "assurance-release-head/v1",
+    "authorization-artifact/v1",
+    "authorization-capability-preflight/v1",
+    "candidate-equivalence-transfer/v1",
+    "candidate-install-verification/v1",
+    "channel-artifact-manifest/v1",
+    "channel-publication-receipt/v1",
+    "dispatch-context/v1",
+    "evidence-consumer-disposition/v1",
+    "evidence-consumer-drain-completion/v1",
+    "exceptional-deployment-authorization/v1",
+    "model-identity/v1",
+    "optional-train-start-threshold-evaluation/v1",
+    "pilot-bundle/v1",
+    "pilot-readiness/v1",
+    "preview-publication/v1",
+    "product-evidence-snapshot/v1",
+    "product-exposure-floor-evaluation/v1",
+    "product-gate-generation/v1",
+    "product-gate-producer-consumer-binding/v1",
+    "product-gate-record/v1",
+    "product-gate-sequence-head/v1",
+    "product-gate-series-controller/v1",
+    "product-gate-trusted-time-order/v1",
+    "product-threshold-definition/v1",
+    "profile-lifecycle-transition/v1",
+    "qualification-bundle/v1",
+    "release-candidate-manifest/v1",
+    "required-claim-manifest/v1",
+    "rollback-consumption-receipt/v1",
+    "rollback-nonce-state/v1",
+    "signature-envelope/v1",
+    "source-event-identity/v1",
+    "statistical-bundle-close-receipt/v1",
+    "statistical-checkpoint/v1",
+    "statistical-registration/v1",
+    "structural-exploratory-topology-report/v1",
+    "veto-record/v1"
+  ],
+  "proposal_digest": "sha256:e38a4f8a3a3dc3c3f05de30e6b9dbfe64e4c7ce2ee1ba5935cb347eaa5f44470",
+  "proposed_bootstrap_amendment": {
+    "path": "docs/adr/0024-v1-schema-bootstrap-dispatch.md",
+    "sha256": "sha256:b0bda39491c123850f14fde7a31fa9fc6b4fa636ee4156686f523e67da592ab3",
+    "size_bytes": 6324
+  },
+  "proposed_commands": [
+    ".venv/Scripts/python.exe -m pytest tests/unit/schema/test_v1_schema_compatibility.py tests/unit/schema/test_v1_schema_export.py tests/unit/schema/test_v1_wire_contracts.py tests/unit/schema/test_v1_digest_projections.py tests/unit/schema/test_v1_digest_graph.py tests/unit/schema/test_v1_tagged_schema_immutability.py tests/unit/governance/test_v1_schema_first_writer_receipts.py -q",
+    ".venv/Scripts/python.exe -m pytest tests/integration/test_v1_schema_wheel.py -q",
+    ".venv/Scripts/python.exe -m pytest tests/unit/schema tests/integration/test_schema_parity.py -q",
+    ".venv/Scripts/python.exe scripts/check_frozen_schemas.py",
+    ".venv/Scripts/python.exe scripts/check_tagged_schema_immutability.py --require-release-tags",
+    ".venv/Scripts/python.exe scripts/check_schema_staging.py",
+    ".venv/Scripts/python.exe scripts/sync_schema_force_includes.py --check",
+    ".venv/Scripts/python.exe -m ruff check .",
+    ".venv/Scripts/python.exe -m mypy src scripts",
+    ".venv/Scripts/python.exe scripts/check_docs_alignment.py",
+    "make check schema-check"
+  ],
+  "protected_baselines": {
+    "accepted_adr_and_s1_s2_evidence_may_change": false,
+    "current_fixture_version_metadata_refresh_requires_exact_review": true,
+    "existing_snapshots_may_change": false,
+    "legacy_current_schema_count": 58,
+    "other_protected_files": [
+      "src/agent_assure/schema/base.py",
+      "src/agent_assure/schema/stream.py",
+      "Makefile",
+      "mkdocs.yml",
+      "requirements.lock",
+      "uv.lock",
+      "SECURITY.md"
+    ],
+    "schema_file_count": 442,
+    "schema_inventory_sha256": "sha256:9e0e16ce3c286611757914eadb8160ced208693601b82f7ed2d2fe6820211c22",
+    "trusted_oracle_logic_or_expected_conclusions_may_change": false
+  },
+  "ready_for_editing": false,
+  "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "roadmap_revision": "6.5",
+  "scope_counts": {
+    "create_source_test_documentation": 24,
+    "generated_new": 86,
+    "modify_existing": 25,
+    "total_exact_paths": 135
+  },
+  "status": "pending_owner_design_assignment_scope_forecast_and_signed_packet",
+  "stop_conditions": [
+    "Bootstrap design decision, actual assignment/capacity, exact scope approval, forecast decision or scoped key authority remains missing.",
+    "Trusted private packet cannot be reproduced, authenticated, bounded or freshly verified before editing.",
+    "Source, scope, prerequisite, forecast, policy or trust binding changes or expires.",
+    "An edit is outside these exact paths or the assigned checkout; stop and obtain a concrete scope amendment.",
+    "A new writer changes legacy schema bytes, default semantics, minimum-reader policy, security/privacy limits or released compatibility mappings.",
+    "Conclusion-bearing semantics are missing or contradict an accepted design; report the smallest counterexample to the designated decision owner.",
+    "Installed-wheel evidence uses the checkout, a stale reader identity, network fetch, unverified wheel or misleading source fallback.",
+    "Resource budget or validation fails; retain exact diagnostics and do not truncate, weaken a check or silently expand the budget.",
+    "A/D implementation acceptance is absent: no dependent TEMP-01A or other first-writer work may start.",
+    "Current fixture regeneration changes anything beyond reviewed producer/evaluator version metadata and its derived hashes; stop rather than accepting a changed oracle conclusion."
+  ],
+  "ticket_id": "V1-SCHEMA-01",
+  "upstream_acceptance": {
+    "accepted_amendment": {
+      "path": "docs/adr/0023-v1-governance-closure-corrections.md",
+      "sha256": "sha256:5a719ca2d6981931932b5d595ff16c32a6c8681617af65a4bc3cada937a9d01c",
+      "size_bytes": 15462
+    },
+    "base01_successor": {
+      "path": "docs/governance/v1/sprint2/s1-successor-acceptance.json",
+      "sha256": "sha256:929ab6a58140d338a3b0f67487da13a679bff815a40f2ff188371ec8aa671710",
+      "size_bytes": 2290
+    },
+    "design_receipt_source": {
+      "path": "docs/governance/v1/sprint2/predecessor-signed-components-v3.json",
+      "sha256": "sha256:a5d01110cf0dbe5fd7ec941fc555e8922d1295fadb3692580ac6df40dd4dfc64",
+      "size_bytes": 28129
+    },
+    "receipt_digest": "sha256:5a183239b199fdb4f9ca19e00754b7208f304970462a02bca5cab9f61ca59d21",
+    "record": {
+      "path": "docs/governance/v1/sprint2/correction-acceptance.json",
+      "sha256": "sha256:51256f78c3370b9792e33030baef38e0bb23b3f2ba12dbce288f86665c0fe600",
+      "size_bytes": 21257
+    },
+    "required_design_documents": [
+      {
+        "claim": {
+          "approval_mode": "maintainer_development",
+          "authorization_effect": "development_governance_only",
+          "decision": "accept_for_development",
+          "decision_id": "ADR-V1-EVIDENCE",
+          "format": "agent-assure-s2-development-design-acceptance/1",
+          "independence": "NO_INDEPENDENT_REVIEW",
+          "issuer_role": "repository_maintainer",
+          "method_or_profile_admission": false,
+          "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+          "purpose": "s2-design-acceptance/v1",
+          "qualified_review_pending": true,
+          "start_claim_digest": "sha256:39d455ac5ccc9dc26d5d6b5905f905b593cbbd604c5077abe66084d863000099",
+          "subject_path": "docs/adr/0017-v1-evidence-temporal-semantics.md",
+          "subject_sha256": "sha256:6ea60f91d617c7c6993bda4f94b1a1844d717deb9d111a89527683aa2f222ddf",
+          "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+          "ticket_id": "V1-BASE-02"
+        },
+        "signature_envelope": {
+          "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "namespace": "agent-assure-governance-v1",
+          "profile": "openssh-sshsig-ed25519/v1",
+          "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQXFKcWFKUUV6dUZwdzJ3VWVVNHNHajAxV3o0WTZONFVHU1kKYlJ6dks2c1MrTXpCam0wbURGOVEybCtFWnZVUklOZXAra2htTVBUN0RPdDVCcm9aaFhCdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+          "signer_person_id": "acblabs"
+        }
+      },
+      {
+        "claim": {
+          "approval_mode": "maintainer_development",
+          "authorization_effect": "development_governance_only",
+          "decision": "accept_for_development",
+          "decision_id": "ADR-V1-SCHEMA",
+          "format": "agent-assure-s2-development-design-acceptance/1",
+          "independence": "NO_INDEPENDENT_REVIEW",
+          "issuer_role": "repository_maintainer",
+          "method_or_profile_admission": false,
+          "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+          "purpose": "s2-design-acceptance/v1",
+          "qualified_review_pending": true,
+          "start_claim_digest": "sha256:1d12fe9bff7b42af3b2f414b904b2f12825d2029c89127f24918d89c249dc4c3",
+          "subject_path": "docs/adr/0022-v1-schema-wire-contracts.md",
+          "subject_sha256": "sha256:96996929ca648693ee45c98ee770f97fca6dc3856ed9f2d9d5313044c382809a",
+          "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+          "ticket_id": "V1-BASE-09"
+        },
+        "signature_envelope": {
+          "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "namespace": "agent-assure-governance-v1",
+          "profile": "openssh-sshsig-ed25519/v1",
+          "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVU0WnJFU0xtTnVMNStoRTVQd3JueWUzTW9Wd1pQSWVpRmMKc3dQb2FnSnBnQWRyajRpWmJOOVIxVGYvVFVlMUgwMmxZVDFWWDR5dUlEbk9odzJmSzVCUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+          "signer_person_id": "acblabs"
+        }
+      }
+    ],
+    "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+  },
+  "version_proposal": {
+    "legacy_default_export_schema_count": 58,
+    "legacy_writer": "0.6.6",
+    "new_compatibility_dispatch_registry": false,
+    "new_reader_package": "1.0.0a3",
+    "new_resources_are_candidate_schemas_not_release_qualification": true,
+    "new_writer": "1.0.0rc1",
+    "package_version_change_allowed_only_after_adoption": true,
+    "released_reader_0_7_0_supports_new_records": false
+  },
+  "work_package_ids": [
+    "SCHEMA-01A",
+    "SCHEMA-01D"
+  ],
+  "work_profile_proposal": {
+    "automatic_dependency_or_cap_increases": "forbidden",
+    "checkpoint_after_engineering_hours": 4,
+    "external_publication_or_deployment": "forbidden",
+    "host": "current Windows host; Python 3.12 development environment",
+    "max_command_wall_seconds": 1800,
+    "max_concurrent_implementation_streams": 1,
+    "max_concurrent_test_processes": 2,
+    "max_distribution_archive_bytes": 134217728,
+    "max_owned_output_bytes": 536870912,
+    "max_process_memory_bytes": 2147483648,
+    "max_unpacked_distribution_bytes": 268435456,
+    "network": "forbidden",
+    "secrets": "none",
+    "status": "pending_adoption_and_enforcement_check",
+    "supported_platform_matrix_qualification_claimed": false
+  }
+}
