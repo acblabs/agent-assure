@@ -1,0 +1,6 @@
+{
+  "decision": "accept_complete_planning_projection",
+  "independent_or_runtime_effect": "none",
+  "producer_subject_digest": "sha256:6bbcd903c19960f8f5f0c746fcf18fad46e1bb3b69b4303387d4b1b394c30802",
+  "record_digest": "sha256:b2087c737e495d78ec7d18b42fbdce1c6cd3d4cccf19c16e1576a08d2ecf4839"
+}

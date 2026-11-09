@@ -1,0 +1,357 @@
+{
+  "acceptance": {
+    "accepted_at_utc": "2026-11-09T20:12:14.608490Z",
+    "authority_snapshot_digests": [
+      [
+        "release_policy_owner",
+        "sha256:b480dbdd6e9d6dca5642f0b88befa6e6e204b710ef76dc4e14946074b354a3e9"
+      ],
+      [
+        "repository_maintainer",
+        "sha256:b480dbdd6e9d6dca5642f0b88befa6e6e204b710ef76dc4e14946074b354a3e9"
+      ],
+      [
+        "technical_lead",
+        "sha256:b480dbdd6e9d6dca5642f0b88befa6e6e204b710ef76dc4e14946074b354a3e9"
+      ]
+    ],
+    "claim_digests": [
+      [
+        "foundation_adoption",
+        "sha256:ee3e0caeb323aa613ee8a1ab5642ae319d5199b7f04d7818d92a7dec70078b38"
+      ],
+      [
+        "forecast_producer",
+        "sha256:5a9b5c4618c14bfebe0982454ea2c0176389993f35c5983499e66223b2df8925"
+      ],
+      [
+        "forecast_acceptance",
+        "sha256:12d824f2a090e33d35390ec1a362500b17a2a7afabea1f52e979e0dd6a93c886"
+      ],
+      [
+        "design_amendment",
+        "sha256:1b5514e705fb0fbcfa35ea28930d0c4c0c590e4973b2a688de082d2fecf7f79a"
+      ],
+      [
+        "support_policy",
+        "sha256:8152a67286b794ef341c8cd53d1c689863490c1445fd50c5b46c6a81fa491a73"
+      ],
+      [
+        "correction_close",
+        "sha256:2d9a3ab2ca46602f749ac08ba938857ed8847e188b0eabf5fdbe92d19da48225"
+      ]
+    ],
+    "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+  },
+  "artifact_kind": "governance-bundle",
+  "authority_document": {
+    "claim": {
+      "decision": "adopt_exact_correction_implementation_and_scoped_roles_for_this_review_package",
+      "format": "agent-assure-sprint12-correction-authority-adoption/1",
+      "implementation_binding_mode": "exact_git_commit_and_correction_source_digest",
+      "implementation_commit": "3a85cf19a9e71fc658d70ceee904ab9f7811d716",
+      "independence": "NO_INDEPENDENT_REVIEW",
+      "notice": "UNSIGNED REVIEW MATERIAL. Proposed acblabs staffing and route attestations require owner confirmation against retained private records before signature. No public personal names or destinations are required. No acceptance, operational evidence, independence or release authority is created by preparation.",
+      "operational_staffing_facts_inferred": false,
+      "prior_scope_reused_for_operational_policy": false,
+      "purpose": "sprint12-scoped-authority-adoption/v1",
+      "release_or_deployment_effect": "none",
+      "review_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+      "revision_reason": "Reissue forecast with evidenced issue-time ticket statuses; preserve all effort, confidence, dependency/risk and support-policy inputs.",
+      "roles": {
+        "release_policy_owner": {
+          "allowed_purposes": [
+            "sprint12-support-policy/v1"
+          ],
+          "competence_scopes": [
+            "operational_support:0.7.x"
+          ],
+          "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "person_id": "acblabs",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "role": "release_policy_owner",
+          "valid_from_utc": "2026-11-09T19:56:47.187684Z",
+          "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+        },
+        "repository_maintainer": {
+          "allowed_purposes": [
+            "sprint12-foundation-adoption/v1",
+            "sprint12-forecast-acceptance/v1",
+            "sprint12-design-amendment/v1",
+            "sprint12-correction-close/v1"
+          ],
+          "competence_scopes": [
+            "planning_governance:s1_successor",
+            "schema_compatibility"
+          ],
+          "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "person_id": "acblabs",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "role": "repository_maintainer",
+          "valid_from_utc": "2026-11-09T19:56:47.187684Z",
+          "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+        },
+        "technical_lead": {
+          "allowed_purposes": [
+            "sprint12-forecast-producer/v1"
+          ],
+          "competence_scopes": [
+            "planning_governance:s1_successor"
+          ],
+          "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+          "person_id": "acblabs",
+          "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB",
+          "role": "technical_lead",
+          "valid_from_utc": "2026-11-09T19:56:47.187684Z",
+          "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+        }
+      },
+      "source_bindings_digest": "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2",
+      "status": "prepared_for_exact_human_signature",
+      "supersedes_review_package_digest": "sha256:11203a7d5a48d443f9669704913bf1734117546789ee465ba9d593c9d08b8f92"
+    },
+    "signature_envelope": {
+      "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+      "namespace": "agent-assure-governance-v1",
+      "profile": "openssh-sshsig-ed25519/v1",
+      "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQTVEUTdMOWJSU2ZZbklpNXRaQkNQK1BHdnhjZEJQQWFoY0IKN0xkOEVRK2N5Qm54a2FqN2wySldCeTJNYnB1VlA0c0s2eDk2R1JkVW9FTEJlSmVIMmhCZz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+      "signer_person_id": "acblabs"
+    }
+  },
+  "authorization_effect": "development_governance_only",
+  "distribution_channels": [],
+  "forecast": {
+    "occurrence_count": 121,
+    "path": "docs/governance/v1/sprint2/delivery-forecast.accepted-v4.json",
+    "record_digest": "sha256:b2087c737e495d78ec7d18b42fbdce1c6cd3d4cccf19c16e1576a08d2ecf4839",
+    "sha256": "sha256:6bbcd903c19960f8f5f0c746fcf18fad46e1bb3b69b4303387d4b1b394c30802",
+    "ticket_count": 68
+  },
+  "format": "agent-assure-sprint12-correction-acceptance/1",
+  "implementation_commit": "3a85cf19a9e71fc658d70ceee904ab9f7811d716",
+  "independence": "NO_INDEPENDENT_REVIEW",
+  "package_version": null,
+  "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+  "receipt_digest": "sha256:5a183239b199fdb4f9ca19e00754b7208f304970462a02bca5cab9f61ca59d21",
+  "release_authorization_effect": "none",
+  "review_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+  "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+  "signed_decisions": {
+    "correction_close": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "correction_close",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "repository_maintainer",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-correction-close/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:e597b6380a6184d5aa92c2452124a8623676bef097b2338e24656543c3c3ebd4",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQUlZUzVsbThsYVgramNCa1BvQS9WUys5Ri83a0JGR3RYeWwKaVZ3RlhzeStqVGdOaVpDRDBaSVFqWUhOVFRmWkEzSm0wU2FBMkhPNzFQMHBWY2RGTk5BQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    "design_amendment": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "design_amendment",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "repository_maintainer",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-design-amendment/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:5a719ca2d6981931932b5d595ff16c32a6c8681617af65a4bc3cada937a9d01c",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQTBMTWVzajc2WnpURWJIUG9WL1lvOC9QbmhOMDgxWktzSWIKaHZkZHkyYU9hQTJPUm9zZTYvbFBLdWlwUlI1aHphWks3OFFIbGFmQ0xWZGRLRi9tcUNBdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    "forecast_acceptance": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "forecast_acceptance",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "repository_maintainer",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-forecast-acceptance/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:fe60f7b9f3bd183ad266fdcf7a86bfab46505238e372b79ef1cb0eac8d316a85",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQWlBYk0yTWpKM1ZiVkZ5KzRqUVVoQ2pkYndibHVlSEFzcFMKUXZmSGlCeWhmWDFCeG5uZmV1dTRTVktiNlhyd3g4b05QT0w5eUJ6UmpHeVBWcFVGaUJDUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    "forecast_producer": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "forecast_producer",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "technical_lead",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-forecast-producer/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:6bbcd903c19960f8f5f0c746fcf18fad46e1bb3b69b4303387d4b1b394c30802",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQUdrZk52OVZKbi9WWlBTZGY0Ym5Jc1hkQktWY1RDcEJ5ZC8KVGlRTG41UUZmOFcyNGpFMWp3VVJuRFpIOVMvdklneG1VZlFKaEQwRVFSWnRtT0kwOE5CQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    "foundation_adoption": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "foundation_adoption",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "repository_maintainer",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-foundation-adoption/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:f5ce3d2e8ef1aa8cc84f07f1e8775ba0e85a444de8185a3be5373dd3b8481510",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQTlyT0dzMU5HVDlCK1RRdGdMcFBEL2JndHc4Snc4YTJQcTAKL0RsTzZ6cUs4Mm1oK1ZWUG9mQnZrS0o5V0VXaklNMEhZanE0ZFFlVzgwMnlHUXZyS2JCUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    "support_policy": {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "claim_id": "support_policy",
+        "correction_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+        "format": "agent-assure-sprint12-correction-claim/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issued_at_utc": "2026-11-09T19:56:47.187684Z",
+        "issuer_role": "release_policy_owner",
+        "predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+        "purpose": "sprint12-support-policy/v1",
+        "roadmap_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+        "subject_digest": "sha256:6116a1d13c26e0318a20c7c6d8152f9f9f874d2151d9b0055c6a7e2e7255a7f7",
+        "valid_until_utc": "2026-12-07T23:31:10.233520Z"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQW0yWGVocy9oM3RRODdEQjN0OTQrRm80Y3FxQVhxU2RLZVQKMmthUFVtRUtra2ZlWUt1dzduSTlhUlllM2hWd3UyRVByTFh4MnlUTlQwdlR2NHlnQzNEdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    }
+  },
+  "source_bindings_digest": "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2",
+  "sprint3": {
+    "editing_scope_authorized": false,
+    "next_gate": "Approve exact source/generated file scopes for V1-SCHEMA-01 and subsequent dispatches",
+    "upstream_design_receipts_satisfied": true
+  },
+  "sprints": {
+    "S1": "accepted_for_development",
+    "S2": "accepted_for_development"
+  },
+  "status": "accepted_for_development",
+  "support_assurance": {
+    "live_fallback_route_tested_by_agent": false,
+    "private_assignments_inspected_by_agent": false,
+    "public_person_names_required": false,
+    "receipt_expiry_terminates_support": false,
+    "strength": "policy_owner_attested_private_roster_not_independently_verified"
+  },
+  "support_policy_subject": {
+    "capacity": "24/7 support coverage, declared by the user; proposed fallback coverage requires owner attestation",
+    "conflicts": "Same organization and policy owner; maintainer development; NO_INDEPENDENT_REVIEW",
+    "coverage_evidence": "policy_owner_attested_private_roster_not_independently_verified",
+    "decision": "adopt_operational_support_policy",
+    "fallback_coverage_24x7": true,
+    "fallback_role_ref": "acblabs:security-fallback",
+    "fallback_route_ref": "acblabs:incident-response/fallback-route",
+    "independent_fallback_person_and_route": true,
+    "limitations": "UNSIGNED MACHINE REVIEW DRAFT. These records define proposed acblabs identifiers and commitments. They do not certify current fallback staffing or a live independent route. Before signing, acblabs must confirm or replace the exact private roster revision and route references, ensure those retained records substantiate every proposed assertion, and adopt the new authority scope. No personal names or contact destinations need be shared here. A validated or signed draft cannot substitute for missing operational evidence.",
+    "organization_id": "acblabs",
+    "person_id": "acblabs",
+    "policy_path": "docs/governance/v1/sprint2/support-policy-v2.json",
+    "policy_sha256": "sha256:45981d7a3bc9a98973f3d9b62d625982fda8b38fb08e0cbdc689eb0e00b47a27",
+    "primary_coverage_24x7": true,
+    "primary_role_ref": "acblabs:security-primary",
+    "private_roster_ref": "acblabs:incident-response/support-roster",
+    "private_roster_revision": "draft-20261109-001",
+    "private_roster_revision_retained_and_auditable": true,
+    "receipt_expiry_terminates_support": false,
+    "supported_line": "0.7.x",
+    "targets": {
+      "acknowledgment_requires": "accountable_owner_role_reference_report_identity_initial_applicability_and_next_update",
+      "clock_basis": "elapsed_UTC_from_earlier_report_receipt_or_internal_detection_never_actionability_validation_or_reclassification",
+      "containment_is_release_completion": false,
+      "containment_objective_requires": "verified_containment_verified_no_supported_exposure_or_documented_safe_state",
+      "containment_satisfies_remediation_target": false,
+      "critical_acknowledgment_hours": 1,
+      "critical_containment_or_safe_state_hours": 4,
+      "critical_initial_assessment_hours": 4,
+      "critical_remediation_days": 7,
+      "deadline_reset_on_reclassification": false,
+      "effective_acknowledgment_rule": "minimum_of_existing_security_intake_and_proposed_maintenance_coordination_targets",
+      "high_acknowledgment_hours": 4,
+      "high_containment_or_safe_state_hours": 24,
+      "high_initial_assessment_hours": 24,
+      "high_remediation_days": 30,
+      "incident_can_suspend_feature_publication": true,
+      "incident_can_waive_release_controls": false,
+      "maintenance_coordination_critical_acknowledgment_hours": 24,
+      "maintenance_coordination_high_acknowledgment_hours": 72,
+      "missed_target_rule": "preserve_original_deadline_record_the_miss_and_sign_a_revised_incident_plan",
+      "other_severity_rule": "preserve_SECURITY_md_medium_low_objectives_and_record_a_dated_remediation_plan",
+      "remediation_requires": "verified_qualified_exact_byte_maintenance_release_resolving_the_recorded_security_defect"
+    },
+    "targets_become_operational_commitments": true
+  },
+  "verification": {
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "git_sha256": "sha256:cab4c4eea1d869cf9f7be73868dc9a90ad2df1b1b673e5f8c8714a576c25ea96",
+    "native_verifier_sha256": "sha256:c9dc170cd161db87e75eb6cf282f1325005b9e35628b9a36cb19883a8be1a34f",
+    "qualified_method_or_release_claimed": false,
+    "reconstructed_review_files": 94,
+    "required_signatures_verified": 7,
+    "reviewed_local_and_third_party_bytecode_cache_used": false,
+    "runtime_dependency_files_matched_retained_capture": 134,
+    "signature_time_claimed": false,
+    "source": "derived_verifier_observations_not_a_new_human_signature",
+    "user_site_and_pth_executed": false
+  }
+}

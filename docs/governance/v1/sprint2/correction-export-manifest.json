@@ -1,0 +1,69 @@
+{
+  "accepted_receipt_digest": "sha256:5a183239b199fdb4f9ca19e00754b7208f304970462a02bca5cab9f61ca59d21",
+  "authorization_effect": "none",
+  "complete_portable_predecessor_replay_claimed": false,
+  "files": [
+    {
+      "path": "docs/governance/v1/sprint2/closure-status.md",
+      "sha256": "sha256:bd12c6869343da760eea19c4b4a1b9271c8f243e657178c93ff45ba2c7477dd3",
+      "size_bytes": 6272
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-acceptance.json",
+      "sha256": "sha256:51256f78c3370b9792e33030baef38e0bb23b3f2ba12dbce288f86665c0fe600",
+      "size_bytes": 21257
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-native-verification.json",
+      "sha256": "sha256:88e9c15d28919d21e3f74cf6dd4860fa64f7df911a9bc5e9bcb30f1dc1b2d062",
+      "size_bytes": 3753
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-review-request.json",
+      "sha256": "sha256:4816609239d60ca224780abac5b909e3bed6468ec276795ebb11eaf74fe57897",
+      "size_bytes": 22377
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-subjects/forecast-acceptance.json",
+      "sha256": "sha256:fe60f7b9f3bd183ad266fdcf7a86bfab46505238e372b79ef1cb0eac8d316a85",
+      "size_bytes": 297
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-subjects/foundation-adoption.json",
+      "sha256": "sha256:f5ce3d2e8ef1aa8cc84f07f1e8775ba0e85a444de8185a3be5373dd3b8481510",
+      "size_bytes": 10561
+    },
+    {
+      "path": "docs/governance/v1/sprint2/correction-subjects/support-policy-adoption.json",
+      "sha256": "sha256:6116a1d13c26e0318a20c7c6d8152f9f9f874d2151d9b0055c6a7e2e7255a7f7",
+      "size_bytes": 3275
+    },
+    {
+      "path": "docs/governance/v1/sprint2/delivery-forecast.accepted-v4.json",
+      "sha256": "sha256:6bbcd903c19960f8f5f0c746fcf18fad46e1bb3b69b4303387d4b1b394c30802",
+      "size_bytes": 291385
+    },
+    {
+      "path": "docs/governance/v1/sprint2/predecessor-signed-components-v3.json",
+      "sha256": "sha256:a5d01110cf0dbe5fd7ec941fc555e8922d1295fadb3692580ac6df40dd4dfc64",
+      "size_bytes": 28129
+    }
+  ],
+  "forecast_disclosure": "Public planning projection includes ticket and occurrence identities, effort estimates and dependency/risk assumptions; raw roadmap and private authoring ledger are excluded.",
+  "format": "agent-assure-sprint12-public-evidence-export/1",
+  "implementation_commit": "3a85cf19a9e71fc658d70ceee904ab9f7811d716",
+  "original_full_predecessor_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+  "original_full_predecessor_bundle_raw_sha256": "sha256:65dcd429a9bca2936c2fa1b4354e8af98cf0c3c76113b75212637dc32ca12062",
+  "private_person_names_or_notification_destinations_exported": false,
+  "private_roadmap_or_authoring_ledger_exported": false,
+  "review_package_digest": "sha256:ed75ad69e67f2205e10ea202ff9aabfa30a9a42320c4a94a17d6057bafb9e64f",
+  "signed_subject_paths": {
+    "design_amendment": "docs/adr/0023-v1-governance-closure-corrections.md",
+    "forecast_acceptance": "docs/governance/v1/sprint2/correction-subjects/forecast-acceptance.json",
+    "forecast_producer": "docs/governance/v1/sprint2/delivery-forecast.accepted-v4.json",
+    "foundation_adoption": "docs/governance/v1/sprint2/correction-subjects/foundation-adoption.json",
+    "support_policy": "docs/governance/v1/sprint2/correction-subjects/support-policy-adoption.json"
+  },
+  "source_bindings_digest": "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2",
+  "status": "derived_inventory_not_an_additional_human_approval"
+}

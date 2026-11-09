@@ -1,0 +1,453 @@
+{
+  "authorization_effect": "none",
+  "bundle": {
+    "claim": {
+      "architecture_package_digest": "sha256:598248c782262629d8b0afa3a9661911f34bcaf9d177115cbbe84c22f15bef08",
+      "artifact_kind": "governance-bundle",
+      "authorization_effect": "development_governance_only",
+      "decision": "accept_for_development",
+      "decision_claim_digests": [
+        "sha256:39d455ac5ccc9dc26d5d6b5905f905b593cbbd604c5077abe66084d863000099",
+        "sha256:fa4cd07398d60b664df1f7cf0caddcd8bfd97d7b65f8c258ebab56ff06f96650",
+        "sha256:231f9acb406ffe448cb81168045ba5400b3226f749dea44f2f31067fb22eccbd",
+        "sha256:25f1c9eac0027643c6b3065018e1e3dbf04d7562d8bd3438d41030335851dba0",
+        "sha256:a007ffe083771f3bf87f2d14995437cd527cef6a9692259a309c56ff35531573",
+        "sha256:45fd96df43baed0c310e378cc541a9e7da8646153f906c745bdfb0adb32a3a07",
+        "sha256:ec467950018726cb3948156892b73501b720464c56a93835f4000d281b4c124f",
+        "sha256:4d27a50c4693db7a13cf34371167e4c9957a3eb8a98f83c7d6b1f316ce802cbc",
+        "sha256:25777533b5dbe8e44b62791ad4f90146d9479525754e87f80e06b30d39b0e0f4",
+        "sha256:9124c8c107700a2b07d94e95c5f5a3ff0b165f03b82ae42c195f716d461e7ef8",
+        "sha256:1d12fe9bff7b42af3b2f414b904b2f12825d2029c89127f24918d89c249dc4c3",
+        "sha256:1f0166ee3db0621e7d22ddf29d0c230cb98704ce6d26cb6bd9b2f4bb84adcb30",
+        "sha256:19de59a57b44469879942db942e69199cde0d9efb2b9a99281cc507bef0c53d6",
+        "sha256:575e69dae9c1272bc8e8018f522c22d24d14dd28cf7037af8ec9ccddc302a86d"
+      ],
+      "distribution_channels": [],
+      "format": "agent-assure-s2-governance-bundle/1",
+      "independence": "NO_INDEPENDENT_REVIEW",
+      "issuer_role": "repository_maintainer",
+      "maturity": "architecture-frozen",
+      "package_version": null,
+      "pending_qualified_admissions": [
+        "independent_method_review",
+        "method_admission",
+        "profile_qualification",
+        "release_approval"
+      ],
+      "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+      "purpose": "s2-bundle/v1",
+      "release": "1.0.0a2",
+      "sprint": "S2",
+      "successor_basis": {
+        "authorization_effect": "development_governance_only",
+        "closure_commit": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb",
+        "fixed_tag_object": "9f57de66e57a18a74a154524841dd055fe26a090",
+        "independent_review": "NO_INDEPENDENT_REVIEW",
+        "publication_evidence_digest": "sha256:101099a75b361861a6e8e2f0d4af2a069e06469bc1e0911d461eaa7c6fd6d46e",
+        "receipt_digest": "sha256:c6e9bb393a87bad7c389ff16a66169961e4daf3d9111ae65e5853d4158e4f586",
+        "result_commit": "6ad62f67825e2abbe97bcec32e90dcaa501900d4"
+      }
+    },
+    "signature_envelope": {
+      "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+      "namespace": "agent-assure-governance-v1",
+      "profile": "openssh-sshsig-ed25519/v1",
+      "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVRFNDRIZmNvSlhUSTFMQmFROFpaM25nMzYzQ3lxWjR0UkUKYlk0MURVNEVhMUNkYWZ1c2tRZnVmSXM4dmF2M2dCTGpzeE9pUGJjdEkrWGNQejdrc2hDUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+      "signer_person_id": "acblabs"
+    }
+  },
+  "complete_trusted_replay_requires_retained_full_inputs_and_original_host": true,
+  "decisions": [
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-EVIDENCE",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0017-v1-evidence-temporal-semantics.md",
+        "subject_sha256": "sha256:6ea60f91d617c7c6993bda4f94b1a1844d717deb9d111a89527683aa2f222ddf",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-02"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQWZIQi80U0NkTG5BZjF1d3ZHRkFFRnNVZlJET2l1OUxIYmYKSFMxR3dZTzYrbTNsS1RIUzVhaG1Wc3pzZ2VNV1pkSjVIak9wVy8zU05yWlhXbHcrR2NBZz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-EVIDENCE",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:39d455ac5ccc9dc26d5d6b5905f905b593cbbd604c5077abe66084d863000099",
+        "subject_path": "docs/adr/0017-v1-evidence-temporal-semantics.md",
+        "subject_sha256": "sha256:6ea60f91d617c7c6993bda4f94b1a1844d717deb9d111a89527683aa2f222ddf",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-02"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQXFKcWFKUUV6dUZwdzJ3VWVVNHNHajAxV3o0WTZONFVHU1kKYlJ6dks2c1MrTXpCam0wbURGOVEybCtFWnZVUklOZXAra2htTVBUN0RPdDVCcm9aaFhCdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-AUTH",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0018-v1-verifier-authorization.md",
+        "subject_sha256": "sha256:a77a74a060ebaf830aa67bb393420bb2a30514dfcca52ce2d544115ceb2dfbb6",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-03"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQW1LbXJsUGVacTVWREVxWXhwYTVONDg5U2svLzh2OHpHR0QKdWlFeFcyZkZFL0xkQ21QV2NoR2ZMVmsxazU3SWJ1UXREK05QMDUvcGtXdlFRNXUxVlhDZz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-AUTH",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:231f9acb406ffe448cb81168045ba5400b3226f749dea44f2f31067fb22eccbd",
+        "subject_path": "docs/adr/0018-v1-verifier-authorization.md",
+        "subject_sha256": "sha256:a77a74a060ebaf830aa67bb393420bb2a30514dfcca52ce2d544115ceb2dfbb6",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-03"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQUNVK3lPekpMNjFoWnVZb0xWeFl4dmE1dW15MXVhSmo2R2kKQVNEanRndVNaV2VVZ1F0OEo1Um05TkxiWXF3Z05QUi9BQ1NpMU5LR2JsK0tzZUU5TjNDUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-NUM-STAT",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0019-v1-numerical-statistical-contracts.md",
+        "subject_sha256": "sha256:3e7e85501ee3ffd1002b1062b846f42aca5db15f535edfb17f433cdda02babd1",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-04"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQWVLc0pDdVJodU16cEtCeHl6RkZLdUNEeko0ZU1rZnd1UFIKNUx0ZEpXT2Z4K3NoNW1EalhZUUNLTExjQS9yRkw1ekdobmtVakZkNVoxM3lkTVV1TDZDQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-NUM-STAT",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:a007ffe083771f3bf87f2d14995437cd527cef6a9692259a309c56ff35531573",
+        "subject_path": "docs/adr/0019-v1-numerical-statistical-contracts.md",
+        "subject_sha256": "sha256:3e7e85501ee3ffd1002b1062b846f42aca5db15f535edfb17f433cdda02babd1",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-04"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVN4N2ZJY2J5NHlCdnhKL0cxWTg2Uko5NmNiYkFsU0xaL0UKV2tOZTE2ZFowOHhwOFdxYjJtZ05OSzVOVmFYWVhFNlZHamN4QmYwMC9TREd2aldrK1VCQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-IO",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0020-v1-bounded-artifact-io.md",
+        "subject_sha256": "sha256:ceb4d41fc437dd20230a002b30f3883da0494fa1e29d6de73a6ae0f16ff7639a",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-05"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQTVkUzJBMnZhRzFwWUFROGNsMDFNQWxkNmZ6d2dnS1luTEgKVkZhTnVKQTlxMDFtemNnSDBNRUFtbGlIV2NuTXFUeXdPNUo4dmlGT2JWUVpqbzQvdjdDUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-IO",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:ec467950018726cb3948156892b73501b720464c56a93835f4000d281b4c124f",
+        "subject_path": "docs/adr/0020-v1-bounded-artifact-io.md",
+        "subject_sha256": "sha256:ceb4d41fc437dd20230a002b30f3883da0494fa1e29d6de73a6ae0f16ff7639a",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-05"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVhmeVVrUFZ1WFljYS9obEdtdG5aVXZrY25IL1lOVGEzcysKVzJqbjBCbW4walNhTWw1T0lINDlDaC9lNjJGdlpxSC9iRFNIUTZSaDNnVFlwV1VMdmlBdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-RELEASE-REGISTRY",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0021-v1-release-registry-dispatch.md",
+        "subject_sha256": "sha256:805d6a0b991b094c0923ce28ad742e0d3fbe60cdfecfbb1bf1f04814fbe42be2",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-06"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVU3Zmxwb1pCZXBzMFJJalVyMzQ1RCs3SlBPcmdZK2FJRHUKY2J4cmdxa0lLU1JpYUVFRHhQazRJOXEzWjRSeXV6NFJWdklMMmpSM2VYMjdNSExxUDVBQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-RELEASE-REGISTRY",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:25777533b5dbe8e44b62791ad4f90146d9479525754e87f80e06b30d39b0e0f4",
+        "subject_path": "docs/adr/0021-v1-release-registry-dispatch.md",
+        "subject_sha256": "sha256:805d6a0b991b094c0923ce28ad742e0d3fbe60cdfecfbb1bf1f04814fbe42be2",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-06"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVc1WjNldVB1MExlZkp4MGJlVENGaklyNzRlSXd0UENrVHkKTlRlamk2ZVpJK0M3Y0daREVjRXdDdGNpWElZNXp5YUk2SjlTak5KUXpiZ05VRHI2djFDdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "allowed_operations": [
+          "review_staged_design",
+          "prepare_scoped_design_acceptance"
+        ],
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision_id": "ADR-V1-SCHEMA",
+        "format": "agent-assure-s2-drafting-authorization/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-drafting/v1",
+        "retrospective_authorization_claimed": false,
+        "subject_path": "docs/adr/0022-v1-schema-wire-contracts.md",
+        "subject_sha256": "sha256:96996929ca648693ee45c98ee770f97fca6dc3856ed9f2d9d5313044c382809a",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-09"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVMweEVrdDNOWUJ1N2NOQmxRNmVVTzVCa2tkeGp3UnNwOEIKTndLeDdtQmFLbUJXa0ZseUFPWVp0MVFZOWNDYk9vNGRXL3ZUbG85dnUzbys0V3pmamJBdz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "approval_mode": "maintainer_development",
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "ADR-V1-SCHEMA",
+        "format": "agent-assure-s2-development-design-acceptance/1",
+        "independence": "NO_INDEPENDENT_REVIEW",
+        "issuer_role": "repository_maintainer",
+        "method_or_profile_admission": false,
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "qualified_review_pending": true,
+        "start_claim_digest": "sha256:1d12fe9bff7b42af3b2f414b904b2f12825d2029c89127f24918d89c249dc4c3",
+        "subject_path": "docs/adr/0022-v1-schema-wire-contracts.md",
+        "subject_sha256": "sha256:96996929ca648693ee45c98ee770f97fca6dc3856ed9f2d9d5313044c382809a",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-09"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQVU0WnJFU0xtTnVMNStoRTVQd3JueWUzTW9Wd1pQSWVpRmMKc3dQb2FnSnBnQWRyajRpWmJOOVIxVGYvVFVlMUgwMmxZVDFWWDR5dUlEbk9odzJmSzVCUT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "POLICY-V1-SUPPORT",
+        "format": "agent-assure-s2-development-policy-acceptance/1",
+        "issuer_role": "repository_maintainer",
+        "operational_or_qualified_use": "requires_its_declared_future_policy_and_admission_receipts",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "purpose": "s2-design-acceptance/v1",
+        "subject_path": "docs/governance/v1/sprint2/support-policy.json",
+        "subject_sha256": "sha256:425869cc4016f3eef166698248766e429b6267414dfa4645852757248158909d",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-06"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQTFOdzJITlJrWkw4T2F3SFJLazU4RjlhdmR4NzQ1bXpUdDAKQmRRR0hseUgrMFF1MEV0YjV5Yk0valdaamdyZHBsVHNkVDZEVEh0ZFJpVE5xekpzTkpBZz09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    },
+    {
+      "claim": {
+        "authorization_effect": "development_governance_only",
+        "decision": "accept_for_development",
+        "decision_id": "PRODUCT-INCONCLUSIVE-01",
+        "empirical_or_confidence_claimed": false,
+        "format": "agent-assure-s2-development-policy-acceptance/1",
+        "issuer_role": "repository_maintainer",
+        "operational_or_qualified_use": "requires_its_declared_future_policy_and_admission_receipts",
+        "policy_digest": "sha256:cff2666b12b23aa51ae42c3c3a463336a2a0e11364a280b1b4dac91ca414e775",
+        "proposed_ceiling": {
+          "denominator": 10,
+          "numerator": 1
+        },
+        "proposed_denominator_floor": 30,
+        "purpose": "s2-design-acceptance/v1",
+        "subject_path": "docs/adr/0017-v1-evidence-temporal-semantics.md",
+        "subject_sha256": "sha256:6ea60f91d617c7c6993bda4f94b1a1844d717deb9d111a89527683aa2f222ddf",
+        "successor_basis_digest": "sha256:3eb1f0f877970e262bc287137e824b91d3c863b53482ff6644e4c8b387c7fd4a",
+        "ticket_id": "V1-BASE-02"
+      },
+      "signature_envelope": {
+        "key_id": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k",
+        "namespace": "agent-assure-governance-v1",
+        "profile": "openssh-sshsig-ed25519/v1",
+        "signature": "LS0tLS1CRUdJTiBTU0ggU0lHTkFUVVJFLS0tLS0KVTFOSVUwbEhBQUFBQVFBQUFETUFBQUFMYzNOb0xXVmtNalUxTVRrQUFBQWcvc0dCNnJHUHpZNEttUUN3WGhETnZMYWJrOQo4NmVIaVUwck9YZDlkbis0RUFBQUFhWVdkbGJuUXRZWE56ZFhKbExXZHZkbVZ5Ym1GdVkyVXRkakVBQUFBQUFBQUFCbk5vCllUVXhNZ0FBQUZNQUFBQUxjM05vTFdWa01qVTFNVGtBQUFCQXhwRmgyc0tIaGdnWGFlMGZTbFhSZGRzQTgwQ2plV2VnVXEKaEtzemhFNjdSb21IckFGemJTTkprbW5SSWZ2M3B6aXdKWm11OEFoa081NEVURVIrTDlEQT09Ci0tLS0tRU5EIFNTSCBTSUdOQVRVUkUtLS0tLQo=",
+        "signer_person_id": "acblabs"
+      }
+    }
+  ],
+  "format": "agent-assure-s2-signed-components-view/1",
+  "independence": "NO_INDEPENDENT_REVIEW",
+  "omitted_unsigned_fields": [
+    "verification"
+  ],
+  "source_full_bundle_digest": "sha256:1f49bc60a3a1ba6e1ccab6d6ab35ac69162edc8b7270e8972d4c91620fe5ed0e",
+  "source_full_bundle_raw_sha256": "sha256:65dcd429a9bca2936c2fa1b4354e8af98cf0c3c76113b75212637dc32ca12062",
+  "source_full_bundle_size_bytes": 27809,
+  "status": "derived_signed_components_not_full_acceptance_bundle"
+}
