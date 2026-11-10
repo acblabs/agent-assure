@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import TypeAlias
 
 from pydantic import BaseModel
 
+import agent_assure
 from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
+from agent_assure.io_limits import load_json_bytes_bounded, read_file_bounded_at
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
 from agent_assure.schema.campaign import (
@@ -82,6 +85,12 @@ from agent_assure.schema.usage import (
     UsageSegment,
     UsageSummary,
     UsageSummaryDelta,
+)
+from agent_assure.schema.v1_compatibility import (
+    MAX_COMPATIBILITY_CELLS,
+    MAX_COMPATIBILITY_MATRIX_BYTES,
+    CompatibilityCell,
+    CompatibilityMatrix,
 )
 
 SchemaModel: TypeAlias = type[BaseModel]
@@ -262,3 +271,145 @@ def export_json_schemas(out_dir: Path) -> list[Path]:
         )
         written.append(path)
     return written
+
+
+# Historical producer facts verified against each local final tag's package
+# __init__.py. This is not a reader dispatch registry: every cell's policy and
+# reachable root still come only from FROZEN_ROOT_VALIDATION_POLICY.
+_TAG_VERIFIED_LEGACY_PRODUCER_WRITERS: tuple[tuple[str, str], ...] = (
+    ("0.1.0", "0.1.0"),
+    ("0.2.0", "0.2.0"),
+    ("0.3.0", "0.2.0"),
+    ("0.3.1", "0.3.1"),
+    ("0.4.2", "0.3.1"),
+    ("0.4.4", "0.4.3"),
+    ("0.5.0", "0.5.0"),
+    ("0.6.0", "0.6.0"),
+    ("0.6.1", "0.6.1"),
+    ("0.6.2", "0.6.2"),
+    ("0.6.3", "0.6.3"),
+    ("0.6.4", "0.6.4"),
+    ("0.6.5", "0.6.5"),
+    ("0.7.0", "0.6.6"),
+)
+_COMPATIBILITY_READER_VERSION = "1.0.0a3"
+_LEGACY_COMPATIBILITY_RESTRICTIONS = (
+    "Compatibility inspection grants no qualification, release, deployment or method admission.",
+    "Historical semantics do not establish v1 action consumption, closure or deployment authority.",
+    "Runtime authorization requires independently verified current policy and evidence.",
+)
+
+
+def build_legacy_compatibility_matrix(*, schema_root: Path | None = None) -> CompatibilityMatrix:
+    """Build a deterministic value without modifying a resource or source file.
+
+    An explicit schema_root is a trusted frozen-source directory. Otherwise
+    resources must belong to a verified installed wheel; no checkout fallback
+    is attempted. The caller separately authenticates the immutable source or
+    candidate inventory. This builder hashes original bytes, validates their
+    declared vocabulary, and grants no runtime or release authority.
+    """
+    from agent_assure.schema import validation as schema_validation
+
+    if schema_root is not None and (
+        not isinstance(schema_root, Path) or not schema_root.is_absolute()
+    ):
+        raise ValueError("compatibility schema root must be an explicit absolute Path")
+    installed_reader = (
+        schema_validation._installed_reader_identity() if schema_root is None else None
+    )
+    producers = _TAG_VERIFIED_LEGACY_PRODUCER_WRITERS
+    if agent_assure.__version__ == _COMPATIBILITY_READER_VERSION:
+        if SCHEMA_VERSION != "0.6.6":
+            raise ValueError("preview compatibility requires the preserved legacy default writer")
+        producers = (*producers, (_COMPATIBILITY_READER_VERSION, SCHEMA_VERSION))
+    pairs = schema_validation.FROZEN_ROOT_VALIDATION_POLICY
+    selected = tuple(
+        sorted(
+            (producer, wire, kind)
+            for producer, wire in producers
+            for kind, registered_wire in pairs
+            if registered_wire == wire
+        )
+    )
+    if not selected or len(selected) > MAX_COMPATIBILITY_CELLS:
+        raise ValueError("compatibility matrix exceeds its reviewed finite cell inventory")
+    if {wire for _, wire in producers} != {wire for _, wire, _ in selected}:
+        raise ValueError("compatibility matrix lacks a declared legacy writer's frozen policy")
+    resources: dict[tuple[str, str], str] = {}
+    cells: list[CompatibilityCell] = []
+    for producer, wire, kind in selected:
+        resource_key = (kind, wire)
+        if resource_key not in resources:
+            relative = f"v{wire}/{kind}.schema.json"
+            if schema_root is not None:
+                raw = read_file_bounded_at(
+                    schema_root,
+                    relative,
+                    max_bytes=schema_validation.MAX_FROZEN_SCHEMA_BYTES,
+                    label="frozen compatibility schema",
+                ).data
+            else:
+                if installed_reader is None:
+                    raise AssertionError("installed compatibility reader identity was lost")
+                loaded = schema_validation._read_installed_compatibility_resource(
+                    installed_reader,
+                    relative,
+                    max_bytes=schema_validation.MAX_FROZEN_SCHEMA_BYTES,
+                )
+                if loaded is None:
+                    raise ValueError(
+                        "compatibility matrix requires every immutable schema resource"
+                    )
+                raw = loaded
+            if len(raw) > schema_validation.MAX_FROZEN_SCHEMA_BYTES:
+                raise ValueError("frozen compatibility schema exceeds maximum supported size")
+            digest = f"sha256:{hashlib.sha256(raw).hexdigest()}"
+            schema = load_json_bytes_bounded(
+                raw,
+                max_bytes=schema_validation.MAX_FROZEN_SCHEMA_BYTES,
+                label="frozen compatibility schema",
+            )
+            schema_validation._prepare_frozen_schema(schema, schema_version=wire, kind=kind)
+            schema_validation._harden_frozen_decimal_patterns(schema)
+            harden_json_schema_pattern_ends(schema)
+            schema_validation._require_frozen_identity_admission(
+                schema, schema_version=wire, kind=kind
+            )
+            resources[resource_key] = digest
+        policy = pairs[resource_key]
+        replay = schema_validation._frozen_root_semantic_replay_identity(kind, wire)
+        cells.append(
+            CompatibilityCell(
+                producer_package_version=producer,
+                writer_schema_version=wire,
+                artifact_kind=kind,
+                reader_package_version=_COMPATIBILITY_READER_VERSION,
+                disposition=(
+                    "shape_and_integrity_only"
+                    if policy is schema_validation.FrozenRootValidationPolicy.archival_only
+                    else "semantic_replay_and_authorization_eligible"
+                ),
+                minimum_reader_version=_COMPATIBILITY_READER_VERSION,
+                schema_resource_digest=resources[resource_key],
+                semantic_replay_identity=replay,
+                migration_identity=None,
+                losses=(),
+                authorization_restrictions=_LEGACY_COMPATIBILITY_RESTRICTIONS,
+            )
+        )
+    return CompatibilityMatrix(format="agent-assure-compatibility-matrix/v1", cells=tuple(cells))
+
+
+def compatibility_matrix_json_bytes(matrix: CompatibilityMatrix) -> bytes:
+    """Encode deterministic reviewed JSON, stopping before the byte cap is exceeded."""
+    encoder = json.JSONEncoder(indent=2, sort_keys=True, ensure_ascii=False, allow_nan=False)
+    chunks: list[bytes] = []
+    total = 1  # Reserve the required final LF within the same byte cap.
+    for chunk in encoder.iterencode(matrix.model_dump(mode="json")):
+        encoded = chunk.encode("utf-8")
+        total += len(encoded)
+        if total > MAX_COMPATIBILITY_MATRIX_BYTES:
+            raise ValueError("compatibility matrix JSON exceeds maximum supported size")
+        chunks.append(encoded)
+    return b"".join(chunks) + b"\n"

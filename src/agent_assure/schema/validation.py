@@ -1,21 +1,33 @@
 from __future__ import annotations
 
+import base64
+import csv
 import hashlib
+import io
 import json
+import re
 from collections.abc import Mapping
+from dataclasses import dataclass
+from email import policy as email_policy
+from email.parser import BytesParser
 from enum import StrEnum
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, distribution
 from importlib.resources import files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, TypeVar, cast
 
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 from referencing import Registry
+from referencing.exceptions import Unresolvable
 
+import agent_assure
+import agent_assure.schema_resources as schema_resources
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
@@ -23,6 +35,7 @@ from agent_assure.io_limits import (
     load_json_bounded_from_filesystem_root,
     load_json_bytes_bounded,
     loads_json_bounded,
+    read_file_bounded_at,
     read_file_bounded_from_filesystem_root,
 )
 from agent_assure.schema.base import SCHEMA_VERSION, validate_rfc8785_safe_integers
@@ -34,6 +47,15 @@ from agent_assure.schema.common import (
     UNIT_INTERVAL_6_PATTERN,
     UNIT_INTERVAL_12_PATTERN,
     harden_json_schema_pattern_ends,
+)
+from agent_assure.schema.v1_compatibility import (
+    MAX_COMPATIBILITY_MATRIX_BYTES,
+    CompatibilityDecision,
+    CompatibilityFailure,
+    CompatibilityKey,
+    assess_compatibility,
+    load_compatibility_matrix,
+    version_order,
 )
 from agent_assure.source_layout import source_checkout_component
 
@@ -331,6 +353,365 @@ def _build_frozen_validation_policy() -> dict[tuple[str, str], FrozenRootValidat
 FROZEN_ROOT_VALIDATION_POLICY: Mapping[tuple[str, str], FrozenRootValidationPolicy] = (
     MappingProxyType(_build_frozen_validation_policy())
 )
+_INSTALLED_COMPATIBILITY_MATRIX_PATH = "v1.0.0rc1/compatibility-matrix.json"
+_MAX_INSTALLED_READER_RECORD_ENTRIES = 10_000
+_MAX_INSTALLED_READER_RECORD_NAME_CHARS = 512
+_MAX_INSTALLED_READER_MODULE_BYTES = 4 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class _InstalledReaderIdentity:
+    package_version: str
+    resource_root: Path
+    record_names: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _InstalledRecordEntry:
+    digest: str | None
+    size: int | None
+
+
+def _parse_installed_record(data: bytes) -> dict[str, _InstalledRecordEntry]:
+    """Parse bounded strings only; never stat or follow arbitrary RECORD rows."""
+    if len(data) > MAX_COMPATIBILITY_MATRIX_BYTES:
+        raise ValueError("installed reader RECORD exceeds maximum supported size")
+    result: dict[str, _InstalledRecordEntry] = {}
+    try:
+        rows = csv.reader(io.StringIO(data.decode("utf-8"), newline=""), strict=True)
+        for row in rows:
+            if len(result) >= _MAX_INSTALLED_READER_RECORD_ENTRIES or len(row) != 3:
+                raise ValueError("installed reader RECORD inventory is malformed or oversized")
+            name, digest, size = row
+            if (
+                not name
+                or len(name) > _MAX_INSTALLED_READER_RECORD_NAME_CHARS
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or "\\" in name
+                or PurePosixPath(name).is_absolute()
+                or re.match(r"^[A-Za-z]:", name) is not None
+                or name in result
+            ):
+                raise ValueError("installed reader RECORD path is malformed or duplicated")
+            if digest or size:
+                if re.fullmatch(r"sha256=[A-Za-z0-9_-]{43}", digest, flags=re.ASCII) is None:
+                    raise ValueError("installed reader RECORD requires a canonical SHA-256 digest")
+                if re.fullmatch(r"(?:0|[1-9][0-9]{0,8})", size, flags=re.ASCII) is None:
+                    raise ValueError("installed reader RECORD size is malformed or unbounded")
+                result[name] = _InstalledRecordEntry(digest, int(size))
+            else:
+                result[name] = _InstalledRecordEntry(None, None)
+    except (csv.Error, UnicodeError) as exc:
+        raise ValueError("installed reader RECORD is not valid bounded UTF-8 CSV") from exc
+    return result
+
+
+def _require_installed_record_bytes(
+    record: Mapping[str, _InstalledRecordEntry], relative: str, data: bytes
+) -> None:
+    entry = record.get(relative)
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+    if (
+        entry is None
+        or entry.digest != f"sha256={digest}"
+        or entry.size != len(data)
+    ):
+        raise ValueError("installed reader bytes do not match their owned RECORD row")
+
+
+def _read_installed_reader_identity() -> _InstalledReaderIdentity:
+    """Bind modules using bounded raw metadata for one unpacked wheel.
+
+    PathDistribution's metadata/files accessors are deliberately not used: they
+    read unbounded text and files() may stat every candidate-controlled row.
+    Only its guarded metadata-directory anchor is used. Other installation
+    backends and editable/directory installs are unsupported by this profile.
+    """
+    try:
+        installed = distribution("agent-assure")
+    except PackageNotFoundError as exc:
+        raise ValueError("installed reader distribution is unavailable") from exc
+    anchor = getattr(installed, "_path", None)
+    if (
+        not isinstance(anchor, Path)
+        or not anchor.is_absolute()
+        or not anchor.name.endswith(".dist-info")
+    ):
+        raise ValueError("installed reader requires an unpacked wheel metadata anchor")
+    raw_metadata = read_file_bounded_at(
+        anchor, "METADATA", max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES, label="installed METADATA"
+    ).data
+    raw_metadata.decode("utf-8")
+    headers = BytesParser(policy=email_policy.compat32).parsebytes(raw_metadata, headersonly=True)
+    names = headers.get_all("Name", [])
+    versions = headers.get_all("Version", [])
+    if headers.defects or len(names) != 1 or len(versions) != 1:
+        raise ValueError("installed reader METADATA requires one exact Name and Version")
+    if names[0] != "agent-assure":
+        raise ValueError("installed reader distribution name does not match")
+    reader_version = versions[0]
+    if not isinstance(reader_version, str):
+        raise ValueError("installed reader METADATA version is not a canonical string")
+    version_order(reader_version)
+    if reader_version != agent_assure.__version__:
+        raise ValueError("installed reader version does not match the loaded package")
+    if anchor.name != f"agent_assure-{reader_version}.dist-info":
+        raise ValueError("installed reader metadata anchor does not match its exact identity")
+    raw_record = read_file_bounded_at(
+        anchor, "RECORD", max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES, label="installed RECORD"
+    ).data
+    record = _parse_installed_record(raw_record)
+    metadata_relative = f"{anchor.name}/METADATA"
+    _require_installed_record_bytes(record, metadata_relative, raw_metadata)
+    if record.get(f"{anchor.name}/RECORD") != _InstalledRecordEntry(None, None):
+        raise ValueError("installed reader RECORD does not own its exact metadata directory")
+    installation_root = anchor.parent
+    owned_modules = (
+        ("agent_assure/__init__.py", agent_assure.__file__),
+        ("agent_assure/schema/validation.py", __file__),
+        ("agent_assure/schema_resources/__init__.py", schema_resources.__file__),
+    )
+    for relative, actual in owned_modules:
+        located = installation_root / relative
+        if (
+            relative not in record
+            or actual is None
+            or not Path(actual).is_absolute()
+            or located.absolute() != Path(actual).absolute()
+        ):
+            raise ValueError("installed reader does not own the loaded module paths")
+        raw_module = read_file_bounded_at(
+            installation_root,
+            relative,
+            max_bytes=_MAX_INSTALLED_READER_MODULE_BYTES,
+            label="installed reader module",
+        ).data
+        _require_installed_record_bytes(record, relative, raw_module)
+    resource_module_file = schema_resources.__file__
+    if resource_module_file is None:  # Kept explicit for the checked optional module attribute.
+        raise ValueError("installed reader resource package has no filesystem identity")
+    resource_root = Path(resource_module_file).absolute().parent
+    direct_urls = tuple(name for name in record if PurePosixPath(name).name == "direct_url.json")
+    expected_provenance = f"{anchor.name}/direct_url.json"
+    if any(name != expected_provenance for name in direct_urls):
+        raise ValueError("installed reader provenance does not belong to its metadata directory")
+    if direct_urls:
+        raw_provenance = read_file_bounded_at(
+            anchor,
+            "direct_url.json",
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+            label="installed reader provenance",
+        ).data
+        _require_installed_record_bytes(record, expected_provenance, raw_provenance)
+        provenance = load_json_bytes_bounded(
+            raw_provenance,
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+            label="installed reader provenance",
+        )
+        if (
+            "dir_info" in provenance
+            or "vcs_info" in provenance
+            or not isinstance(provenance.get("archive_info"), dict)
+            or not isinstance(provenance.get("url"), str)
+        ):
+            raise ValueError("installed reader provenance is not a wheel installation")
+    return _InstalledReaderIdentity(reader_version, resource_root, frozenset(record))
+
+
+def _installed_reader_identity() -> _InstalledReaderIdentity:
+    try:
+        return _read_installed_reader_identity()
+    except OSError as exc:
+        raise ValueError("installed reader metadata or owned module bytes are unavailable") from exc
+
+
+def _require_frozen_identity_admission(
+    schema: dict[str, Any], *, schema_version: str, kind: str
+) -> None:
+    """Check actual identity admission in its offline full-schema reference context."""
+    if schema.get("type") != "object":
+        raise ValueError("installed frozen schema must have an object root")
+    validator = _compiled_json_schema_validator(_serialized_schema_cache_key(schema))
+    identities = {"artifact_kind": kind, "schema_version": schema_version}
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise ValueError("installed frozen schema has no root properties")
+    for field_name, expected in identities.items():
+        declaration = properties.get(field_name)
+        if not isinstance(declaration, dict):
+            raise ValueError("installed frozen schema lacks an identity declaration")
+        validator.evolve(schema=declaration).validate(expected)
+    # Required nonidentity fields are intentionally absent from this probe.
+    # Retain errors that actually contradict one of the supplied identities,
+    # including constraints contributed by root-level allOf/not declarations.
+    pending = list(validator.iter_errors(identities))
+    while pending:
+        error = pending.pop()
+        if error.path:
+            if error.path[0] in identities:
+                raise ValueError("installed frozen schema rejects its declared identity pair")
+        elif error.context:
+            pending.extend(error.context)
+        elif error.validator in {"type", "const", "enum", "not", "maxProperties", "oneOf"}:
+            raise ValueError("installed frozen schema rejects its declared identity pair")
+
+
+def _read_installed_compatibility_resource(
+    reader: _InstalledReaderIdentity,
+    relative: str,
+    *,
+    max_bytes: int,
+) -> bytes | None:
+    parts = PurePosixPath(relative).parts
+    if len(parts) != 2 or any(part in {".", ".."} for part in parts) or "\\" in relative:
+        raise ValueError("installed compatibility resource path is malformed")
+    if f"agent_assure/schema_resources/{relative}" not in reader.record_names:
+        return None
+    resource_root = files("agent_assure.schema_resources")
+    if not isinstance(resource_root, Path) or resource_root.absolute() != reader.resource_root:
+        raise ValueError("installed compatibility resource package identity does not match")
+    try:
+        return read_file_bounded_at(
+            reader.resource_root,
+            relative,
+            max_bytes=max_bytes,
+            label="installed compatibility resource",
+        ).data
+    except FileNotFoundError:
+        return None
+
+
+def _frozen_root_semantic_replay_identity(kind: str, schema_version: str) -> str | None:
+    policy = FROZEN_ROOT_VALIDATION_POLICY.get((kind, schema_version))
+    if policy is None or policy is FrozenRootValidationPolicy.archival_only:
+        return None
+    return f"agent-assure:frozen-root/{schema_version}/{kind}/{policy.value}"
+
+
+def inspect_installed_reader_compatibility(
+    *,
+    producer_package_version: str,
+    writer_schema_version: str,
+    artifact_kind: str,
+    expected_matrix_digest: str,
+) -> CompatibilityDecision:
+    """Inspect exact installed-resource compatibility, with no authorization effect.
+
+    The caller supplies independently bound producer provenance and a matrix
+    digest from the verifier-owned candidate inventory. Neither is inferred
+    from an artifact or accepted from an unverified candidate success flag.
+    Reader identity comes only from the installed distribution. This function
+    validates registry/schema resources, not an artifact or an assurance claim.
+    It never projects artifact data, downloads resources, or consults a checkout.
+    """
+    if not isinstance(expected_matrix_digest, str) or re.fullmatch(
+        r"sha256:[0-9a-f]{64}", expected_matrix_digest, flags=re.ASCII
+    ) is None:
+        raise ValueError("expected compatibility matrix digest must be exact lowercase SHA-256")
+    reader = _installed_reader_identity()
+    key = CompatibilityKey(
+        producer_package_version=producer_package_version,
+        writer_schema_version=writer_schema_version,
+        artifact_kind=artifact_kind,
+        reader_package_version=reader.package_version,
+    )
+
+    def unsupported(
+        reason: CompatibilityFailure,
+        *,
+        minimum_reader_satisfied: bool = False,
+        schema_integrity_verified: bool = False,
+    ) -> CompatibilityDecision:
+        return CompatibilityDecision(
+            key=key,
+            disposition="unsupported",
+            reason=reason,
+            minimum_reader_satisfied=minimum_reader_satisfied,
+            schema_integrity_verified=schema_integrity_verified,
+            authorization_effect="none",
+        )
+
+    try:
+        raw_matrix = _read_installed_compatibility_resource(
+            reader,
+            _INSTALLED_COMPATIBILITY_MATRIX_PATH,
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+        )
+    except (OSError, ValueError, ModuleNotFoundError):
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_UNAVAILABLE")
+    if raw_matrix is None:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_UNAVAILABLE")
+    if len(raw_matrix) > MAX_COMPATIBILITY_MATRIX_BYTES:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_INVALID")
+    if f"sha256:{hashlib.sha256(raw_matrix).hexdigest()}" != expected_matrix_digest:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_DIGEST_MISMATCH")
+    try:
+        matrix = load_compatibility_matrix(raw_matrix)
+    except ValueError:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_INVALID")
+    preflight = assess_compatibility(matrix, key, schema_resource=None)
+    if preflight.reason != "SCHEMA_RESOURCE_UNAVAILABLE":
+        return preflight
+    cell = matrix.lookup(key)
+    if cell is None:  # The preflight guarantees this, without interpreting candidate flags.
+        raise AssertionError("compatibility preflight did not retain its exact cell")
+    policy = FROZEN_ROOT_VALIDATION_POLICY.get((artifact_kind, writer_schema_version))
+    if policy is None:
+        return unsupported("SCHEMA_COMPATIBILITY_CELL_ABSENT", minimum_reader_satisfied=True)
+    if (
+        policy is FrozenRootValidationPolicy.archival_only
+        and cell.disposition == "semantic_replay_and_authorization_eligible"
+    ):
+        return unsupported("SCHEMA_COMPATIBILITY_POLICY_MISMATCH", minimum_reader_satisfied=True)
+    replay_identity = _frozen_root_semantic_replay_identity(artifact_kind, writer_schema_version)
+    replays = frozenset({replay_identity}) if replay_identity is not None else frozenset()
+    if cell.semantic_replay_identity is not None and cell.semantic_replay_identity not in replays:
+        return unsupported("SCHEMA_SEMANTIC_REPLAY_UNAVAILABLE", minimum_reader_satisfied=True)
+    if cell.migration_identity is not None or (
+        cell.disposition == "semantic_replay_and_authorization_eligible" and cell.losses
+    ):
+        return unsupported("SCHEMA_MIGRATION_UNSUPPORTED", minimum_reader_satisfied=True)
+    try:
+        raw_schema = _read_installed_compatibility_resource(
+            reader, cell.schema_resource_path, max_bytes=MAX_FROZEN_SCHEMA_BYTES
+        )
+    except (OSError, ValueError, ModuleNotFoundError):
+        return unsupported("SCHEMA_RESOURCE_UNAVAILABLE", minimum_reader_satisfied=True)
+    result = assess_compatibility(
+        matrix,
+        key,
+        schema_resource=raw_schema,
+        available_semantic_replays=replays,
+    )
+    if result.disposition == "unsupported":
+        return result
+    if raw_schema is None:  # A supported assessment requires the original immutable bytes.
+        raise AssertionError("compatibility assessment did not retain its schema resource")
+    try:
+        schema = load_json_bytes_bounded(
+            raw_schema, max_bytes=MAX_FROZEN_SCHEMA_BYTES, label="frozen JSON Schema"
+        )
+        _prepare_frozen_schema(schema, schema_version=writer_schema_version, kind=artifact_kind)
+        _harden_frozen_decimal_patterns(schema)
+        harden_json_schema_pattern_ends(schema)
+        _require_frozen_identity_admission(
+            schema, schema_version=writer_schema_version, kind=artifact_kind
+        )
+    except (
+        ValueError,
+        JsonSchemaSchemaError,
+        JsonSchemaValidationError,
+        Unresolvable,
+        RecursionError,
+    ):
+        return unsupported(
+            "SCHEMA_RESOURCE_INVALID",
+            minimum_reader_satisfied=True,
+            schema_integrity_verified=True,
+        )
+    return result
+
+
 _LEGACY_RELEASE_IDENTITY_ARTIFACT_KINDS = frozenset(
     {"release-artifact-manifest", "release-digest-replay"}
 )

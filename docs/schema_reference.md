@@ -1,5 +1,13 @@
 # Schema Reference
 
+The prospective compatibility API and matrix values are documented in
+[Schema Evolution](schema_evolution.md#prospective-installed-reader-compatibility).
+They use exact producer/writer/artifact/reader identities and return one of
+`semantic_replay_and_authorization_eligible`, `shape_and_integrity_only` or
+`unsupported`, always with `authorization_effect="none"`. The inspection API
+checks packaged resources; actual artifact validation remains a separate step.
+New production v1 schemas and their completion receipts remain pending.
+
 Current writer schema version: `0.6.6`.
 Version-bound writer schema snapshot: `schemas/v0.6.6/`.
 The v0.7.0 package line emits this snapshot; its matching stable tag freezes

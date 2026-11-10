@@ -1,5 +1,40 @@
 # Schema Evolution
 
+## Prospective installed-reader compatibility
+
+The schema-first development implementation adds an explicit matrix keyed by
+`(producer_package_version, writer_schema_version, artifact_kind,
+reader_package_version)`. Each cell records its disposition, minimum reader,
+original schema-resource digest, replay identity, migration identity, losses
+and authorization restrictions. Missing cells are unsupported.
+
+`inspect_installed_reader_compatibility` in `schema/validation.py` obtains the
+reader identity from bounded raw wheel metadata and RECORD entries. It checks
+the loaded modules' paths and bytes, pins the packaged matrix before parsing,
+and checks the minimum reader before opening the selected schema. Resource
+lookup stays in the verified installed package. An editable checkout, stale
+installation or directory/VCS provenance cannot supply installed-reader proof.
+
+`build_legacy_compatibility_matrix` produces prospective reader `1.0.0a3` cells
+from the existing frozen-root policy and fourteen verified producer/writer
+pairs. For example, producer `0.3.0` uses wire `0.2.0`, and producer `0.7.0`
+uses wire `0.6.6`. Original resource bytes determine their hashes. The builder
+adds producer `1.0.0a3` with the retained default wire only when that package
+version is actually selected. It currently emits no new-writer `1.0.0rc1` cells.
+
+Compatibility inspection has `authorization_effect="none"`. Semantic replay
+eligibility remains a prerequisite for separately validating an artifact and
+its applicable policy, evidence, qualification and current context. Archival
+cells retain shape-and-integrity-only inspection. Migrations and semantic
+eligibility with declared losses remain unsupported in this increment.
+
+SCHEMA-01A/D implementation acceptance, generated new-writer resources and
+installed-wheel/platform completion evidence remain pending. See the
+[implementation evidence](governance/v1/sprint3/schema-implementation-evidence.md).
+The existing writer and export behavior below remain in place.
+
+## Existing writer workflow
+
 Release-candidate schema snapshot: `schemas/v0.6.6/`. Package line v0.7.0 emits
 persisted artifact `schema_version: 0.6.6`; its matching stable tag freezes the
 snapshot. Earlier released snapshots remain immutable.

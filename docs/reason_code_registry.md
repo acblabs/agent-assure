@@ -2,6 +2,31 @@
 
 Reason codes are stable machine-facing identifiers for deterministic findings.
 
+## Compatibility inspection failures
+
+`CompatibilityDecision.reason` uses a separate closed namespace. These failures
+describe compatibility inspection and have `authorization_effect="none"`.
+Invalid installed-reader configuration or a malformed verifier-owned digest
+raises `ValueError` before an inspection result is constructed.
+
+| Reason | Meaning |
+| --- | --- |
+| `SCHEMA_COMPATIBILITY_CELL_ABSENT` | The exact tuple has no supported reader-owned cell or policy. |
+| `SCHEMA_COMPATIBILITY_CELL_UNSUPPORTED` | The cell explicitly declares unsupported compatibility. |
+| `SCHEMA_COMPATIBILITY_MATRIX_UNAVAILABLE` | The fixed installed matrix cannot be read as a bounded owned resource. |
+| `SCHEMA_COMPATIBILITY_MATRIX_DIGEST_MISMATCH` | Original matrix bytes differ from the verifier-owned inventory pin. |
+| `SCHEMA_COMPATIBILITY_MATRIX_INVALID` | Matrix structure, values or byte bounds are invalid. |
+| `SCHEMA_COMPATIBILITY_POLICY_MISMATCH` | The matrix attempts to promote an archival policy. |
+| `SCHEMA_MINIMUM_READER_UNSATISFIED` | The installed reader is below the cell's minimum version. |
+| `SCHEMA_RESOURCE_UNAVAILABLE` | The exact owned schema resource cannot be read within its bounds. |
+| `SCHEMA_RESOURCE_TOO_LARGE` | Supplied immutable schema bytes exceed the supported resource size. |
+| `SCHEMA_RESOURCE_DIGEST_MISMATCH` | Original schema bytes differ from the cell's resource digest. |
+| `SCHEMA_RESOURCE_INVALID` | Schema syntax, object vocabulary, identities or offline references are invalid. |
+| `SCHEMA_SEMANTIC_REPLAY_UNAVAILABLE` | The cell's exact replay implementation is unavailable. |
+| `SCHEMA_MIGRATION_UNSUPPORTED` | A migration is unavailable or declared losses prevent semantic eligibility. |
+
+## Deterministic findings
+
 - `EXPECTED_OUTCOME_MISMATCH`: observed recommendation or outcome did not match the case expectation.
 - `FORBIDDEN_OUTCOME`: observed outcome is explicitly forbidden for the case.
 - `MATERIAL_CLAIM_MISSING_EVIDENCE`: a fixture-declared material claim has no structured evidence link.
