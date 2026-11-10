@@ -11,7 +11,9 @@ method admission, release or deployment authority.
 - Additive test/profile amendment: `sha256:6c40be1d9a271823cacd65b42784a32e20ad22f40d484c75fd6dfadb55d1e7af`.
 - The maintainer's actual native signature verified before amended execution.
 - Development owner/reviewer: acblabs; `NO_INDEPENDENT_REVIEW` remains explicit.
-- The original four-hour checkpoint and trust expiry were not renewed.
+- The original checkpoint expired. A separately signed repair renewal permits
+  bounded repair checks until `2026-11-10T07:12:10.990486Z`; it preserves the
+  original forecast, assignments, trust expiry and lack of implementation acceptance.
 
 ## Implemented increment
 
@@ -77,3 +79,89 @@ document. SCHEMA-01B/C, publication and qualification remain deferred.
 A compatible isolated runner is required for the full regression gate. The
 repository's existing Windows CI configuration provides a handoff reference;
 no remote run or new runner was created in this development observation.
+
+## Bounded repair observations
+
+The renewed repair scope adds a conservative identity-admission repair, explicit
+post-closure verification APIs, archive-member diagnostics and exact public-proof
+exceptions, and history-scan policy handling. The signed earlier records and
+released resources remain unchanged.
+
+| Check | Observation | Result |
+| --- | --- | --- |
+| Compatibility and identity regression tests | RepairSchema003; command 11 | 221 passed |
+| Historical correction and post-closure verification tests | RepairGovernance002; command 12 | 80 passed |
+| Ruff across the assigned checkout | RepairLint005; command 7 | Passed |
+| Strict mypy across source and scripts | RepairTypes003; command 8 | 303 files passed |
+| Explicit formatting | RepairFormat008; command 19 | Passed; packaged Python syntax trees preserved |
+| History, archive and workflow test selection | RepairSecurity002; command 13 | Incomplete: supervisor directory-sharing failure |
+| Candidate campaign summary | RepairGoldenSummary001; command 15 | Failed: existing filesystem-root access denial |
+
+The identity check uses forced scalar literals and required presence to evaluate
+guards conservatively. Asserted root-instance `oneOf` alternatives require a
+bounded pairwise exclusivity proof. This is an identity-consistency check, not a
+general satisfiability solver or acceptance of an artifact. Tests cover overlapping
+alternatives, conditional presence/literal propagation, strict scalar distinctions,
+reference cycles, resource limits and the complete existing legacy resource set.
+
+The history policy retains the exact 21 reviewed historical fingerprints. Only
+eight known findings may be derived for an exact pull-request merge identity,
+ordered parents and complete pinned source blobs. The detector configuration,
+digest-pinned scanner and canary behavior are unchanged.
+
+Each of three source-distribution failures was attributed to actual archived
+member bytes before adding its exact signature-field pins: Sprint 2 correction
+acceptance, its predecessor signed components, and the Sprint 3 dispatch proposal.
+The last attribution used an archive retained from interrupted RepairBuild003;
+it does not turn that interrupted build into a successful build gate. Earlier
+RepairBuild001/002 passed for their earlier development source snapshots. All
+these payloads identify version `0.7.0`, not the required developer preview.
+
+RepairBuild003 and RepairSecurity002 retain supervisor failures while pinning
+temporary directories (native errors 2 and 32). Their scope and immutable
+environment postchecks passed; neither run is a successful regression/build gate.
+Any proposed supervisor revision remains separate from the signed active profile
+until independently adopted.
+
+The two campaign goldens remain unchanged. The final-source summary could not
+read its suite through the existing filesystem-root guard in this sandbox. No
+unrestricted golden update, loader bypass or candidate elevation was used.
+
+The post-closure API requires independently authenticated expected claims,
+implementation/runtime bindings, enrolled authorities, Git access, signature
+verification and clock inputs. No public post-closure amendment has yet been
+accepted. The ordinary authoring guard remains closed after source changes;
+passing the new tests alone does not restore the default historical-verification
+command or hosted gate.
+
+## Follow-up repair verification
+
+The signed supervisor accepted `FinalBuild004` (command 16): both source archive
+and wheel built successfully from that repair snapshot. It then accepted
+`FinalPrivacy004` (command 17), checking both freshly built artifacts. These
+observations supersede the interrupted-build limitation for that snapshot; the
+package still identifies `0.7.0`, not the Sprint 3 preview.
+
+`FinalSecurity003` completed command 13 with 205 passing tests and 21 failures
+while constructing the synthetic history repositories. Bounded stderr
+diagnostics in `FinalSecurityDiagnostic005` established the cause: Git rejected
+the 265-character proof path with `Filename too long`. The intervening
+`FinalSecurityDiagnostic004` retained a supervisor directory-sharing failure;
+it supplies no successful test result.
+
+The fixture helper now enables command-local Git long-path support and exposes
+at most 2,048 stderr bytes on a nonzero exit. It still rejects every nonzero exit
+and changes no production scanner or exception rule. With that repair,
+`FinalSecurityLongPaths006` passed all 226 wheel-content, history-policy and
+workflow tests, including the exact three-command workflow assertions. Scope,
+immutable environment and fixed-checkpoint postchecks passed.
+
+The retained 80-test governance observation predates the added real rooted-I/O
+preflight. That preflight and the complete native governance suite still need
+compatible-host verification. Hosted execution must also verify the unchanged
+digest-pinned scanner, complete-history projection and merge-only canaries.
+
+Final-source build, privacy and lint observations after this documentation update
+are retained separately in the operator command audit and PR #50. The two
+campaign goldens, missing post-closure adoption and A/D acceptance requirements
+above remain outstanding.

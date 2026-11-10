@@ -13,7 +13,7 @@ import json
 import os
 import stat
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from contextlib import ExitStack
 from pathlib import Path, PurePosixPath
 from typing import Any, cast
@@ -489,7 +489,18 @@ def build_package(root: Path) -> dict[str, Any]:
     }
 
 
-def check_package(root: Path) -> dict[str, Any]:
+def check_package(
+    root: Path,
+    *,
+    postclosure_verifier: Callable[[Path], Any] | None = None,
+) -> dict[str, Any]:
+    """Check draft bindings, or an explicitly authenticated post-closure proof.
+
+    The optional verifier is supplied only by an externally authenticated
+    operator with independently pinned implementation/runtime/claim inputs.
+    The ordinary CLI never learns this capability from repository metadata.
+    Neither route grants implementation acceptance or future dispatch scope.
+    """
     package = load(root, f"{DIRECTORY}/architecture-package.json")
     validate_schema(root, package, "architecture-package")
     expected = build_package(root)
@@ -498,9 +509,28 @@ def check_package(root: Path) -> dict[str, Any]:
         # can bind explicitly reviewed tooling replacements, never acceptance.
         if not (root / DIRECTORY / "correction-source-bindings.json").is_file():
             raise ArchitectureError("package does not bind the exact current decision/source bytes")
-        from scripts.v1_governance_corrections import check_sources
+        if postclosure_verifier is None:
+            from scripts.v1_governance_corrections import check_sources
 
-        check_sources(root)
+            check_sources(root)
+        else:
+            from scripts.v1_postclosure_tooling import PostclosureVerification
+
+            verified = postclosure_verifier(root)
+            if (
+                type(verified) is not PostclosureVerification
+                or verified.source_root != root.absolute()
+                or verified.predecessor_package_digest != package["package_digest"]
+                or verified.published_historical_receipt_signatures_and_source_bindings_verified
+                is not True
+                or verified.exact_postclosure_tooling_overlay_verified is not True
+                or verified.retained_original_host_replay_performed is not False
+                or verified.authorization_effect
+                != "historical_and_exact_current_tooling_development_verification_only"
+            ):
+                raise ArchitectureError(
+                    "authenticated post-closure proof is absent or out of scope"
+                )
     check_supplementary(root)
     return package
 

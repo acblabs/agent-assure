@@ -983,6 +983,49 @@ def test_sdist_privacy_scan_accepts_citation_cff_as_structured_utf8(tmp_path: Pa
     inspect_sdist(sdist)
 
 
+@pytest.mark.parametrize("archive_kind", ["wheel", "sdist"])
+def test_structural_privacy_failure_reports_only_member_digest(
+    tmp_path: Path, archive_kind: str
+) -> None:
+    member = "docs/diagnostic-private-member.json"
+    raw = b'{"signature":"opaque-review-bypass"}\n'
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_wheel={member: raw} if archive_kind == "wheel" else None,
+        extra_sdist={member: raw} if archive_kind == "sdist" else None,
+    )
+    with pytest.raises(ValueError) as captured:
+        (inspect_wheel if archive_kind == "wheel" else inspect_sdist)(
+            wheel if archive_kind == "wheel" else sdist
+        )
+    member_digest = hashlib.sha256(member.encode("utf-8")).hexdigest()
+    assert str(captured.value) == (
+        "distribution member failed structural privacy review "
+        f"(archive={archive_kind}, member-sha256={member_digest})"
+    )
+    assert member not in str(captured.value)
+    assert "opaque-review-bypass" not in str(captured.value)
+    assert captured.value.__suppress_context__
+
+
+@pytest.mark.parametrize("archive_kind", ["wheel", "sdist"])
+def test_privacy_attribution_preserves_other_validation_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, archive_kind: str
+) -> None:
+    failure = ValueError("distribution member exceeds structural scan budget")
+
+    def reject(*_args: object, **_kwargs: object) -> int:
+        raise failure
+
+    monkeypatch.setattr(wheel_content_checks, "validate_distribution_member_privacy", reject)
+    wheel, sdist = _write_payload_pair(tmp_path)
+    with pytest.raises(ValueError) as captured:
+        (inspect_wheel if archive_kind == "wheel" else inspect_sdist)(
+            wheel if archive_kind == "wheel" else sdist
+        )
+    assert captured.value is failure
+
+
 def test_sdist_privacy_scan_applies_structural_checks_to_citation_cff(tmp_path: Path) -> None:
     _wheel, sdist = _write_payload_pair(
         tmp_path,
@@ -1091,6 +1134,66 @@ def test_reviewed_public_proof_does_not_suppress_other_structural_credentials(
     )
     _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
     with pytest.raises(ValueError, match="structural privacy review"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["scalar", "moved", "added", "missing", "duplicate", "unrelated-credential", "bad-armor"],
+)
+def test_multi_signature_public_proof_keeps_independent_guards_after_bad_document_repin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    member = "docs/governance/v1/delivery-forecast.json"
+    raw = (ROOT / member).read_bytes()
+    review = wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON[member]
+    assert sum(digest is not None for _pointer, digest in review.signature_fields) >= 2
+    payload = json.loads(raw)
+    original = payload["signature_envelope"]["signature"]
+    replacement_fields = review.signature_fields
+    if mutation == "scalar":
+        payload["signature_envelope"]["signature"] = payload["acceptance_receipt"][
+            "signature_envelope"
+        ]["signature"]
+        assert payload["signature_envelope"]["signature"] != original
+    elif mutation == "moved":
+        payload["relocated"] = payload.pop("signature_envelope")
+    elif mutation == "added":
+        payload["unreviewed_envelope"] = {"signature": original}
+    elif mutation == "missing":
+        del payload["signature_envelope"]["signature"]
+    elif mutation == "unrelated-credential":
+        payload["api_key"] = "opaque-review-bypass"
+    elif mutation == "bad-armor":
+        invalid = base64.b64encode(b"not an SSHSIG proof").decode("ascii")
+        payload["signature_envelope"]["signature"] = invalid
+        replacement_fields = tuple(
+            (pointer, hashlib.sha256(invalid.encode()).hexdigest())
+            if pointer == "/signature_envelope/signature"
+            else (pointer, digest)
+            for pointer, digest in review.signature_fields
+        )
+    changed = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
+    if mutation == "duplicate":
+        changed = changed.replace(b'"signature":', b'"signature": null, "signature":', 1)
+    assert changed != raw
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON,
+        member,
+        replace(
+            review,
+            size_bytes=len(changed),
+            sha256=hashlib.sha256(changed).hexdigest(),
+            signature_fields=replacement_fields,
+        ),
+    )
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={member: changed})
+    expected = (
+        "structural privacy review"
+        if mutation == "unrelated-credential"
+        else "reviewed governance JSON"
+    )
+    with pytest.raises(ValueError, match=expected):
         inspect_sdist(sdist)
 
 

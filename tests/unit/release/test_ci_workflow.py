@@ -31,7 +31,7 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert 'python-version: ["3.11", "3.14"]' in job
     assert "tests/unit/runner" in job
     assert "tests/unit/test_rooted_io.py" in job
-    assert job.count("python -m pytest") == 2
+    assert job.count("python -m pytest") == 3
     assert job.count("--fail-on-skip") == 1
     assert "test_rooted_read_rejects_linked_parent_escape" in job
     assert "test_rooted_directory_lease_blocks_lexical_rename_until_close" in job
@@ -51,6 +51,21 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert "test_post_spawn_validation_failure_terminates_and_reaps_suspended_process" in job
     assert "test_windows_external_script_success_kills_descendant_when_job_closes" in job
     assert "make release-check" not in job
+
+    native_job = yaml.safe_load(workflow)["jobs"]["windows-containment"]
+    test_steps = [
+        step for step in native_job["steps"] if "python -m pytest" in str(step.get("run", ""))
+    ]
+    assert len(test_steps) == 3
+    schema_step = test_steps[-1]
+    assert schema_step["name"] == "Exercise schema compatibility on native Windows"
+    assert schema_step["timeout-minutes"] == 30
+    expected_schema_command = (
+        "python -m pytest -q -p no:cacheprovider "
+        '--basetemp "${{ runner.temp }}/pytest-windows-schemas" '
+        "tests/unit/schema tests/integration/test_schema_parity.py"
+    )
+    assert schema_step["run"].split() == expected_schema_command.split()
 
 
 def test_ci_qualifies_declared_dependency_lower_bounds_on_supported_python_edges() -> None:
@@ -1384,7 +1399,29 @@ def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() 
     assert "--platform linux/amd64" in commands
     assert "target=/repo,readonly" in commands
     assert commands.count("--config=/repo/.gitleaks.toml") == 2
-    assert "--gitleaks-ignore-path=/repo/.gitleaksignore" in commands
+    assert "--gitleaks-ignore-path=/gitleaksignore" in commands
+    assert "target=/gitleaksignore,readonly" in commands
+    scan = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Scan every reachable commit with a digest-pinned Gitleaks image"
+    )
+    assert scan["env"] == {
+        "HISTORY_EVENT": "${{ github.event_name }}",
+        "HISTORY_COMMIT": "${{ github.sha }}",
+        "HISTORY_BASE": "${{ github.event.pull_request.base.sha }}",
+        "HISTORY_HEAD": "${{ github.event.pull_request.head.sha }}",
+    }
+    assert "python3 scripts/prepare_history_scan_ignore.py" in scan["run"]
+    for argument, variable in (
+        ("event", "HISTORY_EVENT"),
+        ("commit", "HISTORY_COMMIT"),
+        ("base", "HISTORY_BASE"),
+        ("head", "HISTORY_HEAD"),
+    ):
+        assert f'--{argument} "${{{variable}}}"' in scan["run"]
+    assert '--output "${scan_tmp}/gitleaksignore"' in scan["run"]
+    assert scan["run"].index("prepare_history_scan_ignore.py") < scan["run"].index("docker run")
     log_opts = '--log-opts="--no-textconv --full-history --all --diff-merges=first-parent"'
     assert commands.count(log_opts) == 2
     assert "--diff-filter=tuxdb" not in commands

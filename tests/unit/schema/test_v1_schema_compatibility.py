@@ -818,6 +818,439 @@ def test_identity_declaration_local_refs_resolve_in_the_full_offline_schema_cont
     assert calls == [_MATRIX_PATH, cell.schema_resource_path]
 
 
+def _pin_inspection_schema(
+    cell: CompatibilityCell,
+    resources: dict[str, bytes | None],
+    schema: dict[str, Any],
+) -> CompatibilityCell:
+    raw = json.dumps(schema, sort_keys=True).encode("utf-8")
+    updated = _cell(
+        **(
+            cell.model_dump()
+            | {"schema_resource_digest": f"sha256:{hashlib.sha256(raw).hexdigest()}"}
+        )
+    )
+    resources[cell.schema_resource_path] = raw
+    resources[_MATRIX_PATH] = _matrix(updated).model_dump_json().encode("utf-8")
+    return updated
+
+
+def _conditional_identity_schema(raw: bytes | None) -> dict[str, Any]:
+    assert raw is not None
+    schema: dict[str, Any] = json.loads(raw)
+    schema["properties"]["schema_version"] = {"enum": ["0.6.5", "0.6.6"]}
+    schema["properties"]["x"] = {"type": "boolean"}
+    schema["required"].append("x")
+    schema["allOf"] = [
+        {
+            "if": {"required": ["x"]},
+            "then": {"properties": {"schema_version": {"not": {"const": "0.6.6"}}}},
+        }
+    ]
+    return schema
+
+
+@pytest.mark.parametrize("presence_source", ["root", "allof", "dependent", "reference"])
+def test_mandatory_presence_cannot_hide_a_conditional_identity_exclusion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, presence_source: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    schema = _conditional_identity_schema(resources[cell.schema_resource_path])
+    if presence_source != "root":
+        schema["required"].remove("x")
+    if presence_source == "allof":
+        schema["allOf"].insert(0, {"required": ["x"]})
+    elif presence_source == "dependent":
+        schema["dependentSchemas"] = {"artifact_kind": {"required": ["x"]}}
+    elif presence_source == "reference":
+        schema["$defs"] = {"presence": {"required": ["x"]}}
+        schema["allOf"].insert(0, {"$ref": "#/$defs/presence"})
+
+    # This is a nonempty schema excluding the requested pair. A missing-payload
+    # probe chooses the opposite branch and therefore is not a valid proof.
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(
+        {"artifact_kind": "evidence-packet", "schema_version": "0.6.5", "x": False}
+    )
+    assert not validator.is_valid(
+        {"artifact_kind": "evidence-packet", "schema_version": "0.6.6", "x": False}
+    )
+    pinned = _pin_inspection_schema(cell, resources, schema)
+    result = _inspect_case(pinned, resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.schema_integrity_verified is True
+    assert result.semantic_compatibility_eligible is False
+    assert result.authorization_effect == "none"
+
+
+@pytest.mark.parametrize("guard_location", ["then", "else", "dependent", "branch-local"])
+def test_optional_or_unresolved_context_never_supplies_identity_admission(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, guard_location: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["x"] = {"type": "boolean", "default": False}
+    rejecting = {"properties": {"schema_version": {"const": "0.6.5"}}}
+    if guard_location == "dependent":
+        schema["dependentSchemas"] = {"x": rejecting}
+    elif guard_location == "branch-local":
+        # Although the outer trigger is unknown, its branch's own presence
+        # facts make the inner identity restriction necessarily active.
+        schema["dependentSchemas"] = {
+            "x": {
+                "required": ["y"],
+                "if": {"required": ["y"]},
+                "then": rejecting,
+            }
+        }
+    else:
+        schema["if"] = {"required": ["x"]}
+        schema[guard_location] = rejecting
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.semantic_compatibility_eligible is False
+
+
+def test_identity_neutral_payload_conditions_do_not_require_a_payload_solver(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["payload"] = {"type": "string"}
+    schema["if"] = {"properties": {"payload": {"pattern": "^[a-z]+$"}}, "required": ["payload"]}
+    schema["then"] = {"properties": {"payload": {"minLength": 2}}}
+    schema["else"] = {"properties": {"payload": {"maxLength": 5}}}
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.disposition == "semantic_replay_and_authorization_eligible"
+    assert result.authorization_effect == "none"
+
+
+@pytest.mark.parametrize(("fixed", "tested"), [(False, 0), (0, False), (True, 1), (1, True)])
+def test_guard_literal_equality_distinguishes_booleans_from_numbers(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, fixed: object, tested: object
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["flag"] = {"const": fixed}
+    schema["required"].append("flag")
+    schema["if"] = {"properties": {"flag": {"const": tested}}, "required": ["flag"]}
+    schema["then"] = {"properties": {"schema_version": {"const": "0.6.5"}}}
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.disposition == "semantic_replay_and_authorization_eligible"
+
+
+def test_integral_json_numbers_activate_integer_guards(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["flag"] = {"const": 1.0}
+    schema["required"].append("flag")
+    schema["if"] = {"properties": {"flag": {"type": "integer"}}, "required": ["flag"]}
+    schema["then"] = {"properties": {"schema_version": {"const": "0.6.5"}}}
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+
+
+def test_conflicting_active_literals_cannot_select_a_favorable_condition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["flag"] = {"const": False}
+    schema["required"].append("flag")
+    schema["allOf"] = [{"properties": {"flag": {"const": 0}}}]
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+
+
+@pytest.mark.parametrize(
+    "constraint",
+    [
+        {"patternProperties": {"^schema_version$": {"const": "0.6.5"}}},
+        {"propertyNames": {"not": {"const": "schema_version"}}},
+        {"unevaluatedProperties": False},
+        {
+            "$defs": {
+                "nested": {"$id": "#nested", "properties": {"schema_version": {"const": "0.6.6"}}}
+            },
+            "$ref": "#/$defs/nested",
+        },
+    ],
+)
+def test_unproved_object_wide_and_resource_scope_constraints_fail_closed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, constraint: dict[str, Any]
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["allOf"] = [constraint]
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+
+
+@pytest.mark.parametrize(
+    "cap",
+    [
+        "_MAX_IDENTITY_SCHEMA_NODES",
+        "_MAX_IDENTITY_SCHEMA_DEPTH",
+        "_MAX_IDENTITY_PROFILE_WORK",
+        "_MAX_IDENTITY_PROFILE_REFERENCES",
+        "_MAX_IDENTITY_PROFILE_FACTS",
+    ],
+)
+def test_exhausted_identity_profile_limits_never_return_eligibility(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, cap: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["$defs"] = {"version": {"const": "0.6.6"}}
+    schema["properties"]["schema_version"]["$ref"] = "#/$defs/version"
+    pinned = _pin_inspection_schema(cell, resources, schema)
+    monkeypatch.setattr(artifact_validation, cap, 0)
+    result = _inspect_case(pinned, resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.schema_integrity_verified is True
+    assert result.semantic_compatibility_eligible is False
+
+
+@pytest.mark.parametrize(
+    "amplification", ["enum", "references", "pointer-chars", "pointer-segments"]
+)
+def test_valid_but_expensive_identity_resources_exhaust_explicit_bounds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, amplification: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    if amplification == "enum":
+        # An admitted identity at the last enum position requires charging
+        # every element and its string comparison, not just one schema node.
+        schema["properties"]["schema_version"]["enum"] = [
+            f"unrelated-version-{index:04d}" for index in range(4_096)
+        ] + ["0.6.6"]
+    elif amplification == "references":
+        schema["$defs"] = {"identity": {"properties": {"schema_version": {"const": "0.6.6"}}}}
+        schema["allOf"] = [{"$ref": "#/$defs/identity"} for _ in range(520)]
+    elif amplification == "pointer-chars":
+        name = "v" * 4_097
+        schema["$defs"] = {name: {"const": "0.6.6"}}
+        schema["properties"]["schema_version"]["$ref"] = f"#/$defs/{name}"
+    else:
+        # A path may be short in bytes yet exceed the independent traversal
+        # limit. Definitions nest without adding a candidate reference cycle.
+        nested: dict[str, Any] = {"const": "0.6.6"}
+        for _ in range(65):
+            nested = {"$defs": {"x": nested}}
+        schema["$defs"] = {"chain": nested}
+        schema["properties"]["schema_version"]["$ref"] = "#/$defs/chain" + "/$defs/x" * 65
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.schema_integrity_verified is True
+    assert result.semantic_compatibility_eligible is False
+
+
+@pytest.mark.parametrize("restriction", ["direct", "identity-guard"])
+def test_unknown_oneof_overlap_cannot_hide_an_identity_pair_exclusion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, restriction: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["schema_version"] = {"enum": ["0.6.5", "0.6.6"]}
+    schema["properties"]["x"] = {"type": "boolean"}
+    schema["required"].append("x")
+    if restriction == "direct":
+        schema["oneOf"] = [
+            {"properties": {"schema_version": {"enum": ["0.6.5", "0.6.6"]}, "x": {"const": True}}},
+            {"properties": {"schema_version": {"const": "0.6.6"}, "x": {"const": True}}},
+        ]
+    else:
+        schema["oneOf"] = [
+            {
+                "if": {"properties": {"schema_version": {"const": "0.6.6"}}},
+                "then": {"properties": {"x": {"const": True}}},
+                "else": {"properties": {"x": {"const": False}}},
+            },
+            {"properties": {"x": {"const": True}}},
+        ]
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(
+        {"artifact_kind": "evidence-packet", "schema_version": "0.6.5", "x": True}
+    )
+    for x in (True, False):
+        assert not validator.is_valid(
+            {"artifact_kind": "evidence-packet", "schema_version": "0.6.6", "x": x}
+        )
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.semantic_compatibility_eligible is False
+
+
+def test_payload_only_oneof_remains_the_artifact_validators_responsibility(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["x"] = {"type": "boolean"}
+    schema["required"].append("x")
+    schema["oneOf"] = [
+        {"properties": {"x": {"const": True}}},
+        {"properties": {"x": {"const": False}}},
+    ]
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.disposition == "semantic_replay_and_authorization_eligible"
+    assert result.authorization_effect == "none"
+
+
+def test_anyof_rejects_an_identity_excluded_by_every_possible_branch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["schema_version"] = {"enum": ["0.6.5", "0.6.6"]}
+    schema["properties"]["x"] = {"type": "boolean"}
+    schema["required"].append("x")
+    schema["anyOf"] = [
+        {"properties": {"schema_version": {"const": "0.6.5"}, "x": {"const": x}}}
+        for x in (True, False)
+    ]
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(
+        {"artifact_kind": "evidence-packet", "schema_version": "0.6.5", "x": True}
+    )
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.semantic_compatibility_eligible is False
+
+
+@pytest.mark.parametrize("context", ["literal", "presence"])
+@pytest.mark.parametrize("wrapper", ["direct", "conditional"])
+def test_oneof_cannot_hide_identity_exclusion_through_propagated_payload_facts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, context: str, wrapper: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["schema_version"] = {"enum": ["0.6.5", "0.6.6"]}
+    schema["properties"].update({name: {"type": "boolean"} for name in ("x", "y", "z")})
+    schema["required"].extend(["y", "z"])
+    by_version: dict[str, Any] = {"if": {"properties": {"schema_version": {"const": "0.6.6"}}}}
+    if context == "literal":
+        schema["required"].append("x")
+        by_version["then"] = {"properties": {"x": {"const": True}}}
+        by_version["else"] = {"properties": {"x": {"const": False}}}
+        escape: dict[str, Any] = {"properties": {"x": {"const": False}}}
+    else:
+        by_version["then"] = {"required": ["x"]}
+        escape = {"not": {"required": ["x"]}}
+    choices = [
+        {"properties": {"y": {"const": True}}},
+        {"anyOf": [escape, {"properties": {"y": {"const": True}}}]},
+    ]
+    schema["allOf"] = [by_version]
+    if wrapper == "direct":
+        schema["oneOf"] = choices
+    else:
+        # All conforming objects satisfy this guard, but the presence/literal
+        # fact domain leaves the nonliteral boolean value unknown. Nested
+        # asserted oneOf must still be inspected in that outer branch.
+        schema["allOf"].append(
+            {
+                "if": {"properties": {"z": {"type": "boolean"}}, "required": ["z"]},
+                "then": {"oneOf": choices},
+            }
+        )
+    witness = {
+        "artifact_kind": "evidence-packet",
+        "schema_version": "0.6.5",
+        "y": False,
+        "z": False,
+    }
+    if context == "literal":
+        witness["x"] = False
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid(witness)
+    for x in (False, True):
+        for y in (False, True):
+            for z in (False, True):
+                assert not validator.is_valid(
+                    {
+                        "artifact_kind": "evidence-packet",
+                        "schema_version": "0.6.6",
+                        "x": x,
+                        "y": y,
+                        "z": z,
+                    }
+                )
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.semantic_compatibility_eligible is False
+
+
+@pytest.mark.parametrize("presence", ["global", "branch", "optional"])
+def test_oneof_disjoint_scalar_sets_need_presence_in_any_joint_match(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, presence: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["status"] = {"type": "string"}
+    schema["oneOf"] = [
+        {"properties": {"status": {"enum": ["complete", "archived"]}}},
+        {"properties": {"status": {"enum": ["incomplete", "pending"]}}},
+    ]
+    if presence == "global":
+        schema["required"].append("status")
+    elif presence == "branch":
+        schema["oneOf"][1]["required"] = ["status"]
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    if presence == "optional":
+        # Without a presence obligation both properties constraints permit an
+        # omitted status, so their scalar sets do not certify exclusivity.
+        assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    else:
+        assert result.disposition == "semantic_replay_and_authorization_eligible"
+
+
+def test_oneof_composite_enum_members_cannot_manufacture_scalar_disjointness(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["payload"] = {}
+    schema["required"].append("payload")
+    schema["oneOf"] = [
+        {"properties": {"payload": {"enum": [True, {}]}}},
+        {"properties": {"payload": {"enum": [False, {}]}}},
+    ]
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+
+
 def test_schema_tamper_fails_before_schema_parsing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -1251,6 +1684,51 @@ def test_generated_legacy_matrix_covers_exact_facts_and_the_sole_frozen_policy(
                     cell.artifact_kind, cell.writer_schema_version
                 )
             )
+
+
+def test_every_released_matrix_resource_preserves_its_inspection_disposition(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    actual_legacy_matrix: CompatibilityMatrix,
+) -> None:
+    # Exercise actual resource bytes through the public inspector, including
+    # usage-ledger's mutually exclusive old/new aggregation conditions. This
+    # is resource-profile regression evidence, not an installed-wheel claim.
+    matrix = actual_legacy_matrix
+    resources: dict[str, bytes | None] = {
+        _MATRIX_PATH: schema_export.compatibility_matrix_json_bytes(matrix),
+    }
+    cells = {cell.schema_resource_path: cell for cell in matrix.cells}
+    for path in cells:
+        resources[path] = (_snapshot_schema_root() / path).read_bytes()
+    reader = artifact_validation._InstalledReaderIdentity(
+        "1.0.0a3",
+        tmp_path / "verified-resources",
+        frozenset(f"agent_assure/schema_resources/{name}" for name in resources),
+    )
+    monkeypatch.setattr(artifact_validation, "_installed_reader_identity", lambda: reader)
+
+    def read_resource(
+        identity: artifact_validation._InstalledReaderIdentity,
+        relative: str,
+        *,
+        max_bytes: int,
+    ) -> bytes | None:
+        assert identity is reader
+        raw = resources.get(relative)
+        assert raw is None or len(raw) <= max_bytes
+        return raw
+
+    monkeypatch.setattr(
+        artifact_validation, "_read_installed_compatibility_resource", read_resource
+    )
+    assert "v0.6.6/usage-ledger.schema.json" in cells
+    for path, cell in cells.items():
+        result = _inspect_case(cell, resources)
+        assert result.disposition == cell.disposition, (path, result.reason)
+        assert result.schema_integrity_verified is True, path
+        assert result.authorization_effect == "none", path
+        assert (_snapshot_schema_root() / path).read_bytes() == resources[path], path
 
 
 def test_generated_matrix_keeps_producer_writer_and_reader_versions_distinct(

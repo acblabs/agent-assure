@@ -15,6 +15,39 @@ and checks the minimum reader before opening the selected schema. Resource
 lookup stays in the verified installed package. An editable checkout, stale
 installation or directory/VCS provenance cannot supply installed-reader proof.
 
+Resource identity admission uses a bounded consistency profile. Required
+presence and forced scalar literals propagate through active `allOf`, local
+JSON Pointer references, conditional clauses and dependencies. Guards have
+three outcomes: true, false or unknown. An omitted payload field is unknown;
+it cannot select a favorable branch, and defaults supply no facts. Unknown
+branches must preserve the fixed discriminator/version pair. Conditions about
+unrelated payload fields remain the artifact validator's responsibility. This
+profile does not prove general schema satisfiability or produce an artifact
+witness. Boolean literals remain distinct from numeric zero and one.
+
+Every unresolved asserted root-instance `oneOf`, including payload-only
+alternatives, needs a bounded structural exclusivity certificate. For every
+pair of possible branches, a shared property must have disjoint finite scalar
+`const`/`enum` value sets and must be required by at least one branch or the
+known context. Composite or unknown value sets cannot supply that proof.
+Nested root-instance alternatives remain checked through other applicators;
+ordinary nested payload schemas are not traversed. Unproved overlap is
+unsupported. This proves at-most-one, not payload satisfiability or coverage.
+`anyOf` rejects a pair excluded by every possible branch. No payload witness
+or general satisfiability result is inferred from a compatibility disposition.
+
+The profile accepts finite literal/type predicates and Boolean combinations,
+with local references resolved only inside the authenticated resource. Nested
+resource IDs, dynamic references, unresolved identity restrictions and
+unsupported object-wide applicators fail closed with `SCHEMA_RESOURCE_INVALID`.
+Limits are 16,384 input nodes, depth 64, 65,536 analysis steps, 1,024 reference
+expansions and 1,024 combined presence/literal facts. The work counter is shared
+across fact closure and branch inspection, including element and string-comparison
+work. Local JSON Pointers are additionally capped at 4,096 characters and 64
+segments. Exhaustion cannot create eligibility.
+These checks affect compatibility inspection only and do not alter legacy
+artifact validation or immutable schema bytes.
+
 `build_legacy_compatibility_matrix` produces prospective reader `1.0.0a3` cells
 from the existing frozen-root policy and fourteen verified producer/writer
 pairs. For example, producer `0.3.0` uses wire `0.2.0`, and producer `0.7.0`

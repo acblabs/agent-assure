@@ -222,10 +222,124 @@ SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON = {
             ),
         ),
     ),
+    "docs/governance/v1/sprint2/correction-acceptance.json": _ReviewedGovernanceJson(
+        21257,
+        "51256f78c3370b9792e33030baef38e0bb23b3f2ba12dbce288f86665c0fe600",
+        (
+            (
+                "/authority_document/signature_envelope/signature",
+                "6479cd6898ea43060834896281072ab2edda7da55e2ecf0fec87d24d5664d1cb",
+            ),
+            (
+                "/signed_decisions/correction_close/signature_envelope/signature",
+                "e9cb2a60b9260e49840475fdac98ab0445facf97ad932ded60dbfff465a6be5c",
+            ),
+            (
+                "/signed_decisions/design_amendment/signature_envelope/signature",
+                "667ce2ab9601c84972baaa01cf8ffcdf6637a96ebbcfd8e64b680c894dfd8de9",
+            ),
+            (
+                "/signed_decisions/forecast_acceptance/signature_envelope/signature",
+                "7d727aba641c82e51d36979ac4401f6dfbe31ead85f60af545a9f57c6f70686f",
+            ),
+            (
+                "/signed_decisions/forecast_producer/signature_envelope/signature",
+                "a6ff838b62f3b0519496321fb35f5ece805c6ce53c75a1f063075c4bdf43b7a2",
+            ),
+            (
+                "/signed_decisions/foundation_adoption/signature_envelope/signature",
+                "2e75e04ea92f3db5f3d898dff27cf4a2e4766177cb6f0e251380f19a5fdf5d08",
+            ),
+            (
+                "/signed_decisions/support_policy/signature_envelope/signature",
+                "8a4128009ad208925303f830d70811e2c632e114d05be0be27282d07bbcca268",
+            ),
+        ),
+    ),
+    "docs/governance/v1/sprint2/predecessor-signed-components-v3.json": _ReviewedGovernanceJson(
+        28129,
+        "a5d01110cf0dbe5fd7ec941fc555e8922d1295fadb3692580ac6df40dd4dfc64",
+        (
+            (
+                "/bundle/signature_envelope/signature",
+                "64003ef6440278cfbe67087a401ae1a759beb0d49ae1cff1b65e0a83333bab9e",
+            ),
+            (
+                "/decisions/0/signature_envelope/signature",
+                "c244c0d0869171e5df4927afaca46ce3fe683279c90c86ba99b820c625ec89c9",
+            ),
+            (
+                "/decisions/1/signature_envelope/signature",
+                "0e6a18f53b7effad98b5b2465dd599b69eb6ac38b64fd1a87c55c2556507285c",
+            ),
+            (
+                "/decisions/10/signature_envelope/signature",
+                "dc5012167ce5f3375144c0023f1c0ff30bdf510653b52edb996977808b731186",
+            ),
+            (
+                "/decisions/11/signature_envelope/signature",
+                "f4e08674b1fcc0dd0bdfa285e43291478c106f5e93a808b8e597bc647451b866",
+            ),
+            (
+                "/decisions/12/signature_envelope/signature",
+                "5629d8d011f8fbcb15c11bfab8900013160b9a4f247b1242bea0149d1311be7e",
+            ),
+            (
+                "/decisions/13/signature_envelope/signature",
+                "1c743ba6b6afa56aff041b3e92ec2c87cb9bc6e9f3b340e624fbb68167f373a6",
+            ),
+            (
+                "/decisions/2/signature_envelope/signature",
+                "2964b01dceac27efd20e345fcd2c29a78c11f5490f43216295b8fc7202fec7dd",
+            ),
+            (
+                "/decisions/3/signature_envelope/signature",
+                "6183741fe353474540d188f02641f9e6a8f28f08940546e0995ecf2bfbb0a43e",
+            ),
+            (
+                "/decisions/4/signature_envelope/signature",
+                "e2f4f906c9cb06fcab481aea27b157cd977f4298e4e300aa28c20974216ac63e",
+            ),
+            (
+                "/decisions/5/signature_envelope/signature",
+                "fad0a6d4c42009ef448e377ffaecfd45f7f14a09c36ebfd621085e7844718572",
+            ),
+            (
+                "/decisions/6/signature_envelope/signature",
+                "d1b5b3672edf295ccf6042b0d66184e1db04289e48bef10c64f8eeff7696afa2",
+            ),
+            (
+                "/decisions/7/signature_envelope/signature",
+                "b56821881d55a4fb9efb0ee0a235d87163b10384728fe0031e24a72b31e8eb5e",
+            ),
+            (
+                "/decisions/8/signature_envelope/signature",
+                "f3716df352e2f2d584a6117610a620bb98a88a1d79f776be5790f4339104fa1c",
+            ),
+            (
+                "/decisions/9/signature_envelope/signature",
+                "49e084d2c87f0d0e2a8167cad9e35d29fd2134aff7d10a89181e92adf4bf62fc",
+            ),
+        ),
+    ),
     "docs/governance/v1/sprint2/support-policy.json": _ReviewedGovernanceJson(
         1422,
         "425869cc4016f3eef166698248766e429b6267414dfa4645852757248158909d",
         (("/signature", None),),
+    ),
+    "docs/governance/v1/sprint3/schema-dispatch-proposal.json": _ReviewedGovernanceJson(
+        62646,
+        "c3ff95906a74cdcc20f44bebd867be2181671583e595f3b84137245fecc9b064",
+        (
+            (
+                "/upstream_acceptance/required_design_documents/0/signature_envelope/signature",
+                "0e6a18f53b7effad98b5b2465dd599b69eb6ac38b64fd1a87c55c2556507285c",
+            ),
+            (
+                "/upstream_acceptance/required_design_documents/1/signature_envelope/signature",
+                "f4e08674b1fcc0dd0bdfa285e43291478c106f5e93a808b8e597bc647451b866",
+            ),
+        ),
     ),
 }
 _GOVERNANCE_SIGNATURE_KEY = re.compile(rb'"signature"(?=\s*:)')
@@ -797,15 +911,24 @@ def _validate_wheel_privacy(
     remaining_lines = MAX_DISTRIBUTION_PRIVACY_SCAN_LINES
     for name in sorted(regular_names):
         data = _read_zip_member_bytes(archive, archive.getinfo(name))
-        scanned_lines = validate_distribution_member_privacy(
-            name,
-            data,
-            max_structural_scan_lines=remaining_lines,
-            max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
-            max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
-            max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
-            strict_python_source=name.startswith("agent_assure/"),
-        )
+        try:
+            scanned_lines = validate_distribution_member_privacy(
+                name,
+                data,
+                max_structural_scan_lines=remaining_lines,
+                max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
+                max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
+                max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
+                strict_python_source=name.startswith("agent_assure/"),
+            )
+        except ValueError as error:
+            if str(error) != "distribution member failed structural privacy review":
+                raise
+            member_digest = hashlib.sha256(name.encode("utf-8")).hexdigest()
+            raise ValueError(
+                "distribution member failed structural privacy review "
+                f"(archive=wheel, member-sha256={member_digest})"
+            ) from None
         remaining_lines -= scanned_lines
 
 
@@ -902,19 +1025,29 @@ def _validate_sdist_privacy(sdist: Path) -> None:
                 raise ValueError(f"sdist expands to more than {MAX_ARCHIVE_TOTAL_BYTES} bytes")
             data = _read_tar_member_bytes(archive, member)
             name = _strip_sdist_root(member.name)
-            scanned_lines = validate_distribution_member_privacy(
-                _sdist_privacy_scan_name(name),
-                _sdist_privacy_probe(name, data),
-                max_structural_scan_lines=remaining_lines,
-                max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
-                max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
-                max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
-                strict_python_source=name.startswith("src/agent_assure/"),
-                reviewed_binary_assets=REVIEWED_BINARY_ASSET_SHA256,
-                reviewed_sensitive_python_string_token_sha256_counts=(
-                    SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS.get(name)
-                ),
-            )
+            probe = _sdist_privacy_probe(name, data)
+            try:
+                scanned_lines = validate_distribution_member_privacy(
+                    _sdist_privacy_scan_name(name),
+                    probe,
+                    max_structural_scan_lines=remaining_lines,
+                    max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
+                    max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
+                    max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
+                    strict_python_source=name.startswith("src/agent_assure/"),
+                    reviewed_binary_assets=REVIEWED_BINARY_ASSET_SHA256,
+                    reviewed_sensitive_python_string_token_sha256_counts=(
+                        SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS.get(name)
+                    ),
+                )
+            except ValueError as error:
+                if str(error) != "distribution member failed structural privacy review":
+                    raise
+                member_digest = hashlib.sha256(name.encode("utf-8")).hexdigest()
+                raise ValueError(
+                    "distribution member failed structural privacy review "
+                    f"(archive=sdist, member-sha256={member_digest})"
+                ) from None
             remaining_lines -= scanned_lines
 
 

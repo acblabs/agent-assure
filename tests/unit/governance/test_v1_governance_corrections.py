@@ -3,10 +3,15 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import io
 import json
 import os
+import shutil
+import stat
 import subprocess
 import sys
+import zipfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -19,6 +24,132 @@ if str(ROOT) not in sys.path:
 
 from scripts import v1_architecture_governance as architecture  # noqa: E402
 from scripts import v1_governance_corrections as corrections  # noqa: E402
+
+CORRECTION_SOURCE_COMMIT = "3a85cf19a9e71fc658d70ceee904ab9f7811d716"
+CORRECTION_SOURCE_BINDINGS_DIGEST = (
+    "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2"
+)
+
+
+def historical_git_executable() -> str:
+    """Use ordinary CI discovery or the exact already enrolled Windows binary.
+
+    The closed local execution profile omits Git from PATH. Its independently
+    enrolled absolute tool remains usable after a fresh bounded byte-pin check;
+    no environment, runtime trust or executable search scope is expanded.
+    """
+    discovered = shutil.which("git")
+    if discovered is not None:
+        return discovered
+    if os.name != "nt":
+        raise RuntimeError("Git is required to read the immutable historical fixture")
+    enrolled = Path(r"C:\Program Files\Git\mingw64\bin\git.exe")
+    with enrolled.open("rb") as stream:
+        raw = stream.read(8_388_609)
+    if len(raw) > 8_388_608 or hashlib.sha256(raw).hexdigest() != (
+        "cab4c4eea1d869cf9f7be73868dc9a90ad2df1b1b673e5f8c8714a576c25ea96"
+    ):
+        raise RuntimeError("The exact enrolled Windows Git executable changed")
+    return str(enrolled)
+
+
+@pytest.fixture
+def historical_correction_root(tmp_path: Path) -> Path:
+    """Stage the bounded immutable public source closure without imports."""
+    paths = {
+        *("docs/governance/v1/" + name for name in architecture.HISTORICAL_FILES),
+        *(values[1] for values in architecture.DECISIONS.values()),
+        *architecture.SUPPLEMENTARY,
+        *architecture.TOOLING,
+        *corrections.ADDED,
+        *corrections.REPLACED,
+        f"{corrections.DIRECTORY}/architecture-package.json",
+        corrections.SOURCE_BINDINGS,
+        ".github/CODEOWNERS",
+        "SECURITY.md",
+    }
+    assert 0 < len(paths) <= 128
+    assert all(
+        not path.startswith("/")
+        and "\\" not in path
+        and all(part not in {"", ".", ".."} for part in path.split("/"))
+        for path in paths
+    )
+    environment = {
+        key: value
+        for key, value in os.environ.items()
+        if key.upper()
+        in {
+            "SYSTEMROOT",
+            "WINDIR",
+            "COMSPEC",
+            "PATH",
+            "PATHEXT",
+            "TEMP",
+            "TMP",
+            "HOME",
+            "USERPROFILE",
+            "APPDATA",
+            "LOCALAPPDATA",
+            "PROGRAMFILES",
+        }
+    }
+    environment.update(
+        {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_CONFIG_SYSTEM": os.devnull,
+            "GIT_OPTIONAL_LOCKS": "0",
+            "GIT_NO_LAZY_FETCH": "1",
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_ATTR_NOSYSTEM": "1",
+        }
+    )
+    result = subprocess.run(
+        [
+            historical_git_executable(),
+            "--no-optional-locks",
+            "--no-replace-objects",
+            "--literal-pathspecs",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            f"safe.directory={ROOT}",
+            "-c",
+            f"core.attributesFile={os.devnull}",
+            "archive",
+            "--format=zip",
+            CORRECTION_SOURCE_COMMIT,
+            "--",
+            *sorted(paths),
+        ],
+        cwd=ROOT,
+        env=environment,
+        check=True,
+        capture_output=True,
+        timeout=30,
+    )
+    assert len(result.stdout) <= 16 * 1024**2
+    root = tmp_path / "historical-correction-source"
+    root.mkdir()
+    with zipfile.ZipFile(io.BytesIO(result.stdout)) as archive:
+        members = archive.infolist()
+        assert len(members) <= 256
+        files = [member for member in members if not member.is_dir()]
+        assert len(files) == len({member.filename for member in files})
+        assert {member.filename for member in files} == paths
+        assert sum(member.file_size for member in files) <= 16 * 1024**2
+        for member in files:
+            assert stat.S_IFMT(member.external_attr >> 16) in {0, stat.S_IFREG}
+            assert member.file_size <= architecture.MAX_ARTIFACT_BYTES
+            data = archive.read(member)
+            assert len(data) == member.file_size
+            target = root.joinpath(*member.filename.split("/"))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(data)
+    original = json.loads((root / corrections.SOURCE_BINDINGS).read_bytes())
+    assert original["record_digest"] == CORRECTION_SOURCE_BINDINGS_DIGEST
+    return root
 
 
 def test_review_json_bytes_are_stable_across_fresh_hash_seeds() -> None:
@@ -53,12 +184,37 @@ def test_review_json_bytes_are_stable_across_fresh_hash_seeds() -> None:
     )
 
 
-def test_current_source_binding_preserves_original_package() -> None:
-    original = (ROOT / corrections.DIRECTORY / "architecture-package.json").read_bytes()
-    bindings = corrections.build_source_bindings(ROOT)
+def test_historical_source_binding_preserves_original_package(
+    historical_correction_root: Path,
+) -> None:
+    original = (
+        historical_correction_root / corrections.DIRECTORY / "architecture-package.json"
+    ).read_bytes()
+    bindings = corrections.build_source_bindings(historical_correction_root)
     assert bindings["predecessor_package_digest"] == corrections.PREDECESSOR_PACKAGE_DIGEST
     assert bindings["authorization_effect"] == "none"
-    assert original == (ROOT / corrections.DIRECTORY / "architecture-package.json").read_bytes()
+    assert bindings == json.loads(
+        (historical_correction_root / corrections.SOURCE_BINDINGS).read_bytes()
+    )
+    assert (
+        original
+        == (
+            historical_correction_root / corrections.DIRECTORY / "architecture-package.json"
+        ).read_bytes()
+    )
+
+
+def test_authoring_rejects_current_ci_replacement(historical_correction_root: Path) -> None:
+    path = ".github/workflows/ci.yml"
+    predecessor = (historical_correction_root / path).read_bytes()
+    current = (ROOT / path).read_bytes()
+    if current == predecessor:
+        current += b"\n# Deliberate unapproved post-closure test change.\n"
+    (historical_correction_root / path).write_bytes(current)
+    with pytest.raises(
+        architecture.ArchitectureError, match="unapproved predecessor tooling replacement"
+    ):
+        corrections.build_source_bindings(historical_correction_root)
 
 
 def test_source_check_rejects_unbound_tool_change(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -92,6 +248,7 @@ def test_source_check_rejects_changed_accepted_decision(monkeypatch: pytest.Monk
 
 def test_source_bindings_reject_text_that_git_would_normalize(
     monkeypatch: pytest.MonkeyPatch,
+    historical_correction_root: Path,
 ) -> None:
     read = architecture.read_bytes
     path = f"{corrections.DIRECTORY}/support-policy-v2.json"
@@ -104,7 +261,7 @@ def test_source_bindings_reject_text_that_git_would_normalize(
 
     monkeypatch.setattr(architecture, "read_bytes", crlf_policy)
     with pytest.raises(architecture.ArchitectureError, match="LF bytes"):
-        corrections.build_source_bindings(ROOT)
+        corrections.build_source_bindings(historical_correction_root)
 
 
 def test_metadata_proposals_are_complete_but_not_human_decisions() -> None:

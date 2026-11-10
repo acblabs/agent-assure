@@ -207,6 +207,11 @@ jobs:
 
       - name: Scan every reachable commit with a digest-pinned Gitleaks image
         shell: bash
+        env:
+          HISTORY_EVENT: ${{ github.event_name }}
+          HISTORY_COMMIT: ${{ github.sha }}
+          HISTORY_BASE: ${{ github.event.pull_request.base.sha }}
+          HISTORY_HEAD: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           reachable_commits="$(git rev-list --count --all)"
@@ -218,6 +223,10 @@ jobs:
           trap 'rm -rf -- "${scan_tmp}"' EXIT
           expected_units_log="${scan_tmp}/expected-units.log"
           scan_log="${scan_tmp}/gitleaks.log"
+          python3 scripts/prepare_history_scan_ignore.py \
+            --event "${HISTORY_EVENT}" --commit "${HISTORY_COMMIT}" \
+            --base "${HISTORY_BASE}" --head "${HISTORY_HEAD}" \
+            --output "${scan_tmp}/gitleaksignore"
           # Gitleaks counts patch-bearing commits, not deletion-only commits.
           # Count that unit independently with the same merge projection and
           # fail if either the scanner or this Git enumeration sees no history.
@@ -251,10 +260,11 @@ jobs:
             --security-opt no-new-privileges --env HOME=/tmp \
             --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             --mount "type=bind,source=${GITHUB_WORKSPACE},target=/repo,readonly" \
+            --mount "type=bind,source=${scan_tmp}/gitleaksignore,target=/gitleaksignore,readonly" \
             ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
             git --no-banner --redact --verbose --exit-code=23 \
             --config=/repo/.gitleaks.toml \
-            --gitleaks-ignore-path=/repo/.gitleaksignore \
+            --gitleaks-ignore-path=/gitleaksignore \
             --log-opts="--no-textconv --full-history --all --diff-merges=first-parent" \
             /repo 2>&1 | tee "${scan_log}"
           scan_status=${PIPESTATUS[0]}
