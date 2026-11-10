@@ -663,6 +663,11 @@ class _FrozenIdentityProfile:
         if len(reference) > _MAX_IDENTITY_POINTER_CHARS:
             raise ValueError("identity reference exceeds its pointer length limit")
         self._spend(len(reference) + 1)
+        # URI fragments decode percent escapes before JSON Pointer tokenization.
+        # Keep this profile narrower than that resolver instead of admitting a
+        # different literal definition from the one the artifact validator uses.
+        if "%" in reference:
+            raise ValueError("percent-encoded identity references are unsupported")
         if not reference.startswith("#/"):
             if reference == "#":
                 return self.schema

@@ -165,3 +165,24 @@ Final-source build, privacy and lint observations after this documentation updat
 are retained separately in the operator command audit and PR #50. The two
 campaign goldens, missing post-closure adoption and A/D acceptance requirements
 above remain outstanding.
+
+## URI-fragment identity repair
+
+Further source review identified a resolver mismatch: a percent-encoded local
+reference could select a literal definition in the consistency profile while
+the artifact validator selected the percent-decoded definition. Four collision
+regressions use the real Draft 2020-12 validator, with a valid `0.6.5` witness
+and an invalid `0.6.6` witness, including encoded percent and `~1` cases.
+`IdentityUriRed007` reproduced all four false admissions while the other 221
+focused tests passed. Its failure is retained with successful scope and
+immutable-environment postchecks.
+
+The bounded profile now rejects percent-bearing references before any pointer
+lookup, preserving the existing length, depth, work and reference limits.
+`IdentityUriGreen008` passed all 225 focused compatibility/identity tests under
+the signed supervisor, with scope, environment and checkpoint postchecks passed.
+The legacy resource regression remains in that selection. No released schema
+bytes, writer versions, matrix cells or artifact-validation behavior changed.
+
+Hosted passes at the intermediate commit `a545efd5` remain evidence for that
+source. They do not replace final-source checks of this reference repair.

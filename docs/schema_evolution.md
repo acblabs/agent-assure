@@ -40,6 +40,9 @@ The profile accepts finite literal/type predicates and Boolean combinations,
 with local references resolved only inside the authenticated resource. Nested
 resource IDs, dynamic references, unresolved identity restrictions and
 unsupported object-wide applicators fail closed with `SCHEMA_RESOURCE_INVALID`.
+Percent-bearing URI fragments are unsupported: URI percent decoding must not
+select a different definition from the literal JSON Pointer used by this profile.
+Ordinary local pointers retain their JSON Pointer `~0` and `~1` escape handling.
 Limits are 16,384 input nodes, depth 64, 65,536 analysis steps, 1,024 reference
 expansions and 1,024 combined presence/literal facts. The work counter is shared
 across fact closure and branch inspection, including element and string-comparison

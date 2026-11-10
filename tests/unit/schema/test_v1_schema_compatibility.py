@@ -835,6 +835,37 @@ def _pin_inspection_schema(
     return updated
 
 
+@pytest.mark.parametrize(
+    ("encoded", "decoded"),
+    [
+        ("v%65rsion", "version"),
+        ("%76ersion", "version"),
+        ("v%2565rsion", "v%65rsion"),
+        ("v%7E1rsion", "v/rsion"),
+    ],
+)
+def test_encoded_identity_references_cannot_select_a_different_literal_definition(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, encoded: str, decoded: str
+) -> None:
+    cell, resources, _calls = _installed_case(monkeypatch, tmp_path)
+    raw = resources[cell.schema_resource_path]
+    assert raw is not None
+    schema = json.loads(raw)
+    schema["properties"]["schema_version"] = {
+        "enum": ["0.6.5", "0.6.6"],
+        "$ref": f"#/$defs/{encoded}",
+    }
+    schema["$defs"] = {decoded: {"const": "0.6.5"}, encoded: {"const": "0.6.6"}}
+    Draft202012Validator.check_schema(schema)
+    validator = Draft202012Validator(schema)
+    assert validator.is_valid({"artifact_kind": "evidence-packet", "schema_version": "0.6.5"})
+    assert not validator.is_valid({"artifact_kind": "evidence-packet", "schema_version": "0.6.6"})
+    result = _inspect_case(_pin_inspection_schema(cell, resources, schema), resources)
+    assert result.reason == "SCHEMA_RESOURCE_INVALID"
+    assert result.semantic_compatibility_eligible is False
+    assert result.authorization_effect == "none"
+
+
 def _conditional_identity_schema(raw: bytes | None) -> dict[str, Any]:
     assert raw is not None
     schema: dict[str, Any] = json.loads(raw)
