@@ -43,8 +43,8 @@ CI_PREDECESSOR = {
 }
 CI_REVIEWED = {
     "path": CI_PATH,
-    "size_bytes": 24730,
-    "sha256": "sha256:2fc01b56a9300974f32ece60d38a1ba48643ca4898f356e6e62cc5d0e4a0b84c",
+    "size_bytes": 44450,
+    "sha256": "sha256:d5b078a16d67c3062088a9d61c81076ab6acfbc7295d8ff47caa25f401b89e24",
 }
 ROOT_PERSON = "acblabs"
 ROOT_KEY_ID = "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
@@ -148,6 +148,7 @@ class AuthenticatedInputs:
     runtime_profile_digest: str
     receipt_publication_commit: str
     current_commit: str
+    external_signature_envelope: object = None
 
 
 @dataclass(frozen=True)
@@ -274,6 +275,55 @@ def binding(path: str, data: bytes) -> dict[str, Any]:
         "bounded source bytes required",
     )
     return {"path": path, "size_bytes": len(data), "sha256": architecture.raw_digest(data)}
+
+
+CI_RUNTIME_PROPOSAL_BEGIN = b"      # BEGIN agent-assure hosted-runtime-proposal/v1\n"
+CI_RUNTIME_PROPOSAL_END = b"      # END agent-assure hosted-runtime-proposal/v1\n"
+# The source-only proposal builder substitutes the exact reviewed block values.
+CI_RUNTIME_PROPOSAL_SIZE = 19720
+CI_RUNTIME_PROPOSAL_SHA256 = (
+    "sha256:e3a6e2c1e9511c98adf4b4aedebee008451578cebff4be7a8d8de2681eebe66c"
+)
+CI_SCHEMA_EXTENSION = (
+    b"      - name: Exercise schema compatibility on native Windows\n"
+    b"        timeout-minutes: 30\n"
+    b"        run: >-\n"
+    b"          python -m pytest -q -p no:cacheprovider\n"
+    b'          --basetemp "${{ runner.temp }}/pytest-windows-schemas"\n'
+    b"          tests/unit/schema tests/integration/test_schema_parity.py\n"
+)
+
+
+def reviewed_ci_predecessor(data: bytes) -> bytes:
+    """Recover the exact original workflow by removing only two pinned additions."""
+    _require(
+        type(data) is bytes and binding(CI_PATH, data) == CI_REVIEWED,
+        "exact reviewed current CI bytes required",
+    )
+    _require(
+        data.count(CI_RUNTIME_PROPOSAL_BEGIN) == 1 and data.count(CI_RUNTIME_PROPOSAL_END) == 1,
+        "exact runtime-proposal block boundaries required",
+    )
+    start = data.index(CI_RUNTIME_PROPOSAL_BEGIN)
+    stop = data.index(CI_RUNTIME_PROPOSAL_END) + len(CI_RUNTIME_PROPOSAL_END)
+    block = data[start:stop]
+    _require(
+        stop > start
+        and len(block) == CI_RUNTIME_PROPOSAL_SIZE
+        and architecture.raw_digest(block) == CI_RUNTIME_PROPOSAL_SHA256,
+        "exact reviewed runtime-proposal block required",
+    )
+    without_proposal = data[:start] + data[stop:]
+    _require(
+        without_proposal.count(CI_SCHEMA_EXTENSION) == 1,
+        "exact reviewed six-line schema extension required",
+    )
+    predecessor = without_proposal.replace(CI_SCHEMA_EXTENSION, b"", 1)
+    _require(
+        binding(CI_PATH, predecessor) == CI_PREDECESSOR,
+        "unlisted CI delta is not admitted",
+    )
+    return predecessor
 
 
 def _snapshot(reader: ImmutableReader, commit: str, rows: list[dict[str, Any]]) -> dict[str, bytes]:
@@ -553,8 +603,10 @@ def verify(root: Path, *, inputs: AuthenticatedInputs) -> PostclosureVerificatio
     Operator integration: authenticate the complete implementation and runtime
     first; construct ``AuthenticatedInputs`` from that independently signed
     packet; pass ``lambda root: verify(root, inputs=inputs)`` to
-    ``architecture.check_package(..., postclosure_verifier=...)``. Ordinary CLI
-    invocation intentionally has no accepting fallback.
+    ``architecture.check_package(..., postclosure_verifier=...)`` or the same
+    keyword-only capability on ``architecture.main`` for check/readiness command
+    orchestration. Bare CLI invocation intentionally has no accepting fallback;
+    the command seam supplies no runtime, host or key enrollment.
     """
     _require(
         type(inputs) is AuthenticatedInputs
@@ -570,7 +622,7 @@ def verify(root: Path, *, inputs: AuthenticatedInputs) -> PostclosureVerificatio
     document_raw = architecture.read_bytes(root, AMENDMENT_PATH, architecture.MAX_JSON_BYTES)
     document = architecture.parse_json(document_raw)
     _require(
-        set(document) == {"claim", "signature_envelope"}
+        set(document) == {"claim"}
         and successor_core.canonical_bytes(document["claim"]) == inputs.expected_claim,
         "amendment differs from independently reviewed exact claim",
     )
@@ -659,10 +711,13 @@ def verify(root: Path, *, inputs: AuthenticatedInputs) -> PostclosureVerificatio
         observed = current
         return current
 
+    envelope = inputs.external_signature_envelope
+    if type(envelope) is not dict:
+        raise architecture.ArchitectureError("explicit authenticated detached envelope required")
     checked_inputs = replace(inputs, now=checked_now)
     io.verify(
         CLAIM_DOMAIN + inputs.expected_claim,
-        document["signature_envelope"],
+        envelope,
         inputs.root_key,
         inputs.verify_signature,
         now=checked_now,
@@ -687,7 +742,7 @@ def verify(root: Path, *, inputs: AuthenticatedInputs) -> PostclosureVerificatio
     _require(
         next(row for row in historical_rows if row["path"] == CI_PATH) == CI_PREDECESSOR
         and next(row for row in current_rows if row["path"] == CI_PATH) == CI_REVIEWED,
-        "only the exact approved six-line CI extension is admitted",
+        "only the exact approved schema and inert runtime-proposal CI additions are admitted",
     )
     historical = _snapshot(inputs.git, HISTORICAL_SOURCE, historical_rows)
     _verify_historical_sources(historical)
@@ -733,6 +788,10 @@ def verify(root: Path, *, inputs: AuthenticatedInputs) -> PostclosureVerificatio
         "published amendment bytes differ",
     )
     reviewed = _snapshot(inputs.git, implementation, current_rows)
+    _require(
+        reviewed_ci_predecessor(reviewed[CI_PATH]) == historical[CI_PATH],
+        "reviewed CI additions do not preserve exact historical workflow",
+    )
     old_by_path = {row["path"]: row for row in historical_rows + public_rows}
     _require(
         all(old_by_path.get(path) is None for path in NEW_FILES),

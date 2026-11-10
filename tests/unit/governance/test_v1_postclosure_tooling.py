@@ -269,14 +269,11 @@ class Case:
 
     def freeze(self) -> None:
         self.inputs = replace(
-            self.inputs, expected_claim=post.acceptance.core.canonical_bytes(self.claim)
+            self.inputs,
+            expected_claim=post.acceptance.core.canonical_bytes(self.claim),
+            external_signature_envelope=copy.deepcopy(self.envelope),
         )
-        raw = (
-            json.dumps(
-                {"claim": self.claim, "signature_envelope": self.envelope}, sort_keys=True, indent=2
-            )
-            + "\n"
-        ).encode()
+        raw = (json.dumps({"claim": self.claim}, sort_keys=True, indent=2) + "\n").encode()
         target = self.root / post.AMENDMENT_PATH
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(raw)
@@ -326,11 +323,151 @@ def test_amendment_schema_is_closed_and_requires_exact_inventory(case: Case) -> 
     schema = json.loads((ROOT / post.SCHEMA_PATH).read_bytes())
     jsonschema.Draft202012Validator.check_schema(schema)
     validator = jsonschema.Draft202012Validator(schema)
-    validator.validate({"claim": case.claim, "signature_envelope": case.envelope})
+    validator.validate({"claim": case.claim})
     with pytest.raises(jsonschema.ValidationError):
         validator.validate(
             {"claim": case.claim, "signature_envelope": case.envelope, "accepted": True}
         )
+
+
+@pytest.mark.parametrize("command, expected_exit", [("check", 0), ("readiness", 1)])
+def test_authenticated_operator_can_use_command_orchestration_without_acceptance(
+    case: Case, capsys: pytest.CaptureFixture[str], command: str, expected_exit: int
+) -> None:
+    original = (case.root / post.corrections.SOURCE_BINDINGS).read_bytes()
+    assert (
+        architecture.main(
+            [command, "--repository-root", str(case.root)],
+            postclosure_verifier=lambda root: post.verify(root, inputs=case.inputs),
+        )
+        == expected_exit
+    )
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    result = json.loads(captured.out)
+    assert result["result"] == "historical_and_exact_current_tooling_valid"
+    assert result["package_digest"] == post.corrections.PREDECESSOR_PACKAGE_DIGEST
+    assert result["accepted"] is False
+    assert result["s2_dispatch_ready"] is False
+    assert result["authorization_effect"] == "none"
+    assert result["pending_gates"] == list(architecture.REQUIRED_GATES)
+    assert len(case.calls) == 24
+    assert (case.root / post.corrections.SOURCE_BINDINGS).read_bytes() == original
+
+
+def test_signed_record_on_disk_does_not_admit_bare_command(
+    case: Case, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert architecture.main(["check", "--repository-root", str(case.root)]) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "unapproved predecessor tooling replacement" in captured.err
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+def test_direct_script_reports_unregistered_rejection_without_traceback(case: Case) -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/v1_architecture_governance.py"),
+            "check",
+            "--repository-root",
+            str(case.root),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "unapproved predecessor tooling replacement" in result.stderr
+    assert "Traceback" not in result.stderr
+    assert len(result.stderr) < 2048
+
+
+@pytest.mark.parametrize("command", ["refresh", "prepare-review"])
+def test_verification_capability_cannot_enter_authoring_commands(
+    case: Case, capsys: pytest.CaptureFixture[str], command: str
+) -> None:
+    paths = [
+        post.corrections.SOURCE_BINDINGS,
+        f"{architecture.DIRECTORY}/architecture-package.json",
+    ]
+    original = {path: (case.root / path).read_bytes() for path in paths}
+    output = case.root / ".tmp/forbidden-review"
+
+    def unexpected(_root: Path) -> Any:
+        pytest.fail("authoring command invoked a verification capability")
+
+    assert (
+        architecture.main(
+            [command, "--repository-root", str(case.root), "--out", str(output)],
+            postclosure_verifier=unexpected,
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "cannot authorize authoring" in captured.err
+    assert not output.exists()
+    assert {path: (case.root / path).read_bytes() for path in paths} == original
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+@pytest.mark.parametrize("invalid", [True, "repository-selected-verifier"])
+def test_command_requires_callable_operator_capability(
+    case: Case, capsys: pytest.CaptureFixture[str], invalid: Any
+) -> None:
+    assert (
+        architecture.main(
+            ["check", "--repository-root", str(case.root)], postclosure_verifier=invalid
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "verifier must be callable" in captured.err
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+@pytest.mark.parametrize(
+    "failure", ["boolean-proof", "bad-signature", "ancestry", "changed-source"]
+)
+def test_command_rejects_invalid_postclosure_proofs_without_success_output(
+    case: Case, capsys: pytest.CaptureFixture[str], failure: str
+) -> None:
+    if failure == "ancestry":
+        case.git.ancestors.clear()
+    elif failure == "changed-source":
+        target = case.root / "scripts/v1_postclosure_tooling.py"
+        target.write_bytes(target.read_bytes() + b"\n# substituted source\n")
+    elif failure == "bad-signature":
+
+        def reject(**_values: Any) -> None:
+            raise ValueError("synthetic native rejection")
+
+        case.inputs = replace(case.inputs, verify_signature=reject)
+
+    assert (
+        architecture.main(
+            ["check", "--repository-root", str(case.root)],
+            postclosure_verifier=(
+                (lambda _root: True)
+                if failure == "boolean-proof"
+                else (lambda root: post.verify(root, inputs=case.inputs))
+            ),
+        )
+        == 2
+    )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "v1 architecture governance error:" in captured.err
+    if failure in {"boolean-proof", "bad-signature"}:
+        assert case.git.reads == []
 
 
 @pytest.mark.parametrize(
@@ -479,3 +616,111 @@ def test_clock_regression_between_signature_checks_is_rejected(case: Case) -> No
 
     with pytest.raises(architecture.ArchitectureError, match="clock regressed"):
         post.verify(case.root, inputs=replace(case.inputs, now=clock))
+
+
+def test_reviewed_ci_additions_recover_exact_historical_workflow(
+    historical_files: dict[str, bytes],
+) -> None:
+    current = (ROOT / post.CI_PATH).read_bytes()
+    assert post.reviewed_ci_predecessor(current) == historical_files[post.CI_PATH]
+
+
+@pytest.mark.parametrize("mutation", ["outside", "proposal", "schema", "duplicate-marker"])
+def test_ci_delta_proof_rejects_unlisted_changes_even_if_whole_file_pin_is_rebound(
+    monkeypatch: pytest.MonkeyPatch, mutation: str
+) -> None:
+    current = (ROOT / post.CI_PATH).read_bytes()
+    if mutation == "outside":
+        changed = current + b"\n# Unreviewed change outside the additions.\n"
+    elif mutation == "proposal":
+        assert current.count(b"authorization_effect='none'") == 1
+        changed = current.replace(b"authorization_effect='none'", b"authorization_effect='runtime'")
+    elif mutation == "schema":
+        changed = current.replace(
+            post.CI_SCHEMA_EXTENSION,
+            post.CI_SCHEMA_EXTENSION.replace(b"timeout-minutes: 30", b"timeout-minutes: 31"),
+        )
+    else:
+        changed = current + post.CI_RUNTIME_PROPOSAL_BEGIN
+    assert changed != current
+    # Synthetic accidental repinning cannot widen the implementation-owned delta.
+    # No signed claim, runtime/key adoption or external trust is created here.
+    monkeypatch.setattr(post, "CI_REVIEWED", post.binding(post.CI_PATH, changed))
+    with pytest.raises(architecture.ArchitectureError):
+        post.reviewed_ci_predecessor(changed)
+
+
+@pytest.mark.parametrize("envelope", [None, True, {}, "ambient-signature"])
+def test_detached_signature_requires_explicit_authenticated_envelope(
+    case: Case, monkeypatch: pytest.MonkeyPatch, envelope: Any
+) -> None:
+    monkeypatch.setenv("AGENT_ASSURE_POSTCLOSURE_SIGNATURE", "not-an-authority")
+    with pytest.raises((architecture.ArchitectureError, git_io.SuccessorIOError)):
+        post.verify(case.root, inputs=replace(case.inputs, external_signature_envelope=envelope))
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+def test_public_amendment_cannot_supply_or_override_the_external_envelope(case: Case) -> None:
+    target = case.root / post.AMENDMENT_PATH
+    target.write_text(
+        json.dumps({"claim": case.claim, "signature_envelope": case.envelope}), encoding="utf-8"
+    )
+    with pytest.raises(architecture.ArchitectureError, match="reviewed exact claim"):
+        post.verify(case.root, inputs=case.inputs)
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+def test_detached_signature_still_verifies_the_identical_exact_claim_bytes(case: Case) -> None:
+    result = post.verify(case.root, inputs=case.inputs)
+    assert result.exact_postclosure_tooling_overlay_verified
+    assert len(case.calls) == 24
+    assert case.calls[0]["payload"] == post.CLAIM_DOMAIN + case.inputs.expected_claim
+    assert case.calls[0]["signature_base64"] == case.envelope["signature"]
+    assert set(json.loads((case.root / post.AMENDMENT_PATH).read_bytes())) == {"claim"}
+
+
+def test_public_claim_tamper_still_fails_before_detached_signature_or_git(case: Case) -> None:
+    target = case.root / post.AMENDMENT_PATH
+    public = json.loads(target.read_bytes())
+    public["claim"]["purpose"] = "unrelated/v1"
+    target.write_text(json.dumps(public), encoding="utf-8")
+    with pytest.raises(architecture.ArchitectureError, match="reviewed exact claim"):
+        post.verify(case.root, inputs=case.inputs)
+    assert case.calls == []
+    assert case.git.reads == []
+
+
+@pytest.mark.parametrize("mutation", ["none", "raw-signature", "inline-envelope"])
+def test_claim_only_public_amendment_uses_unchanged_distribution_privacy_guards(
+    case: Case, mutation: str
+) -> None:
+    from scripts import check_wheel_contents as wheel_privacy
+
+    public: dict[str, Any] = {"claim": case.claim}
+    if mutation == "raw-signature":
+        public["signature"] = case.envelope["signature"]
+    elif mutation == "inline-envelope":
+        public["signature_envelope"] = case.envelope
+    raw = post.successor_core.canonical_bytes(public) + b"\n"
+    assert post.AMENDMENT_PATH not in wheel_privacy.SDIST_REVIEWED_PUBLIC_GOVERNANCE_JSON
+    probe = wheel_privacy._sdist_privacy_probe(post.AMENDMENT_PATH, raw)
+    assert probe == raw
+
+    def scan() -> int:
+        return wheel_privacy.validate_distribution_member_privacy(
+            post.AMENDMENT_PATH,
+            probe,
+            max_structural_scan_lines=wheel_privacy.MAX_DISTRIBUTION_PRIVACY_SCAN_LINES,
+            max_python_member_bytes=wheel_privacy.MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
+            max_python_member_lines=wheel_privacy.MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
+            max_python_member_tokens=wheel_privacy.MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
+            strict_python_source=False,
+        )
+
+    if mutation == "none":
+        assert scan() > 0
+    else:
+        with pytest.raises(ValueError, match="structural privacy review"):
+            scan()

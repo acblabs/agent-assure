@@ -14,6 +14,26 @@ The v0.7.0 package line emits this snapshot; its matching stable tag freezes
 it. Earlier released snapshots remain immutable and available for bounded
 compatibility reads.
 
+`agent-assure schema export --out <directory>` continues to export the 58
+legacy writer schemas. Development tooling can explicitly request
+`--writer-schema-version 1.0.0rc1`, or pass that exact value as
+`writer_schema_version` to `export_json_schemas()`. This profile requires the
+exact 42-contract set and each model's required literal identity. It currently
+rejects the incomplete implementation before creating or changing output.
+Candidate resource payloads are prepared completely before persistence; this
+does not establish schema acceptance or installed-reader compatibility.
+
+The implemented `SourceEventIdentity` value has exactly `identity_contract_id`,
+`run_id`, `producer_id`, `producer_epoch` and `event_id`. All five are required;
+the discriminator is `source-event-identity/v1`, and the other fields are
+strict strings of 1 through 512 characters. The frozen value preserves case,
+whitespace and Unicode without normalization. It has no artifact envelope or
+self-digest and is not registered as a new assurance-valid artifact root.
+`source_event_identity_projection_bytes()` validates a plain five-key JSON
+object and returns its exact RFC 8785 UTF-8 bytes. It bounds strings before
+serialization, preserves the original Unicode representation and rejects
+invalid Unicode scalar values. It does not choose a hash or digest domain.
+
 Exported JSON Schema is a structural interoperability contract, not a complete
 trust decision. Draft 2020-12 cannot express every cross-field arithmetic,
 filesystem, digest-replay, temporal, or external-evidence invariant enforced by

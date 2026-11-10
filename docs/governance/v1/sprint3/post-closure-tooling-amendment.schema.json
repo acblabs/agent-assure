@@ -5,10 +5,9 @@
   "description": "Bounded metadata only. Schema validity supplies no trust bootstrap, signature validity or implementation acceptance.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["claim", "signature_envelope"],
+  "required": ["claim"],
   "properties": {
-    "claim": {"$ref": "#/$defs/claim"},
-    "signature_envelope": {"$ref": "#/$defs/signature"}
+    "claim": {"$ref": "#/$defs/claim"}
   },
   "$defs": {
     "digest": {"type": "string", "maxLength": 71, "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"},

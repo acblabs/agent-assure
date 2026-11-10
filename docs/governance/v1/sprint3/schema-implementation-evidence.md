@@ -11,9 +11,13 @@ method admission, release or deployment authority.
 - Additive test/profile amendment: `sha256:6c40be1d9a271823cacd65b42784a32e20ad22f40d484c75fd6dfadb55d1e7af`.
 - The maintainer's actual native signature verified before amended execution.
 - Development owner/reviewer: acblabs; `NO_INDEPENDENT_REVIEW` remains explicit.
-- The original checkpoint expired. A separately signed repair renewal permits
-  bounded repair checks until `2026-11-10T07:12:10.990486Z`; it preserves the
-  original forecast, assignments, trust expiry and lack of implementation acceptance.
+- The original checkpoint and the earlier repair checkpoint expired. Signed
+  engineering renewal 005 permits the scoped repair work and approved commands
+  from `2026-11-10T15:00:21.785278Z` until `2026-11-10T19:00:21.785278Z`.
+  The existing forecast, assignments and trust validity cap remain
+  `2026-12-07T23:31:10.233520Z`, subject to fresh checks before commitments.
+  This engineering renewal is separate from post-closure runtime/key/host
+  adoption and supplies no implementation acceptance, qualification or release.
 
 ## Implemented increment
 
@@ -35,7 +39,7 @@ method admission, release or deployment authority.
 
 The default package/writer versions, existing writer models, legacy validation
 functions, default exports and released schema bytes are unchanged. No new
-production v1 contract is registered. New-writer cells remain absent.
+production v1 writer or resource set is registered. New-writer cells remain absent.
 
 ## Validation observations
 
@@ -71,10 +75,15 @@ commands elevated. This failed report is not a successful regression gate.
 
 SCHEMA-01A still needs reviewed packaged matrix/resources, installed-wheel
 evidence, complete compatible-host checks and its actual human acceptance.
-SCHEMA-01D still needs the exact 42 closed schemas, canonical projections,
-instance/dependency graph checks, generated-resource review and its own human
-acceptance. No first-writer or dependent TEMP-01A dispatch is authorized by this
-document. SCHEMA-01B/C, publication and qualification remain deferred.
+SCHEMA-01D has an initial source identity model/projection and a complete declared
+contract-ID inventory, but still needs the complete 42 closed contracts, their
+canonical projections, instance/dependency graph checks, generated-resource
+review and its own exact human acceptance. The declared inventory is not proof
+that those models or resources exist. No first-writer or dependent TEMP-01A
+dispatch is authorized by this document. SCHEMA-01B/C and the other Wave 2
+packages still require the exact A/D receipts and approved downstream assignments,
+file scopes and work limits; TEMP requires both A and D receipts. Publication
+and qualification remain deferred.
 
 A compatible isolated runner is required for the full regression gate. The
 repository's existing Windows CI configuration provides a handoff reference;
@@ -186,3 +195,101 @@ bytes, writer versions, matrix cells or artifact-validation behavior changed.
 
 Hosted passes at the intermediate commit `a545efd5` remain evidence for that
 source. They do not replace final-source checks of this reference repair.
+
+## Renewal 005 development evidence
+
+The authenticated command seam accepts a verifier callback from an already
+enrolled external operator for `check` and `readiness` orchestration only.
+It rejects use of that capability by authoring commands, invalid proofs and
+repository-selected substitutes. Successful command orchestration still reports
+`accepted=false`, `s2_dispatch_ready=false` and `authorization_effect=none`;
+readiness remains nonzero. The direct-script entry uses the canonical module
+identity so the retained authoring rejection is reported as exit 2 without
+an exception-class mismatch. There is no accepting unregistered CLI fallback.
+
+The new public amendment format contains the exact claim. Its genuine SSH
+signature envelope is a separate authenticated external input, required by the
+same payload, enrolled-key, purpose and validity checks. Public records cannot
+supply that envelope. The distribution privacy scanner and its exact exceptions
+remain unchanged; adding inline signature material still fails its review.
+This transport change supplies no actual human adoption or host registration.
+
+`Renew005Governance01` completed its 92 tests with child exit 0, but the
+supervisor rejected it: 564,940,748 observed output bytes exceeded the fixed
+536,870,912-byte cap. That observation remains failed. Completed disposable
+cache/scratch bytes were preserved in verified private custody before narrow
+reclamation; source, environment, diagnostic logs, original observations and
+the fixed baseline were not replaced. The repeat `Renew005Governance02`
+(command 12) was accepted with all 92 tests passing, successful scope and
+immutable-environment postchecks and 415,915,401 observed output bytes. It is
+evidence for its recorded source snapshot, not final hosted enrollment.
+
+The schema increment adds an immutable tuple of the exact 42 contract IDs and
+the proposed writer identity `1.0.0rc1`, plus the actual
+`SourceEventIdentity` model. That value has exactly its five required fields,
+strict bounded component strings and a closed root. It carries no transport
+envelope, implicit schema-version field, invented digest or authority. The
+projection helper requires an exact plain five-field object, rejects invalid
+Unicode scalar values and emits RFC 8785 bytes without case folding, Unicode
+normalization or delimiter concatenation.
+
+The explicit schema-export option retains legacy writer `0.6.6` as the default.
+It validates the selected inventory and actual model identities before creating
+an output directory or writing resources. The real v1 catalog currently contains
+only the source identity model, so selecting `1.0.0rc1` rejects the missing
+41 contracts; the CLI reports exit 2. Unknown IDs, unsupported writer values and
+partial catalogs cannot manufacture a successful 42-contract export. No fake
+production model set or successful complete-v1 fixture is substituted.
+
+`Renew005Schema03` (command 2) completed the broad schema/parity selection with
+2,493 passes, 79 failures and 37 setup errors. Its child exited 1 and the
+supervisor correctly rejected it, while scope and immutable-environment
+postchecks passed. The 190 cases from the three new test modules break down as
+follows; these are observations within that failed command, not three separately
+accepted gates:
+
+| New test module | Observed result |
+| --- | --- |
+| Source identity projection bytes | 69 passed |
+| Exact inventory and source identity contract | 95 passed |
+| Explicit writer export and rejection behavior | 25 passed, 1 failed |
+
+The new failure is
+`test_default_and_explicit_legacy_exports_preserve_all_58_frozen_bytes`.
+Its retained trace reaches the existing native rooted-I/O guard and fails with
+Windows access denied. The separate in-memory comparison against all 58 frozen
+schemas passed for both the default and explicitly selected legacy writer in
+Schema02 and Schema03. Serialization-byte parity is observed; the actual
+filesystem export and compatible-host gate remain open. Other retained broad-suite
+failures include filesystem-root access and bare-Git capability problems;
+their failures and setup errors remain open. No permissions, rooted-I/O policy,
+oracle semantics or test selections were weakened to change the result.
+
+`Renew005Types03` (command 8) was accepted with no strict-mypy issues across
+306 source files. `Renew005Lint02` (command 7) was accepted for its recorded
+snapshot. Those observations precede any later workflow/evidence edits and do
+not replace the required final-source checks.
+
+`Renew005Golden01` (command 15) again failed while loading the campaign suite
+through the existing filesystem-root guard. Scope and immutable-environment
+postchecks passed, but no accepted root summary was produced. Both campaign
+goldens remain unchanged. Downloaded CI differences and passing unrelated
+tests cannot substitute for the approved supervised-summary and separate
+digest-only guard route.
+
+The optional hosted-runtime proposal capture is data acquisition only. Its
+bounded manifest is explicitly nonauthorizing, unqualified and unenrolled.
+Failure of that new observation must remain visible; it cannot produce a
+partial successful artifact or relax any existing verification gate. A
+complete proposal manifest would still require exact human review, retained
+independent pins and separate runtime/key/host adoption. It does not establish
+AppContainer network denial, Job Object qualification, native-tool dependency
+closure or a compatible approved hosted accepting route.
+
+The package remains `0.7.0`; no `1.0.0a3` preview is built or published by this
+increment. Released schema bytes, the accepted historical subjects and their
+fixed tags remain protected. The 42-contract set, reviewed packaged matrix and
+resources, installed-wheel evidence, exact A/D implementation receipts, Wave 2
+dispatches, full final-source regression and publication/independent-install
+requirements remain open. Local custody does not satisfy the outstanding
+off-device criterion without an actual off-device copy or signed exception.

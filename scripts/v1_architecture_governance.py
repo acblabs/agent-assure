@@ -708,23 +708,59 @@ def prepare_review(root: Path, output: Path) -> dict[str, Any]:
     return result
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    postclosure_verifier: Callable[[Path], Any] | None = None,
+) -> int:
+    """Run command orchestration after any external operator authentication.
+
+    The optional callback is an in-process capability supplied by the enrolled
+    operator, never discovered through arguments, environment or repository
+    metadata. It can verify check/readiness only; authoring commands keep their
+    original guard and cannot consume this capability.
+    """
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("check", "refresh", "readiness", "prepare-review"))
     parser.add_argument("--repository-root", type=Path, default=ROOT)
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
     try:
+        if postclosure_verifier is not None:
+            if not callable(postclosure_verifier):
+                raise ArchitectureError("authenticated post-closure verifier must be callable")
+            if args.command not in {"check", "readiness"}:
+                raise ArchitectureError("post-closure verification cannot authorize authoring")
         root = args.repository_root.absolute()
         if args.command == "refresh":
             refresh(root)
-        package = check_package(root)
+        postclosure_used = False
+
+        def verify_postclosure(source_root: Path) -> Any:
+            nonlocal postclosure_used
+            if postclosure_verifier is None:
+                raise ArchitectureError("authenticated post-closure verifier is absent")
+            try:
+                verified = postclosure_verifier(source_root)
+            except ValueError as exc:
+                raise ArchitectureError("authenticated post-closure verification failed") from exc
+            postclosure_used = True
+            return verified
+
+        package = check_package(
+            root,
+            postclosure_verifier=verify_postclosure if postclosure_verifier is not None else None,
+        )
         if args.command == "prepare-review":
             if args.out is None:
                 parser.error("prepare-review requires --out")
             prepare_review(root, args.out)
         result = {
-            "result": "draft_integrity_valid",
+            "result": (
+                "historical_and_exact_current_tooling_valid"
+                if postclosure_used
+                else "draft_integrity_valid"
+            ),
             "authorization_effect": "none",
             "package_digest": package["package_digest"],
             "accepted": False,
@@ -739,4 +775,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # Additive tooling imports this canonical module for ArchitectureError.
+    # Use that same identity at the direct-script boundary so its failures are
+    # caught and reported with the documented CLI exit code, without a traceback.
+    from scripts.v1_architecture_governance import main as command_main
+
+    raise SystemExit(command_main())

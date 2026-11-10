@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
+from types import MappingProxyType
 from typing import TypeAlias
 
 from pydantic import BaseModel
@@ -86,12 +88,14 @@ from agent_assure.schema.usage import (
     UsageSummary,
     UsageSummaryDelta,
 )
+from agent_assure.schema.v1_base import V1_SCHEMA_CONTRACT_IDS, V1_WRITER_SCHEMA_VERSION
 from agent_assure.schema.v1_compatibility import (
     MAX_COMPATIBILITY_CELLS,
     MAX_COMPATIBILITY_MATRIX_BYTES,
     CompatibilityCell,
     CompatibilityMatrix,
 )
+from agent_assure.schema.v1_identity import SourceEventIdentity
 
 SchemaModel: TypeAlias = type[BaseModel]
 BASE_PERSISTED_IDENTITY_FIELDS = ("artifact_kind", "schema_version")
@@ -253,22 +257,120 @@ def _pin_persisted_schema_versions_to_defaults(schema: dict[str, object]) -> Non
             pending.extend(value)
 
 
-def export_json_schemas(out_dir: Path) -> list[Path]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    written: list[Path] = []
-    for kind, model in sorted(SCHEMA_MODELS.items()):
-        schema = writer_json_schema(model)
-        require_persisted_identity_in_schema(schema, kind)
+class SchemaExportError(ValueError):
+    """The selected writer has no complete, identity-correct export profile."""
+
+
+_V1_SCHEMA_MODELS: Mapping[str, SchemaModel] = MappingProxyType(
+    {"source-event-identity/v1": SourceEventIdentity}
+)
+
+
+def _v1_schema_for_contract(contract_id: str, model: SchemaModel) -> dict[str, object]:
+    """Check actual model identity without rewriting a legacy schema into v1."""
+    schema: dict[str, object] = model.model_json_schema(mode="validation")
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if (
+        schema.get("type") != "object"
+        or schema.get("additionalProperties") is not False
+        or not isinstance(properties, dict)
+        or not isinstance(required, list)
+    ):
+        raise SchemaExportError(f"{contract_id} model lacks a closed required root identity")
+    if contract_id == "source-event-identity/v1":
+        fields = {"identity_contract_id", "run_id", "producer_id", "producer_epoch", "event_id"}
+        if set(properties) != fields or set(required) != fields:
+            raise SchemaExportError("source-event-identity/v1 model has the wrong exact field set")
+        literals = {"identity_contract_id": contract_id}
+        for name in fields - {"identity_contract_id"}:
+            declaration = properties[name]
+            if not isinstance(declaration, dict) or any(
+                declaration.get(key) != value
+                for key, value in {"type": "string", "minLength": 1, "maxLength": 512}.items()
+            ):
+                raise SchemaExportError("source-event-identity/v1 model has wrong component bounds")
+    else:
+        literals = {
+            "contract_id": contract_id,
+            "artifact_kind": contract_id.removesuffix("/v1"),
+            "schema_version": V1_WRITER_SCHEMA_VERSION,
+        }
+    for name, literal in literals.items():
+        declaration = properties.get(name)
+        if (
+            name not in required
+            or not isinstance(declaration, dict)
+            or declaration.get("type") != "string"
+            or declaration.get("const") != literal
+        ):
+            raise SchemaExportError(f"{contract_id} model has the wrong {name} identity")
+    harden_json_schema_pattern_ends(schema)
+    return schema
+
+
+def _v1_schema_documents() -> list[tuple[str, dict[str, object]]]:
+    expected = frozenset(V1_SCHEMA_CONTRACT_IDS)
+    actual = frozenset(_V1_SCHEMA_MODELS)
+    unknown = actual - expected
+    if unknown:
+        raise SchemaExportError(f"unrecognized v1 contracts: {', '.join(sorted(unknown))}")
+    documents = [
+        (contract_id.removesuffix("/v1"), _v1_schema_for_contract(contract_id, model))
+        for contract_id, model in sorted(_V1_SCHEMA_MODELS.items())
+    ]
+    missing = expected - actual
+    if missing:
+        raise SchemaExportError(
+            f"{V1_WRITER_SCHEMA_VERSION} writer is incomplete; "
+            f"missing {len(missing)} required contracts: {', '.join(sorted(missing))}"
+        )
+    return documents
+
+
+def _writer_schema_payloads(
+    writer_schema_version: str = SCHEMA_VERSION,
+) -> list[tuple[str, str]]:
+    """Prepare complete candidate resource bytes before any persistence."""
+    if type(writer_schema_version) is not str or writer_schema_version not in {
+        SCHEMA_VERSION,
+        V1_WRITER_SCHEMA_VERSION,
+    }:
+        raise SchemaExportError(
+            "unsupported writer schema version; expected an exact registered version"
+        )
+    documents: list[tuple[str, dict[str, object]]]
+    if writer_schema_version == SCHEMA_VERSION:
+        documents = []
+        for kind, model in sorted(SCHEMA_MODELS.items()):
+            schema = writer_json_schema(model)
+            require_persisted_identity_in_schema(schema, kind)
+            documents.append((kind, schema))
+    else:
+        documents = _v1_schema_documents()
+    payloads: list[tuple[str, str]] = []
+    for kind, schema in documents:
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = (
-            f"https://acblabs.github.io/agent-assure/schemas/v{SCHEMA_VERSION}/{kind}.schema.json"
+            "https://acblabs.github.io/agent-assure/schemas/"
+            f"v{writer_schema_version}/{kind}.schema.json"
         )
         schema.setdefault("properties", {})
+        payloads.append((kind, json.dumps(schema, indent=2, sort_keys=True) + "\n"))
+    return payloads
+
+
+def export_json_schemas(
+    out_dir: Path, *, writer_schema_version: str = SCHEMA_VERSION
+) -> list[Path]:
+    # Prepare every model, identity and serialized resource before mkdir or
+    # writing. Partial v1 catalogs never expose a partial resource directory.
+    payloads = _writer_schema_payloads(writer_schema_version)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for kind, payload in payloads:
         path = out_dir / f"{kind}.schema.json"
-        write_text_atomic(
-            path,
-            json.dumps(schema, indent=2, sort_keys=True) + "\n",
-        )
+        write_text_atomic(path, payload)
         written.append(path)
     return written
 
