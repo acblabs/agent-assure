@@ -992,18 +992,15 @@ def load_runset_with_size(
 ) -> tuple[RunSet, int]:
     # Imported lazily because schema export registration imports EvaluationReport
     # from this module while validation itself is initializing.
-    from agent_assure.schema.validation import (
-        load_validated_artifact_payload_with_size,
-        project_validated_artifact_payload,
-    )
+    from agent_assure.schema.validation import load_validated_artifact_model_with_size
 
-    payload, size = load_validated_artifact_payload_with_size(
+    return load_validated_artifact_model_with_size(
         path,
-        "run-set",
+        RunSet,
+        kind="run-set",
         max_bytes=max_bytes,
         label="RunSet JSON",
     )
-    return project_validated_artifact_payload(payload, RunSet, kind="run-set"), size
 
 
 def runset_digest(runset: RunSet) -> str:

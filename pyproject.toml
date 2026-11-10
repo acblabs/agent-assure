@@ -117,6 +117,8 @@ exclude = [
 
 [tool.hatch.build.targets.sdist]
 include = [
+  ".gitattributes",
+  ".github/workflows/ci.yml",
   "src/agent_assure/**/*",
   "schemas/**/*",
   "mappings/**/*",
@@ -137,9 +139,18 @@ include = [
   "SECURITY.md",
   "THIRD_PARTY_NOTICES.md",
   "pyproject.toml",
+  "mkdocs.yml",
+  "requirements.lock",
+  "requirements-min.lock",
+  "requirements-min.constraints.txt",
+  "requirements-adk.lock",
+  "requirements-langgraph.lock",
+  "requirements-otel.lock",
   "Makefile",
 ]
 exclude = [
+  # Dynamic closure evidence belongs to the repository and fixed acceptance tag.
+  "docs/governance/v1/sprint2/s1-successor-acceptance.json",
   ".tmp/**/*",
   "dist/**/*",
   "build/**/*",

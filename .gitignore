@@ -1,5 +1,6 @@
 .tmp/
 .tmp-review/
+.governance-archive/
 .venv/
 .mypy_cache/
 .pytest_cache/

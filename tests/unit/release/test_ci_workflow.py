@@ -31,7 +31,7 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert 'python-version: ["3.11", "3.14"]' in job
     assert "tests/unit/runner" in job
     assert "tests/unit/test_rooted_io.py" in job
-    assert job.count("python -m pytest") == 2
+    assert job.count("python -m pytest") == 3
     assert job.count("--fail-on-skip") == 1
     assert "test_rooted_read_rejects_linked_parent_escape" in job
     assert "test_rooted_directory_lease_blocks_lexical_rename_until_close" in job
@@ -51,6 +51,21 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert "test_post_spawn_validation_failure_terminates_and_reaps_suspended_process" in job
     assert "test_windows_external_script_success_kills_descendant_when_job_closes" in job
     assert "make release-check" not in job
+
+    native_job = yaml.safe_load(workflow)["jobs"]["windows-containment"]
+    test_steps = [
+        step for step in native_job["steps"] if "python -m pytest" in str(step.get("run", ""))
+    ]
+    assert len(test_steps) == 3
+    schema_step = test_steps[-1]
+    assert schema_step["name"] == "Exercise schema compatibility on native Windows"
+    assert schema_step["timeout-minutes"] == 30
+    expected_schema_command = (
+        "python -m pytest -q -p no:cacheprovider "
+        '--basetemp "${{ runner.temp }}/pytest-windows-schemas" '
+        "tests/unit/schema tests/integration/test_schema_parity.py"
+    )
+    assert schema_step["run"].split() == expected_schema_command.split()
 
 
 def test_ci_qualifies_declared_dependency_lower_bounds_on_supported_python_edges() -> None:
@@ -1384,7 +1399,29 @@ def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() 
     assert "--platform linux/amd64" in commands
     assert "target=/repo,readonly" in commands
     assert commands.count("--config=/repo/.gitleaks.toml") == 2
-    assert "--gitleaks-ignore-path=/repo/.gitleaksignore" in commands
+    assert "--gitleaks-ignore-path=/gitleaksignore" in commands
+    assert "target=/gitleaksignore,readonly" in commands
+    scan = next(
+        step
+        for step in job["steps"]
+        if step.get("name") == "Scan every reachable commit with a digest-pinned Gitleaks image"
+    )
+    assert scan["env"] == {
+        "HISTORY_EVENT": "${{ github.event_name }}",
+        "HISTORY_COMMIT": "${{ github.sha }}",
+        "HISTORY_BASE": "${{ github.event.pull_request.base.sha }}",
+        "HISTORY_HEAD": "${{ github.event.pull_request.head.sha }}",
+    }
+    assert "python3 scripts/prepare_history_scan_ignore.py" in scan["run"]
+    for argument, variable in (
+        ("event", "HISTORY_EVENT"),
+        ("commit", "HISTORY_COMMIT"),
+        ("base", "HISTORY_BASE"),
+        ("head", "HISTORY_HEAD"),
+    ):
+        assert f'--{argument} "${{{variable}}}"' in scan["run"]
+    assert '--output "${scan_tmp}/gitleaksignore"' in scan["run"]
+    assert scan["run"].index("prepare_history_scan_ignore.py") < scan["run"].index("docker run")
     log_opts = '--log-opts="--no-textconv --full-history --all --diff-merges=first-parent"'
     assert commands.count(log_opts) == 2
     assert "--diff-filter=tuxdb" not in commands
@@ -1922,3 +1959,196 @@ def test_composite_action_clears_owned_outputs_before_any_producer_runs() -> Non
     assert "os.path.normcase(os.path.abspath(sys.argv[1]))" in prepare
     assert 'canonical_path "${source_input}"' in prepare
     assert "input aliases an owned output path" in prepare
+
+
+def _hosted_runtime_proposal_steps() -> tuple[dict, dict, list[dict]]:
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    assert set(workflow["jobs"]) == {
+        "test",
+        "dependency-lower-bounds",
+        "composite-action-smoke",
+        "composite-action-strict-smoke",
+        "coverage-shards",
+        "coverage-gate",
+        "windows-containment",
+        "schema-immutability",
+        "windows-governance",
+        "langgraph-smoke",
+        "adk-smoke",
+        "otel-contract",
+    }
+    steps = workflow["jobs"]["windows-governance"]["steps"]
+    capture = next(step for step in steps if step.get("id") == "hosted-runtime-proposal")
+    upload = next(
+        step for step in steps if step.get("name") == "Retain inert hosted runtime proposal"
+    )
+    return capture, upload, steps
+
+
+def test_hosted_runtime_proposal_precedes_candidate_install_and_preserves_existing_gate() -> None:
+    capture, upload, steps = _hosted_runtime_proposal_steps()
+    lock = next(
+        step
+        for step in steps
+        if step.get("run") == "python -m pip install --require-hashes -r requirements.lock"
+    )
+    install = next(
+        step
+        for step in steps
+        if step.get("run") == "python -m pip install --no-deps --no-build-isolation -e ."
+    )
+    assert steps.index(lock) + 1 == steps.index(capture)
+    assert steps.index(capture) + 1 == steps.index(upload)
+    assert steps.index(upload) + 1 == steps.index(install)
+    assert capture["shell"] == "powershell"
+    assert capture["timeout-minutes"] == 10
+    assert "if" not in capture
+    assert capture["continue-on-error"] is True
+    assert upload["if"] == "steps.hosted-runtime-proposal.outcome == 'success'"
+    assert "continue-on-error" not in upload
+    assert [step for step in steps if "continue-on-error" in step] == [capture]
+    workflow = yaml.safe_load((ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    public_check = next(
+        step
+        for step in workflow["jobs"]["coverage-shards"]["steps"]
+        if step.get("name") == "Check the public v1 architecture draft without private inputs"
+    )
+    assert public_check["run"] == "python scripts/v1_architecture_governance.py check"
+    assert public_check["if"] == "matrix.shard == 'unit-a'"
+    assert any("tests/unit/governance" in step.get("run", "") for step in steps)
+
+
+def test_hosted_runtime_proposal_has_finite_noncache_read_and_output_bounds() -> None:
+    capture, _upload, _steps = _hosted_runtime_proposal_steps()
+    code = capture["run"]
+    for exact in (
+        "MaxFiles = 16384, MaxDepth = 32, MaxEntries = 32768",
+        "MaxBytes = 536870912, MaxFile = 67108864",
+        "if (++entries > MaxEntries)",
+        "if (depth > MaxDepth)",
+        "rows.Count >= MaxFiles",
+        "if (bytes > MaxBytes)",
+        "count > MaxFile || count > Size(before)",
+        "$Bytes.Length -gt 8388608",
+        'String.Equals(name, "__pycache__", StringComparison.Ordinal)',
+        'String.Equals(extension, ".pyc", StringComparison.OrdinalIgnoreCase)',
+        'String.Equals(extension, ".pyo", StringComparison.OrdinalIgnoreCase)',
+        "CreateFileW(path, 0xC0000000, 1, IntPtr.Zero, 1, 0x02200000",
+        "Preserve earlier runtime proposal.",
+    ):
+        assert exact in code
+    assert "First " not in code and "Select-Object -First" not in code
+    assert "SilentlyContinue" not in code
+
+
+def test_hosted_runtime_proposal_checks_kernel_file_identity_and_does_not_follow_links() -> None:
+    capture, _upload, _steps = _hosted_runtime_proposal_steps()
+    code = capture["run"]
+    assert "uint share = directory ? 3u : 1u;" in code
+    assert "CreateFileW(path, 0x80000000, share, IntPtr.Zero, 3, 0x02200000" in code
+    assert "int error = Marshal.GetLastWin32Error(); h.Dispose();" in code
+    assert "h.Dispose(); throw;" in code
+    assert "Size(before) < 0 || Size(before) > MaxFile" in code
+    assert "UNC, device and non-drive paths are forbidden." in code
+    assert "GetDriveTypeW(path.Substring(0, 3)) != 3" in code
+    assert "[IO.DriveType]::Fixed" in code
+    assert "[Text.UTF8Encoding]::new($false, $true)" in code
+    assert "i.Links != 1" in code
+    assert "(i.Attributes & 0x400) != 0" in code
+    assert "FileAttributes.ReparsePoint" in code
+    assert "Identity(before) != Identity(opened)" in code
+    assert "Identity(before) != Identity(after)" in code
+    assert "Identity(before) != Identity(Query(h))" in code
+    assert "Directory membership changed." in code
+    assert "new HashSet<string>(StringComparer.OrdinalIgnoreCase)" in code
+    assert "provider-host-UTC-unattested" in code
+    assert "not-atomic-global-snapshot" in code
+
+
+def test_hosted_runtime_proposal_does_not_import_candidate_or_read_keys() -> None:
+    capture, _upload, _steps = _hosted_runtime_proposal_steps()
+    code = capture["run"]
+    for exact in (
+        "authorization_effect='none'; qualified=$false; enrolled=$false",
+        "independent_attestation_claimed=$false",
+        "$env:ImageOS",
+        "$env:ImageVersion",
+        "$PSVersionTable.PSVersion",
+        "$env:GITHUB_SHA",
+        "$env:GITHUB_RUN_ID",
+        "$env:GITHUB_RUN_ATTEMPT",
+        "@('git', 'ssh-keygen')",
+        "Get-Command python -CommandType Application",
+        "$env:RUNNER_TOOL_CACHE",
+        "$PythonRoot.StartsWith($ToolCache",
+        "$env:RUNNER_TEMP",
+        "Proposal output must be outside workspace.",
+        "Proposal manifest readback differs.",
+        "runtime_proposal_sha256=",
+        "' bytes='",
+        "$env:GITHUB_OUTPUT",
+        (
+            "Selected command files may be wrappers; executable behavior and native "
+            "dependency closure are not qualified."
+        ),
+    ):
+        assert exact in code
+    for forbidden in (
+        "import agent_assure",
+        "from agent_assure",
+        "from scripts",
+        "import scripts",
+        "Invoke-Expression",
+        "Start-Process",
+        "Get-ChildItem Env:",
+        "Get-ChildItem env:",
+        "GetEnvironmentVariables",
+        "HumanKeyPath",
+        "id_ed25519",
+        "id_rsa",
+        "secrets.",
+    ):
+        assert forbidden not in code
+    assert re.search(r"(?im)^\s*(?:&\s*\$Python|python\s|py\s)", code) is None
+
+
+def test_hosted_runtime_proposal_uploads_only_exact_manifest_with_pinned_action() -> None:
+    _capture, upload, _steps = _hosted_runtime_proposal_steps()
+    assert upload["uses"] == "actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a"
+    assert upload["with"] == {
+        "name": "hosted-runtime-proposal-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": "${{ steps.hosted-runtime-proposal.outputs.manifest }}",
+        "if-no-files-found": "error",
+        "retention-days": 30,
+    }
+
+
+def test_hosted_runtime_proposal_manifest_creation_and_readback_hold_native_pins() -> None:
+    capture, _upload, _steps = _hosted_runtime_proposal_steps()
+    code = capture["run"]
+    writer = code.split("public static RuntimeProposalFileV1 WriteManifest(", 1)[1]
+    assert writer.index("pins = Ancestors(root)") < writer.index("CreateFileW(path, 0xC0000000")
+    assert writer.index("CreateFileW(path, 0xC0000000") < writer.index("stream.Write(data")
+    assert writer.index("stream.Write(data") < writer.index("ReadCreatedManifest(path")
+    assert writer.index("ReadCreatedManifest(path") < writer.index(
+        "foreach (SafeFileHandle h in pins)"
+    )
+    for exact in (
+        "CreateFileW(path, 0xC0000000, 1, IntPtr.Zero, 1, 0x02200000",
+        "error == 80 || error == 183",
+        "Size(empty) != 0",
+        "empty.Links != 1",
+        "Size(written) != data.Length",
+        "CreateFileW(path, 0x80000000, 3, IntPtr.Zero, 3, 0x02200000",
+        "Identity(written) != Identity(before)",
+        "Created manifest changed during readback.",
+        "Created manifest changed after readback.",
+        "[RuntimeProposalCensusV1]::WriteManifest($TempRoot, $ManifestName, $Bytes)",
+    ):
+        assert exact in code
+    for forbidden in (
+        "::CheckDirectory($TempRoot)",
+        "New-Item -ItemType Directory -Path $Output",
+        "[IO.File]::Open($Manifest",
+    ):
+        assert forbidden not in code

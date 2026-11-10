@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "authority_adoption",
+      "payload_sha256": "sha256:b480dbdd6e9d6dca5642f0b88befa6e6e204b710ef76dc4e14946074b354a3e9",
+      "signature_sha256": "sha256:a06e9fc5dc65a54312b2b2888a23c9da430b9fece418257643fa4d861957a97c",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "foundation_adoption",
+      "payload_sha256": "sha256:ee3e0caeb323aa613ee8a1ab5642ae319d5199b7f04d7818d92a7dec70078b38",
+      "signature_sha256": "sha256:c2df0556e23788269e44bb6e8e6e16aef067bd5c23eea678d6fb206791e5d6ff",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "forecast_producer",
+      "payload_sha256": "sha256:5a9b5c4618c14bfebe0982454ea2c0176389993f35c5983499e66223b2df8925",
+      "signature_sha256": "sha256:fb826774a873eaa8041ec60b39350a346f1a8cbfaabe2144b75934c4f8f29f05",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "forecast_acceptance",
+      "payload_sha256": "sha256:12d824f2a090e33d35390ec1a362500b17a2a7afabea1f52e979e0dd6a93c886",
+      "signature_sha256": "sha256:e3ab24d53f28a90f4c93808f58c01c4e4e3675afc492337b8a934df524bee421",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "design_amendment",
+      "payload_sha256": "sha256:1b5514e705fb0fbcfa35ea28930d0c4c0c590e4973b2a688de082d2fecf7f79a",
+      "signature_sha256": "sha256:1974c311c1d89abaaf905517e8fcc2a4f995daa509793628de46b03a26f482eb",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "support_policy",
+      "payload_sha256": "sha256:8152a67286b794ef341c8cd53d1c689863490c1445fd50c5b46c6a81fa491a73",
+      "signature_sha256": "sha256:9213932540d9fda32fd814cfe3305bd7594992f7b08df8cfa596f1c8ee247168",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 0,
+      "expected_valid": true,
+      "label": "correction_close",
+      "payload_sha256": "sha256:2d9a3ab2ca46602f749ac08ba938857ed8847e188b0eabf5fdbe92d19da48225",
+      "signature_sha256": "sha256:16c9762c4704b289d8f67c8ae9c315bebb4543896a4a2af1bf07de503e1694bc",
+      "stderr": "",
+      "stdout": "Good \"agent-assure-governance-v1\" signature for acblabs with ED25519 key SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k\r\n"
+    },
+    {
+      "exit_code": 4294967295,
+      "expected_valid": false,
+      "label": "tampered_payload_negative_probe",
+      "payload_sha256": "sha256:4d81fbba26420f3f7c6f3ff3e056cc52daf907d15f67325b037d5d9dbc345688",
+      "signature_sha256": "sha256:9213932540d9fda32fd814cfe3305bd7594992f7b08df8cfa596f1c8ee247168",
+      "stderr": "Signature verification failed: incorrect signature\r\n",
+      "stdout": "Could not verify signature.\r\n"
+    }
+  ]
+}

@@ -205,7 +205,7 @@ jobs:
               tests/unit/adapters tests/unit/authoring tests/unit/canonical
               tests/unit/compare tests/unit/controls tests/unit/demo tests/unit/docs
               tests/unit/evaluation tests/unit/examples tests/unit/fixtures
-              tests/unit/graph tests/unit/mutation
+              tests/unit/governance tests/unit/graph tests/unit/mutation
           - shard: unit-b1
             test_paths: >-
               tests/unit/policies tests/unit/privacy tests/unit/rag
@@ -232,12 +232,21 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Compile the governance validator at the declared Python floor
+        if: matrix.shard == 'unit-a'
+        run: >-
+          python -c "from pathlib import Path;
+          paths = sorted(Path('scripts').glob('v1_*.py'));
+          [compile(path.read_text(encoding='utf-8'), str(path), 'exec') for path in paths]"
       - name: Run branch-coverage shard
         run: >-
           python -m pytest -p no:cacheprovider
           --basetemp "$RUNNER_TEMP/pytest-${{ matrix.shard }}"
           --cov=agent_assure --cov-branch --cov-report= --cov-fail-under=0
           ${{ matrix.test_paths }}
+      - name: Check the public v1 architecture draft without private inputs
+        if: matrix.shard == 'unit-a'
+        run: python scripts/v1_architecture_governance.py check
       - name: Upload exact coverage database
         if: ${{ always() }}
         # actions/upload-artifact@v7
@@ -341,6 +350,12 @@ jobs:
           tests/unit/runner/test_subprocess_harness.py::test_post_spawn_validation_failure_terminates_and_reaps_suspended_process
           tests/unit/runner/test_subprocess_harness.py::test_windows_external_script_success_kills_descendant_when_job_closes
           tests/integration/test_evidence_sensitivity_cli.py::test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings
+      - name: Exercise schema compatibility on native Windows
+        timeout-minutes: 30
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          --basetemp "${{ runner.temp }}/pytest-windows-schemas"
+          tests/unit/schema tests/integration/test_schema_parity.py
   schema-immutability:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -355,6 +370,344 @@ jobs:
         with:
           python-version: "3.11"
       - run: python scripts/check_tagged_schema_immutability.py --require-release-tags
+  windows-governance:
+    name: Windows governance / Python 3.12
+    runs-on: windows-2025
+    timeout-minutes: 60
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --require-hashes -r requirements.lock
+      # BEGIN agent-assure hosted-runtime-proposal/v1
+      - name: Capture inert hosted runtime proposal without candidate imports
+        id: hosted-runtime-proposal
+        shell: powershell
+        timeout-minutes: 10
+        continue-on-error: true
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          function Get-LocalPath([string]$Value) {
+            if ($Value -cnotmatch '^[A-Za-z]:[\\/]') { throw 'UNC, device and non-drive paths are forbidden.' }
+            $Full = [IO.Path]::GetFullPath($Value)
+            $Drive = [IO.DriveInfo]::new([IO.Path]::GetPathRoot($Full))
+            if ($Drive.DriveType -ne [IO.DriveType]::Fixed) { throw 'Only fixed local drives are observed.' }
+            return $Full
+          }
+          foreach ($Location in @($env:TEMP, $env:TMP, $env:RUNNER_TEMP, $env:RUNNER_TOOL_CACHE, $env:GITHUB_WORKSPACE)) {
+            $null = Get-LocalPath $Location
+          }
+          foreach ($SearchPath in $env:PATH.Split(';')) {
+            $null = Get-LocalPath $SearchPath
+          }
+          Add-Type -TypeDefinition @'
+          using System;
+          using System.Collections.Generic;
+          using System.ComponentModel;
+          using System.IO;
+          using System.Runtime.InteropServices;
+          using System.Security.Cryptography;
+          using Microsoft.Win32.SafeHandles;
+          public sealed class RuntimeProposalFileV1 {
+            public string path; public long size_bytes; public string sha256;
+            public string volume_id; public string file_id; public string last_write_filetime;
+          }
+          public static class RuntimeProposalCensusV1 {
+            public const int MaxFiles = 16384, MaxDepth = 32, MaxEntries = 32768;
+            public const long MaxBytes = 536870912, MaxFile = 67108864;
+            [StructLayout(LayoutKind.Sequential)] struct Info {
+              public uint Attributes, CreationLow, CreationHigh, AccessLow, AccessHigh;
+              public uint WriteLow, WriteHigh, Volume, SizeHigh, SizeLow, Links, IndexHigh, IndexLow;
+            }
+            [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+            static extern SafeFileHandle CreateFileW(string p, uint a, uint s, IntPtr d, uint c, uint f, IntPtr t);
+            [DllImport("kernel32.dll", SetLastError=true)]
+            static extern bool GetFileInformationByHandle(SafeFileHandle h, out Info i);
+            [DllImport("kernel32.dll", CharSet=CharSet.Unicode)]
+            static extern uint GetDriveTypeW(string root);
+            static Info Query(SafeFileHandle h) {
+              Info i; if (!GetFileInformationByHandle(h, out i)) throw new Win32Exception(); return i;
+            }
+            static long Size(Info i) { return ((long)i.SizeHigh << 32) | i.SizeLow; }
+            static string Identity(Info i) {
+              return String.Join(":", new object[] {i.Attributes, i.CreationLow, i.CreationHigh,
+                i.WriteLow, i.WriteHigh, i.Volume, i.SizeHigh, i.SizeLow, i.Links, i.IndexHigh, i.IndexLow});
+            }
+            static SafeFileHandle Open(string path, bool directory) {
+              if (String.IsNullOrEmpty(path) || path.Length < 3 || path[1] != ':' ||
+                  !(path[0] >= 'A' && path[0] <= 'Z' || path[0] >= 'a' && path[0] <= 'z') ||
+                  !(path[2] == '\\' || path[2] == '/') || GetDriveTypeW(path.Substring(0, 3)) != 3)
+                throw new IOException("Only fixed local drive paths are observed.");
+              uint share = directory ? 3u : 1u;
+              SafeFileHandle h = CreateFileW(path, 0x80000000, share, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero);
+              if (h.IsInvalid) { int error = Marshal.GetLastWin32Error(); h.Dispose(); throw new Win32Exception(error); }
+              try {
+                Info i = Query(h);
+                if ((i.Attributes & 0x400) != 0 || ((i.Attributes & 0x10) != 0) != directory ||
+                    (!directory && i.Links != 1))
+                  throw new IOException("Reparse, hard-link or entry-type input rejected.");
+                return h;
+              } catch {
+                h.Dispose(); throw;
+              }
+            }
+            static List<SafeFileHandle> Ancestors(string path) {
+              List<string> names = new List<string>(); DirectoryInfo p = new DirectoryInfo(path);
+              while (p != null) { names.Add(p.FullName); p = p.Parent; }
+              names.Reverse(); List<SafeFileHandle> pins = new List<SafeFileHandle>();
+              try { foreach (string n in names) pins.Add(Open(n, true)); return pins; }
+              catch { foreach (SafeFileHandle h in pins) h.Dispose(); throw; }
+            }
+            public static RuntimeProposalFileV1 HashFile(string path, string relative) {
+              List<SafeFileHandle> parents = Ancestors(Path.GetDirectoryName(Path.GetFullPath(path)));
+              try {
+                Info before, opened, after; byte[] digest; long count = 0;
+                using (SafeFileHandle h = Open(path, false)) {
+                  before = Query(h); if (Size(before) < 0 || Size(before) > MaxFile) throw new IOException("File bound exceeded.");
+                  using (FileStream stream = new FileStream(h, FileAccess.Read)) {
+                    opened = Query(h); if (Identity(before) != Identity(opened)) throw new IOException("Input changed before read.");
+                    using (SHA256 sha = SHA256.Create()) {
+                      byte[] buffer = new byte[65536]; int n;
+                      while ((n = stream.Read(buffer, 0, buffer.Length)) != 0) {
+                        count += n; if (count > MaxFile || count > Size(before)) throw new IOException("Read bound exceeded.");
+                        sha.TransformBlock(buffer, 0, n, buffer, 0);
+                      }
+                      sha.TransformFinalBlock(new byte[0], 0, 0); digest = sha.Hash;
+                    }
+                    after = Query(h);
+                    if (count != Size(before) || Identity(before) != Identity(after)) throw new IOException("Input changed during read.");
+                  }
+                }
+                using (SafeFileHandle h = Open(path, false))
+                  if (Identity(before) != Identity(Query(h))) throw new IOException("Input changed after read.");
+                return new RuntimeProposalFileV1 {path=relative, size_bytes=count,
+                  sha256=BitConverter.ToString(digest).Replace("-", "").ToLowerInvariant(),
+                  volume_id=before.Volume.ToString("x8"),
+                  file_id=before.IndexHigh.ToString("x8") + before.IndexLow.ToString("x8"),
+                  last_write_filetime=before.WriteHigh.ToString("x8") + before.WriteLow.ToString("x8")};
+              } finally { foreach (SafeFileHandle h in parents) h.Dispose(); }
+            }
+            static List<string> Names(string path, ref int entries) {
+              List<string> names = new List<string>();
+              foreach (string p in Directory.EnumerateFileSystemEntries(path)) {
+                if (++entries > MaxEntries) throw new IOException("Entry bound exceeded."); names.Add(p);
+              }
+              names.Sort(StringComparer.Ordinal); return names;
+            }
+            static void Visit(string root, string path, int depth, List<RuntimeProposalFileV1> rows,
+                              HashSet<string> seen, ref long bytes, ref int entries) {
+              if (depth > MaxDepth) throw new IOException("Depth bound exceeded.");
+              using (SafeFileHandle pin = Open(path, true)) {
+                List<string> names = Names(path, ref entries);
+                foreach (string p in names) {
+                  FileAttributes a = File.GetAttributes(p);
+                  if ((a & FileAttributes.ReparsePoint) != 0) throw new IOException("Reparse input rejected.");
+                  string name = Path.GetFileName(p);
+                  if ((a & FileAttributes.Directory) != 0) {
+                    if (!String.Equals(name, "__pycache__", StringComparison.Ordinal))
+                      Visit(root, p, depth + 1, rows, seen, ref bytes, ref entries);
+                  } else {
+                    string extension = Path.GetExtension(name);
+                    if (String.Equals(extension, ".pyc", StringComparison.OrdinalIgnoreCase) ||
+                        String.Equals(extension, ".pyo", StringComparison.OrdinalIgnoreCase)) continue;
+                    string relative = p.Substring(root.Length + 1).Replace('\\', '/');
+                    if (!seen.Add(relative) || rows.Count >= MaxFiles) throw new IOException("File inventory bound or case collision.");
+                    RuntimeProposalFileV1 row = HashFile(p, relative); bytes += row.size_bytes;
+                    if (bytes > MaxBytes) throw new IOException("Aggregate byte bound exceeded."); rows.Add(row);
+                  }
+                }
+                int resampled = 0; List<string> final = Names(path, ref resampled);
+                if (names.Count != final.Count) throw new IOException("Directory membership changed.");
+                for (int n = 0; n < names.Count; n++)
+                  if (!String.Equals(names[n], final[n], StringComparison.Ordinal)) throw new IOException("Directory membership changed.");
+              }
+            }
+            public static RuntimeProposalFileV1[] Capture(string root) {
+              root = Path.GetFullPath(root).TrimEnd('\\'); List<SafeFileHandle> pins = Ancestors(root);
+              try {
+                long bytes = 0; int entries = 0; List<RuntimeProposalFileV1> rows = new List<RuntimeProposalFileV1>();
+                Visit(root, root, 0, rows, new HashSet<string>(StringComparer.OrdinalIgnoreCase), ref bytes, ref entries);
+                rows.Sort(delegate(RuntimeProposalFileV1 a, RuntimeProposalFileV1 b) {return StringComparer.Ordinal.Compare(a.path, b.path);});
+                return rows.ToArray();
+              } finally { foreach (SafeFileHandle h in pins) h.Dispose(); }
+            }
+            static RuntimeProposalFileV1 ReadCreatedManifest(string path, string relative, Info written) {
+              using (SafeFileHandle reader = CreateFileW(path, 0x80000000, 3, IntPtr.Zero, 3, 0x02200000, IntPtr.Zero)) {
+                if (reader.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Info before = Query(reader);
+                if (Identity(written) != Identity(before)) throw new IOException("Created manifest path changed.");
+                long count = 0; byte[] digest;
+                using (FileStream stream = new FileStream(reader, FileAccess.Read)) {
+                  using (SHA256 sha = SHA256.Create()) {
+                    byte[] buffer = new byte[65536]; int n;
+                    while ((n = stream.Read(buffer, 0, buffer.Length)) != 0) {
+                      count += n;
+                      if (count > 8388608 || count > Size(written)) throw new IOException("Manifest read bound exceeded.");
+                      sha.TransformBlock(buffer, 0, n, buffer, 0);
+                    }
+                    sha.TransformFinalBlock(new byte[0], 0, 0); digest = sha.Hash;
+                  }
+                  if (count != Size(written) || Identity(before) != Identity(Query(reader)))
+                    throw new IOException("Created manifest changed during readback.");
+                }
+                return new RuntimeProposalFileV1 {path=relative, size_bytes=count,
+                  sha256=BitConverter.ToString(digest).Replace("-", "").ToLowerInvariant(),
+                  volume_id=before.Volume.ToString("x8"),
+                  file_id=before.IndexHigh.ToString("x8") + before.IndexLow.ToString("x8"),
+                  last_write_filetime=before.WriteHigh.ToString("x8") + before.WriteLow.ToString("x8")};
+              }
+            }
+            public static RuntimeProposalFileV1 WriteManifest(string root, string fileName, byte[] data) {
+              if (data == null || data.Length > 8388608 || String.IsNullOrEmpty(fileName) || fileName.Length > 128 ||
+                  !String.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal) ||
+                  fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                throw new IOException("Bounded manifest bytes and a plain local basename are required.");
+              root = Path.GetFullPath(root); List<SafeFileHandle> pins = Ancestors(root);
+              try {
+                string path = Path.Combine(root, fileName);
+                // Atomic CREATE_NEW rejects any preexisting file, directory or link.
+                // The retained writer shares only read access, denying writes/deletion.
+                using (SafeFileHandle created = CreateFileW(path, 0xC0000000, 1, IntPtr.Zero, 1, 0x02200000, IntPtr.Zero)) {
+                  if (created.IsInvalid) {
+                    int error = Marshal.GetLastWin32Error();
+                    if (error == 80 || error == 183) throw new IOException("Preserve earlier runtime proposal.");
+                    throw new Win32Exception(error);
+                  }
+                  Info empty = Query(created);
+                  if ((empty.Attributes & 0x410) != 0 || empty.Links != 1 || Size(empty) != 0)
+                    throw new IOException("Fresh ordinary single-link manifest required.");
+                  using (FileStream stream = new FileStream(created, FileAccess.ReadWrite)) {
+                    stream.Write(data, 0, data.Length); stream.Flush(true);
+                    Info written = Query(created);
+                    if ((written.Attributes & 0x410) != 0 || written.Links != 1 || Size(written) != data.Length ||
+                        empty.Volume != written.Volume || empty.IndexHigh != written.IndexHigh || empty.IndexLow != written.IndexLow)
+                      throw new IOException("Fresh manifest identity changed.");
+                    RuntimeProposalFileV1 result = ReadCreatedManifest(path, fileName, written);
+                    if (Identity(written) != Identity(Query(created))) throw new IOException("Created manifest changed after readback.");
+                    return result;
+                  }
+                }
+              } finally { foreach (SafeFileHandle h in pins) h.Dispose(); }
+            }
+          }
+          '@
+          $Python = Get-LocalPath (Get-Command python -CommandType Application -ErrorAction Stop).Source
+          if ([IO.Path]::GetFileName($Python) -cne 'python.exe') { throw 'Expected selected setup-python executable.' }
+          $PythonRoot = [IO.Path]::GetFullPath([IO.Path]::GetDirectoryName($Python)).TrimEnd([IO.Path]::DirectorySeparatorChar)
+          $ToolCache = [IO.Path]::GetFullPath($env:RUNNER_TOOL_CACHE).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+          if (!$PythonRoot.StartsWith($ToolCache, [StringComparison]::OrdinalIgnoreCase)) { throw 'Selected Python is outside runner tool cache.' }
+          $Files = @([RuntimeProposalCensusV1]::Capture($PythonRoot))
+          $Native = @()
+          foreach ($Name in @('git', 'ssh-keygen')) {
+            $Executable = Get-LocalPath (Get-Command $Name -CommandType Application -ErrorAction Stop).Source
+            $Native += [ordered]@{name=$Name; observed_path=$Executable; file=[RuntimeProposalCensusV1]::HashFile($Executable, $Name)}
+          }
+          [long]$TotalBytes = ($Files | Measure-Object size_bytes -Sum).Sum + ($Native.file | Measure-Object size_bytes -Sum).Sum
+          if ($Files.Count + $Native.Count -gt 16384 -or $TotalBytes -gt 536870912) { throw 'Complete proposal inventory exceeds bounds.' }
+          foreach ($Required in @($env:ImageOS, $env:ImageVersion, $env:GITHUB_SHA, $env:GITHUB_RUN_ID, $env:GITHUB_RUN_ATTEMPT)) {
+            if ([string]::IsNullOrWhiteSpace($Required)) { throw 'Required provider/event observation absent.' }
+          }
+          if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$' -or $env:GITHUB_RUN_ID -cnotmatch '^[1-9][0-9]*$' -or $env:GITHUB_RUN_ATTEMPT -cnotmatch '^[1-9][0-9]*$') { throw 'Invalid provider event identity.' }
+          $TempRoot = Get-LocalPath $env:RUNNER_TEMP
+          $WorkspaceRoot = [IO.Path]::GetFullPath($env:GITHUB_WORKSPACE).TrimEnd([IO.Path]::DirectorySeparatorChar)
+          $ManifestName = 'agent-assure-runtime-proposal-' + $env:GITHUB_RUN_ID + '-' + $env:GITHUB_RUN_ATTEMPT + '.json'
+          $Manifest = Join-Path $TempRoot $ManifestName
+          if ($Manifest.StartsWith($WorkspaceRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) -or $Manifest -eq $WorkspaceRoot) { throw 'Proposal output must be outside workspace.' }
+          $Record = [ordered]@{
+            format='agent-assure-hosted-runtime-proposal/1'; authorization_effect='none'; qualified=$false; enrolled=$false
+            observation_scope='noncache-runtime-and-native-file-observations-only'; independent_attestation_claimed=$false
+            observed_at_utc=[DateTime]::UtcNow.ToString('o'); clock_basis='provider-host-UTC-unattested'
+            provider=[ordered]@{image_os=$env:ImageOS; image_version=$env:ImageVersion; runner_os=$env:RUNNER_OS; runner_arch=$env:RUNNER_ARCH; os_version=[Environment]::OSVersion.VersionString; powershell_version=$PSVersionTable.PSVersion.ToString(); powershell_edition=$PSVersionTable.PSEdition}
+            event=[ordered]@{repository=$env:GITHUB_REPOSITORY; event_name=$env:GITHUB_EVENT_NAME; sha=$env:GITHUB_SHA; run_id=$env:GITHUB_RUN_ID; run_attempt=$env:GITHUB_RUN_ATTEMPT}
+            selected_python=$Python; selected_root=$PythonRoot; files=$Files; native_tools=$Native
+            native_tool_limitation='Selected command files may be wrappers; executable behavior and native dependency closure are not qualified.'
+            excluded_cache_entries=@('__pycache__/', '*.pyc', '*.pyo'); observed_files=$Files.Count + $Native.Count; observed_bytes=$TotalBytes
+            bounds=[ordered]@{files=16384; bytes=536870912; file_bytes=67108864; depth=32; entries=32768; output_bytes=8388608}
+            consistency='per-file-stable-pre-open-post-and-directory-membership-not-atomic-global-snapshot'
+          }
+          $Bytes = [Text.UTF8Encoding]::new($false, $true).GetBytes(($Record | ConvertTo-Json -Depth 12) + "`n")
+          if ($Bytes.Length -gt 8388608) { throw 'Proposal JSON output bound exceeded.' }
+          $Final = [RuntimeProposalCensusV1]::WriteManifest($TempRoot, $ManifestName, $Bytes)
+          $Expected = [Security.Cryptography.SHA256]::Create()
+          try { $ExpectedHash = [BitConverter]::ToString($Expected.ComputeHash($Bytes)).Replace('-', '').ToLowerInvariant() } finally { $Expected.Dispose() }
+          if ($Final.size_bytes -ne $Bytes.Length -or $Final.sha256 -cne $ExpectedHash) { throw 'Proposal manifest readback differs.' }
+          Write-Output ('runtime_proposal_sha256=' + $Final.sha256 + ' bytes=' + $Final.size_bytes)
+          if ($Manifest.Contains("`r") -or $Manifest.Contains("`n")) { throw 'Invalid output path.' }
+          [IO.File]::AppendAllText($env:GITHUB_OUTPUT, ('manifest=' + $Manifest + "`n"), [Text.UTF8Encoding]::new($false, $true))
+      - name: Retain inert hosted runtime proposal
+        if: steps.hosted-runtime-proposal.outcome == 'success'
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: hosted-runtime-proposal-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.hosted-runtime-proposal.outputs.manifest }}
+          if-no-files-found: error
+          retention-days: 30
+      # END agent-assure hosted-runtime-proposal/v1
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Require the private roadmap to be absent
+        shell: powershell
+        run: |
+          $Roadmap = 'Agent_Assure_Implementation_Roadmap.md'
+          if (Test-Path -LiteralPath $Roadmap) {
+            throw 'Private roadmap must not be present on a hosted CI runner.'
+          }
+          $Tracked = & git ls-files -- $Roadmap
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Private roadmap index check failed.'
+          }
+          if ($Tracked) {
+            throw 'Private roadmap must not be present in the Git index.'
+          }
+          $History = & git log --all --format=%H -- $Roadmap
+          if ($LASTEXITCODE -ne 0) { throw 'Private roadmap history check failed.' }
+          if ($History) { throw 'Private roadmap must not exist in reachable history.' }
+      - name: Run the governance unit suite on native Windows
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          --basetemp "${{ runner.temp }}/pytest-windows-governance-unit"
+          tests/unit/governance
+      - name: Require native Windows runtime and historical fail-closed controls
+        run: >-
+          python -m pytest -q -p no:cacheprovider --fail-on-skip
+          --basetemp "${{ runner.temp }}/pytest-windows-governance-controls"
+          tests/unit/governance/test_v1_s1_governance.py::test_every_parser_handler_fails_closed_without_the_frozen_runtime
+          tests/unit/governance/test_v1_s1_governance.py::test_local_only_roadmap_rejects_identical_unreachable_blob
+          tests/unit/governance/test_v1_s1_governance.py::test_generation_2_historical_checkout_requires_exact_clean_closure
+          tests/unit/governance/test_v1_s1_governance.py::test_check_generation_2_dispatches_to_corrective_branch_builder_and_schema
+          tests/unit/governance/test_v1_s1_governance.py::test_check_generation_2_rejects_tampered_or_missing_validated_predecessors
+          tests/unit/governance/test_v1_s1_governance.py::test_generation_2_final_gate_rejects_records_that_expired_during_validation
+          tests/unit/governance/test_v1_s1_governance.py::test_generation_2_final_gate_rejects_reversed_or_late_import_observations
+          tests/unit/governance/test_v1_s1_governance.py::test_corrective_authorization_must_precede_baseline_inventory
+          tests/unit/governance/test_v1_s1_governance.py::test_historical_generation_2_attestation_rejects_late_bundle_import_observation
+          tests/unit/governance/test_v1_s1_governance.py::test_attestation_finalize_recovers_after_atomic_publication_and_rejects_partial_output
+          tests/unit/governance/test_v1_s1_governance.py::test_parser_supports_generation_2_timestamp_free_acceptance_inputs
+          tests/unit/governance/test_v1_s1_governance.py::test_historical_bootstrap_docs_require_a_standalone_runtime_clone
+      - name: Exercise immutable-blob reads through a long repository path
+        run: >-
+          python -m pytest -q -p no:cacheprovider --fail-on-skip
+          --basetemp "${{ runner.temp }}/pytest-windows-governance-long-path"
+          tests/unit/governance/test_v1_s1_governance.py::test_read_commit_blob_handles_a_long_exact_repository_path
+          tests/unit/governance/test_v1_s1_governance.py::test_read_commit_blob_surfaces_bounded_cat_file_diagnostics
+          tests/unit/governance/test_v1_s1_governance.py::test_read_commit_blob_treats_pathspec_metacharacters_as_literal
+      - name: Exercise generation-2 historical verifier self-binding
+        run: >-
+          python -m pytest -q -p no:cacheprovider --fail-on-skip
+          --basetemp "${{ runner.temp }}/pytest-windows-governance-self-binding"
+          tests/unit/governance/test_v1_s1_governance.py::test_generation_2_historical_binding_checks_executing_validator_and_launcher_bytes
+      - name: Validate generation-1 closure and generation-2 topology/tag/self-binding
+        run: >-
+          python -m pytest -q -p no:cacheprovider --fail-on-skip
+          --basetemp "${{ runner.temp }}/pytest-windows-governance-historical"
+          tests/integration/test_v1_s1_historical_check.py::test_historical_check_validates_the_full_signed_closure_after_a_descendant
+          tests/integration/test_v1_s1_historical_check.py::test_generation_2_topology_tag_and_self_binding_in_standalone_clone
   langgraph-smoke:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

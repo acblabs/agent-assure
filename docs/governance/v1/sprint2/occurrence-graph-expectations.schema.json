@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/occurrence-graph-expectations.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "status",
+    "authorization_effect",
+    "source_spec_revision",
+    "source_spec_digest",
+    "source_contract_id",
+    "source_location",
+    "expectation_basis",
+    "independence_scope",
+    "independent_review",
+    "human_acceptance",
+    "expectations"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-sprint2-occurrence-expectations-proposal/1"
+    },
+    "status": {
+      "const": "proposed_for_development"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "source_spec_revision": {
+      "const": "6.5"
+    },
+    "source_spec_digest": {
+      "const": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+    },
+    "source_contract_id": {
+      "const": "occurrence-graph-expectations/v1"
+    },
+    "source_location": {
+      "const": "Appendix E.1 tickets-metadata.occurrence_graph_expectations"
+    },
+    "expectation_basis": {
+      "const": "literal_specification_contract_not_graph_reconstruction"
+    },
+    "independence_scope": {
+      "const": "separately_authored_expectations_not_independent_human_review"
+    },
+    "independent_review": {
+      "const": "NO_INDEPENDENT_REVIEW"
+    },
+    "human_acceptance": {
+      "const": "pending"
+    },
+    "expectations": {
+      "const": {
+        "critical_work_package_dependencies": {
+          "AUTH-02A": [
+            "AUTH-02W"
+          ],
+          "CUT-01A": [
+            "SCHEMA-01D"
+          ],
+          "DIST-01A": [
+            "SCHEMA-01D"
+          ],
+          "DIST-01B": [
+            "SCHEMA-01D",
+            "QUAL-01C"
+          ],
+          "EVID-03A": [
+            "SCHEMA-01D"
+          ],
+          "NUM-01A": [
+            "SCHEMA-01D"
+          ],
+          "PILOT-00A": [
+            "DIST-01B",
+            "QREV-00A",
+            "QUAL-01B"
+          ],
+          "PILOT-00G": [
+            "PILOT-00A"
+          ],
+          "QREV-00A": [
+            "CUT-01A"
+          ],
+          "QUAL-01C": [
+            "SCHEMA-01D"
+          ],
+          "QUAL-02B": [
+            "QUAL-02A"
+          ],
+          "QUAL-02C": [
+            "QUAL-02B"
+          ],
+          "REL-01G": [
+            "SCHEMA-01D"
+          ],
+          "TEMP-01A": [
+            "SCHEMA-01A",
+            "SCHEMA-01D"
+          ],
+          "TRUST-01A": [
+            "SCHEMA-01D"
+          ]
+        },
+        "edge_counts_by_kind": {
+          "basis_activation_to_product_gate": 6,
+          "candidate_binding": 52,
+          "empty_ticket_close": 67,
+          "ga_ship_gate": 7,
+          "optional_train_start_gate": 6,
+          "pilot_start_gate": 1,
+          "preview_receipt_to_product_gate": 2,
+          "profile_decision_to_activation": 25,
+          "profile_predecessor_activation": 18,
+          "profile_required_ticket": 78,
+          "release_ticket_to_activation": 20,
+          "stable_decision_to_activation": 6,
+          "stable_predecessor_activation": 6,
+          "stable_requalification_ticket": 12,
+          "static_ticket_dependency": 353,
+          "ticket_owns_work_package": 102,
+          "ticket_wave_barrier": 79,
+          "work_package_closes_ticket": 102,
+          "work_package_receipt": 37,
+          "work_package_wave_barrier": 18
+        },
+        "format": "occurrence-graph-expectations/v1",
+        "graph_sha256": "2a49cc9a4fa1c6bf54b1145815d8bf1252eb2f5831300250a2f587006b102cb6",
+        "node_counts_by_kind": {
+          "release_activation": 7,
+          "ticket_close": 121,
+          "ticket_start": 121,
+          "work_package": 102
+        },
+        "topological_order_sha256": "50cb697c68e404d31743012dc0698b9dfec81e7eebf52d41b9cc34df04339156",
+        "topology_edge_count": 969
+      }
+    }
+  }
+}

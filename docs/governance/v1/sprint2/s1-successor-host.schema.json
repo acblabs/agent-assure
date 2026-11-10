@@ -1,0 +1,1067 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/s1-successor-host.schema.json",
+  "title": "Frozen host successor and S2 development governance wire contract",
+  "$comment": "Schema validity never grants trust. Frozen external bootstrap and scoped exact-byte human signatures are mandatory. All references stay local.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/bootstrap"
+    },
+    {
+      "$ref": "#/$defs/request"
+    }
+  ],
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "person_id",
+        "key_id",
+        "public_key",
+        "competence_scopes",
+        "roles",
+        "conflicts",
+        "review_capacity",
+        "valid_from_utc",
+        "valid_until_utc",
+        "mode",
+        "independence"
+      ],
+      "properties": {
+        "person_id": {
+          "const": "acblabs"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "public_key": {
+          "const": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB"
+        },
+        "competence_scopes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "repository_maintainer",
+              "technical_lead"
+            ]
+          }
+        },
+        "conflicts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "review_capacity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "valid_from_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "maxLength": 27
+        },
+        "valid_until_utc": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+          "maxLength": 27
+        },
+        "mode": {
+          "const": "maintainer_development"
+        },
+        "independence": {
+          "const": "NO_INDEPENDENT_REVIEW"
+        }
+      }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim",
+        "signature_envelope"
+      ],
+      "properties": {
+        "claim": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "purpose",
+            "authorization_effect",
+            "trust",
+            "policy",
+            "policy_digest",
+            "implementation_inventory",
+            "local_check_expansion",
+            "exclusions",
+            "actual_signature_time_claimed"
+          ],
+          "properties": {
+            "format": {
+              "const": "agent-assure-s1-successor-host-bootstrap/3"
+            },
+            "purpose": {
+              "const": "scoped_development_trust_and_bootstrap"
+            },
+            "authorization_effect": {
+              "const": "development_governance_only"
+            },
+            "trust": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "person_id",
+                "key_id",
+                "public_key",
+                "competence_scopes",
+                "roles",
+                "conflicts",
+                "review_capacity",
+                "valid_from_utc",
+                "valid_until_utc",
+                "mode",
+                "independence",
+                "implementation_binding",
+                "local_check_expansion_digest",
+                "capture_repository_root",
+                "powershell_identity"
+              ],
+              "properties": {
+                "person_id": {
+                  "const": "acblabs"
+                },
+                "key_id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "public_key": {
+                  "const": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIP7Bgeqxj82OCpkAsF4Qzby2m5PfOnh4lNKzl3fXZ/uB"
+                },
+                "competence_scopes": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 64,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "roles": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": [
+                      "repository_maintainer",
+                      "technical_lead"
+                    ]
+                  }
+                },
+                "conflicts": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 64,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "review_capacity": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "valid_from_utc": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "maxLength": 27
+                },
+                "valid_until_utc": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z$",
+                  "maxLength": 27
+                },
+                "mode": {
+                  "const": "maintainer_development"
+                },
+                "independence": {
+                  "const": "NO_INDEPENDENT_REVIEW"
+                },
+                "implementation_binding": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "maxLength": 71
+                },
+                "local_check_expansion_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "maxLength": 71
+                },
+                "capture_repository_root": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "powershell_identity": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "path",
+                    "size_bytes",
+                    "sha256"
+                  ],
+                  "properties": {
+                    "path": {
+                      "const": "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+                    },
+                    "size_bytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4194304
+                    },
+                    "sha256": {
+                      "type": "string",
+                      "pattern": "^sha256:[0-9a-f]{64}$",
+                      "maxLength": 71
+                    }
+                  }
+                }
+              }
+            },
+            "policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "trust_snapshot_digest",
+                "signer_person_id",
+                "workflow_digest",
+                "expected_validator_digest",
+                "required_ci_instances",
+                "required_local_checks",
+                "required_native_controls",
+                "predecessor_tag_objects",
+                "maximum_age_seconds",
+                "finalization_window_seconds"
+              ],
+              "properties": {
+                "trust_snapshot_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "maxLength": 71
+                },
+                "signer_person_id": {
+                  "const": "acblabs"
+                },
+                "workflow_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "maxLength": 71
+                },
+                "expected_validator_digest": {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "maxLength": 71
+                },
+                "required_ci_instances": {
+                  "type": "array",
+                  "minItems": 21,
+                  "maxItems": 256,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required_local_checks": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 64,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "required_native_controls": {
+                  "type": "array",
+                  "minItems": 10,
+                  "maxItems": 64,
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  }
+                },
+                "predecessor_tag_objects": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "array",
+                    "prefixItems": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      },
+                      {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{40}$",
+                        "maxLength": 40
+                      }
+                    ],
+                    "items": false,
+                    "minItems": 2,
+                    "maxItems": 2
+                  }
+                },
+                "maximum_age_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 2592000
+                },
+                "finalization_window_seconds": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3600
+                }
+              }
+            },
+            "policy_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "maxLength": 71
+            },
+            "implementation_inventory": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "uniqueItems": true,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "size_bytes",
+                  "sha256"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "size_bytes": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 4194304
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^sha256:[0-9a-f]{64}$",
+                    "maxLength": 71
+                  }
+                }
+              }
+            },
+            "local_check_expansion": {
+              "type": "object"
+            },
+            "exclusions": {
+              "const": [
+                "no_independent_review",
+                "no_method_admission",
+                "no_runtime_or_release_authorization"
+              ]
+            },
+            "actual_signature_time_claimed": {
+              "const": false
+            }
+          }
+        },
+        "signature_envelope": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "profile",
+            "namespace",
+            "signer_person_id",
+            "key_id",
+            "signature"
+          ],
+          "properties": {
+            "profile": {
+              "const": "openssh-sshsig-ed25519/v1"
+            },
+            "namespace": {
+              "const": "agent-assure-governance-v1"
+            },
+            "signer_person_id": {
+              "const": "acblabs"
+            },
+            "key_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "signature": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16384
+            }
+          }
+        }
+      }
+    },
+    "request": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "base_commit",
+            "allowed_paths",
+            "work_limits",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "kickoff-plan"
+            },
+            "base_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "allowed_paths": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              }
+            },
+            "work_limits": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "maximum_changed_files",
+                "maximum_diff_lines",
+                "maximum_wall_clock_seconds"
+              ],
+              "properties": {
+                "maximum_changed_files": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "maximum_diff_lines": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "maximum_wall_clock_seconds": {
+                  "type": "integer",
+                  "minimum": 1
+                }
+              }
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "claim",
+            "signature_envelope",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "kickoff-import"
+            },
+            "claim": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "signature_envelope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "kickoff",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "start-work"
+            },
+            "kickoff": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "kickoff",
+            "work_start",
+            "result_commit",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "observe-result"
+            },
+            "kickoff": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "work_start": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "result_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "kickoff",
+            "result_commit",
+            "roadmap",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "forecast-plan"
+            },
+            "kickoff": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "result_commit": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$",
+              "maxLength": 40
+            },
+            "roadmap": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "producer_document",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "forecast-acceptance-plan"
+            },
+            "producer_document": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "kickoff",
+            "result_observation",
+            "roadmap",
+            "native_dir",
+            "checks_dir",
+            "forecast_producer",
+            "forecast_acceptance",
+            "run_id",
+            "run_attempt",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "collect"
+            },
+            "kickoff": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "result_observation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "roadmap": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "native_dir": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "checks_dir": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "forecast_producer": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "forecast_acceptance": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "run_id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "run_attempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "collection",
+            "signature_envelope",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "receipt-import"
+            },
+            "collection": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "signature_envelope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "accepted_receipt",
+            "evidence",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "tag-plan"
+            },
+            "accepted_receipt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "tag_claim",
+            "signature_envelope",
+            "accepted_receipt",
+            "evidence",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "tag-finalize"
+            },
+            "tag_claim": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "signature_envelope": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "accepted_receipt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "publication",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "publication-plan"
+            },
+            "publication": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "accepted_receipt",
+            "evidence",
+            "publication",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "verify"
+            },
+            "accepted_receipt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "publication": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "accepted_receipt",
+            "evidence",
+            "publication",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "verify-replay"
+            },
+            "accepted_receipt": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "evidence": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "publication": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "successor_verification",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "s2-plan"
+            },
+            "successor_verification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "plan",
+            "signed_decisions",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "s2-import"
+            },
+            "plan": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "signed_decisions": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "bundle",
+            "successor_verification"
+          ],
+          "properties": {
+            "action": {
+              "const": "s2-verify"
+            },
+            "bundle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "successor_verification": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "action",
+            "claim",
+            "out"
+          ],
+          "properties": {
+            "action": {
+              "const": "forecast-recalculate"
+            },
+            "claim": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "out": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            }
+          }
+        }
+      ]
+    },
+    "signature_envelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "namespace",
+        "signer_person_id",
+        "key_id",
+        "signature"
+      ],
+      "properties": {
+        "profile": {
+          "const": "openssh-sshsig-ed25519/v1"
+        },
+        "namespace": {
+          "const": "agent-assure-governance-v1"
+        },
+        "signer_person_id": {
+          "const": "acblabs"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "signature": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 16384
+        }
+      }
+    }
+  }
+}

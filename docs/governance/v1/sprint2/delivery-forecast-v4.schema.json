@@ -1,0 +1,772 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-assure.dev/schemas/governance/v1/sprint2/delivery-forecast-v4.schema.json",
+  "title": "Complete delivery-forecast/v1 planning projection, wire format generation 4",
+  "description": "A prepared nonauthorizing projection with all roadmap-required per-ticket metadata. Semantic verification reconstructs exact rows, ordered occurrences, freshness and both forms of aggregates from authenticated source and explicit human selections. Requires new producer and maintainer signatures; a historical generation-3 signature cannot accept generation 4.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_id",
+    "format",
+    "spec_revision",
+    "projection_status",
+    "authorization_effect",
+    "signature_lifecycle",
+    "source",
+    "authoring_ledger_digest",
+    "human_estimates_digest",
+    "approval_roster_digest",
+    "estimation_catalog_digest",
+    "aggregation_method_registry_digest",
+    "aggregation_method",
+    "file_scope_observation",
+    "inventory_completed_at_utc",
+    "issued_at_utc",
+    "valid_until_utc",
+    "trusted_time_basis",
+    "actual_signature_time_claimed",
+    "confidence_basis",
+    "calendar_commitment",
+    "portfolio_scenarios",
+    "portfolio_aggregate",
+    "rows",
+    "record_digest"
+  ],
+  "properties": {
+    "contract_id": {
+      "const": "delivery-forecast/v1"
+    },
+    "format": {
+      "const": "agent-assure-delivery-forecast/4"
+    },
+    "spec_revision": {
+      "const": "6.5"
+    },
+    "projection_status": {
+      "const": "prepared_non_authorizing"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "signature_lifecycle": {
+      "const": "external_producer_and_repository_maintainer_sshsig_claims"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "authoring_ledger_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "human_estimates_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "approval_roster_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "estimation_catalog_digest": {
+      "const": "sha256:33cee0874eecf79f36a0dadcafa831525df206c9fdc67d9ab4759138475da439"
+    },
+    "aggregation_method_registry_digest": {
+      "const": "sha256:7cac700d33f41f97156f459bf48bae5e4c65d36505aab6cb7e5c2df4acae1ba6"
+    },
+    "aggregation_method": {
+      "$ref": "#/$defs/method"
+    },
+    "file_scope_observation": {
+      "$ref": "#/$defs/file_scope"
+    },
+    "inventory_completed_at_utc": {
+      "$ref": "#/$defs/utc"
+    },
+    "issued_at_utc": {
+      "$ref": "#/$defs/utc"
+    },
+    "valid_until_utc": {
+      "$ref": "#/$defs/utc"
+    },
+    "trusted_time_basis": {
+      "const": "maintainer_host_utc_externally_unattested"
+    },
+    "actual_signature_time_claimed": {
+      "const": false
+    },
+    "confidence_basis": {
+      "const": "selected_subjective_uncalibrated_planning_quantiles_pending_external_signatures"
+    },
+    "calendar_commitment": {
+      "const": false
+    },
+    "portfolio_scenarios": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": false,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scenario_id",
+            "ticket_ids",
+            "ticket_count",
+            "occurrence_count",
+            "engineering_p50_effort_hours",
+            "engineering_p90_effort_hours",
+            "reviewer_p50_effort_hours",
+            "combined_p50_effort_hours",
+            "combined_p90_effort_hours",
+            "elapsed_waits_included"
+          ],
+          "properties": {
+            "scenario_id": {
+              "const": "stable_core_committed"
+            },
+            "ticket_ids": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/text"
+              },
+              "uniqueItems": true
+            },
+            "ticket_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4096
+            },
+            "occurrence_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4096
+            },
+            "engineering_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "engineering_p90_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "reviewer_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "combined_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "combined_p90_effort_hours": {
+              "type": "null"
+            },
+            "elapsed_waits_included": {
+              "const": false
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scenario_id",
+            "ticket_ids",
+            "ticket_count",
+            "occurrence_count",
+            "engineering_p50_effort_hours",
+            "engineering_p90_effort_hours",
+            "reviewer_p50_effort_hours",
+            "combined_p50_effort_hours",
+            "combined_p90_effort_hours",
+            "elapsed_waits_included"
+          ],
+          "properties": {
+            "scenario_id": {
+              "const": "optional_profile_planned"
+            },
+            "ticket_ids": {
+              "type": "array",
+              "minItems": 0,
+              "maxItems": 4096,
+              "items": {
+                "$ref": "#/$defs/text"
+              },
+              "uniqueItems": true
+            },
+            "ticket_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4096
+            },
+            "occurrence_count": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4096
+            },
+            "engineering_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "engineering_p90_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "reviewer_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "combined_p50_effort_hours": {
+              "$ref": "#/$defs/integer"
+            },
+            "combined_p90_effort_hours": {
+              "type": "null"
+            },
+            "elapsed_waits_included": {
+              "const": false
+            }
+          }
+        }
+      ]
+    },
+    "portfolio_aggregate": {
+      "$ref": "#/$defs/aggregate"
+    },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "record_digest": {
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "integer": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "utc": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,6})?Z$"
+    },
+    "roster": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "person_id",
+        "roles",
+        "competence_scopes",
+        "conflicts",
+        "review_capacity",
+        "mode",
+        "independence"
+      ],
+      "properties": {
+        "person_id": {
+          "$ref": "#/$defs/text"
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "enum": [
+              "technical_lead",
+              "repository_maintainer"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "competence_scopes": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 4096,
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "uniqueItems": true,
+          "allOf": [
+            {
+              "contains": {
+                "const": "planning_governance:s1_successor"
+              }
+            },
+            {
+              "contains": {
+                "const": "schema_compatibility"
+              }
+            }
+          ]
+        },
+        "conflicts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "uniqueItems": true
+        },
+        "review_capacity": {
+          "$ref": "#/$defs/text"
+        },
+        "mode": {
+          "const": "maintainer_development"
+        },
+        "independence": {
+          "const": "NO_INDEPENDENT_REVIEW"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dependency_graph_digest",
+        "dispatch_scope_digest",
+        "inventory_digest",
+        "kickoff_claim_digest",
+        "release_train_digest",
+        "roadmap_digest",
+        "scope_digest",
+        "ticket_set_digest",
+        "trust_snapshot_digest",
+        "baseline_commit",
+        "approval_roster",
+        "planning_input_bindings"
+      ],
+      "properties": {
+        "dependency_graph_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "dispatch_scope_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "inventory_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "kickoff_claim_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "release_train_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "roadmap_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "scope_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "ticket_set_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "trust_snapshot_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "baseline_commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "approval_roster": {
+          "$ref": "#/$defs/roster"
+        },
+        "planning_input_bindings": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "prefixItems": [
+            {
+              "const": {
+                "path": "docs/governance/v1/delivery-forecast.aggregation-registry.json",
+                "size_bytes": 3366,
+                "sha256": "sha256:687622f6edf8bedc16d0b14a3126805cccdfcd73dd563f4f5ce445c128afd454"
+              }
+            },
+            {
+              "const": {
+                "path": "docs/governance/v1/delivery-forecast.aggregation-registry.schema.json",
+                "size_bytes": 5229,
+                "sha256": "sha256:fe26890f9f053be9cc2c2782af2fe50e25f1ff7a99e6525ec02dc67d132994d1"
+              }
+            },
+            {
+              "const": {
+                "path": "docs/governance/v1/delivery-forecast.estimation-catalog.json",
+                "size_bytes": 20010,
+                "sha256": "sha256:64dfa1bd30a3da051b92bfc2a00a5581ee8e71a7aa2deaa4360670d08bd1f94d"
+              }
+            },
+            {
+              "const": {
+                "path": "docs/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+                "size_bytes": 9888,
+                "sha256": "sha256:f35777e10f3257da91b0505c3bf90cc8e155b7ab556f8e0ba2352a2881acb1bf"
+              }
+            }
+          ],
+          "items": false
+        }
+      }
+    },
+    "aggregate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_ids",
+        "ticket_count",
+        "occurrence_count",
+        "engineering_p50_effort_hours",
+        "engineering_p90_effort_hours",
+        "reviewer_p50_effort_hours",
+        "combined_p50_effort_hours",
+        "combined_p90_effort_hours",
+        "elapsed_waits_included"
+      ],
+      "properties": {
+        "ticket_ids": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 4096,
+          "items": {
+            "$ref": "#/$defs/text"
+          },
+          "uniqueItems": true
+        },
+        "ticket_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "occurrence_count": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "engineering_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "engineering_p90_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "reviewer_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "combined_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "combined_p90_effort_hours": {
+          "type": "null"
+        },
+        "elapsed_waits_included": {
+          "const": false
+        }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "occurrence_id",
+        "sprint",
+        "release",
+        "scenario_class",
+        "workload_vector_digest",
+        "proposal_digest",
+        "derivation_disposition",
+        "proposed_p50_effort_hours",
+        "proposed_p90_effort_hours",
+        "proposed_reviewer_p50_effort_hours",
+        "selected_p50_effort_hours",
+        "selected_p90_effort_hours",
+        "selected_reviewer_p50_effort_hours",
+        "selection_mode",
+        "rationale",
+        "maximum_single_known_wait_hours",
+        "serial_sum_known_wait_hours",
+        "unquantified_wait_dependency_count",
+        "elapsed_wait_included",
+        "calendar_critical_path_modeled",
+        "p50_effort_hours",
+        "p90_effort_hours",
+        "reviewer_effort_hours"
+      ],
+      "properties": {
+        "occurrence_id": {
+          "$ref": "#/$defs/text"
+        },
+        "sprint": {
+          "$ref": "#/$defs/text"
+        },
+        "release": {
+          "$ref": "#/$defs/text"
+        },
+        "scenario_class": {
+          "enum": [
+            "stable_core_committed",
+            "optional_profile_planned"
+          ]
+        },
+        "workload_vector_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "proposal_digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "derivation_disposition": {
+          "const": "reestimated_after_inventory"
+        },
+        "proposed_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "proposed_p90_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "proposed_reviewer_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "selected_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "selected_p90_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "selected_reviewer_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "selection_mode": {
+          "enum": [
+            "adopt_machine_proposal",
+            "human_adjusted"
+          ]
+        },
+        "rationale": {
+          "$ref": "#/$defs/text"
+        },
+        "maximum_single_known_wait_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "serial_sum_known_wait_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "unquantified_wait_dependency_count": {
+          "$ref": "#/$defs/integer"
+        },
+        "elapsed_wait_included": {
+          "const": false
+        },
+        "calendar_critical_path_modeled": {
+          "const": false
+        },
+        "p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "p90_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "reviewer_effort_hours": {
+          "$ref": "#/$defs/integer"
+        }
+      }
+    },
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_id",
+        "estimate_scope",
+        "prior_disposition",
+        "derivation_disposition",
+        "planned_execution_count",
+        "execution_estimates",
+        "aggregate",
+        "aggregate_p50_effort_hours",
+        "aggregate_p90_effort_hours",
+        "aggregate_reviewer_effort_hours",
+        "aggregate_method_id",
+        "aggregate_method_definition_digest",
+        "aggregate_dependence_assumptions",
+        "confidence",
+        "dependency_assumptions",
+        "risk_assumptions",
+        "current_status",
+        "trusted_issue_time"
+      ],
+      "properties": {
+        "ticket_id": {
+          "$ref": "#/$defs/text"
+        },
+        "estimate_scope": {
+          "$ref": "#/$defs/text"
+        },
+        "prior_disposition": {
+          "const": "stale_not_used_as_anchor"
+        },
+        "derivation_disposition": {
+          "const": "reestimated_after_inventory"
+        },
+        "planned_execution_count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4096
+        },
+        "execution_estimates": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 4096,
+          "items": {
+            "$ref": "#/$defs/execution"
+          }
+        },
+        "aggregate": {
+          "$ref": "#/$defs/aggregate"
+        },
+        "aggregate_p50_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "aggregate_p90_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "aggregate_reviewer_effort_hours": {
+          "$ref": "#/$defs/integer"
+        },
+        "aggregate_method_id": {
+          "const": "comonotonic-quantile-sum/v1"
+        },
+        "aggregate_method_definition_digest": {
+          "const": "sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7"
+        },
+        "aggregate_dependence_assumptions": {
+          "const": [
+            "full_positive_rank_dependence_no_diversification_credit",
+            "reported_quantile_sums_are_exact_only_under_the_bound_comonotonic_construction"
+          ]
+        },
+        "confidence": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "dependency_assumptions": {
+          "$ref": "#/$defs/assumption_array"
+        },
+        "risk_assumptions": {
+          "$ref": "#/$defs/assumption_array"
+        },
+        "current_status": {
+          "enum": [
+            "not_started",
+            "in_progress",
+            "blocked",
+            "done"
+          ]
+        },
+        "trusted_issue_time": {
+          "$ref": "#/$defs/utc"
+        }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method_id",
+        "version",
+        "definition_digest",
+        "unit",
+        "dependence_assumption",
+        "reviewer_effort_coupling",
+        "quantile_definition",
+        "arithmetic",
+        "independence_claimed",
+        "distribution_free_upper_bound_claimed"
+      ],
+      "properties": {
+        "method_id": {
+          "const": "comonotonic-quantile-sum/v1"
+        },
+        "version": {
+          "const": "1.1.0"
+        },
+        "definition_digest": {
+          "const": "sha256:028ff736a0d4c7ac37a5fb15ba1ee733401a8be453569fc07b37fae6b27517f7"
+        },
+        "unit": {
+          "const": "focused_person_hour"
+        },
+        "dependence_assumption": {
+          "const": "full_positive_rank_dependence_no_diversification_credit"
+        },
+        "reviewer_effort_coupling": {
+          "const": "same_shared_rank_as_engineering_no_reviewer_p90_available"
+        },
+        "quantile_definition": {
+          "const": "Q_p(X)=inf{x:F_X(x)>=p}"
+        },
+        "arithmetic": {
+          "const": "checked_nonnegative_integer_sum_no_rounding"
+        },
+        "independence_claimed": {
+          "const": false
+        },
+        "distribution_free_upper_bound_claimed": {
+          "const": false
+        }
+      }
+    },
+    "file_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_count",
+        "resolved_ticket_count",
+        "unresolved_ticket_count",
+        "evidence_basis",
+        "interpretation",
+        "estimate_status",
+        "rebaseline_trigger"
+      ],
+      "properties": {
+        "ticket_count": {
+          "$ref": "#/$defs/integer"
+        },
+        "resolved_ticket_count": {
+          "$ref": "#/$defs/integer"
+        },
+        "unresolved_ticket_count": {
+          "$ref": "#/$defs/integer"
+        },
+        "evidence_basis": {
+          "const": "roadmap_resolved_allowed_files_cardinality"
+        },
+        "interpretation": {
+          "const": "unresolved_scope_not_zero_implementation_work"
+        },
+        "estimate_status": {
+          "const": "nonbinding_placeholders_pending_dispatch_scope_resolution"
+        },
+        "rebaseline_trigger": {
+          "const": "resolve_approved_file_scope_at_ticket_dispatch_and_reestimate_when_concrete_surface_count_differs"
+        }
+      }
+    },
+    "assumption_array": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4096,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 4096,
+        "pattern": "\\S"
+      }
+    }
+  }
+}

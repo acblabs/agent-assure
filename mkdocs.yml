@@ -28,6 +28,12 @@ nav:
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
+  - V1 S1 governance and corrective baseline: governance/v1/README.md
+  - V1 S2 architecture review package: governance/v1/sprint2/README.md
+  - V1 successor host runbook: governance/v1/sprint2/host-runbook.md
+  - V1 forecast compatibility: governance/v1/sprint2/forecast-compatibility.md
+  - V1 S1/S2 correction close: governance/v1/sprint2/closure-corrections.md
+  - V1 complete forecast rows: governance/v1/sprint2/forecast-v4-compatibility.md
   - Privacy model: privacy_model.md
   - Threat model: threat_model.md
   - Security correction containment: security_release_containment.md
@@ -56,3 +62,10 @@ nav:
       - Deterministic and stochastic semantics: adr/0013-deterministic-and-stochastic-semantics.md
       - LLM judgments are advisory: adr/0014-llm-judgments-are-advisory.md
       - Formal and conformal scope: adr/0015-formal-and-conformal-scope.md
+      - V1 repository map and S1 planning governance: adr/0016-v1-repository-map.md
+      - V1 evidence and temporal semantics: adr/0017-v1-evidence-temporal-semantics.md
+      - V1 verifier authorization: adr/0018-v1-verifier-authorization.md
+      - V1 numerical and statistical contracts: adr/0019-v1-numerical-statistical-contracts.md
+      - V1 bounded artifact I/O: adr/0020-v1-bounded-artifact-io.md
+      - V1 registry and dispatch: adr/0021-v1-release-registry-dispatch.md
+      - V1 schema and wire contracts: adr/0022-v1-schema-wire-contracts.md

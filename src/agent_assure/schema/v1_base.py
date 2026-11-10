@@ -1,0 +1,51 @@
+"""Exact development writer inventory; these constants register no reader."""
+
+from __future__ import annotations
+
+from typing import Final
+
+V1_WRITER_SCHEMA_VERSION: Final = "1.0.0rc1"
+V1_SCHEMA_CONTRACT_IDS: Final[tuple[str, ...]] = (
+    "approval-allocation-proof-bundle/v1",
+    "approval-receipt/v1",
+    "assurance-head-commit-proof/v1",
+    "assurance-registry-descriptor/v1",
+    "assurance-release-head/v1",
+    "authorization-artifact/v1",
+    "authorization-capability-preflight/v1",
+    "candidate-equivalence-transfer/v1",
+    "candidate-install-verification/v1",
+    "channel-artifact-manifest/v1",
+    "channel-publication-receipt/v1",
+    "dispatch-context/v1",
+    "evidence-consumer-disposition/v1",
+    "evidence-consumer-drain-completion/v1",
+    "exceptional-deployment-authorization/v1",
+    "model-identity/v1",
+    "optional-train-start-threshold-evaluation/v1",
+    "pilot-bundle/v1",
+    "pilot-readiness/v1",
+    "preview-publication/v1",
+    "product-evidence-snapshot/v1",
+    "product-exposure-floor-evaluation/v1",
+    "product-gate-generation/v1",
+    "product-gate-producer-consumer-binding/v1",
+    "product-gate-record/v1",
+    "product-gate-sequence-head/v1",
+    "product-gate-series-controller/v1",
+    "product-gate-trusted-time-order/v1",
+    "product-threshold-definition/v1",
+    "profile-lifecycle-transition/v1",
+    "qualification-bundle/v1",
+    "release-candidate-manifest/v1",
+    "required-claim-manifest/v1",
+    "rollback-consumption-receipt/v1",
+    "rollback-nonce-state/v1",
+    "signature-envelope/v1",
+    "source-event-identity/v1",
+    "statistical-bundle-close-receipt/v1",
+    "statistical-checkpoint/v1",
+    "statistical-registration/v1",
+    "structural-exploratory-topology-report/v1",
+    "veto-record/v1",
+)

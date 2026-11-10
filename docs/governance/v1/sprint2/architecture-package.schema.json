@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/sprint2/architecture-package.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "roadmap_digest",
+    "sprint",
+    "release",
+    "maturity",
+    "artifact_kind",
+    "status",
+    "authorization_effect",
+    "package_version",
+    "distribution_channels",
+    "approval_mode",
+    "independent_review_claimed",
+    "predecessor_closure_commit",
+    "decisions",
+    "work_packages",
+    "supplementary_artifacts",
+    "historical_artifacts",
+    "tooling_artifacts",
+    "pending_gates",
+    "package_digest"
+  ],
+  "properties": {
+    "format": {
+      "const": "agent-assure-v1-architecture-package/1"
+    },
+    "spec_revision": {
+      "const": "6.5"
+    },
+    "roadmap_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "sprint": {
+      "const": "S2"
+    },
+    "release": {
+      "const": "1.0.0a2"
+    },
+    "maturity": {
+      "const": "architecture-frozen-proposal"
+    },
+    "artifact_kind": {
+      "const": "governance-bundle"
+    },
+    "status": {
+      "const": "proposed_for_development"
+    },
+    "authorization_effect": {
+      "const": "none"
+    },
+    "package_version": {
+      "type": "null"
+    },
+    "distribution_channels": {
+      "const": []
+    },
+    "approval_mode": {
+      "const": "maintainer_development"
+    },
+    "independent_review_claimed": {
+      "const": false
+    },
+    "predecessor_closure_commit": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ticket_id",
+          "decision_id",
+          "artifact",
+          "owner_role",
+          "reviewer_role",
+          "dependencies",
+          "start_receipt",
+          "completion_receipt",
+          "status"
+        ],
+        "properties": {
+          "ticket_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "decision_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "size_bytes",
+              "sha256"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2048
+              },
+              "size_bytes": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 4194304
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^sha256:[0-9a-f]{64}$"
+              }
+            }
+          },
+          "owner_role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "reviewer_role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "dependencies": {
+            "const": [
+              "V1-BOOT-01",
+              "V1-BASE-01"
+            ]
+          },
+          "start_receipt": {
+            "const": "drafting_authorization"
+          },
+          "completion_receipt": {
+            "const": "development_design_acceptance"
+          },
+          "status": {
+            "const": "proposed_for_development"
+          }
+        }
+      }
+    },
+    "work_packages": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048
+      }
+    },
+    "supplementary_artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size_bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4194304
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "historical_artifacts": {
+      "type": "array",
+      "minItems": 13,
+      "maxItems": 13,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size_bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4194304
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "tooling_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "size_bytes",
+          "sha256"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048
+          },
+          "size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4194304
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        }
+      }
+    },
+    "pending_gates": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048
+      }
+    },
+    "package_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

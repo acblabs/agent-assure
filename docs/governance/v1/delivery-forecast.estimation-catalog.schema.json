@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/delivery-forecast.estimation-catalog.schema.json",
+  "title": "Agent Assure delivery forecast estimation catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "model_revision",
+    "authority",
+    "digest_contracts",
+    "prior_policy",
+    "scope_resolution_policy",
+    "coverage_policy",
+    "scenario_registry",
+    "work_unit_catalog",
+    "workload_derivation",
+    "elapsed_time_policy",
+    "arithmetic",
+    "catalog_digest"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-delivery-forecast-estimation-catalog/1" },
+    "spec_revision": { "const": "6.5" },
+    "model_revision": { "const": "bottom-up-wbs/1" },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposal_kind", "authorization_effect", "human_review_required"],
+      "properties": {
+        "proposal_kind": { "const": "machine_authored_nonbinding" },
+        "authorization_effect": { "const": "none" },
+        "human_review_required": { "const": "every_row_and_occurrence" }
+      }
+    },
+    "digest_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": { "$ref": "#/$defs/digestContract" }
+    },
+    "prior_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stale_basis",
+        "required_disposition",
+        "may_seed_workload_or_effort",
+        "reestimate_scope"
+      ],
+      "properties": {
+        "stale_basis": { "const": "provisional_before_V1-BASE-01" },
+        "required_disposition": { "const": "stale_not_used_as_anchor" },
+        "may_seed_workload_or_effort": { "const": false },
+        "reestimate_scope": { "const": "all_roadmap_rows_and_occurrences" }
+      }
+    },
+    "scope_resolution_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "empty_resolved_allowed_files_interpretation",
+        "estimation_treatment",
+        "dispatch_requirement",
+        "authorization_effect"
+      ],
+      "properties": {
+        "empty_resolved_allowed_files_interpretation": { "const": "unresolved_scope_not_zero_implementation_work" },
+        "estimation_treatment": { "const": "first_occurrence_anchor_and_change_role_proxy_plus_one_unresolved_scope_uncertainty_unit" },
+        "dispatch_requirement": { "const": "resolve_approved_file_scope_at_ticket_dispatch_and_reestimate_when_concrete_surface_count_differs" },
+        "authorization_effect": { "const": "none" }
+      }
+    },
+    "coverage_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ticket_completion",
+        "repeated_execution",
+        "work_packages",
+        "occurrence_anchor"
+      ],
+      "properties": {
+        "ticket_completion": { "const": "source_order_round_robin_once_across_release_train_occurrence_order" },
+        "repeated_execution": { "const": "each_acceptance_criterion_once_per_occurrence" },
+        "work_packages": { "const": "each_work_package_once_at_declared_sprint" },
+        "occurrence_anchor": { "const": "exactly_once_per_release_train_occurrence" }
+      }
+    },
+    "scenario_registry": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 8,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scenario_id", "membership_rule", "aggregation_role"],
+        "properties": {
+          "scenario_id": { "enum": ["stable_core_committed", "optional_profile_planned"] },
+          "membership_rule": { "enum": ["release_train_stable_1_0", "release_train_nonstable"] },
+          "aggregation_role": { "enum": ["base_scenario", "incremental_optional_scenario"] }
+        }
+      }
+    },
+    "work_unit_catalog": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/workUnit" }
+    },
+    "workload_derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "input_authority",
+        "projection",
+        "input_count_rules",
+        "quantity_rules",
+        "line_item_semantics",
+        "rounding",
+        "workload_digest_domain",
+        "proposal_digest_domain"
+      ],
+      "properties": {
+        "input_authority": { "const": "digest_bound_private_roadmap_inventory" },
+        "projection": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/id" } },
+        "input_count_rules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "rule_id", "expression"],
+            "properties": {
+              "field": { "$ref": "#/$defs/id" },
+              "rule_id": { "$ref": "#/$defs/id" },
+              "expression": { "$ref": "#/$defs/nonempty" }
+            }
+          }
+        },
+        "quantity_rules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["unit_id", "rule_id", "expression"],
+            "properties": {
+              "unit_id": { "$ref": "#/$defs/id" },
+              "rule_id": { "$ref": "#/$defs/id" },
+              "expression": { "$ref": "#/$defs/nonempty" }
+            }
+          }
+        },
+        "line_item_semantics": { "const": "quantity_counts_individually_reviewable_atomic_reference_class_units; zero_quantity_items_are_omitted; static_scope_design_and_documentation_inputs_are_charged_only_on_occurrence_1" },
+        "rounding": { "const": "integer_counts_before_exact_integer_hour_multiplication" },
+        "workload_digest_domain": { "const": "agent-assure:delivery-forecast-workload-vector/v2" },
+        "proposal_digest_domain": { "const": "agent-assure:delivery-forecast-occurrence-proposal/v2" }
+      }
+    },
+    "elapsed_time_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "included_in_effort_quantiles",
+        "known_wait_sources",
+        "numeric_source_rules",
+        "traversal_order",
+        "wait_id_rule",
+        "nonintegral_hour_treatment",
+        "unquantified_wait_rule",
+        "summary_rules",
+        "unknown_wait_treatment",
+        "parallelism_treatment",
+        "schedule_claim"
+      ],
+      "properties": {
+        "included_in_effort_quantiles": { "const": false },
+        "known_wait_sources": { "const": "structured_minimum_elapsed_fields_only" },
+        "numeric_source_rules": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field_name", "source_unit", "hours_expression"],
+            "properties": {
+              "field_name": { "enum": ["minimum_elapsed_seconds", "minimum_observation_window_days"] },
+              "source_unit": { "enum": ["second", "day"] },
+              "hours_expression": { "$ref": "#/$defs/nonempty" }
+            }
+          }
+        },
+        "traversal_order": { "const": "coverage_order_then_depth_first_utf8_key_order_then_array_index" },
+        "wait_id_rule": { "const": "WAIT-%03d_assigned_one_based_after_traversal" },
+        "nonintegral_hour_treatment": { "const": "reject_without_rounding" },
+        "unquantified_wait_rule": { "$ref": "#/$defs/nonempty" },
+        "summary_rules": { "$ref": "#/$defs/nonempty" },
+        "unknown_wait_treatment": { "const": "reported_unquantified_never_imputed" },
+        "parallelism_treatment": { "const": "not_inferred" },
+        "schedule_claim": { "const": "none_until_dependency_and_resource_schedule_is_reviewed" }
+      }
+    },
+    "arithmetic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quantity_type", "effort_unit", "maximum_exact_integer", "summation"],
+      "properties": {
+        "quantity_type": { "const": "nonnegative_integer" },
+        "effort_unit": { "const": "focused_person_hour" },
+        "maximum_exact_integer": { "const": 9007199254740991 },
+        "summation": { "const": "checked_exact_integer" }
+      }
+    },
+    "catalog_digest": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "hours": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "digestContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifact", "domain", "projection"],
+      "properties": {
+        "artifact": { "$ref": "#/$defs/id" },
+        "domain": { "type": "string", "pattern": "^agent-assure:[a-z0-9._/-]+$", "maxLength": 256 },
+        "projection": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "workUnit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unit_id",
+        "reference_class",
+        "p50_effort_hours",
+        "p90_effort_hours",
+        "reviewer_p50_effort_hours",
+        "calibration_status"
+      ],
+      "properties": {
+        "unit_id": { "$ref": "#/$defs/id" },
+        "reference_class": { "$ref": "#/$defs/nonempty" },
+        "p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "p90_effort_hours": { "$ref": "#/$defs/hours" },
+        "reviewer_p50_effort_hours": { "$ref": "#/$defs/hours" },
+        "calibration_status": { "const": "uncalibrated_machine_proposal_pending_human_review" }
+      }
+    }
+  }
+}

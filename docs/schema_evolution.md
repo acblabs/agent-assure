@@ -1,5 +1,76 @@
 # Schema Evolution
 
+## Prospective installed-reader compatibility
+
+The schema-first development implementation adds an explicit matrix keyed by
+`(producer_package_version, writer_schema_version, artifact_kind,
+reader_package_version)`. Each cell records its disposition, minimum reader,
+original schema-resource digest, replay identity, migration identity, losses
+and authorization restrictions. Missing cells are unsupported.
+
+`inspect_installed_reader_compatibility` in `schema/validation.py` obtains the
+reader identity from bounded raw wheel metadata and RECORD entries. It checks
+the loaded modules' paths and bytes, pins the packaged matrix before parsing,
+and checks the minimum reader before opening the selected schema. Resource
+lookup stays in the verified installed package. An editable checkout, stale
+installation or directory/VCS provenance cannot supply installed-reader proof.
+
+Resource identity admission uses a bounded consistency profile. Required
+presence and forced scalar literals propagate through active `allOf`, local
+JSON Pointer references, conditional clauses and dependencies. Guards have
+three outcomes: true, false or unknown. An omitted payload field is unknown;
+it cannot select a favorable branch, and defaults supply no facts. Unknown
+branches must preserve the fixed discriminator/version pair. Conditions about
+unrelated payload fields remain the artifact validator's responsibility. This
+profile does not prove general schema satisfiability or produce an artifact
+witness. Boolean literals remain distinct from numeric zero and one.
+
+Every unresolved asserted root-instance `oneOf`, including payload-only
+alternatives, needs a bounded structural exclusivity certificate. For every
+pair of possible branches, a shared property must have disjoint finite scalar
+`const`/`enum` value sets and must be required by at least one branch or the
+known context. Composite or unknown value sets cannot supply that proof.
+Nested root-instance alternatives remain checked through other applicators;
+ordinary nested payload schemas are not traversed. Unproved overlap is
+unsupported. This proves at-most-one, not payload satisfiability or coverage.
+`anyOf` rejects a pair excluded by every possible branch. No payload witness
+or general satisfiability result is inferred from a compatibility disposition.
+
+The profile accepts finite literal/type predicates and Boolean combinations,
+with local references resolved only inside the authenticated resource. Nested
+resource IDs, dynamic references, unresolved identity restrictions and
+unsupported object-wide applicators fail closed with `SCHEMA_RESOURCE_INVALID`.
+Percent-bearing URI fragments are unsupported: URI percent decoding must not
+select a different definition from the literal JSON Pointer used by this profile.
+Ordinary local pointers retain their JSON Pointer `~0` and `~1` escape handling.
+Limits are 16,384 input nodes, depth 64, 65,536 analysis steps, 1,024 reference
+expansions and 1,024 combined presence/literal facts. The work counter is shared
+across fact closure and branch inspection, including element and string-comparison
+work. Local JSON Pointers are additionally capped at 4,096 characters and 64
+segments. Exhaustion cannot create eligibility.
+These checks affect compatibility inspection only and do not alter legacy
+artifact validation or immutable schema bytes.
+
+`build_legacy_compatibility_matrix` produces prospective reader `1.0.0a3` cells
+from the existing frozen-root policy and fourteen verified producer/writer
+pairs. For example, producer `0.3.0` uses wire `0.2.0`, and producer `0.7.0`
+uses wire `0.6.6`. Original resource bytes determine their hashes. The builder
+adds producer `1.0.0a3` with the retained default wire only when that package
+version is actually selected. It currently emits no new-writer `1.0.0rc1` cells.
+
+Compatibility inspection has `authorization_effect="none"`. Semantic replay
+eligibility remains a prerequisite for separately validating an artifact and
+its applicable policy, evidence, qualification and current context. Archival
+cells retain shape-and-integrity-only inspection. Migrations and semantic
+eligibility with declared losses remain unsupported in this increment.
+
+SCHEMA-01A/D implementation acceptance, generated new-writer resources and
+installed-wheel/platform completion evidence remain pending. See the
+[implementation evidence](governance/v1/sprint3/schema-implementation-evidence.md).
+The existing writer and export behavior below remain in place.
+
+## Existing writer workflow
+
 Release-candidate schema snapshot: `schemas/v0.6.6/`. Package line v0.7.0 emits
 persisted artifact `schema_version: 0.6.6`; its matching stable tag freezes the
 snapshot. Earlier released snapshots remain immutable.

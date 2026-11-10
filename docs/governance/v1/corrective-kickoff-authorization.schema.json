@@ -1,0 +1,310 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/corrective-kickoff-authorization.schema.json",
+  "title": "Agent Assure S1 generation-2 corrective kickoff authorization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "acceptance_generation",
+    "authorization_status",
+    "authorization_kind",
+    "authorization_effect",
+    "signed_claim",
+    "signed_claim_artifact",
+    "signature_evidence",
+    "import_verification"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-s1-corrective-kickoff-authorization/1" },
+    "spec_revision": { "const": "6.5" },
+    "acceptance_generation": { "const": 2 },
+    "authorization_status": { "const": "authorized" },
+    "authorization_kind": { "const": "prospective_corrective_implementation" },
+    "authorization_effect": { "const": "corrective_s1_development_governance_only" },
+    "signed_claim": { "$ref": "#/$defs/signedClaim" },
+    "signed_claim_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["serialization_profile", "size_bytes", "sha256"],
+      "properties": {
+        "serialization_profile": {
+          "const": "utf8-json-sorted-keys-indent-2-lf-terminal-lf"
+        },
+        "size_bytes": { "const": 6712 },
+        "sha256": {
+          "const": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60"
+        }
+      }
+    },
+    "signature_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile",
+        "status",
+        "namespace",
+        "signed_payload_encoding",
+        "signature_encoding",
+        "signature_algorithm",
+        "message_hash_algorithm",
+        "signer_person_id",
+        "signer_role",
+        "public_key_fingerprint",
+        "signature_file_size_bytes",
+        "signature_file_sha256",
+        "signature_time_status",
+        "armored_signature_base64"
+      ],
+      "properties": {
+        "profile": { "const": "openssh-sshsig-ed25519/v1" },
+        "status": { "const": "verified" },
+        "namespace": { "const": "agent-assure-governance-v1" },
+        "signed_payload_encoding": { "const": "exact-signed-claim-bytes" },
+        "signature_encoding": { "const": "base64-canonical-lf-openssh-sshsig-armored" },
+        "signature_algorithm": { "const": "ssh-ed25519" },
+        "message_hash_algorithm": { "const": "sha512" },
+        "signer_person_id": { "const": "acblabs" },
+        "signer_role": { "const": "repository_maintainer" },
+        "public_key_fingerprint": {
+          "const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"
+        },
+        "signature_file_size_bytes": { "const": 326 },
+        "signature_file_sha256": {
+          "const": "sha256:45061258f3fbf6aef505da516fde568f72d9ace36a3c04ea2c8546b25e21912b"
+        },
+        "signature_time_status": { "const": "unavailable_sshsig_has_no_timestamp" },
+        "armored_signature_base64": {
+          "type": "string",
+          "minLength": 400,
+          "maxLength": 12000,
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+        }
+      }
+    },
+    "import_verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "verification_recorded_at_utc",
+        "clock_basis",
+        "actual_signature_time_claimed",
+        "verification_time_status",
+        "verification_sequence",
+        "verification_result",
+        "verified_namespace",
+        "predecessor_head_commit",
+        "predecessor_tag_name",
+        "predecessor_tag_object",
+        "roadmap_digest_at_import"
+      ],
+      "properties": {
+        "verification_recorded_at_utc": { "$ref": "#/$defs/utc" },
+        "clock_basis": { "const": "maintainer_host_utc_externally_unattested" },
+        "actual_signature_time_claimed": { "const": false },
+        "verification_time_status": {
+          "const": "host_observation_recorded_after_verification_not_signature_time"
+        },
+        "verification_sequence": {
+          "const": "signature_verified_before_corrective_branch_creation_and_tracked_edits"
+        },
+        "verification_result": { "const": "valid_exact_payload_key_and_namespace" },
+        "verified_namespace": { "const": "agent-assure-governance-v1" },
+        "predecessor_head_commit": {
+          "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+        },
+        "predecessor_tag_name": { "const": "agent-assure-s1-1.0.0a1-acceptance" },
+        "predecessor_tag_object": {
+          "const": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
+        },
+        "roadmap_digest_at_import": {
+          "const": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "utc": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,7})?Z$"
+    },
+    "signedClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "acceptance_generation",
+        "authorization_effect",
+        "authorization_kind",
+        "authorized_operations",
+        "authorized_person_id",
+        "authorized_role",
+        "corrective_findings",
+        "evidence",
+        "expected_topology",
+        "forbidden_operations",
+        "format",
+        "human_decision_boundaries",
+        "local_only_path_prefixes",
+        "nonce",
+        "plan_created_at_utc",
+        "roadmap_policy",
+        "spec_revision",
+        "superseded_acceptance",
+        "supersession_semantics",
+        "time_semantics",
+        "tracked_allowed_paths"
+      ],
+      "properties": {
+        "acceptance_generation": { "const": 2 },
+        "authorization_effect": { "const": "corrective_s1_development_governance_only" },
+        "authorization_kind": { "const": "prospective_corrective_implementation" },
+        "authorized_operations": { "$ref": "#/$defs/stringSet" },
+        "authorized_person_id": { "const": "acblabs" },
+        "authorized_role": { "const": "repository_maintainer" },
+        "corrective_findings": { "$ref": "#/$defs/stringSet" },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "external_review_raw_sha256",
+            "external_review_size_bytes",
+            "roadmap_raw_sha256",
+            "roadmap_size_bytes"
+          ],
+          "properties": {
+            "external_review_raw_sha256": { "$ref": "#/$defs/digest" },
+            "external_review_size_bytes": { "type": "integer", "minimum": 1 },
+            "roadmap_raw_sha256": { "$ref": "#/$defs/digest" },
+            "roadmap_size_bytes": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "expected_topology": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "corrective_closure_parent",
+            "corrective_result_parent",
+            "shape",
+            "successor_tag_name"
+          ],
+          "properties": {
+            "corrective_closure_parent": { "const": "R2" },
+            "corrective_result_parent": {
+              "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+            },
+            "shape": { "const": "C1 -> R2 -> C2" },
+            "successor_tag_name": {
+              "const": "agent-assure-s1-1.0.0a1-acceptance-v2"
+            }
+          }
+        },
+        "forbidden_operations": { "$ref": "#/$defs/stringSet" },
+        "format": { "const": "agent-assure-s1-corrective-kickoff-claim/1" },
+        "human_decision_boundaries": { "$ref": "#/$defs/stringSet" },
+        "local_only_path_prefixes": { "$ref": "#/$defs/stringSet" },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "plan_created_at_utc": { "$ref": "#/$defs/utc" },
+        "roadmap_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "all_embedded_estimates_are_stale_not_committable",
+            "all_rows_and_occurrences_require_reestimated_after_inventory",
+            "expanded_contracts_must_not_be_anchored_to_displayed_values",
+            "minimum_explicit_expanded_ticket_ids"
+          ],
+          "properties": {
+            "all_embedded_estimates_are_stale_not_committable": { "const": true },
+            "all_rows_and_occurrences_require_reestimated_after_inventory": { "const": true },
+            "expanded_contracts_must_not_be_anchored_to_displayed_values": { "const": true },
+            "minimum_explicit_expanded_ticket_ids": {
+              "type": "array",
+              "prefixItems": [
+                { "const": "V1-BASE-06" },
+                { "const": "V1-REL-02" }
+              ],
+              "items": false
+            }
+          }
+        },
+        "spec_revision": { "const": "6.5" },
+        "superseded_acceptance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "acceptance_tag_name",
+            "bundle_digest",
+            "closure_commit",
+            "forecast_digest",
+            "result_commit",
+            "tag_object"
+          ],
+          "properties": {
+            "acceptance_tag_name": { "const": "agent-assure-s1-1.0.0a1-acceptance" },
+            "bundle_digest": { "$ref": "#/$defs/digest" },
+            "closure_commit": {
+              "const": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+            },
+            "forecast_digest": { "$ref": "#/$defs/digest" },
+            "result_commit": {
+              "const": "038b1a8c80fc419106eecd43f4a70b14ba026106"
+            },
+            "tag_object": {
+              "const": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb"
+            }
+          }
+        },
+        "supersession_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "generation_1_objects_remain_immutable_historical_evidence",
+            "generation_1_status",
+            "generation_2_must_pass_current_and_historical_validation_before_s2"
+          ],
+          "properties": {
+            "generation_1_objects_remain_immutable_historical_evidence": { "const": true },
+            "generation_1_status": {
+              "const": "noncurrent_for_s2_planning_due_to_forecast_nonconformance"
+            },
+            "generation_2_must_pass_current_and_historical_validation_before_s2": {
+              "const": true
+            }
+          }
+        },
+        "time_semantics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "actual_signature_time_claimed",
+            "independent_time_attestation",
+            "plan_created_at_basis",
+            "sshsig_timestamp_capability"
+          ],
+          "properties": {
+            "actual_signature_time_claimed": { "const": false },
+            "independent_time_attestation": { "const": "none" },
+            "plan_created_at_basis": {
+              "const": "maintainer-host UTC observed by the preparation process; externally unattested"
+            },
+            "sshsig_timestamp_capability": { "const": "none" }
+          }
+        },
+        "tracked_allowed_paths": { "$ref": "#/$defs/stringSet" }
+      }
+    }
+  }
+}

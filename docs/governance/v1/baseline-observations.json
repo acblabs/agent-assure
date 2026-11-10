@@ -1,0 +1,179 @@
+{
+  "format": "agent-assure-baseline-observations/2",
+  "spec_revision": "6.5",
+  "acceptance_generation": 2,
+  "supersedes_observations_digest": "sha256:41a433296c91d119a4f5a73fff039e17df80ccf9bfdf33c6605ed8def5fbf197",
+  "corrective_authorization_claim_digest": "sha256:4477162d48826c8cece417e78ef8dcb4a5ef3047c24bf0cdef20d8fb55ba1f60",
+  "inventory_started_at_utc": "2026-10-16T02:05:13.673447Z",
+  "inventory_completed_at_utc": "2026-10-16T02:05:42.123662Z",
+  "time_evidence": {
+    "clock_basis": "maintainer_host_utc_externally_unattested",
+    "external_attestation_status": "unavailable_windows_time_service_not_started",
+    "sshsig_timestamp_capability": "none",
+    "actual_signature_time_claimed": false
+  },
+  "repository": {
+    "observation_window": {
+      "started_at_utc": "2026-10-16T02:05:13.701697Z",
+      "completed_at_utc": "2026-10-16T02:05:14.060688Z"
+    },
+    "approved_remote_url": "https://github.com/acblabs/agent-assure.git",
+    "authoritative_fetch_status": "deferred_to_final_current_acceptance_gate",
+    "cached_origin_main_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
+    "baseline_tag_name": "v0.7.0",
+    "baseline_tag_object": "ea4b50bd461efd817b7dc2fa5591d06ed9599a6e",
+    "baseline_tag_commit": "3b060f4da94f4d0d80e7ae507580fce82ef9bf96",
+    "corrective_branch_name": "fix/s1-governed-baseline-v2",
+    "inventory_head_commit": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000",
+    "required_corrective_result_parent": "6165bc6436aada6cbeb4fc4119eafa9b5dfdb000"
+  },
+  "roadmap": {
+    "observation_window": {
+      "started_at_utc": "2026-10-16T02:05:13.673447Z",
+      "completed_at_utc": "2026-10-16T02:05:14.060688Z"
+    },
+    "raw_digest": "sha256:8fc2e6e6f83b6a6ac6c27492473de8690b9360eac584131b6e8b42785f4386eb",
+    "size_bytes": 2390013,
+    "local_only": true,
+    "git_ignored": true,
+    "git_index_tracked": false
+  },
+  "environment": {
+    "platform": "Windows",
+    "python_version": "3.12.13",
+    "pip_check": {
+      "command": ".venv\\Scripts\\python.exe -m pip check",
+      "outcome": "passed",
+      "exit_code": 0,
+      "started_at_utc": "2026-10-16T02:05:13.739644Z",
+      "completed_at_utc": "2026-10-16T02:05:14.941850Z",
+      "summary": "No broken requirements found."
+    },
+    "time_attestation": {
+      "command": "w32tm /query /status",
+      "outcome": "unavailable",
+      "exit_code": -2147023834,
+      "started_at_utc": "2026-10-16T02:05:13.673447Z",
+      "completed_at_utc": "2026-10-16T02:05:13.708009Z",
+      "summary": "The Windows Time service was not started (0x80070426); no external clock attestation is claimed."
+    },
+    "trusted_executables": {
+      "observation_window": {
+        "started_at_utc": "2026-10-16T02:05:29.537004Z",
+        "completed_at_utc": "2026-10-16T02:05:29.837074Z"
+      },
+      "artifacts": [
+        {
+          "name": "git",
+          "absolute_path": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe",
+          "size_bytes": 4422544,
+          "sha256": "sha256:cab4c4eea1d869cf9f7be73868dc9a90ad2df1b1b673e5f8c8714a576c25ea96"
+        },
+        {
+          "name": "git-remote-https",
+          "absolute_path": "C:\\Program Files\\Git\\mingw64\\libexec\\git-core\\git-remote-https.exe",
+          "size_bytes": 2629024,
+          "sha256": "sha256:f4c9d7f2f85b795603f501c25ad63fff82fce233ae0fc3d48e4e3c8669e5d788"
+        },
+        {
+          "name": "ssh-keygen",
+          "absolute_path": "C:\\Windows\\System32\\OpenSSH\\ssh-keygen.exe",
+          "size_bytes": 861184,
+          "sha256": "sha256:c9dc170cd161db87e75eb6cf282f1325005b9e35628b9a36cb19883a8be1a34f"
+        }
+      ]
+    },
+    "trusted_python_runtime": {
+      "file_observation_window": {
+        "started_at_utc": "2026-10-16T02:05:29.751866Z",
+        "completed_at_utc": "2026-10-16T02:05:29.996496Z"
+      },
+      "inventory_observation_window": {
+        "started_at_utc": "2026-10-16T02:05:39.245136Z",
+        "completed_at_utc": "2026-10-16T02:05:42.123662Z"
+      },
+      "execution_profile": "powershell-preverified-cpython-3.12.13-I-S-B/v1",
+      "launcher_profile": "agent-assure-s1-powershell-runtime-launcher/v1",
+      "files": [
+        {
+          "name": "python.exe",
+          "absolute_path": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python.exe",
+          "size_bytes": 91648,
+          "sha256": "sha256:88b9e780cfdc38597c7f53e20f7165262befa28d9a5e9470360d349e172ecf37"
+        },
+        {
+          "name": "python312.dll",
+          "absolute_path": "C:\\Users\\user\\AppData\\Roaming\\uv\\python\\cpython-3.12.13-windows-x86_64-none\\python312.dll",
+          "size_bytes": 6969856,
+          "sha256": "sha256:cf1be428af1ee607d8015e27411912276b9b02815a080457a1ece46c59d9b314"
+        }
+      ],
+      "base_runtime_inventory": {
+        "file_count": 2766,
+        "size_bytes": 54224916,
+        "sha256": "sha256:4e2b76aeadc0f328a00b520b2dc6cb4991486eaa9496b18d5035bac7b63ea152"
+      },
+      "site_runtime_inventory": {
+        "file_count": 116,
+        "size_bytes": 1581377,
+        "sha256": "sha256:a8a4451bde03104cc2a6dae38a30ae0bef63f717a39e5b996e05c10b83fdae02"
+      }
+    }
+  },
+  "cli_reservation": {
+    "command": ".venv\\Scripts\\agent-assure.exe test activate",
+    "outcome": "expected_absence",
+    "exit_code": 2,
+    "started_at_utc": "2026-10-16T02:05:13.704171Z",
+    "completed_at_utc": "2026-10-16T02:05:16.190719Z",
+    "summary": "The current CLI rejected the unimplemented test command group with No such command 'test'.",
+    "reserved_command": "agent-assure test activate",
+    "collision_found": false
+  },
+  "dependency_locks": {
+    "observation_window": {
+      "started_at_utc": "2026-10-16T02:05:29.802194Z",
+      "completed_at_utc": "2026-10-16T02:05:30.050479Z"
+    },
+    "artifacts": [
+      {
+        "path": "requirements.lock",
+        "sha256": "sha256:9d127f21617573476278605601f131c875d4def7c102aca5cdd39dda4f261ee4"
+      },
+      {
+        "path": "requirements-langgraph.lock",
+        "sha256": "sha256:b4e6deb32a38c87a44f3ed7e637230ee36b02ba0f6c29e4e196601db3c90d977"
+      },
+      {
+        "path": "requirements-adk.lock",
+        "sha256": "sha256:a047eeb295573937b6643b4a8b3ab6d79a356aa73c8d3a1de274a150dd0530c1"
+      }
+    ]
+  },
+  "git_integrity": {
+    "observation_window": {
+      "started_at_utc": "2026-10-16T02:05:29.791998Z",
+      "completed_at_utc": "2026-10-16T02:05:30.256680Z"
+    },
+    "replacement_refs": [],
+    "shallow_repository": false,
+    "grafts_present": false,
+    "alternate_object_store_present": false,
+    "generation_1_tag_object": "1f7bfe058dfb84d8cf4afaf971a57e5c3a12a5fb",
+    "generation_2_tag_absent": true
+  },
+  "historical_context": {
+    "generation_1_disposition": "superseded_nonconforming",
+    "generation_1_baseline_full_suite_status": "timed_out_after_collecting_6308",
+    "post_r2_full_suite_required": true
+  },
+  "limitations": [
+    "All UTC values in this corrective inventory are maintainer-host observations without independent clock attestation.",
+    "Cached origin/main and baseline-tag refs were reobserved locally; the authoritative network fetch is deliberately deferred to the final current-acceptance gate.",
+    "The corrected full-suite result cannot exist before R2; it must be recorded later in signed generation-2 completion evidence with subject_commit equal to R2.",
+    "Executable and runtime identities are host-specific evidence, not a claim that GitHub-hosted Windows CI reproduces the accepted host.",
+    "The Python bootstrap/import guard prevents accidental unsupported invocation but is not a security boundary against arbitrary same-process mutation.",
+    "The private roadmap remains local-only; this record binds only its raw digest and byte size."
+  ],
+  "observations_digest": "sha256:46cb9163440a4e00cb22691f79da8ab2eb72e92e3e96dda5e06c4051ee23489a"
+}

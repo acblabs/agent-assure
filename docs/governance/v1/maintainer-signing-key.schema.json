@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/maintainer-signing-key.schema.json",
+  "title": "Agent Assure S1 maintainer public signing key",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "key_status",
+    "person_id",
+    "algorithm",
+    "public_key",
+    "public_key_fingerprint",
+    "signature_profile",
+    "allowed_namespace",
+    "allowed_roles",
+    "trust_scope",
+    "out_of_band_confirmation_evidence",
+    "limitations",
+    "record_digest"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-governance-signing-key/1" },
+    "spec_revision": { "const": "6.5" },
+    "key_status": {
+      "enum": ["pending_human_confirmation", "confirmed_by_human"]
+    },
+    "person_id": { "$ref": "#/$defs/id" },
+    "algorithm": { "const": "ssh-ed25519" },
+    "public_key": {
+      "type": "string",
+      "pattern": "^ssh-ed25519 [A-Za-z0-9+/]+={0,2}$",
+      "maxLength": 512
+    },
+    "public_key_fingerprint": {
+      "type": "string",
+      "pattern": "^SHA256:[A-Za-z0-9+/]+$",
+      "maxLength": 128
+    },
+    "signature_profile": { "const": "openssh-sshsig-ed25519/v1" },
+    "allowed_namespace": { "const": "agent-assure-governance-v1" },
+    "allowed_roles": {
+      "const": ["repository_maintainer", "technical_lead"]
+    },
+    "trust_scope": { "$ref": "#/$defs/stringSet" },
+    "out_of_band_confirmation_evidence": {
+      "oneOf": [{ "$ref": "#/$defs/nonempty" }, { "type": "null" }]
+    },
+    "limitations": { "$ref": "#/$defs/stringSet" },
+    "record_digest": { "$ref": "#/$defs/digest" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "key_status": { "const": "confirmed_by_human" } },
+        "required": ["key_status"]
+      },
+      "then": {
+        "properties": {
+          "out_of_band_confirmation_evidence": { "$ref": "#/$defs/nonempty" }
+        }
+      },
+      "else": {
+        "properties": {
+          "out_of_band_confirmation_evidence": { "type": "null" }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "nonempty": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "stringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    }
+  }
+}

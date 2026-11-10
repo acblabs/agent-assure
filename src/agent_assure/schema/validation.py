@@ -1,21 +1,33 @@
 from __future__ import annotations
 
+import base64
+import csv
 import hashlib
+import io
 import json
+import re
 from collections.abc import Mapping
+from dataclasses import dataclass
+from email import policy as email_policy
+from email.parser import BytesParser
 from enum import StrEnum
 from functools import lru_cache
+from importlib.metadata import PackageNotFoundError, distribution
 from importlib.resources import files
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 from typing import Any, TypeVar, cast
 
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError as JsonSchemaSchemaError
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 from referencing import Registry
+from referencing.exceptions import Unresolvable
 
+import agent_assure
+import agent_assure.schema_resources as schema_resources
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
@@ -23,6 +35,7 @@ from agent_assure.io_limits import (
     load_json_bounded_from_filesystem_root,
     load_json_bytes_bounded,
     loads_json_bounded,
+    read_file_bounded_at,
     read_file_bounded_from_filesystem_root,
 )
 from agent_assure.schema.base import SCHEMA_VERSION, validate_rfc8785_safe_integers
@@ -34,6 +47,15 @@ from agent_assure.schema.common import (
     UNIT_INTERVAL_6_PATTERN,
     UNIT_INTERVAL_12_PATTERN,
     harden_json_schema_pattern_ends,
+)
+from agent_assure.schema.v1_compatibility import (
+    MAX_COMPATIBILITY_MATRIX_BYTES,
+    CompatibilityDecision,
+    CompatibilityFailure,
+    CompatibilityKey,
+    assess_compatibility,
+    load_compatibility_matrix,
+    version_order,
 )
 from agent_assure.source_layout import source_checkout_component
 
@@ -331,6 +353,979 @@ def _build_frozen_validation_policy() -> dict[tuple[str, str], FrozenRootValidat
 FROZEN_ROOT_VALIDATION_POLICY: Mapping[tuple[str, str], FrozenRootValidationPolicy] = (
     MappingProxyType(_build_frozen_validation_policy())
 )
+_INSTALLED_COMPATIBILITY_MATRIX_PATH = "v1.0.0rc1/compatibility-matrix.json"
+_MAX_INSTALLED_READER_RECORD_ENTRIES = 10_000
+_MAX_INSTALLED_READER_RECORD_NAME_CHARS = 512
+_MAX_INSTALLED_READER_MODULE_BYTES = 4 * 1024 * 1024
+
+
+@dataclass(frozen=True)
+class _InstalledReaderIdentity:
+    package_version: str
+    resource_root: Path
+    record_names: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _InstalledRecordEntry:
+    digest: str | None
+    size: int | None
+
+
+def _parse_installed_record(data: bytes) -> dict[str, _InstalledRecordEntry]:
+    """Parse bounded strings only; never stat or follow arbitrary RECORD rows."""
+    if len(data) > MAX_COMPATIBILITY_MATRIX_BYTES:
+        raise ValueError("installed reader RECORD exceeds maximum supported size")
+    result: dict[str, _InstalledRecordEntry] = {}
+    try:
+        rows = csv.reader(io.StringIO(data.decode("utf-8"), newline=""), strict=True)
+        for row in rows:
+            if len(result) >= _MAX_INSTALLED_READER_RECORD_ENTRIES or len(row) != 3:
+                raise ValueError("installed reader RECORD inventory is malformed or oversized")
+            name, digest, size = row
+            if (
+                not name
+                or len(name) > _MAX_INSTALLED_READER_RECORD_NAME_CHARS
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or "\\" in name
+                or PurePosixPath(name).is_absolute()
+                or re.match(r"^[A-Za-z]:", name) is not None
+                or name in result
+            ):
+                raise ValueError("installed reader RECORD path is malformed or duplicated")
+            if digest or size:
+                if re.fullmatch(r"sha256=[A-Za-z0-9_-]{43}", digest, flags=re.ASCII) is None:
+                    raise ValueError("installed reader RECORD requires a canonical SHA-256 digest")
+                if re.fullmatch(r"(?:0|[1-9][0-9]{0,8})", size, flags=re.ASCII) is None:
+                    raise ValueError("installed reader RECORD size is malformed or unbounded")
+                result[name] = _InstalledRecordEntry(digest, int(size))
+            else:
+                result[name] = _InstalledRecordEntry(None, None)
+    except (csv.Error, UnicodeError) as exc:
+        raise ValueError("installed reader RECORD is not valid bounded UTF-8 CSV") from exc
+    return result
+
+
+def _require_installed_record_bytes(
+    record: Mapping[str, _InstalledRecordEntry], relative: str, data: bytes
+) -> None:
+    entry = record.get(relative)
+    digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+    if entry is None or entry.digest != f"sha256={digest}" or entry.size != len(data):
+        raise ValueError("installed reader bytes do not match their owned RECORD row")
+
+
+def _read_installed_reader_identity() -> _InstalledReaderIdentity:
+    """Bind modules using bounded raw metadata for one unpacked wheel.
+
+    PathDistribution's metadata/files accessors are deliberately not used: they
+    read unbounded text and files() may stat every candidate-controlled row.
+    Only its guarded metadata-directory anchor is used. Other installation
+    backends and editable/directory installs are unsupported by this profile.
+    """
+    try:
+        installed = distribution("agent-assure")
+    except PackageNotFoundError as exc:
+        raise ValueError("installed reader distribution is unavailable") from exc
+    anchor = getattr(installed, "_path", None)
+    if (
+        not isinstance(anchor, Path)
+        or not anchor.is_absolute()
+        or not anchor.name.endswith(".dist-info")
+    ):
+        raise ValueError("installed reader requires an unpacked wheel metadata anchor")
+    raw_metadata = read_file_bounded_at(
+        anchor, "METADATA", max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES, label="installed METADATA"
+    ).data
+    raw_metadata.decode("utf-8")
+    headers = BytesParser(policy=email_policy.compat32).parsebytes(raw_metadata, headersonly=True)
+    names = headers.get_all("Name", [])
+    versions = headers.get_all("Version", [])
+    if headers.defects or len(names) != 1 or len(versions) != 1:
+        raise ValueError("installed reader METADATA requires one exact Name and Version")
+    if names[0] != "agent-assure":
+        raise ValueError("installed reader distribution name does not match")
+    reader_version = versions[0]
+    if not isinstance(reader_version, str):
+        raise ValueError("installed reader METADATA version is not a canonical string")
+    version_order(reader_version)
+    if reader_version != agent_assure.__version__:
+        raise ValueError("installed reader version does not match the loaded package")
+    if anchor.name != f"agent_assure-{reader_version}.dist-info":
+        raise ValueError("installed reader metadata anchor does not match its exact identity")
+    raw_record = read_file_bounded_at(
+        anchor, "RECORD", max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES, label="installed RECORD"
+    ).data
+    record = _parse_installed_record(raw_record)
+    metadata_relative = f"{anchor.name}/METADATA"
+    _require_installed_record_bytes(record, metadata_relative, raw_metadata)
+    if record.get(f"{anchor.name}/RECORD") != _InstalledRecordEntry(None, None):
+        raise ValueError("installed reader RECORD does not own its exact metadata directory")
+    installation_root = anchor.parent
+    owned_modules = (
+        ("agent_assure/__init__.py", agent_assure.__file__),
+        ("agent_assure/schema/validation.py", __file__),
+        ("agent_assure/schema_resources/__init__.py", schema_resources.__file__),
+    )
+    for relative, actual in owned_modules:
+        located = installation_root / relative
+        if (
+            relative not in record
+            or actual is None
+            or not Path(actual).is_absolute()
+            or located.absolute() != Path(actual).absolute()
+        ):
+            raise ValueError("installed reader does not own the loaded module paths")
+        raw_module = read_file_bounded_at(
+            installation_root,
+            relative,
+            max_bytes=_MAX_INSTALLED_READER_MODULE_BYTES,
+            label="installed reader module",
+        ).data
+        _require_installed_record_bytes(record, relative, raw_module)
+    resource_module_file = schema_resources.__file__
+    if resource_module_file is None:  # Kept explicit for the checked optional module attribute.
+        raise ValueError("installed reader resource package has no filesystem identity")
+    resource_root = Path(resource_module_file).absolute().parent
+    direct_urls = tuple(name for name in record if PurePosixPath(name).name == "direct_url.json")
+    expected_provenance = f"{anchor.name}/direct_url.json"
+    if any(name != expected_provenance for name in direct_urls):
+        raise ValueError("installed reader provenance does not belong to its metadata directory")
+    if direct_urls:
+        raw_provenance = read_file_bounded_at(
+            anchor,
+            "direct_url.json",
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+            label="installed reader provenance",
+        ).data
+        _require_installed_record_bytes(record, expected_provenance, raw_provenance)
+        provenance = load_json_bytes_bounded(
+            raw_provenance,
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+            label="installed reader provenance",
+        )
+        if (
+            "dir_info" in provenance
+            or "vcs_info" in provenance
+            or not isinstance(provenance.get("archive_info"), dict)
+            or not isinstance(provenance.get("url"), str)
+        ):
+            raise ValueError("installed reader provenance is not a wheel installation")
+    return _InstalledReaderIdentity(reader_version, resource_root, frozenset(record))
+
+
+def _installed_reader_identity() -> _InstalledReaderIdentity:
+    try:
+        return _read_installed_reader_identity()
+    except OSError as exc:
+        raise ValueError("installed reader metadata or owned module bytes are unavailable") from exc
+
+
+_MAX_IDENTITY_SCHEMA_NODES = 16_384
+_MAX_IDENTITY_SCHEMA_DEPTH = 64
+_MAX_IDENTITY_PROFILE_WORK = 65_536
+_MAX_IDENTITY_PROFILE_REFERENCES = 1_024
+_MAX_IDENTITY_PROFILE_FACTS = 1_024
+_MAX_IDENTITY_POINTER_CHARS = 4_096
+_MAX_IDENTITY_POINTER_SEGMENTS = 64
+_IDENTITY_FIELDS = frozenset({"artifact_kind", "schema_version"})
+_IDENTITY_ANNOTATIONS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "$defs",
+        "definitions",
+        "$comment",
+        "title",
+        "description",
+        "default",
+        "examples",
+        "deprecated",
+        "readOnly",
+        "writeOnly",
+    }
+)
+_UNKNOWN_IDENTITY_LITERAL = object()
+
+
+@dataclass
+class _IdentityFacts:
+    present: set[str]
+    literals: dict[str, object]
+
+    def copy(self) -> _IdentityFacts:
+        return _IdentityFacts(set(self.present), dict(self.literals))
+
+
+def _identity_literal_equal(left: object, right: object) -> bool:
+    # JSON numbers compare numerically, but booleans are never numbers. Only
+    # scalar literals enter the fact domain; composite values remain unknown.
+    if isinstance(left, bool) or isinstance(right, bool):
+        return type(left) is type(right) and left == right
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return left == right
+    return type(left) is type(right) and left == right
+
+
+def _identity_conjunction(values: list[bool | None]) -> bool | None:
+    if any(value is False for value in values):
+        return False
+    return None if any(value is None for value in values) else True
+
+
+class _FrozenIdentityProfile:
+    """Bounded identity consistency, not general JSON Schema satisfiability.
+
+    True/false guard results hold for every object extending the known facts.
+    Missing facts are unknown; the absence of a field in an incomplete probe
+    never selects an else branch. Each unresolved branch must independently
+    preserve the fixed identities. No payload witness or default is invented.
+    """
+
+    def __init__(self, schema: dict[str, Any]) -> None:
+        self.schema = schema
+        self.work = 0
+        self.references = 0
+        pending: list[tuple[object, int]] = [(schema, 0)]
+        nodes = 0
+        while pending:
+            value, depth = pending.pop()
+            nodes += 1
+            if nodes > _MAX_IDENTITY_SCHEMA_NODES or depth > _MAX_IDENTITY_SCHEMA_DEPTH:
+                raise ValueError("installed schema exceeds the bounded identity profile")
+            if isinstance(value, dict):
+                pending.extend((child, depth + 1) for child in value.values())
+            elif isinstance(value, list):
+                pending.extend((child, depth + 1) for child in value)
+
+    def _spend(self, amount: int = 1) -> None:
+        self.work += amount
+        if self.work > _MAX_IDENTITY_PROFILE_WORK:
+            raise ValueError("installed schema identity work budget exhausted")
+
+    def _equal(self, left: object, right: object) -> bool:
+        self._spend(
+            1
+            + (len(left) if isinstance(left, str) else 0)
+            + (len(right) if isinstance(right, str) else 0)
+        )
+        return _identity_literal_equal(left, right)
+
+    def _enum_accepts(self, values: list[Any], expected: object) -> bool:
+        for value in values:
+            self._spend()
+            if self._equal(expected, value):
+                return True
+        return False
+
+    def _required_truth(self, names: list[str], facts: _IdentityFacts) -> bool | None:
+        for name in names:
+            self._spend(len(name) + 1)
+            if name not in facts.present:
+                return None
+        return True
+
+    def _add_present(self, names: list[str], facts: _IdentityFacts) -> None:
+        for name in names:
+            self._spend(len(name) + 1)
+            facts.present.add(name)
+
+    def _mentions_identity(self, names: list[str]) -> bool:
+        for name in names:
+            self._spend(len(name) + 1)
+            if name in _IDENTITY_FIELDS:
+                return True
+        return False
+
+    def _copy_facts(self, facts: _IdentityFacts) -> _IdentityFacts:
+        self._spend(len(facts.present) + len(facts.literals))
+        return facts.copy()
+
+    def _enter(self, node: object, trail: tuple[int, ...]) -> tuple[int, ...]:
+        self._spend()
+        if isinstance(node, dict):
+            for keyword in node:
+                self._spend(len(keyword) + 1)
+        if id(node) in trail or len(trail) >= _MAX_IDENTITY_SCHEMA_DEPTH:
+            raise ValueError("installed schema identity reference cycle or depth limit")
+        if not isinstance(node, (dict, bool)):
+            raise ValueError("installed schema identity clause is not a schema")
+        if isinstance(node, dict) and "$id" in node and node is not self.schema:
+            raise ValueError("nested identity resource identifiers are unsupported")
+        return (*trail, id(node))
+
+    def _reference(self, reference: object) -> object:
+        self.references += 1
+        if self.references > _MAX_IDENTITY_PROFILE_REFERENCES:
+            raise ValueError("installed schema identity reference budget exhausted")
+        if not isinstance(reference, str):
+            raise ValueError("identity reference is not a string")
+        if len(reference) > _MAX_IDENTITY_POINTER_CHARS:
+            raise ValueError("identity reference exceeds its pointer length limit")
+        self._spend(len(reference) + 1)
+        # URI fragments decode percent escapes before JSON Pointer tokenization.
+        # Keep this profile narrower than that resolver instead of admitting a
+        # different literal definition from the one the artifact validator uses.
+        if "%" in reference:
+            raise ValueError("percent-encoded identity references are unsupported")
+        if not reference.startswith("#/"):
+            if reference == "#":
+                return self.schema
+            raise ValueError("identity profile supports only local JSON Pointer references")
+        tokens = reference[2:].split("/")
+        if len(tokens) > _MAX_IDENTITY_POINTER_SEGMENTS:
+            raise ValueError("identity reference exceeds its pointer segment limit")
+        current: object = self.schema
+        for token in tokens:
+            self._spend(len(token) + 1)
+            if re.search(r"~(?![01])", token):
+                raise ValueError("identity reference has an invalid JSON Pointer escape")
+            token = token.replace("~1", "/").replace("~0", "~")
+            if isinstance(current, dict) and token in current:
+                current = current[token]
+            elif isinstance(current, list) and re.fullmatch(r"0|[1-9][0-9]*", token):
+                if len(token) > 6 or int(token) >= len(current):
+                    raise ValueError("identity reference points outside its local array")
+                current = current[int(token)]
+            else:
+                raise ValueError("identity reference does not resolve in the frozen resource")
+        return current
+
+    @staticmethod
+    def _scalar(value: object) -> bool:
+        return value is None or isinstance(value, (str, bool, int, float))
+
+    @staticmethod
+    def _type_accepts(declaration: object, value: object) -> bool:
+        names = declaration if isinstance(declaration, list) else [declaration]
+        actual = (
+            "null"
+            if value is None
+            else "boolean"
+            if isinstance(value, bool)
+            else "integer"
+            if isinstance(value, int) or (isinstance(value, float) and value.is_integer())
+            else "number"
+            if isinstance(value, float)
+            else "string"
+            if isinstance(value, str)
+            else "array"
+            if isinstance(value, list)
+            else "object"
+        )
+        return actual in names or (actual == "integer" and "number" in names)
+
+    def _literal_truth(
+        self, node: object, value: object, trail: tuple[int, ...] = ()
+    ) -> bool | None:
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return node
+        assert isinstance(node, dict)
+        outcomes: list[bool | None] = []
+        for keyword, constraint in node.items():
+            if keyword in _IDENTITY_ANNOTATIONS:
+                continue
+            if keyword == "$ref":
+                outcomes.append(self._literal_truth(self._reference(constraint), value, path))
+            elif keyword == "const":
+                outcomes.append(
+                    self._equal(value, constraint) if self._scalar(constraint) else None
+                )
+            elif keyword == "enum":
+                outcomes.append(self._enum_accepts(constraint, value))
+            elif keyword == "type":
+                outcomes.append(self._type_accepts(constraint, value))
+            elif keyword in {"allOf", "anyOf", "oneOf"}:
+                outcomes.append(
+                    self._combine(
+                        keyword, [self._literal_truth(child, value, path) for child in constraint]
+                    )
+                )
+            elif keyword == "not":
+                outcome = self._literal_truth(constraint, value, path)
+                outcomes.append(None if outcome is None else not outcome)
+            else:
+                # No regex/format/arithmetic or arbitrary payload solver is
+                # used to manufacture a guard decision.
+                outcomes.append(None)
+        return _identity_conjunction(outcomes)
+
+    @staticmethod
+    def _combine(keyword: str, values: list[bool | None]) -> bool | None:
+        if keyword == "allOf":
+            return _identity_conjunction(values)
+        if keyword == "anyOf":
+            if any(value is True for value in values):
+                return True
+            return None if any(value is None for value in values) else False
+        true_count = sum(value is True for value in values)
+        if true_count > 1:
+            return False
+        if any(value is None for value in values):
+            return None
+        return true_count == 1
+
+    def _guard(
+        self, node: object, facts: _IdentityFacts, trail: tuple[int, ...] = ()
+    ) -> bool | None:
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return node
+        assert isinstance(node, dict)
+        outcomes: list[bool | None] = []
+        for keyword, constraint in node.items():
+            if keyword in _IDENTITY_ANNOTATIONS or keyword in {"then", "else"}:
+                continue
+            if keyword == "$ref":
+                outcomes.append(self._guard(self._reference(constraint), facts, path))
+            elif keyword == "type":
+                outcomes.append(self._type_accepts(constraint, {}))
+            elif keyword == "required":
+                outcomes.append(self._required_truth(constraint, facts))
+            elif keyword == "properties":
+                for name, declaration in constraint.items():
+                    self._spend(len(name) + 1)
+                    outcomes.append(
+                        self._literal_truth(declaration, facts.literals[name], path)
+                        if name in facts.literals
+                        else True
+                        if declaration is True or declaration == {}
+                        else None
+                    )
+            elif keyword in {"allOf", "anyOf", "oneOf"}:
+                outcomes.append(
+                    self._combine(
+                        keyword, [self._guard(child, facts, path) for child in constraint]
+                    )
+                )
+            elif keyword == "not":
+                outcome = self._guard(constraint, facts, path)
+                outcomes.append(None if outcome is None else not outcome)
+            elif keyword == "if":
+                condition = self._guard(constraint, facts, path)
+                if condition is not None:
+                    outcomes.append(
+                        self._guard(node.get("then" if condition else "else", True), facts, path)
+                    )
+                else:
+                    yes = self._guard(node.get("then", True), facts, path)
+                    no = self._guard(node.get("else", True), facts, path)
+                    outcomes.append(yes if yes is no else None)
+            else:
+                outcomes.append(None)
+        return _identity_conjunction(outcomes)
+
+    def _forced_literals(self, node: object, trail: tuple[int, ...] = ()) -> list[object]:
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return []
+        assert isinstance(node, dict)
+        values: list[object] = []
+        if "const" in node and self._scalar(node["const"]):
+            values.append(node["const"])
+        enum = node.get("enum")
+        if isinstance(enum, list) and len(enum) == 1 and self._scalar(enum[0]):
+            values.append(enum[0])
+        if "$ref" in node:
+            values.extend(self._forced_literals(self._reference(node["$ref"]), path))
+        for child in node.get("allOf", []):
+            values.extend(self._forced_literals(child, path))
+        return values
+
+    def _active(
+        self, node: object, facts: _IdentityFacts, trail: tuple[int, ...]
+    ) -> list[dict[str, Any]]:
+        path = self._enter(node, trail)
+        if node is False:
+            raise ValueError("installed schema rejects its declared identity pair")
+        if node is True:
+            return []
+        assert isinstance(node, dict)
+        result = [node]
+        if "$ref" in node:
+            result.extend(self._active(self._reference(node["$ref"]), facts, path))
+        for child in node.get("allOf", []):
+            result.extend(self._active(child, facts, path))
+        if "if" in node:
+            condition = self._guard(node["if"], facts, path)
+            if condition is not None:
+                result.extend(
+                    self._active(node.get("then" if condition else "else", True), facts, path)
+                )
+        for trigger, child in node.get("dependentSchemas", {}).items():
+            self._spend(len(trigger) + 1)
+            if trigger in facts.present:
+                result.extend(self._active(child, facts, path))
+        return result
+
+    def _close(self, node: object, facts: _IdentityFacts, trail: tuple[int, ...]) -> None:
+        while True:
+            before = (len(facts.present), len(facts.literals))
+            active = self._active(node, facts, trail)
+            for clause in active:
+                self._add_present(clause.get("required", []), facts)
+                for trigger, required in clause.get("dependentRequired", {}).items():
+                    self._spend(len(trigger) + 1)
+                    if trigger in facts.present:
+                        self._add_present(required, facts)
+            for clause in active:
+                for name, declaration in clause.get("properties", {}).items():
+                    self._spend(len(name) + 1)
+                    if name not in facts.present:
+                        continue
+                    for literal in self._forced_literals(declaration):
+                        previous = facts.literals.get(name, _UNKNOWN_IDENTITY_LITERAL)
+                        if previous is not _UNKNOWN_IDENTITY_LITERAL and not self._equal(
+                            previous, literal
+                        ):
+                            raise ValueError("installed schema has contradictory required literals")
+                        facts.literals[name] = literal
+            if len(facts.present) + len(facts.literals) > _MAX_IDENTITY_PROFILE_FACTS:
+                raise ValueError("installed schema identity fact budget exhausted")
+            if before == (len(facts.present), len(facts.literals)):
+                return
+
+    def _touches_identity(self, node: object, trail: tuple[int, ...] = ()) -> bool:
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return not node
+        assert isinstance(node, dict)
+        for keyword, constraint in node.items():
+            if keyword in _IDENTITY_ANNOTATIONS:
+                continue
+            if keyword == "properties":
+                if _IDENTITY_FIELDS.intersection(constraint):
+                    return True
+            elif keyword == "required":
+                if self._mentions_identity(constraint):
+                    return True
+            elif keyword == "$ref":
+                if self._touches_identity(self._reference(constraint), path):
+                    return True
+            elif keyword in {"allOf", "anyOf", "oneOf"}:
+                if any(self._touches_identity(child, path) for child in constraint):
+                    return True
+            elif keyword in {"if", "then", "else", "not"}:
+                if self._touches_identity(constraint, path):
+                    return True
+            elif keyword == "dependentSchemas":
+                if any(self._touches_identity(child, path) for child in constraint.values()):
+                    return True
+            elif keyword == "dependentRequired":
+                if any(self._mentions_identity(names) for names in constraint.values()):
+                    return True
+            else:
+                # Object-wide or unrecognized applicators cannot silently be
+                # classified as payload-only constraints.
+                return True
+        return False
+
+    def _intersect_values(
+        self, left: tuple[object, ...], right: tuple[object, ...]
+    ) -> tuple[object, ...]:
+        self._spend(len(left) + len(right))
+        return tuple(value for value in left if any(self._equal(value, other) for other in right))
+
+    def _finite_values(
+        self, node: object, trail: tuple[int, ...] = ()
+    ) -> tuple[object, ...] | None:
+        """A finite scalar overapproximation, or unknown; never a witness search.
+
+        Ignoring an unsupported conjunct can only enlarge the possible set.
+        An enum containing composite values remains unknown: dropping those
+        values could manufacture a false disjointness certificate.
+        """
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return None if node else ()
+        assert isinstance(node, dict)
+        result: tuple[object, ...] | None = None
+        if "const" in node and self._scalar(node["const"]):
+            result = (node["const"],)
+        enum = node.get("enum")
+        if isinstance(enum, list):
+            self._spend(len(enum))
+            if all(self._scalar(value) for value in enum):
+                values = tuple(enum)
+                result = values if result is None else self._intersect_values(result, values)
+        children = list(node.get("allOf", []))
+        self._spend(len(children))
+        if "$ref" in node:
+            children.append(self._reference(node["$ref"]))
+        for child in children:
+            child_values = self._finite_values(child, path)
+            if child_values is not None:
+                result = (
+                    child_values if result is None else self._intersect_values(result, child_values)
+                )
+        return result
+
+    def _oneof_exclusive(
+        self, alternatives: list[Any], facts: _IdentityFacts, trail: tuple[int, ...]
+    ) -> bool:
+        """Prove pairwise disjointness using required finite scalar properties.
+
+        For each pair, a property must be present in any joint match because
+        global facts or at least one branch requires it. Disjoint scalar value
+        overapproximations then prove that joint match impossible. This proves
+        at-most-one, not payload satisfiability or coverage of all instances.
+        """
+        self._spend(len(alternatives))
+        profiles: list[tuple[set[str], dict[str, tuple[object, ...]]]] = []
+        for branch in alternatives:
+            local = self._copy_facts(facts)
+            self._close(branch, local, trail)
+            constraints: dict[str, tuple[object, ...]] = {}
+            for clause in self._active(branch, local, trail):
+                for name, declaration in clause.get("properties", {}).items():
+                    self._spend(len(name) + 1)
+                    values = self._finite_values(declaration)
+                    if values is not None:
+                        previous = constraints.get(name)
+                        constraints[name] = (
+                            values if previous is None else self._intersect_values(previous, values)
+                        )
+            profiles.append((local.present, constraints))
+        for index, (left_present, left) in enumerate(profiles):
+            for other in range(index + 1, len(profiles)):
+                self._spend(1)
+                right_present, right = profiles[other]
+                self._spend(len(left) + len(right))
+                shared = sorted(left.keys() & right.keys())
+                exclusive = False
+                for name in shared:
+                    self._spend(len(name) + 1)
+                    if name in left_present or name in right_present:
+                        if not self._intersect_values(left[name], right[name]):
+                            exclusive = True
+                            break
+                if not exclusive:
+                    return False
+        return True
+
+    def _has_root_oneof(self, node: object, trail: tuple[int, ...] = ()) -> bool:
+        """Find asserted root-instance oneOf without entering payload schemas.
+
+        An if predicate is not an asserted schema. Its then/else branches are
+        traversed, together with other root applicators and local references.
+        """
+        path = self._enter(node, trail)
+        if isinstance(node, bool):
+            return False
+        assert isinstance(node, dict)
+        if "oneOf" in node:
+            return True
+        if "$ref" in node and self._has_root_oneof(self._reference(node["$ref"]), path):
+            return True
+        for keyword in ("allOf", "anyOf"):
+            if any(self._has_root_oneof(child, path) for child in node.get(keyword, [])):
+                return True
+        for keyword in ("then", "else", "not"):
+            if keyword in node and self._has_root_oneof(node[keyword], path):
+                return True
+        return any(
+            self._has_root_oneof(child, path) for child in node.get("dependentSchemas", {}).values()
+        )
+
+    def _check(self, node: object, facts: _IdentityFacts, trail: tuple[int, ...]) -> None:
+        path = self._enter(node, trail)
+        if node is False:
+            raise ValueError("installed schema rejects its declared identity pair")
+        if node is True:
+            return
+        assert isinstance(node, dict)
+        supported = _IDENTITY_ANNOTATIONS | {
+            "$ref",
+            "type",
+            "properties",
+            "required",
+            "allOf",
+            "anyOf",
+            "oneOf",
+            "not",
+            "if",
+            "then",
+            "else",
+            "dependentSchemas",
+            "dependentRequired",
+            "additionalProperties",
+            "minProperties",
+            "maxProperties",
+        }
+        if node.keys() - supported:
+            raise ValueError("installed schema uses an unsupported root identity constraint")
+        if "type" in node and not self._type_accepts(node["type"], {}):
+            raise ValueError("installed schema rejects its declared identity pair")
+        if "$ref" in node:
+            self._check(self._reference(node["$ref"]), facts, path)
+        properties = node.get("properties", {})
+        for name, declaration in properties.items():
+            self._spend(len(name) + 1)
+            if name in facts.literals:
+                outcome = self._literal_truth(declaration, facts.literals[name])
+                if outcome is False or (name in _IDENTITY_FIELDS and outcome is not True):
+                    raise ValueError(
+                        "installed schema rejects or cannot establish its identity pair"
+                    )
+        additional = node.get("additionalProperties", True)
+        if additional is False or isinstance(additional, dict):
+            self._spend(len(facts.present) + len(properties))
+            extras = facts.present - properties.keys()
+            if additional is False and extras:
+                raise ValueError("installed schema excludes a necessarily present property")
+            if isinstance(additional, dict) and extras:
+                raise ValueError("schema-valued additional identity properties are unsupported")
+        if "maxProperties" in node and len(facts.present) > node["maxProperties"]:
+            raise ValueError("installed schema excludes its required property inventory")
+        for child in node.get("allOf", []):
+            self._check(child, facts, path)
+        for keyword in ("anyOf", "oneOf"):
+            if keyword not in node:
+                continue
+            outcomes = [self._guard(child, facts, path) for child in node[keyword]]
+            outcome = self._combine(keyword, outcomes)
+            if outcome is False:
+                raise ValueError("installed schema excludes its declared identity alternatives")
+            if outcome is None:
+                possible = [
+                    child
+                    for child, alternative in zip(node[keyword], outcomes, strict=True)
+                    if alternative is not False
+                ]
+                # Independent branch consistency is insufficient for oneOf:
+                # overlap can exclude this identity even when each branch's
+                # own identity vocabulary admits it. No payload SAT solver is
+                # used to invent the missing exclusive-cardinality proof.
+                if keyword == "oneOf" and not self._oneof_exclusive(possible, facts, path):
+                    raise ValueError(
+                        "installed schema identity alternative cardinality is unproved"
+                    )
+                for child in possible:
+                    if self._touches_identity(child) or self._has_root_oneof(child):
+                        self._verify_branch(child, self._copy_facts(facts), path)
+        if "not" in node:
+            outcome = self._guard(node["not"], facts, path)
+            if outcome is True or (
+                outcome is None
+                and (self._touches_identity(node["not"]) or self._has_root_oneof(node["not"]))
+            ):
+                raise ValueError(
+                    "installed schema excludes or cannot establish its negated identity"
+                )
+        if "if" in node:
+            condition = self._guard(node["if"], facts, path)
+            branches = (
+                (node.get("then" if condition else "else", True),)
+                if condition is not None
+                else (node.get("then", True), node.get("else", True))
+            )
+            for branch in branches:
+                if (
+                    condition is not None
+                    or self._touches_identity(branch)
+                    or self._has_root_oneof(branch)
+                ):
+                    self._verify_branch(branch, self._copy_facts(facts), path)
+        for trigger, branch in node.get("dependentSchemas", {}).items():
+            self._spend(len(trigger) + 1)
+            if (
+                trigger in facts.present
+                or self._touches_identity(branch)
+                or self._has_root_oneof(branch)
+            ):
+                self._verify_branch(branch, self._copy_facts(facts), path)
+
+    def _verify_branch(
+        self, node: object, facts: _IdentityFacts, trail: tuple[int, ...] = ()
+    ) -> None:
+        self._close(node, facts, trail)
+        self._check(node, facts, trail)
+
+    def require(self, *, schema_version: str, kind: str) -> None:
+        facts = _IdentityFacts(
+            set(_IDENTITY_FIELDS),
+            {
+                "artifact_kind": kind,
+                "schema_version": schema_version,
+            },
+        )
+        self._verify_branch(self.schema, facts)
+
+
+def _require_frozen_identity_admission(
+    schema: dict[str, Any], *, schema_version: str, kind: str
+) -> None:
+    """Establish identity consistency within an explicit bounded offline profile."""
+    if schema.get("type") != "object":
+        raise ValueError("installed frozen schema must have an object root")
+    profile = _FrozenIdentityProfile(schema)
+    # Validate schema grammar, but do not validate an incomplete object and
+    # mistake absent required context for a false conditional guard.
+    _compiled_json_schema_validator(_serialized_schema_cache_key(schema))
+    properties = schema.get("properties")
+    if not isinstance(properties, dict) or not _IDENTITY_FIELDS <= properties.keys():
+        raise ValueError("installed frozen schema lacks an identity declaration")
+    profile.require(schema_version=schema_version, kind=kind)
+
+
+def _read_installed_compatibility_resource(
+    reader: _InstalledReaderIdentity,
+    relative: str,
+    *,
+    max_bytes: int,
+) -> bytes | None:
+    parts = PurePosixPath(relative).parts
+    if len(parts) != 2 or any(part in {".", ".."} for part in parts) or "\\" in relative:
+        raise ValueError("installed compatibility resource path is malformed")
+    if f"agent_assure/schema_resources/{relative}" not in reader.record_names:
+        return None
+    resource_root = files("agent_assure.schema_resources")
+    if not isinstance(resource_root, Path) or resource_root.absolute() != reader.resource_root:
+        raise ValueError("installed compatibility resource package identity does not match")
+    try:
+        return read_file_bounded_at(
+            reader.resource_root,
+            relative,
+            max_bytes=max_bytes,
+            label="installed compatibility resource",
+        ).data
+    except FileNotFoundError:
+        return None
+
+
+def _frozen_root_semantic_replay_identity(kind: str, schema_version: str) -> str | None:
+    policy = FROZEN_ROOT_VALIDATION_POLICY.get((kind, schema_version))
+    if policy is None or policy is FrozenRootValidationPolicy.archival_only:
+        return None
+    return f"agent-assure:frozen-root/{schema_version}/{kind}/{policy.value}"
+
+
+def inspect_installed_reader_compatibility(
+    *,
+    producer_package_version: str,
+    writer_schema_version: str,
+    artifact_kind: str,
+    expected_matrix_digest: str,
+) -> CompatibilityDecision:
+    """Inspect exact installed-resource compatibility, with no authorization effect.
+
+    The caller supplies independently bound producer provenance and a matrix
+    digest from the verifier-owned candidate inventory. Neither is inferred
+    from an artifact or accepted from an unverified candidate success flag.
+    Reader identity comes only from the installed distribution. This function
+    validates registry/schema resources, not an artifact or an assurance claim.
+    It never projects artifact data, downloads resources, or consults a checkout.
+    """
+    if (
+        not isinstance(expected_matrix_digest, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", expected_matrix_digest, flags=re.ASCII) is None
+    ):
+        raise ValueError("expected compatibility matrix digest must be exact lowercase SHA-256")
+    reader = _installed_reader_identity()
+    key = CompatibilityKey(
+        producer_package_version=producer_package_version,
+        writer_schema_version=writer_schema_version,
+        artifact_kind=artifact_kind,
+        reader_package_version=reader.package_version,
+    )
+
+    def unsupported(
+        reason: CompatibilityFailure,
+        *,
+        minimum_reader_satisfied: bool = False,
+        schema_integrity_verified: bool = False,
+    ) -> CompatibilityDecision:
+        return CompatibilityDecision(
+            key=key,
+            disposition="unsupported",
+            reason=reason,
+            minimum_reader_satisfied=minimum_reader_satisfied,
+            schema_integrity_verified=schema_integrity_verified,
+            authorization_effect="none",
+        )
+
+    try:
+        raw_matrix = _read_installed_compatibility_resource(
+            reader,
+            _INSTALLED_COMPATIBILITY_MATRIX_PATH,
+            max_bytes=MAX_COMPATIBILITY_MATRIX_BYTES,
+        )
+    except (OSError, ValueError, ModuleNotFoundError):
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_UNAVAILABLE")
+    if raw_matrix is None:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_UNAVAILABLE")
+    if len(raw_matrix) > MAX_COMPATIBILITY_MATRIX_BYTES:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_INVALID")
+    if f"sha256:{hashlib.sha256(raw_matrix).hexdigest()}" != expected_matrix_digest:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_DIGEST_MISMATCH")
+    try:
+        matrix = load_compatibility_matrix(raw_matrix)
+    except ValueError:
+        return unsupported("SCHEMA_COMPATIBILITY_MATRIX_INVALID")
+    preflight = assess_compatibility(matrix, key, schema_resource=None)
+    if preflight.reason != "SCHEMA_RESOURCE_UNAVAILABLE":
+        return preflight
+    cell = matrix.lookup(key)
+    if cell is None:  # The preflight guarantees this, without interpreting candidate flags.
+        raise AssertionError("compatibility preflight did not retain its exact cell")
+    policy = FROZEN_ROOT_VALIDATION_POLICY.get((artifact_kind, writer_schema_version))
+    if policy is None:
+        return unsupported("SCHEMA_COMPATIBILITY_CELL_ABSENT", minimum_reader_satisfied=True)
+    if (
+        policy is FrozenRootValidationPolicy.archival_only
+        and cell.disposition == "semantic_replay_and_authorization_eligible"
+    ):
+        return unsupported("SCHEMA_COMPATIBILITY_POLICY_MISMATCH", minimum_reader_satisfied=True)
+    replay_identity = _frozen_root_semantic_replay_identity(artifact_kind, writer_schema_version)
+    replays = frozenset({replay_identity}) if replay_identity is not None else frozenset()
+    if cell.semantic_replay_identity is not None and cell.semantic_replay_identity not in replays:
+        return unsupported("SCHEMA_SEMANTIC_REPLAY_UNAVAILABLE", minimum_reader_satisfied=True)
+    if cell.migration_identity is not None or (
+        cell.disposition == "semantic_replay_and_authorization_eligible" and cell.losses
+    ):
+        return unsupported("SCHEMA_MIGRATION_UNSUPPORTED", minimum_reader_satisfied=True)
+    try:
+        raw_schema = _read_installed_compatibility_resource(
+            reader, cell.schema_resource_path, max_bytes=MAX_FROZEN_SCHEMA_BYTES
+        )
+    except (OSError, ValueError, ModuleNotFoundError):
+        return unsupported("SCHEMA_RESOURCE_UNAVAILABLE", minimum_reader_satisfied=True)
+    result = assess_compatibility(
+        matrix,
+        key,
+        schema_resource=raw_schema,
+        available_semantic_replays=replays,
+    )
+    if result.disposition == "unsupported":
+        return result
+    if raw_schema is None:  # A supported assessment requires the original immutable bytes.
+        raise AssertionError("compatibility assessment did not retain its schema resource")
+    try:
+        schema = load_json_bytes_bounded(
+            raw_schema, max_bytes=MAX_FROZEN_SCHEMA_BYTES, label="frozen JSON Schema"
+        )
+        _prepare_frozen_schema(schema, schema_version=writer_schema_version, kind=artifact_kind)
+        _harden_frozen_decimal_patterns(schema)
+        harden_json_schema_pattern_ends(schema)
+        _require_frozen_identity_admission(
+            schema, schema_version=writer_schema_version, kind=artifact_kind
+        )
+    except (
+        ValueError,
+        JsonSchemaSchemaError,
+        JsonSchemaValidationError,
+        Unresolvable,
+        RecursionError,
+    ):
+        return unsupported(
+            "SCHEMA_RESOURCE_INVALID",
+            minimum_reader_satisfied=True,
+            schema_integrity_verified=True,
+        )
+    return result
+
+
 _LEGACY_RELEASE_IDENTITY_ARTIFACT_KINDS = frozenset(
     {"release-artifact-manifest", "release-digest-replay"}
 )
@@ -422,6 +1417,26 @@ def load_validated_artifact_model(
     archival and fail closed at this public assurance boundary.
     """
 
+    parsed, _ = load_validated_artifact_model_with_size(
+        path,
+        model,
+        kind=kind,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    return parsed
+
+
+def load_validated_artifact_model_with_size(
+    path: Path,
+    model: type[ArtifactModelT],
+    *,
+    kind: str,
+    max_bytes: int | None = None,
+    label: str | None = None,
+) -> tuple[ArtifactModelT, int]:
+    """Load one exact byte snapshot and return its sole projection and size."""
+
     from agent_assure.schema.export import model_for_kind
 
     expected_model = model_for_kind(kind)
@@ -450,7 +1465,7 @@ def load_validated_artifact_model(
         raise ValueError(f"{kind} artifact failed JSON Schema validation") from exc
     if parsed is None:  # pragma: no cover - internal invariant
         raise AssertionError("validated artifact model projection was not produced")
-    return parsed
+    return parsed, contents.size
 
 
 def _load_validated_artifact_payload_snapshot(

@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/post-closure-tooling-amendment/1",
+  "title": "Exact post-closure tooling amendment",
+  "description": "Bounded metadata only. Schema validity supplies no trust bootstrap, signature validity or implementation acceptance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claim"],
+  "properties": {
+    "claim": {"$ref": "#/$defs/claim"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "maxLength": 71, "pattern": "^sha256:[0-9a-f]{64}(?![\\s\\S])"},
+    "commit": {"type": "string", "maxLength": 40, "pattern": "^[0-9a-f]{40}(?![\\s\\S])"},
+    "path": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*(?![\\s\\S])"},
+    "utc": {"type": "string", "minLength": 20, "maxLength": 27, "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]{1,6})?Z(?![\\s\\S])"},
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "size_bytes", "sha256"],
+      "properties": {
+        "path": {"$ref": "#/$defs/path"},
+        "size_bytes": {"type": "integer", "minimum": 0, "maximum": 4194304},
+        "sha256": {"$ref": "#/$defs/digest"}
+      }
+    },
+    "inventory": {"type": "array", "minItems": 1, "maxItems": 128, "uniqueItems": true, "items": {"$ref": "#/$defs/binding"}},
+    "overlay": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "predecessor", "current"],
+      "properties": {
+        "path": {"enum": [".github/workflows/ci.yml", "scripts/v1_architecture_governance.py", "tests/unit/governance/test_v1_governance_corrections.py", "docs/governance/v1/sprint3/post-closure-tooling-amendment.schema.json", "scripts/v1_postclosure_tooling.py", "tests/unit/governance/test_v1_postclosure_tooling.py"]},
+        "predecessor": {"oneOf": [{"type": "null"}, {"$ref": "#/$defs/binding"}]},
+        "current": {"$ref": "#/$defs/binding"}
+      }
+    },
+    "constraints": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["original_authoring_guard_unchanged", "accepted_subject_bytes_and_fixed_tags_unchanged", "retained_original_host_replay_claimed", "complete_portable_private_predecessor_replay_claimed", "all_unlisted_current_tooling_changes_rejected", "no_source_normalization_or_network_fallback", "implementation_or_qualification_acceptance_granted", "merge_release_publication_or_deployment_authorized"],
+      "properties": {
+        "original_authoring_guard_unchanged": {"const": true},
+        "accepted_subject_bytes_and_fixed_tags_unchanged": {"const": true},
+        "retained_original_host_replay_claimed": {"const": false},
+        "complete_portable_private_predecessor_replay_claimed": {"const": false},
+        "all_unlisted_current_tooling_changes_rejected": {"const": true},
+        "no_source_normalization_or_network_fallback": {"const": true},
+        "implementation_or_qualification_acceptance_granted": {"const": false},
+        "merge_release_publication_or_deployment_authorized": {"const": false}
+      }
+    },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["format", "purpose", "decision", "issuer_person_id", "issuer_role", "key_id", "approval_mode", "independence", "authorization_effect", "historical_source_commit", "published_correction_evidence_commit", "accepted_sprint12_receipt_digest", "historical_source_bindings_digest", "historical_predecessor_package_digest", "s1_v3_closure_commit", "s1_v3_fixed_tag_object", "reviewed_implementation_source_commit", "receipt_publication_topology", "authority_record_path", "issued_at_utc", "valid_until_utc", "historical_source_inventory", "published_evidence_inventory", "reviewed_current_inventory", "current_tooling_overlay", "external_runtime_profile_digest", "key_scope_adoption", "retained_constraints"],
+      "properties": {
+        "format": {"const": "agent-assure-post-closure-tooling-amendment/1"},
+        "purpose": {"const": "post-closure-tooling-amendment/v1"},
+        "decision": {"const": "adopt_exact_current_tooling_overlay_and_historical_verification_route"},
+        "issuer_person_id": {"const": "acblabs"},
+        "issuer_role": {"const": "repository_maintainer"},
+        "key_id": {"const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"},
+        "approval_mode": {"const": "maintainer_development"},
+        "independence": {"const": "NO_INDEPENDENT_REVIEW"},
+        "authorization_effect": {"const": "historical_and_exact_current_tooling_development_verification_only"},
+        "historical_source_commit": {"const": "3a85cf19a9e71fc658d70ceee904ab9f7811d716"},
+        "published_correction_evidence_commit": {"const": "9e9fc9937b1a5436343ced8fdac47ccbde379d4a"},
+        "accepted_sprint12_receipt_digest": {"const": "sha256:5a183239b199fdb4f9ca19e00754b7208f304970462a02bca5cab9f61ca59d21"},
+        "historical_source_bindings_digest": {"const": "sha256:1b9dabb7e106a747cca840e929984afaac6c831f74422bd0f95a42e2dce9faa2"},
+        "historical_predecessor_package_digest": {"const": "sha256:598248c782262629d8b0afa3a9661911f34bcaf9d177115cbbe84c22f15bef08"},
+        "s1_v3_closure_commit": {"const": "20a49c9c6c57ffa6096f5db9a466b472d7bc54fb"},
+        "s1_v3_fixed_tag_object": {"const": "9f57de66e57a18a74a154524841dd055fe26a090"},
+        "reviewed_implementation_source_commit": {"$ref": "#/$defs/commit"},
+        "receipt_publication_topology": {"const": "receipt_only_direct_child_of_reviewed_implementation_commit"},
+        "authority_record_path": {"const": "docs/governance/v1/sprint3/post-closure-tooling-amendment.json"},
+        "issued_at_utc": {"$ref": "#/$defs/utc"},
+        "valid_until_utc": {"const": "2026-12-07T23:31:10.233520Z"},
+        "historical_source_inventory": {"$ref": "#/$defs/inventory"},
+        "published_evidence_inventory": {"$ref": "#/$defs/inventory"},
+        "reviewed_current_inventory": {"$ref": "#/$defs/inventory"},
+        "current_tooling_overlay": {"type": "array", "minItems": 3, "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/overlay"}},
+        "external_runtime_profile_digest": {"$ref": "#/$defs/digest"},
+        "key_scope_adoption": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["purpose", "trust_snapshot_digest"],
+          "properties": {"purpose": {"const": "post-closure-tooling-amendment/v1"}, "trust_snapshot_digest": {"$ref": "#/$defs/digest"}}
+        },
+        "retained_constraints": {"$ref": "#/$defs/constraints"}
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "namespace", "signer_person_id", "key_id", "signature"],
+      "properties": {
+        "profile": {"const": "openssh-sshsig-ed25519/v1"},
+        "namespace": {"const": "agent-assure-governance-v1"},
+        "signer_person_id": {"const": "acblabs"},
+        "key_id": {"const": "SHA256:L/6IRITdktnUQOfbr6iuf48k2MtolzDFvxWaQHU4G7k"},
+        "signature": {"type": "string", "minLength": 1, "maxLength": 16384, "pattern": "^[A-Za-z0-9+/]+={0,2}(?![\\s\\S])"}
+      }
+    }
+  }
+}

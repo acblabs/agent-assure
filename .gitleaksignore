@@ -17,3 +17,26 @@ d3c755e49cdecbd560c9d57dc481495b479fc8b1:tests/unit/privacy/test_hmac_and_redact
 d3c755e49cdecbd560c9d57dc481495b479fc8b1:tests/unit/privacy/test_hmac_and_redaction.py:jwt:65
 f034d1fc6450fcac72a9045c2f4188f43c8cf695:tests/unit/privacy/test_hmac_and_redaction.py:generic-api-key:672
 f034d1fc6450fcac72a9045c2f4188f43c8cf695:tests/unit/schema/test_pilot_evidence.py:jwt:928
+# Exact historical false positives: empty declarations, public verifier
+# fingerprints and pinned executable hashes. New occurrences remain scanned.
+4436f0b51e1bdcca0152d0f0d8c7a569c8876ce4:docs/governance/v1/successor-v3/tools/successor_v3_tool.py:generic-api-key:805
+595cf482c671e060ca3d09ae57d8e534d23bc978:Makefile:generic-api-key:25
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:10
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:19
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:28
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:37
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:46
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:55
+595cf482c671e060ca3d09ae57d8e534d23bc978:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:64
+68771c3403e4cd862efde07cc399a5f482006ea6:docs/governance/v1/successor-v3/tools/successor_v3_tool.py:generic-api-key:610
+703e374a38ddbeff398a063b42dfe19d5dc7f5b6:docs/governance/v1/successor-v3/tools/successor_v3_tool.py:generic-api-key:761
+75b7896849f48ee26db367ba55f11d2b2e3bc1bc:Makefile:generic-api-key:25
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:10
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:19
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:28
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:37
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:46
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:55
+9e9fc9937b1a5436343ced8fdac47ccbde379d4a:docs/governance/v1/sprint2/correction-native-verification.json:generic-api-key:64
+b3e231ff5796d49073ea8a9a82db29c034fbf81c:docs/governance/v1/successor-v3/tools/successor_v3_tool.py:generic-api-key:803
+e7639744b70b28883b7a54e930dc9cd0190a3b0f:docs/governance/v1/successor-v3/tools/successor_v3_tool.py:generic-api-key:810

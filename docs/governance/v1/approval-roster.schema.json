@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://acblabs.github.io/agent-assure/governance/v1/approval-roster.schema.json",
+  "title": "Agent Assure S1 approval roster",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "spec_revision",
+    "selection_status",
+    "selected_mode",
+    "maintainer_person_id",
+    "people",
+    "role_assignments",
+    "incompatibilities",
+    "qualification_receipts",
+    "limitations"
+  ],
+  "properties": {
+    "format": { "const": "agent-assure-approval-roster/1" },
+    "spec_revision": { "const": "6.5" },
+    "selection_status": { "enum": ["not_approved", "approved"] },
+    "selected_mode": { "const": "maintainer_development" },
+    "maintainer_person_id": { "$ref": "#/$defs/id" },
+    "people": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 38,
+      "items": { "$ref": "#/$defs/person" }
+    },
+    "role_assignments": {
+      "type": "array",
+      "minItems": 38,
+      "maxItems": 38,
+      "items": { "$ref": "#/$defs/assignment" }
+    },
+    "incompatibilities": { "$ref": "#/$defs/nonemptyStringSet" },
+    "qualification_receipts": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "limitations": { "$ref": "#/$defs/nonemptyStringSet" }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._@+-]*$"
+    },
+    "nonempty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "nonemptyStringSet": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonempty" }
+    },
+    "person": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "person_id",
+        "display_name",
+        "affiliation",
+        "competence_scopes",
+        "conflicts"
+      ],
+      "properties": {
+        "person_id": { "$ref": "#/$defs/id" },
+        "display_name": { "$ref": "#/$defs/nonempty" },
+        "affiliation": {
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "competence_scopes": { "$ref": "#/$defs/nonemptyStringSet" },
+        "conflicts": { "$ref": "#/$defs/nonemptyStringSet" }
+      }
+    },
+    "assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "person_id", "backup_person_id", "review_capacity"],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "person_id": {
+          "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "backup_person_id": {
+          "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }]
+        },
+        "review_capacity": {
+          "oneOf": [{ "$ref": "#/$defs/nonempty" }, { "type": "null" }]
+        }
+      }
+    }
+  }
+}

@@ -12,8 +12,21 @@ EXTERNAL_PILOT_REVIEW_RECEIPT ?= external-pilot-independence-review.json
 RELEASE_EFFICACY_PACKET ?= evidence/synthetic/release-control-efficacy/evidence-packet.json
 RELEASE_EFFICACY_POLICY ?= evidence/synthetic/release-control-efficacy/controls-mutation.yaml
 RELEASE_EFFICACY_ARTIFACT_ROOT ?= .
+V1_ROADMAP ?= Agent_Assure_Implementation_Roadmap.md
+V1_GOVERNANCE_DIR ?= docs/governance/v1
+V1_GOVERNANCE_POWERSHELL ?= C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe
+V1_GOVERNANCE_LAUNCHER ?= $(abspath scripts/v1_s1_governance.ps1)
+V1_GOVERNANCE_COMMITMENT_TIME ?=
+V1_GOVERNANCE_CLOSURE_COMMIT ?=
+V1_GOVERNANCE_ACCEPTANCE_TAG_OBJECT ?=
+V1_GOVERNANCE_ACCEPTANCE_GENERATION ?= 2
+V1_SUCCESSOR_BOOTSTRAP ?=
+V1_SUCCESSOR_REQUEST ?=
+V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT ?=
+V1_SUCCESSOR_PLAN_DIR ?= .tmp/s1-acceptance/successor-v3/bootstrap-template
+V1_GOVERNANCE_PENDING_TIME_ARG = $(if $(filter 1,$(V1_GOVERNANCE_ACCEPTANCE_GENERATION)),--commitment-time "$(V1_GOVERNANCE_COMMITMENT_TIME)")
 
-.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo
+.PHONY: test lint type dependency-lock-freshness clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle release-claim-profile-check release-control-efficacy-regenerate release-control-efficacy-check empirical-readiness check release-check release-publish-check demo v1-governance-check v1-governance-check-nonaccepting v1-architecture-check v1-architecture-readiness v1-successor-profile-template v1-successor
 
 test:
 	$(PYTHON) -m pytest
@@ -64,7 +77,29 @@ examples-parity:
 reproduction-index-check:
 	$(PYTHON) scripts/update_process_equivalence_reproduction_index.py
 
-check: lint type dependency-lock-freshness test docs-align claim-boundary examples-parity reproduction-index-check build
+check: lint type dependency-lock-freshness test docs-align claim-boundary examples-parity reproduction-index-check build v1-architecture-check
+
+# Public draft integrity is checked without the private roadmap. A passing
+# integrity check grants no acceptance, qualification, or dispatch authority.
+v1-architecture-check:
+	$(PYTHON) scripts/v1_architecture_governance.py check
+
+# Deliberately nonzero while the signed prerequisite/design receipts are pending.
+v1-architecture-readiness:
+	$(PYTHON) scripts/v1_architecture_governance.py readiness
+
+# Additive correction integrity; no signatures or acceptance are generated.
+.PHONY: v1-corrections-check
+v1-corrections-check:
+	$(PYTHON) -m scripts.v1_governance_corrections check
+
+# Preparation never signs or accepts. All accepting actions use the existing
+# authenticated PowerShell runtime plus an explicitly signed bootstrap/request.
+v1-successor-profile-template:
+	$(PYTHON) -m scripts.v1_successor_host profile-template --out "$(V1_SUCCESSOR_PLAN_DIR)"
+
+v1-successor:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" successor --repository-root . --bootstrap "$(V1_SUCCESSOR_BOOTSTRAP)" --request "$(V1_SUCCESSOR_REQUEST)" $(if $(V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT),--ci-token-environment "$(V1_SUCCESSOR_CI_TOKEN_ENVIRONMENT)")
 
 release-check: check schema-check release-provenance
 	$(PYTHON) -m twine check dist/*
@@ -81,6 +116,21 @@ release-publish-check:
 
 demo:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
+
+# The roadmap is intentionally local-only, so these explicit targets are not
+# part of CI's default check graph. The default performs generation-aware,
+# durable historical validation of the signed closure. For generation 2, invoke
+# it from a clean standalone `clone --no-local --no-checkout` at C2 only after
+# the artifact-hash and frozen-runtime inventory preflights; this convenience
+# target is not itself a trust root.
+# The nonaccepting target validates a self-consistent draft or in-progress
+# record set. Generation 1 requires its caller-supplied trusted time;
+# generation 2 accepts no caller-supplied event time.
+v1-governance-check:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" check --roadmap "$(V1_ROADMAP)" --governance-dir "$(V1_GOVERNANCE_DIR)" --repository-root . --historical --closure-commit "$(V1_GOVERNANCE_CLOSURE_COMMIT)" --acceptance-tag-object "$(V1_GOVERNANCE_ACCEPTANCE_TAG_OBJECT)"
+
+v1-governance-check-nonaccepting:
+	"$(V1_GOVERNANCE_POWERSHELL)" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$(V1_GOVERNANCE_LAUNCHER)" check --roadmap "$(V1_ROADMAP)" --governance-dir "$(V1_GOVERNANCE_DIR)" --repository-root . --allow-pending --acceptance-generation "$(V1_GOVERNANCE_ACCEPTANCE_GENERATION)" $(V1_GOVERNANCE_PENDING_TIME_ARG)
 
 schemas:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out $(SCHEMA_DIR)
