@@ -170,7 +170,9 @@ def test_minimum_reader_is_checked_before_resource_access() -> None:
     cell = _cell(minimum_reader_version="1.0.0rc1")
     # An invalid resource type would raise if resource processing occurred.
     decision = assess_compatibility(
-        _matrix(cell), _key(), schema_resource=object()  # type: ignore[arg-type]
+        _matrix(cell),
+        _key(),
+        schema_resource=object(),  # type: ignore[arg-type]
     )
     assert decision.reason == "SCHEMA_MINIMUM_READER_UNSATISFIED"
     assert decision.schema_integrity_verified is False
@@ -231,7 +233,9 @@ def test_integrity_only_cell_is_never_promoted_by_available_replay() -> None:
 def test_explicit_unsupported_cell_cannot_be_promoted() -> None:
     cell = _cell(disposition="unsupported", semantic_replay_identity=None)
     decision = assess_compatibility(
-        _matrix(cell), _key(), schema_resource=object()  # type: ignore[arg-type]
+        _matrix(cell),
+        _key(),
+        schema_resource=object(),  # type: ignore[arg-type]
     )
     assert decision.reason == "SCHEMA_COMPATIBILITY_CELL_UNSUPPORTED"
 
@@ -883,9 +887,11 @@ class _DistributionFixture:
 
     @property
     def record_names(self) -> frozenset[str]:
-        return frozenset(self.data) | {f"{self._path.name}/RECORD"} | {
-            row[0] for row in self.extra_rows
-        }
+        return (
+            frozenset(self.data)
+            | {f"{self._path.name}/RECORD"}
+            | {row[0] for row in self.extra_rows}
+        )
 
     def write_record(self, *, omit_modules: bool = False) -> None:
         stream = io.StringIO(newline="")
@@ -910,9 +916,7 @@ class _DistributionFixture:
         self.write_record()
 
 
-def _distribution_case(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> _DistributionFixture:
+def _distribution_case(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _DistributionFixture:
     installed = _DistributionFixture(tmp_path / "site-packages")
     monkeypatch.setattr(artifact_validation, "distribution", lambda _name: installed)
     monkeypatch.setattr(agent_assure, "__version__", "1.0.0a3")
@@ -1133,9 +1137,7 @@ def test_metadata_anchor_must_identify_a_supported_unpacked_wheel(
     installed = _distribution_case(monkeypatch, tmp_path)
     installed._path = tmp_path / "foreign-1.0.0a3.dist-info"
     installed._path.mkdir()
-    (installed._path / "METADATA").write_bytes(
-        b"Name: agent-assure\nVersion: 1.0.0a3\n\n"
-    )
+    (installed._path / "METADATA").write_bytes(b"Name: agent-assure\nVersion: 1.0.0a3\n\n")
     with pytest.raises(ValueError, match="metadata anchor does not match"):
         artifact_validation._installed_reader_identity()
 
@@ -1150,13 +1152,19 @@ def test_resource_discovery_requires_record_membership_and_matching_installed_ro
     names = frozenset({f"agent_assure/schema_resources/{_MATRIX_PATH}"})
     reader = artifact_validation._InstalledReaderIdentity("1.0.0a3", resource_root, names)
     monkeypatch.setattr(artifact_validation, "files", lambda _package: resource_root)
-    assert artifact_validation._read_installed_compatibility_resource(
-        reader, _MATRIX_PATH, max_bytes=1024
-    ) == b"bounded fixture resource"
+    assert (
+        artifact_validation._read_installed_compatibility_resource(
+            reader, _MATRIX_PATH, max_bytes=1024
+        )
+        == b"bounded fixture resource"
+    )
     unlisted = artifact_validation._InstalledReaderIdentity("1.0.0a3", resource_root, frozenset())
-    assert artifact_validation._read_installed_compatibility_resource(
-        unlisted, _MATRIX_PATH, max_bytes=1024
-    ) is None
+    assert (
+        artifact_validation._read_installed_compatibility_resource(
+            unlisted, _MATRIX_PATH, max_bytes=1024
+        )
+        is None
+    )
     monkeypatch.setattr(artifact_validation, "files", lambda _package: tmp_path / "checkout")
     with pytest.raises(ValueError, match="package identity does not match"):
         artifact_validation._read_installed_compatibility_resource(
@@ -1257,14 +1265,20 @@ def test_generated_matrix_keeps_producer_writer_and_reader_versions_distinct(
     )
     assert old is not None
     assert old.schema_resource_path.startswith("v0.2.0/")
-    assert actual_legacy_matrix.lookup(
-        _key(producer_package_version="0.3.0", writer_schema_version="0.3.0")
-    ) is None
+    assert (
+        actual_legacy_matrix.lookup(
+            _key(producer_package_version="0.3.0", writer_schema_version="0.3.0")
+        )
+        is None
+    )
     assert actual_legacy_matrix.lookup(_key(reader_package_version="0.7.0")) is None
     assert actual_legacy_matrix.lookup(_key(reader_package_version="1.0.0a4")) is None
-    assert actual_legacy_matrix.lookup(
-        _key(producer_package_version="0.4.1", writer_schema_version="0.3.1")
-    ) is None
+    assert (
+        actual_legacy_matrix.lookup(
+            _key(producer_package_version="0.4.1", writer_schema_version="0.3.1")
+        )
+        is None
+    )
     assert all(cell.writer_schema_version != "1.0.0rc1" for cell in actual_legacy_matrix.cells)
 
 

@@ -411,11 +411,7 @@ def _require_installed_record_bytes(
 ) -> None:
     entry = record.get(relative)
     digest = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
-    if (
-        entry is None
-        or entry.digest != f"sha256={digest}"
-        or entry.size != len(data)
-    ):
+    if entry is None or entry.digest != f"sha256={digest}" or entry.size != len(data):
         raise ValueError("installed reader bytes do not match their owned RECORD row")
 
 
@@ -604,9 +600,10 @@ def inspect_installed_reader_compatibility(
     validates registry/schema resources, not an artifact or an assurance claim.
     It never projects artifact data, downloads resources, or consults a checkout.
     """
-    if not isinstance(expected_matrix_digest, str) or re.fullmatch(
-        r"sha256:[0-9a-f]{64}", expected_matrix_digest, flags=re.ASCII
-    ) is None:
+    if (
+        not isinstance(expected_matrix_digest, str)
+        or re.fullmatch(r"sha256:[0-9a-f]{64}", expected_matrix_digest, flags=re.ASCII) is None
+    ):
         raise ValueError("expected compatibility matrix digest must be exact lowercase SHA-256")
     reader = _installed_reader_identity()
     key = CompatibilityKey(

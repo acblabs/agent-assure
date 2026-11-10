@@ -127,9 +127,7 @@ class CompatibilityKey(_CompatibilityModel):
     artifact_kind: ArtifactKind
     reader_package_version: ExactVersion
 
-    @field_validator(
-        "producer_package_version", "writer_schema_version", "reader_package_version"
-    )
+    @field_validator("producer_package_version", "writer_schema_version", "reader_package_version")
     @classmethod
     def _canonical_version(cls, value: str) -> str:
         version_order(value)
@@ -180,9 +178,10 @@ class CompatibilityCell(CompatibilityKey):
     @field_validator("semantic_replay_identity", "migration_identity")
     @classmethod
     def _exact_replay_identity(cls, value: str | None) -> str | None:
-        if value is not None and re.fullmatch(
-            r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value, flags=re.ASCII
-        ) is None:
+        if (
+            value is not None
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", value, flags=re.ASCII) is None
+        ):
             raise ValueError("replay and migration identities must be exact identifiers")
         return value
 
