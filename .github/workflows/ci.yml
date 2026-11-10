@@ -350,6 +350,12 @@ jobs:
           tests/unit/runner/test_subprocess_harness.py::test_post_spawn_validation_failure_terminates_and_reaps_suspended_process
           tests/unit/runner/test_subprocess_harness.py::test_windows_external_script_success_kills_descendant_when_job_closes
           tests/integration/test_evidence_sensitivity_cli.py::test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings
+      - name: Exercise schema compatibility on native Windows
+        timeout-minutes: 30
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          --basetemp "${{ runner.temp }}/pytest-windows-schemas"
+          tests/unit/schema tests/integration/test_schema_parity.py
   schema-immutability:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
